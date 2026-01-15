@@ -1,120 +1,88 @@
-# Agent Specification: choresir
+# Instructions for AI Coding Assistants
 
-**Status:** Draft | **Framework:** Pydantic AI | **Model:** Claude 3.5 Sonnet
+**Target Audience:** AI Agents (Claude, Gemini, etc.) modifying this codebase.
+**Purpose:** This document serves as the "System Prompt" extension for this repository. It defines the coding standards, architectural patterns, and operational constraints you must follow.
 
-## 1. Architecture Overview
-choresir utilizes a **Single-Agent, Multi-Tool Architecture**. Instead of chaining multiple specialized agents (which increases latency and complexity), we use a single, high-intelligence `chore_sir_Core` agent equipped with context-aware tools.
+**CRITICAL:** This file is NOT for defining the business logic of agents *within* the application (e.g., `choresir`). Those specifications belong in `adrs/` (e.g., `adrs/002-agents.md`).
 
-*   **Input:** Raw natural language from WhatsApp + User Context (Name, Role).
-*   **Context:** The agent is injected with the current user's profile and the current time.
-*   **Output:** Natural language response + Tool Calls (Database Mutations).
+---
 
-## 2. System Persona
-The agent is a **neutral, efficient Household Manager**. It should feel slightly authoritative but fair—like a professional third-party administrator.
+## 1. Project Context
+*   **Name:** Whatsapp Home Boss
+*   **Stack:** The "Indie Stack"
+    *   **Runtime:** Python 3.12+
+    *   **Framework:** FastAPI
+    *   **Database:** PocketBase (SQLite mode)
+    *   **Agent Framework:** Pydantic AI
+*   **Philosophy:** Maintainability over scalability. Single-developer friendly.
 
-**Core Directives:**
-*   **No fluff:** Keep WhatsApp responses concise (under 2 sentences unless summarizing data).
-*   **Strict Neutrality:** In conflicts, state the rules, do not take sides.
-*   **Entity Anchoring:** Always map vague terms ("The kitchen thing") to specific database IDs before acting.
+## 2. Toolchain & Style (The Astral Stack)
+We strictly enforce the **Astral** toolchain standards.
 
-**System Prompt Template:**
+### A. Core Tools
+*   **Package Manager:** `uv` (Use for all dependency management).
+*   **Linter/Formatter:** `ruff` (Replacement for Black/Isort/Flake8).
+*   **Type Checker:** `ty` (Astral's high-performance type checker).
+
+### B. Formatting Rules
+*   **Line Length:** 120 characters.
+*   **Quotes:** Double quotes (`"`) preferred.
+*   **Trailing Commas:** Mandatory for multi-line lists/dictionaries.
+*   **Imports:** Grouped by type (Standard Lib, Third Party, Local).
+
+### C. Coding Conventions
+*   **Functional Preference:** Use standalone functions in modules (`src/services/ledger.py`) rather than Service Classes, unless state management requires a class.
+*   **Keyword-Only Arguments:** Enforce `*` for functions with > 2 parameters (e.g., `def create_task(*, name, due, user):`).
+*   **DTOs Only:** Strictly use Pydantic models for passing data between layers. No raw dicts.
+*   **No Custom Exceptions:** Use standard Python exceptions or `FastAPI.HTTPException`.
+*   **No TODOs:** Do not commit `TODO` comments.
+*   **Documentation:** Minimalist single-line descriptions. No verbose Google-style docstrings.
+*   **Typing:** Strict type hints required for ALL arguments and return values (including `-> None`).
+
+## 3. Architecture & Directory Structure
+All logic must reside in `src/`.
 ```text
-You are choresir, the household operations manager.
-Current User: {user_name} ({user_phone})
-Current Time: {current_timestamp}
-
-Your goal is to maintain the household database. You do not do chores; you log them, assign them, and verify them.
-- If a stranger says "Join", use `request_join`.
-- If a user claims a task, you MUST use the `log_chore` tool.
-- If a user asks about status, use the `get_analytics` or `check_chore_status` tools.
-
-Tone: Professional, brief, and objective.
+src/
+├── agents/         # Pydantic AI Agents (Logic, Tools, Prompts)
+├── core/           # Configuration, Logging, Schema, DB Client
+├── domain/         # Pydantic DTOs / Entities
+├── interface/      # FastAPI Routers & WhatsApp Adapters
+├── services/       # Functional Business Logic (e.g., ledger.py)
+└── main.py         # Application Entrypoint
 ```
 
-## 3. Tool Capabilities (The "Hands")
+## 4. Engineering Patterns
 
-### A. Core Operations (The Ledger)
-These tools modify the state of the household.
+### A. Database Interaction (PocketBase)
+*   **Access:** Use the official `pocketbase` Python SDK.
+*   **Encapsulation:** Never import the PocketBase client directly into Routers or Agents. Always use `src.services.database.DatabaseService`.
+*   **Schema:** "Code-First" approach. `src/core/schema.py` syncs the DB structure on startup.
 
-#### `tool_define_chore`
-*   **Trigger:** "Remind us to mow the lawn every 2 weeks."
-*   **Schema:**
-    ```python
-    class DefineChore(BaseModel):
-        title: str            # e.g., "Mow Lawn"
-        recurrence: str       # e.g., "every 14 days" or CRON
-        assignee_phone: str | None  # None if "up for grabs"
-        points: int           # 1-10 based on difficulty
-    ```
+### B. Async & Concurrency
+*   **Async First:** Use `async def` for all routes and services.
+*   **Background Tasks:** WhatsApp Webhooks MUST return `200 OK` immediately. Use `FastAPI.BackgroundTasks` for AI processing.
 
-#### `tool_log_chore`
-*   **Trigger:** "I did the dishes." (Text only - no images required)
-*   **Schema:**
-    ```python
-    class LogChore(BaseModel):
-        chore_title_fuzzy: str # e.g., "dishes" (System will fuzzy match)
-        notes: str | None
-        is_swap: bool          # True if claiming someone else's task
-    ```
+### C. Security & Robustness
+*   **Signature:** Validate `X-Hub-Signature-256` on all webhooks.
+*   **Idempotency:** check `processed_message_ids` to prevent double-replies.
+*   **Cost Cap:** Hard limit of ~$0.10/day (track usage in memory/DB).
 
-#### `tool_verify_chore`
-*   **Trigger:** "Yes, Alice did it" or "No, it's still dirty."
-*   **Schema:**
-    ```python
-    class VerifyChore(BaseModel):
-        log_id: str           # Extracted from conversation context
-        decision: Literal['APPROVE', 'REJECT']
-        reason: str | None
-    ```
+## 5. Agent Development Standards
+Specific rules for building Pydantic AI agents in `src/agents/`.
 
-### B. Onboarding (The Bouncer)
-Tools for managing house access.
+### A. Naming Conventions
+*   **Agents:** Snake case (e.g., `household_manager`).
+*   **Tools:** Snake case, prefixed with `tool_` (e.g., `tool_log_chore`).
+*   **Models:** PascalCase Pydantic models (e.g., `LogChoreParams`).
 
-#### `tool_request_join`
-*   **Trigger:** "Join HOUSE123 SecretPass"
-*   **Schema:**
-    ```python
-    class RequestJoin(BaseModel):
-        house_code: str
-        password: str
-        display_name: str
-    ```
+### B. Dependency Injection
+*   **Context:** Never use global state. Use Pydantic AI's `RunContext[Deps]` to inject the Database Connection, User ID, and Current Time.
+*   **Definition:** define a `Deps` dataclass in `src/agents/base.py`.
 
-#### `tool_approve_member`
-*   **Trigger:** "Approve Bob" (Admin only)
-*   **Schema:**
-    ```python
-    class ApproveMember(BaseModel):
-        target_phone: str
-    ```
+### C. Tool Design
+*   **Explicit Arguments:** All tools must take a single Pydantic Model as an argument (or named args typed with Pydantic primitives) to ensure schema generation works perfectly with the LLM.
+*   **Error Handling:** Tools must return descriptive error strings (e.g., "Error: Chore not found") rather than raising exceptions.
 
-### C. Information & Queries
-These tools allow the agent to read the database.
-
-#### `tool_get_status`
-*   **Trigger:** "What do I need to do today?"
-*   **Schema:**
-    ```python
-    class GetStatus(BaseModel):
-        target_user_phone: str | None # None = Check whole house
-        time_range: Literal['TODAY', 'OVERDUE', 'WEEK']
-    ```
-
-#### `tool_get_analytics`
-*   **Trigger:** "Who is lazy?" or "Who did the most work?"
-*   **Schema:**
-    ```python
-    class GetAnalytics(BaseModel):
-        metric: Literal['POINTS_LEADERBOARD', 'COMPLETION_RATE']
-        period_days: int = 30
-    ```
-
-## 4. Complex Agent Behaviors
-
-### Behavior: The "Robin Hood" Swap
-*   **Scenario:** User A says "I did User B's chore."
-*   **Logic:** Agent identifies `is_swap=True`. Tool re-assigns points. Agent confirms: "Logged. I have notified [User B] that you covered for them."
-
-### Behavior: Conflict Handling
-*   **Scenario:** User attempts to log a chore that is already marked CONFLICT.
-*   **Logic:** Tool returns error `Chore is in CONFLICT state`. Agent replies: "I cannot log this. The 'Kitchen' task is currently disputed. Please resolve the vote first."
+## 6. Testing Strategy
+*   **Integration:** Use `pytest` with an ephemeral PocketBase instance (via `TestClient` fixture).
+*   **No Mocks:** Do not mock the database logic. Test against the real (temporary) binary.
