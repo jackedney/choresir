@@ -105,6 +105,7 @@ async def send_text_message(
     }
 
     # Retry logic
+    last_error = "Unknown error occurred"
     for attempt in range(max_retries):
         try:
             async with httpx.AsyncClient(timeout=constants.API_TIMEOUT_SECONDS) as client:
@@ -125,41 +126,25 @@ async def send_text_message(
 
                 # Don't retry on client errors (4xx)
                 if constants.HTTP_BAD_REQUEST <= response.status_code < constants.HTTP_SERVER_ERROR:
-                    return SendMessageResult(
-                        success=False,
-                        error=f"Client error: {error_message}",
-                    )
+                    last_error = f"Client error: {error_message}"
+                    break
 
                 # Retry on server errors (5xx)
+                last_error = f"Server error after {max_retries} attempts: {error_message}"
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay * (2**attempt))
-                    continue
-
-                return SendMessageResult(
-                    success=False,
-                    error=f"Server error after {max_retries} attempts: {error_message}",
-                )
 
         except httpx.TimeoutException:
+            last_error = f"Request timeout after {max_retries} attempts"
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
-                continue
-            return SendMessageResult(
-                success=False,
-                error=f"Request timeout after {max_retries} attempts",
-            )
 
         except Exception as e:
+            last_error = f"Unexpected error: {e!s}"
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
-                continue
-            return SendMessageResult(
-                success=False,
-                error=f"Unexpected error: {e!s}",
-            )
 
-    # Should never reach here, but just in case
     return SendMessageResult(
         success=False,
-        error="Unknown error occurred",
+        error=last_error,
     )

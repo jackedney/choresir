@@ -66,10 +66,7 @@ def _format_completion_rate(stats: dict) -> str:
     overdue_pct = stats["overdue_percentage"]
 
     return (
-        f"📊 Completion Rate ({period} days):\n"
-        f"Total: {total} chores\n"
-        f"On-time: {on_time_pct}%\n"
-        f"Overdue: {overdue_pct}%"
+        f"📊 Completion Rate ({period} days):\nTotal: {total} chores\nOn-time: {on_time_pct}%\nOverdue: {overdue_pct}%"
     )
 
 

@@ -60,7 +60,7 @@ def _calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None =
         Next deadline datetime
     """
     base_time = from_time or datetime.now()
-    
+
     # Handle interval-based scheduling (e.g., "INTERVAL:3:0 0 * * *")
     if schedule_cron.startswith("INTERVAL:"):
         parts = schedule_cron.split(":", 2)
@@ -69,7 +69,7 @@ def _calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None =
         next_time = base_time + timedelta(days=days)
         # Set to midnight of that day
         return next_time.replace(hour=0, minute=0, second=0, microsecond=0)
-    
+
     # Standard CRON expression
     cron = croniter(schedule_cron, base_time)
     return cron.get_next(datetime)

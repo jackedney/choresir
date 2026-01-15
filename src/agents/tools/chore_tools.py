@@ -149,8 +149,7 @@ async def tool_log_chore(ctx: Deps, params: LogChore) -> str:
 
             swap_msg = " (Robin Hood swap)" if params.is_swap else ""
             return (
-                f"Logged completion of '{chore_title}'{swap_msg}. "
-                f"Awaiting verification from another household member."
+                f"Logged completion of '{chore_title}'{swap_msg}. Awaiting verification from another household member."
             )
 
     except ValueError as e:

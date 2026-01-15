@@ -1,14 +1,19 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
+import logfire
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from src.core import db_client
 from src.core.config import constants
-from src.core.logging import log_debug, log_error, log_info, log_warning
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.services.analytics_service import get_household_summary, get_overdue_chores
+
+
+# Logger instance
+logger = logfire
+
 
 # Global scheduler instance
 scheduler = AsyncIOScheduler()
@@ -49,17 +54,17 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[dict]) -> bool:
         )
 
         if result.success:
-            logger.info("Sent overdue reminder to %s (%d chores)", user["name"], len(chores))
+            logger.info(f"Sent overdue reminder to {user['name']} ({len(chores)} chores)")
             return True
 
-        logger.warning("Failed to send reminder to %s: %s", user["name"], result.error)
+        logger.warning(f"Failed to send reminder to {user['name']}: {result.error}")
         return False
 
     except db_client.RecordNotFoundError:
-        logger.warning("User %s not found for overdue reminders", user_id)
+        logger.warning(f"User {user_id} not found for overdue reminders")
         return False
     except Exception as e:
-        logger.exception("Error sending reminder to user %s: %s", user_id, e)
+        logger.exception(f"Error sending reminder to user {user_id}: {e}")
         return False
 
 
@@ -96,10 +101,10 @@ async def send_overdue_reminders() -> None:
             if await _send_reminder_to_user(user_id=user_id, chores=chores):
                 sent_count += 1
 
-        logger.info("Completed overdue reminders job: %d/%d users notified", sent_count, len(chores_by_user))
+        logger.info(f"Completed overdue reminders job: {sent_count}/{len(chores_by_user)} users notified")
 
     except Exception as e:
-        logger.exception("Error in overdue reminders job: %s", e)
+        logger.exception(f"Error in overdue reminders job: {e}")
 
 
 async def send_daily_report() -> None:
@@ -150,18 +155,18 @@ async def send_daily_report() -> None:
 
                 if result.success:
                     sent_count += 1
-                    logger.debug("Sent daily report to %s", user["name"])
+                    logger.debug(f"Sent daily report to {user['name']}")
                 else:
-                    logger.warning("Failed to send daily report to %s: %s", user["name"], result.error)
+                    logger.warning(f"Failed to send daily report to {user['name']}: {result.error}")
 
             except Exception as e:
-                logger.exception("Error sending daily report to user %s: %s", user["id"], e)
+                logger.exception(f"Error sending daily report to user {user['id']}: {e}")
                 continue
 
-        logger.info("Completed daily report job: sent to %d/%d users", sent_count, len(active_users))
+        logger.info(f"Completed daily report job: sent to {sent_count}/{len(active_users)} users")
 
     except Exception as e:
-        logger.exception("Error in daily report job: %s", e)
+        logger.exception(f"Error in daily report job: {e}")
 
 
 def start_scheduler() -> None:
@@ -179,7 +184,7 @@ def start_scheduler() -> None:
         name="Send Overdue Chore Reminders",
         replace_existing=True,
     )
-    logger.info("Scheduled overdue reminders job: daily at %d:00", constants.DAILY_REMINDER_HOUR)
+    logger.info(f"Scheduled overdue reminders job: daily at {constants.DAILY_REMINDER_HOUR}:00")
 
     # Schedule daily report job (daily at 9pm)
     scheduler.add_job(
@@ -189,7 +194,7 @@ def start_scheduler() -> None:
         name="Send Daily Household Report",
         replace_existing=True,
     )
-    logger.info("Scheduled daily report job: daily at %d:00", constants.DAILY_REPORT_HOUR)
+    logger.info(f"Scheduled daily report job: daily at {constants.DAILY_REPORT_HOUR}:00")
 
     # Start the scheduler
     scheduler.start()

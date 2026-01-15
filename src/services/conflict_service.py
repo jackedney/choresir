@@ -125,8 +125,7 @@ async def cast_vote(
     existing_vote = await db_client.get_first_record(
         collection="logs",
         filter_query=(
-            f'chore_id = "{chore_id}" && user_id = "{voter_user_id}" '
-            f'&& (action = "vote_yes" || action = "vote_no")'
+            f'chore_id = "{chore_id}" && user_id = "{voter_user_id}" && (action = "vote_yes" || action = "vote_no")'
         ),
     )
     if existing_vote:
@@ -228,7 +227,7 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
     if yes_count > no_count:
         result = VoteResult.APPROVED
         # Complete the chore
-        from src.services import chore_service  # noqa: PLC0415
+        from src.services import chore_service
 
         updated_chore = await chore_service.complete_chore(chore_id=chore_id)
         logger.info("Vote result: APPROVED - chore %s completed", chore_id)
@@ -236,7 +235,7 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
     elif no_count > yes_count:
         result = VoteResult.REJECTED
         # Reset chore to TODO
-        from src.services import chore_service  # noqa: PLC0415
+        from src.services import chore_service
 
         updated_chore = await chore_service.reset_chore_to_todo(chore_id=chore_id)
         logger.info("Vote result: REJECTED - chore %s reset to TODO", chore_id)
