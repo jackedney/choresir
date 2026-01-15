@@ -2,7 +2,7 @@
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from croniter import croniter
@@ -38,8 +38,9 @@ def _parse_recurrence_to_cron(recurrence: str) -> str:
     match = re.match(r"^every\s+(\d+)\s+days?$", recurrence.lower())
     if match:
         days = int(match.group(1))
-        # Convert to daily CRON at midnight, we'll handle the interval in deadline calculation
-        return f"0 0 */{days} * *"
+        # Encode interval in CRON string: INTERVAL:N:cron_expression
+        # This allows us to add N days programmatically instead of using invalid CRON syntax
+        return f"INTERVAL:{days}:0 0 * * *"
 
     msg = f"Invalid recurrence format: {recurrence}. Use CRON expression or 'every X days'"
     raise ValueError(msg)
@@ -52,13 +53,24 @@ def _calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None =
     from that time (useful for deadlines that shift based on completion time).
 
     Args:
-        schedule_cron: CRON expression
+        schedule_cron: CRON expression or INTERVAL:N:cron format
         from_time: Starting time for calculation (defaults to now)
 
     Returns:
         Next deadline datetime
     """
     base_time = from_time or datetime.now()
+    
+    # Handle interval-based scheduling (e.g., "INTERVAL:3:0 0 * * *")
+    if schedule_cron.startswith("INTERVAL:"):
+        parts = schedule_cron.split(":", 2)
+        days = int(parts[1])
+        # Add X days to base time
+        next_time = base_time + timedelta(days=days)
+        # Set to midnight of that day
+        return next_time.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Standard CRON expression
     cron = croniter(schedule_cron, base_time)
     return cron.get_next(datetime)
 
