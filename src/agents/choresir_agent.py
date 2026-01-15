@@ -5,7 +5,7 @@ from datetime import datetime
 import logfire
 from pocketbase import PocketBase
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models.openrouter import OpenRouterModel
 
 from src.agents.base import Deps
 from src.core import db_client
@@ -59,10 +59,8 @@ def _build_system_prompt(
 
 
 # Initialize the agent with OpenRouter
-# OpenRouter uses OpenAI-compatible API, so we use OpenAIChatModel
-model = OpenAIChatModel(
+model = OpenRouterModel(
     model_name=settings.model_id,
-    provider="openrouter",
     api_key=settings.openrouter_api_key,
 )
 
