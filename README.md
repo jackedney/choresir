@@ -1,11 +1,15 @@
-# HomeBase 🏠
+# choresir 🏠
+
+<p align="center">
+  <img src="logo.png" width="200" alt="choresir logo">
+</p>
 
 **The "Household Operating System" that lives in WhatsApp.**
 
-> **Status:** Active Development  
+> **Status:** Active Development
 > **Stack:** Python (FastAPI) | PocketBase | Pydantic AI | WhatsApp Cloud API
 
-HomeBase is not just a reminder bot. It is an agentic system designed to manage household chores, enforce accountability, and resolve disputes through natural language. It replaces the "mental load" of managing a home with a neutral, AI-driven third party.
+choresir is not just a reminder bot. It is an agentic system designed to manage household chores, enforce accountability, and resolve disputes through natural language. It replaces the "mental load" of managing a home with a neutral, AI-driven third party.
 
 ## 📚 Documentation
 *   **[Architecture Decisions](./adrs/001-stack.md):** Why we chose the "Indie Stack."
