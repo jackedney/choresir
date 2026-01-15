@@ -1,18 +1,14 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
-import logging
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from src.core import db_client
 from src.core.config import constants
+from src.core.logging import log_debug, log_error, log_info, log_warning
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.services.analytics_service import get_household_summary, get_overdue_chores
-
-
-logger = logging.getLogger(__name__)
 
 # Global scheduler instance
 scheduler = AsyncIOScheduler()
