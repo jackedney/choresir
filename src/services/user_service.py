@@ -5,6 +5,7 @@ from typing import Any
 
 from src.core import db_client
 from src.core.config import settings
+from src.core.logging import span
 from src.domain.user import UserRole, UserStatus
 
 
@@ -30,34 +31,35 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         ValueError: If house code or password is incorrect
         db_client.DatabaseError: If database operation fails
     """
-    # Guard: Validate credentials
-    if house_code != settings.house_code or password != settings.house_password:
-        msg = "Invalid house code or password"
-        logger.warning("Failed join request for %s: %s", phone, msg)
-        raise ValueError(msg)
+    with span("user_service.request_join"):
+        # Guard: Validate credentials
+        if house_code != settings.house_code or password != settings.house_password:
+            msg = "Invalid house code or password"
+            logger.warning("Failed join request for %s: %s", phone, msg)
+            raise ValueError(msg)
 
-    # Guard: Check if user already exists
-    existing_user = await db_client.get_first_record(
-        collection="users",
-        filter_query=f'phone = "{phone}"',
-    )
-    if existing_user:
-        msg = f"User with phone {phone} already exists"
-        logger.warning(msg)
-        raise ValueError(msg)
+        # Guard: Check if user already exists
+        existing_user = await db_client.get_first_record(
+            collection="users",
+            filter_query=f'phone = "{phone}"',
+        )
+        if existing_user:
+            msg = f"User with phone {phone} already exists"
+            logger.warning(msg)
+            raise ValueError(msg)
 
-    # Create pending user
-    user_data = {
-        "phone": phone,
-        "name": name,
-        "role": UserRole.MEMBER,
-        "status": UserStatus.PENDING,
-    }
+        # Create pending user
+        user_data = {
+            "phone": phone,
+            "name": name,
+            "role": UserRole.MEMBER,
+            "status": UserStatus.PENDING,
+        }
 
-    record = await db_client.create_record(collection="users", data=user_data)
-    logger.info("Created pending user: %s (%s)", name, phone)
+        record = await db_client.create_record(collection="users", data=user_data)
+        logger.info("Created pending user: %s (%s)", name, phone)
 
-    return record
+        return record
 
 
 async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, Any]:
