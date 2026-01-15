@@ -6,7 +6,8 @@ Decision: We will use Python (FastAPI) for the application logic and PocketBase 
 
     FastAPI allows us to use native Python for the AI agent logic.
     
-    We will use **APScheduler** (Advanced Python Scheduler) running within the FastAPI process to handle time-based triggers (cron jobs) for chore reminders and recurring tasks, keeping the deployment self-contained.
+    We will use **APScheduler** (Advanced Python Scheduler) running within the FastAPI process to handle time-based triggers for **daily reporting and reminders**.
+    *   *Note:* Core chore deadlines use a "Floating Schedule" (calculated from completion time) and are not driven directly by Cron, though the Scheduler triggers the check.
 
     PocketBase provides a portable, single-file database with a built-in Admin UI, removing the need to manage a separate PostgreSQL instance or complex ORMs.
 
@@ -15,6 +16,16 @@ Decision: We will use Python (FastAPI) for the application logic and PocketBase 
     **Observability:** We will use **Pydantic Logfire**.
     *   It integrates natively with Pydantic AI and FastAPI.
     *   It provides structured tracing for LLM calls without custom instrumentation.
+
+## Technical Implementation Details (Refined 2026-01-15)
+
+*   **Concurrency:** To satisfy WhatsApp's 3-second timeout, the webhook endpoint will return `200 OK` immediately and dispatch the Pydantic AI agent execution to `FastAPI.BackgroundTasks`.
+*   **Schema Management:** We adopt a **Code-First** approach. A `src/core/schema.py` script will run on application startup to ensure the PocketBase schema matches our Pydantic models.
+*   **Security:** We will enforce `X-Hub-Signature-256` validation using the `WHATSAPP_APP_SECRET`.
+*   **DevOps:**
+    *   Local development uses `ngrok` for webhook tunneling.
+    *   Secrets managed via `.env`.
+    *   Rate limiting and Cost Caps ($0.10/day) implemented in-memory for the MVP.
 
 Consequences:
 

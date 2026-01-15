@@ -12,8 +12,13 @@
 choresir is not just a reminder bot. It is an agentic system designed to manage household chores, enforce accountability, and resolve disputes through natural language. It replaces the "mental load" of managing a home with a neutral, AI-driven third party.
 
 ## 📚 Documentation
-*   **[Architecture Decisions](./adrs/001-stack.md):** Why we chose the "Indie Stack."
-*   **[Agent Specification](./AGENTS.md):** How the AI thinks and the tools it uses.
+
+### For Users & Architects
+*   **[Architecture Decisions](./adrs/):** The "Why" behind the system (Stack, Conflict Resolution, etc.).
+*   **[Agent Personas](./adrs/002-agents.md):** Functional specifications for the `choresir` agent.
+
+### For Developers & AI Assistants
+*   **[Contribution Guide](./AGENTS.md):** Coding standards, engineering patterns, and the "System Prompt" for this repo. **Read this before writing code.**
 
 ## ✨ Features
 *   **🛡️ Gatekeeper Onboarding:** "Join HOUSE123" + Admin Approval prevents strangers from spamming.
@@ -45,7 +50,7 @@ Optimized for low cost, high performance, and strictly typed Python.
 ### 1. Database Setup
 1.  Start server: `./pocketbase serve`
 2.  Go to `http://127.0.0.1:8090/_/` and create Admin account.
-3.  Import schema from `pocketbase_schema.json`.
+3.  Import schema (see `adrs/007-operations.md`).
 
 ### 2. Environment Variables (`.env`)
 ```bash
@@ -60,26 +65,12 @@ HOUSE_PASSWORD="SecretPass"
 ### 3. Run the Server
 ```bash
 uv sync
-uv run fastapi dev app/main.py
+uv run fastapi dev src/main.py
 ```
 
 ### 4. Connect WhatsApp (Localhost)
 1.  `ngrok http 8000`
 2.  Meta Developers -> Configuration -> Webhook URL: `https://xyz.ngrok-free.app/webhook`
-
-## 📂 Project Structure (Service-Layered)
-```text
-.
-├── app/
-│   ├── agents/         # Pydantic AI Agents & Prompts
-│   ├── api/            # FastAPI Routers (Webhooks, Admin)
-│   ├── core/           # Config, Logging, Security
-│   ├── models/         # Pydantic Data Models (Shared)
-│   ├── services/       # Business Logic (Auditor, Jury, Ledger)
-│   └── main.py         # App Entrypoint
-├── tests/              # Pytest Suite (Ephemeral DB)
-├── pyproject.toml      # uv Config
-└── README.md
 
 ## ☁️ Deployment (Railway)
 1.  **PocketBase Service:** Use the template + Attach Volume to `/pb_data`.
