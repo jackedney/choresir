@@ -11,6 +11,7 @@ dependencies = [
     "pocketbase>=0.13.0",
     "python-dotenv>=1.0.0",
     "apscheduler>=3.10.0",
+    "croniter>=3.0.0",
     "logfire>=2.5.0",
     "httpx>=0.28.0",
 ]
