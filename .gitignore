@@ -33,6 +33,9 @@ env/
 *.swo
 *~
 
+# MCP Servers
+.serena/
+
 # Environment Variables
 .env
 .env.local
