@@ -1,0 +1,145 @@
+"""Analytics tools for the choresir agent."""
+
+from datetime import datetime
+from typing import Literal
+
+import logfire
+from pydantic import BaseModel, Field
+
+from src.agents.base import Deps
+from src.agents.choresir_agent import agent
+from src.services import analytics_service
+
+
+class GetAnalytics(BaseModel):
+    """Parameters for getting analytics."""
+
+    metric: Literal["leaderboard", "completion_rate", "overdue"] = Field(
+        description="Type of analytics metric to retrieve"
+    )
+    period_days: int = Field(default=30, description="Number of days to look back (default: 30)")
+
+
+def _format_leaderboard(leaderboard: list[dict], period_days: int) -> str:
+    """
+    Format leaderboard for WhatsApp display.
+
+    Args:
+        leaderboard: List of leaderboard entries
+        period_days: Period in days
+
+    Returns:
+        Formatted leaderboard message
+    """
+    if not leaderboard:
+        return f"No completions in the last {period_days} days."
+
+    # Show top 3 (or fewer if less than 3 users)
+    top_n = min(3, len(leaderboard))
+    lines = [f"🏆 Top {top_n} ({period_days} days):"]
+
+    for i, entry in enumerate(leaderboard[:top_n], 1):
+        name = entry["user_name"]
+        count = entry["completion_count"]
+        lines.append(f"{i}. {name} ({count})")
+
+    return "\n".join(lines)
+
+
+def _format_completion_rate(stats: dict) -> str:
+    """
+    Format completion rate for WhatsApp display.
+
+    Args:
+        stats: Completion rate statistics
+
+    Returns:
+        Formatted completion rate message
+    """
+    total = stats["total_completions"]
+    period = stats["period_days"]
+
+    if total == 0:
+        return f"No completions in the last {period} days."
+
+    on_time_pct = stats["on_time_percentage"]
+    overdue_pct = stats["overdue_percentage"]
+
+    return (
+        f"📊 Completion Rate ({period} days):\n"
+        f"Total: {total} chores\n"
+        f"On-time: {on_time_pct}%\n"
+        f"Overdue: {overdue_pct}%"
+    )
+
+
+def _format_overdue_chores(chores: list[dict]) -> str:
+    """
+    Format overdue chores for WhatsApp display.
+
+    Args:
+        chores: List of overdue chore records
+
+    Returns:
+        Formatted overdue chores message
+    """
+    if not chores:
+        return "✅ No overdue chores!"
+
+    now = datetime.now()
+    lines = [f"⚠️ {len(chores)} overdue chore(s):"]
+
+    for chore in chores[:5]:  # Limit to 5 for WhatsApp readability
+        title = chore["title"]
+        deadline = datetime.fromisoformat(chore["deadline"])
+        days_overdue = (now - deadline).days
+
+        if days_overdue == 0:
+            time_str = "today"
+        elif days_overdue == 1:
+            time_str = "1 day"
+        else:
+            time_str = f"{days_overdue} days"
+
+        lines.append(f"• '{title}' ({time_str})")
+
+    max_display = 5
+    if len(chores) > max_display:
+        lines.append(f"... and {len(chores) - max_display} more")
+
+    return "\n".join(lines)
+
+
+@agent.tool
+async def tool_get_analytics(_ctx: Deps, params: GetAnalytics) -> str:
+    """
+    Get household analytics and metrics.
+
+    Supports leaderboards, completion rates, and overdue chores.
+
+    Args:
+        ctx: Agent runtime context with dependencies
+        params: Analytics query parameters
+
+    Returns:
+        Formatted analytics message
+    """
+    try:
+        with logfire.span("tool_get_analytics", metric=params.metric, period=params.period_days):
+            if params.metric == "leaderboard":
+                leaderboard = await analytics_service.get_leaderboard(period_days=params.period_days)
+                return _format_leaderboard(leaderboard, params.period_days)
+
+            if params.metric == "completion_rate":
+                stats = await analytics_service.get_completion_rate(period_days=params.period_days)
+                return _format_completion_rate(stats)
+
+            if params.metric == "overdue":
+                chores = await analytics_service.get_overdue_chores()
+                return _format_overdue_chores(chores)
+
+            return f"Error: Unknown metric '{params.metric}'."
+
+    except Exception as e:
+        logfire.error("Unexpected error in tool_get_analytics", error=str(e))
+        return "Error: Unable to retrieve analytics. Please try again."
