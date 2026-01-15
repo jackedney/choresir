@@ -61,7 +61,7 @@ async def request_verification(
         chore_id,
     )
 
-    # TODO: Notify other household members (will be implemented in integration phase)
+    # Note: Notification system not yet implemented
 
     return log_record
 
@@ -140,7 +140,7 @@ async def verify_chore(
             chore_id,
             claimer_user_id,
         )
-        # TODO: Trigger voting process (will be implemented in Task 15)
+        # Note: Voting process not yet implemented
 
     return updated_chore
 
