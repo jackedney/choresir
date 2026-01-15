@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # WhatsApp Configuration
     whatsapp_verify_token: str = Field(..., description="WhatsApp webhook verification token")
     whatsapp_app_secret: str = Field(..., description="WhatsApp app secret for signature verification")
+    whatsapp_access_token: str = Field(..., description="WhatsApp Cloud API access token")
+    whatsapp_phone_number_id: str = Field(..., description="WhatsApp business phone number ID")
 
     # Pydantic Logfire Configuration
     logfire_token: str = Field(..., description="Pydantic Logfire token for observability")
@@ -47,6 +49,11 @@ class Constants:
     # API Configuration
     API_TIMEOUT_SECONDS: int = 30
     WHATSAPP_WEBHOOK_TIMEOUT_SECONDS: int = 3
+
+    # HTTP Status Codes
+    HTTP_OK: int = 200
+    HTTP_BAD_REQUEST: int = 400
+    HTTP_SERVER_ERROR: int = 500
 
     # Rate Limiting
     MAX_REQUESTS_PER_MINUTE: int = 60
