@@ -85,6 +85,9 @@ async def send_text_message(
             error="Rate limit exceeded. Please try again later.",
         )
 
+    # Record request for rate limiting (before attempting API call)
+    rate_limiter.record_request(to_phone)
+
     # WhatsApp Cloud API endpoint
     url = f"https://graph.facebook.com/v18.0/{settings.whatsapp_phone_number_id}/messages"
 
@@ -110,9 +113,6 @@ async def send_text_message(
                 if response.status_code == constants.HTTP_OK:
                     data: dict[str, Any] = response.json()
                     message_id = data.get("messages", [{}])[0].get("id")
-
-                    # Record successful request for rate limiting
-                    rate_limiter.record_request(to_phone)
 
                     return SendMessageResult(
                         success=True,
