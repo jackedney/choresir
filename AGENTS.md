@@ -1,9 +1,9 @@
-# Agent Specification: HomeBase
+# Agent Specification: choresir
 
 **Status:** Draft | **Framework:** Pydantic AI | **Model:** Claude 3.5 Sonnet
 
 ## 1. Architecture Overview
-HomeBase utilizes a **Single-Agent, Multi-Tool Architecture**. Instead of chaining multiple specialized agents (which increases latency and complexity), we use a single, high-intelligence `HomeBase_Core` agent equipped with context-aware tools.
+choresir utilizes a **Single-Agent, Multi-Tool Architecture**. Instead of chaining multiple specialized agents (which increases latency and complexity), we use a single, high-intelligence `chore_sir_Core` agent equipped with context-aware tools.
 
 *   **Input:** Raw natural language from WhatsApp + User Context (Name, Role).
 *   **Context:** The agent is injected with the current user's profile and the current time.
@@ -19,7 +19,7 @@ The agent is a **neutral, efficient Household Manager**. It should feel slightly
 
 **System Prompt Template:**
 ```text
-You are HomeBase, the household operations manager.
+You are choresir, the household operations manager.
 Current User: {user_name} ({user_phone})
 Current Time: {current_timestamp}
 
