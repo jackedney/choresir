@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
+from src.core.scheduler import start_scheduler, stop_scheduler
 from src.core.schema import sync_schema
 from src.interface.webhook import router as webhook_router
 
@@ -14,9 +16,13 @@ from src.interface.webhook import router as webhook_router
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan context manager."""
     # Startup
+    configure_logfire()
+    instrument_pydantic_ai()
     await sync_schema()
+    start_scheduler()
     yield
     # Shutdown
+    stop_scheduler()
 
 
 app = FastAPI(
@@ -25,6 +31,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Instrument FastAPI with Logfire
+instrument_fastapi(app)
 
 # Register routers
 app.include_router(webhook_router)
