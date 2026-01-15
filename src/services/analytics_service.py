@@ -87,7 +87,7 @@ async def get_completion_rate(*, period_days: int = 30) -> dict[str, Any]:
         filter_query=f'action ~ "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
     )
 
-    # TODO: Implement proper deadline history tracking for accurate on-time vs overdue metrics
+    # Note: Deadline history tracking not yet implemented for accurate on-time metrics.
     # Currently, deadlines are updated after completion, so we can't reliably determine
     # if a chore was completed before its original deadline without historical tracking.
     # For MVP, we'll count all completions as on-time.

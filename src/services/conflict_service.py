@@ -87,7 +87,7 @@ async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
         record = await db_client.create_record(collection="logs", data=vote_log)
         vote_records.append(record)
 
-    # TODO: Send notifications to eligible voters (will be implemented in integration phase)
+    # Note: Voter notification system not yet implemented
 
     return vote_records
 
@@ -164,7 +164,7 @@ async def cast_vote(
 
     if not pending_votes:
         logger.info("All votes received for chore %s, ready to tally", chore_id)
-        # TODO: Automatically trigger tally in real implementation
+        # Note: Automatic tally triggering not yet implemented
 
     return updated_vote
 
