@@ -11,18 +11,6 @@ from src.domain.user import UserRole, UserStatus
 logger = logging.getLogger(__name__)
 
 
-class UserServiceError(Exception):
-    """Base exception for user service operations."""
-
-
-class UnauthorizedError(UserServiceError):
-    """Raised when user is not authorized for an operation."""
-
-
-class InvalidCredentialsError(UserServiceError):
-    """Raised when house code or password is invalid."""
-
-
 async def request_join(*, phone: str, name: str, house_code: str, password: str) -> dict[str, Any]:
     """Request to join the household.
 
@@ -39,14 +27,14 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         Created user record
 
     Raises:
-        InvalidCredentialsError: If house code or password is incorrect
+        ValueError: If house code or password is incorrect
         db_client.DatabaseError: If database operation fails
     """
     # Guard: Validate credentials
     if house_code != settings.house_code or password != settings.house_password:
         msg = "Invalid house code or password"
         logger.warning("Failed join request for %s: %s", phone, msg)
-        raise InvalidCredentialsError(msg)
+        raise ValueError(msg)
 
     # Guard: Check if user already exists
     existing_user = await db_client.get_first_record(
@@ -56,7 +44,7 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
     if existing_user:
         msg = f"User with phone {phone} already exists"
         logger.warning(msg)
-        raise UserServiceError(msg)
+        raise ValueError(msg)
 
     # Create pending user
     user_data = {
@@ -94,7 +82,7 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
     if admin_record["role"] != UserRole.ADMIN:
         msg = f"User {admin_user_id} is not authorized to approve members"
         logger.warning(msg)
-        raise UnauthorizedError(msg)
+        raise PermissionError(msg)
 
     # Guard: Find target user
     target_user = await db_client.get_first_record(
@@ -109,7 +97,7 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
     if target_user["status"] != UserStatus.PENDING:
         msg = f"User {target_phone} is not pending approval (status: {target_user['status']})"
         logger.warning(msg)
-        raise UserServiceError(msg)
+        raise ValueError(msg)
 
     # Approve user
     updated_record = await db_client.update_record(
@@ -144,7 +132,7 @@ async def ban_user(*, admin_user_id: str, target_user_id: str) -> dict[str, Any]
     if admin_record["role"] != UserRole.ADMIN:
         msg = f"User {admin_user_id} is not authorized to ban users"
         logger.warning(msg)
-        raise UnauthorizedError(msg)
+        raise PermissionError(msg)
 
     # Guard: Verify target user exists (will raise if not found)
     await db_client.get_record(collection="users", record_id=target_user_id)

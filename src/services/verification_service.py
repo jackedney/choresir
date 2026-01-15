@@ -20,14 +20,6 @@ class VerificationDecision(StrEnum):
     REJECT = "REJECT"
 
 
-class VerificationServiceError(Exception):
-    """Base exception for verification service operations."""
-
-
-class SelfVerificationError(VerificationServiceError):
-    """Raised when user tries to verify their own chore claim."""
-
-
 async def request_verification(
     *,
     chore_id: str,
@@ -98,7 +90,7 @@ async def verify_chore(
         Updated chore record
 
     Raises:
-        SelfVerificationError: If verifier is the claimer
+        PermissionError: If verifier is the claimer
         db_client.RecordNotFoundError: If chore or log not found
     """
     # Guard: Get the original claim log to find the claimer
@@ -119,7 +111,7 @@ async def verify_chore(
     if verifier_user_id == claimer_user_id:
         msg = f"User {verifier_user_id} cannot verify their own chore claim"
         logger.warning(msg)
-        raise SelfVerificationError(msg)
+        raise PermissionError(msg)
 
     # Create verification log
     action = f"{decision.lower()}_verification: {reason}" if reason else f"{decision.lower()}_verification"

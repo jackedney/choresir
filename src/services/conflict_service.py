@@ -28,18 +28,6 @@ class VoteResult(StrEnum):
     DEADLOCK = "DEADLOCK"
 
 
-class ConflictServiceError(Exception):
-    """Base exception for conflict service operations."""
-
-
-class DuplicateVoteError(ConflictServiceError):
-    """Raised when user tries to vote twice."""
-
-
-class InvalidVoteStateError(ConflictServiceError):
-    """Raised when chore is not in CONFLICT state."""
-
-
 async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
     """Initiate voting process for a conflict.
 
@@ -53,14 +41,14 @@ async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
         List of created vote placeholder records
 
     Raises:
-        InvalidVoteStateError: If chore is not in CONFLICT state
+        ValueError: If chore is not in CONFLICT state
         db_client.RecordNotFoundError: If chore not found
     """
     # Guard: Verify chore is in CONFLICT state
     chore = await db_client.get_record(collection="chores", record_id=chore_id)
     if chore["current_state"] != ChoreState.CONFLICT:
         msg = f"Cannot initiate vote: chore {chore_id} is in {chore['current_state']} state"
-        raise InvalidVoteStateError(msg)
+        raise ValueError(msg)
 
     # Get claimer and rejecter from logs
     logs = await db_client.list_records(
@@ -124,14 +112,14 @@ async def cast_vote(
 
     Raises:
         DuplicateVoteError: If user already voted
-        InvalidVoteStateError: If chore is not in CONFLICT state
+        ValueError: If chore is not in CONFLICT state
         db_client.RecordNotFoundError: If vote placeholder not found
     """
     # Guard: Verify chore is in CONFLICT state
     chore = await db_client.get_record(collection="chores", record_id=chore_id)
     if chore["current_state"] != ChoreState.CONFLICT:
         msg = f"Cannot cast vote: chore {chore_id} is in {chore['current_state']} state"
-        raise InvalidVoteStateError(msg)
+        raise ValueError(msg)
 
     # Guard: Check if user already voted
     existing_vote = await db_client.get_first_record(
@@ -143,7 +131,7 @@ async def cast_vote(
     )
     if existing_vote:
         msg = f"User {voter_user_id} already voted on chore {chore_id}"
-        raise DuplicateVoteError(msg)
+        raise ValueError(msg)
 
     # Find the pending vote record
     pending_vote = await db_client.get_first_record(
@@ -196,14 +184,14 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
         Tuple of (result, updated_chore_record)
 
     Raises:
-        InvalidVoteStateError: If chore is not in CONFLICT state
+        ValueError: If chore is not in CONFLICT state
         ConflictServiceError: If not all votes are cast yet
     """
     # Guard: Verify chore is in CONFLICT state
     chore = await db_client.get_record(collection="chores", record_id=chore_id)
     if chore["current_state"] != ChoreState.CONFLICT:
         msg = f"Cannot tally votes: chore {chore_id} is in {chore['current_state']} state"
-        raise InvalidVoteStateError(msg)
+        raise ValueError(msg)
 
     # Guard: Verify all votes are cast
     pending_votes = await db_client.list_records(
@@ -212,7 +200,7 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
     )
     if pending_votes:
         msg = f"Cannot tally: {len(pending_votes)} votes still pending for chore {chore_id}"
-        raise ConflictServiceError(msg)
+        raise ValueError(msg)
 
     # Get all votes
     yes_votes = await db_client.list_records(

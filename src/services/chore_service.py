@@ -14,18 +14,6 @@ from src.domain.chore import ChoreState
 logger = logging.getLogger(__name__)
 
 
-class ChoreServiceError(Exception):
-    """Base exception for chore service operations."""
-
-
-class InvalidRecurrenceError(ChoreServiceError):
-    """Raised when recurrence string is invalid."""
-
-
-class InvalidStateTransitionError(ChoreServiceError):
-    """Raised when state transition is not allowed."""
-
-
 def _parse_recurrence_to_cron(recurrence: str) -> str:
     """Parse recurrence string to CRON expression.
 
@@ -40,7 +28,7 @@ def _parse_recurrence_to_cron(recurrence: str) -> str:
         CRON expression
 
     Raises:
-        InvalidRecurrenceError: If recurrence format is invalid
+        ValueError: If recurrence format is invalid
     """
     # Check if already a valid CRON expression
     if croniter.is_valid(recurrence):
@@ -54,7 +42,7 @@ def _parse_recurrence_to_cron(recurrence: str) -> str:
         return f"0 0 */{days} * *"
 
     msg = f"Invalid recurrence format: {recurrence}. Use CRON expression or 'every X days'"
-    raise InvalidRecurrenceError(msg)
+    raise ValueError(msg)
 
 
 def _calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None = None) -> datetime:
@@ -94,7 +82,7 @@ async def create_chore(
         Created chore record
 
     Raises:
-        InvalidRecurrenceError: If recurrence format is invalid
+        ValueError: If recurrence format is invalid
         db_client.DatabaseError: If database operation fails
     """
     # Parse and validate recurrence
@@ -182,7 +170,7 @@ async def mark_pending_verification(*, chore_id: str) -> dict[str, Any]:
     chore = await db_client.get_record(collection="chores", record_id=chore_id)
     if chore["current_state"] != ChoreState.TODO:
         msg = f"Cannot mark pending: chore {chore_id} is in {chore['current_state']} state"
-        raise InvalidStateTransitionError(msg)
+        raise ValueError(msg)
 
     # Update state
     updated_record = await db_client.update_record(
@@ -213,7 +201,7 @@ async def complete_chore(*, chore_id: str) -> dict[str, Any]:
     chore = await db_client.get_record(collection="chores", record_id=chore_id)
     if chore["current_state"] != ChoreState.PENDING_VERIFICATION:
         msg = f"Cannot complete: chore {chore_id} is in {chore['current_state']} state"
-        raise InvalidStateTransitionError(msg)
+        raise ValueError(msg)
 
     # Calculate next deadline from now (floating schedule)
     next_deadline = _calculate_next_deadline(
@@ -253,7 +241,7 @@ async def move_to_conflict(*, chore_id: str) -> dict[str, Any]:
     chore = await db_client.get_record(collection="chores", record_id=chore_id)
     if chore["current_state"] != ChoreState.PENDING_VERIFICATION:
         msg = f"Cannot move to conflict: chore {chore_id} is in {chore['current_state']} state"
-        raise InvalidStateTransitionError(msg)
+        raise ValueError(msg)
 
     # Update state
     updated_record = await db_client.update_record(

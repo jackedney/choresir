@@ -12,10 +12,6 @@ from src.domain.user import UserStatus
 logger = logging.getLogger(__name__)
 
 
-class AnalyticsServiceError(Exception):
-    """Base exception for analytics service operations."""
-
-
 async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
     """Get leaderboard of completed chores per user.
 
