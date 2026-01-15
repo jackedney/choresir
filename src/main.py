@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from src.core.schema import sync_schema
+from src.interface.webhook import router as webhook_router
 
 
 @asynccontextmanager
@@ -24,6 +25,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Register routers
+app.include_router(webhook_router)
 
 
 @app.get("/health")
