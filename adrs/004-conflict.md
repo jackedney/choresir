@@ -13,7 +13,12 @@ Disputes will occur (User A says "Done", User B says "Not Clean"). The system ne
 We will implement a **Math-Based Jury System**.
 
 1.  **Odd Population**: Trigger a majority vote among remaining members.
-2.  **Even Population**: Trigger a "Deadlock" state that blocks the chore until a manual override occurs.
+2.  **Even Population**: Trigger a "Deadlock" state.
+    *   **Resolution:** The chore remains stuck in `CONFLICT` until a user manually overrides it (or the users resolve it verbally and re-attempt the log). There is no algorithmic tie-breaker.
+
+**Voting Rules:**
+*   **Anonymity:** Votes are anonymous. The system will announce the result ("3 votes to Reject"), not the voters.
+*   **Anti-Griefing:** None. We rely on social trust. If a user trolls the system by rejecting everything, the household must solve that socially.
 
 We rejected "Random Coin Toss" as it feels unfair.
 We rejected "Assignee Wins" as it defeats the purpose of verification.

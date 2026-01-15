@@ -9,6 +9,8 @@ Accepted
 ## Context
 We need to define the "invisible" operational mechanics of the bot: how it handles files, how users get in, and how data is structured.
 
+**Deployment Model:** Single Tenancy. One instance of this application serves exactly one household.
+
 ## Decisions
 
 ### 1. Onboarding Protocol (The "Bouncer")
@@ -33,10 +35,12 @@ The PocketBase schema will adhere to this structure:
 *   `id`: Record ID
 *   `title`: String (e.g., "Wash Dishes")
 *   `description`: Text
-*   `schedule_cron`: String (e.g., `0 20 * * *`)
-*   `assigned_to`: Relation (-> `users`)
+*   `schedule_cron`: String (e.g., `0 20 * * *`) or Interval (e.g., "3 days")
+*   `assigned_to`: Relation (-> `users`) **[Single]**
+    *   *Note:* To assign a chore to multiple people (e.g., "Alice and Bob"), create multiple `Chore` records (one per person).
 *   `current_state`: Select (`TODO`, `PENDING_VERIFICATION`, `COMPLETED`, `CONFLICT`, `DEADLOCK`)
 *   `deadline`: DateTime
+    *   *Recurrence Note:* Floating Schedule. The next deadline is calculated from the **Completion Time** of the previous instance, not the original due date.
 
 #### `logs` (Audit Trail)
 *   `id`: Record ID
