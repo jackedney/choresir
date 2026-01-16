@@ -11,10 +11,6 @@ from src.interface.whatsapp_sender import send_text_message
 from src.services.analytics_service import get_household_summary, get_overdue_chores
 
 
-# Logger instance
-logger = logfire
-
-
 # Global scheduler instance
 scheduler = AsyncIOScheduler()
 
@@ -54,17 +50,17 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[dict]) -> bool:
         )
 
         if result.success:
-            logger.info(f"Sent overdue reminder to {user['name']} ({len(chores)} chores)")
+            logfire.info(f"Sent overdue reminder to {user['name']} ({len(chores)} chores)")
             return True
 
-        logger.warning(f"Failed to send reminder to {user['name']}: {result.error}")
+        logfire.warn(f"Failed to send reminder to {user['name']}: {result.error}")
         return False
 
     except db_client.RecordNotFoundError:
-        logger.warning(f"User {user_id} not found for overdue reminders")
+        logfire.warn(f"User {user_id} not found for overdue reminders")
         return False
     except Exception as e:
-        logger.exception(f"Error sending reminder to user {user_id}: {e}")
+        logfire.error(f"Error sending reminder to user {user_id}: {e}")
         return False
 
 
@@ -74,14 +70,14 @@ async def send_overdue_reminders() -> None:
     Runs daily at 8am. Checks for overdue chores and sends WhatsApp
     messages to assigned users.
     """
-    logger.info("Running overdue chore reminders job")
+    logfire.info("Running overdue chore reminders job")
 
     try:
         # Get all overdue chores
         overdue_chores = await get_overdue_chores()
 
         if not overdue_chores:
-            logger.info("No overdue chores found")
+            logfire.info("No overdue chores found")
             return
 
         # Group chores by assigned user
@@ -101,10 +97,10 @@ async def send_overdue_reminders() -> None:
             if await _send_reminder_to_user(user_id=user_id, chores=chores):
                 sent_count += 1
 
-        logger.info(f"Completed overdue reminders job: {sent_count}/{len(chores_by_user)} users notified")
+        logfire.info(f"Completed overdue reminders job: {sent_count}/{len(chores_by_user)} users notified")
 
     except Exception as e:
-        logger.exception(f"Error in overdue reminders job: {e}")
+        logfire.error(f"Error in overdue reminders job: {e}")
 
 
 async def send_daily_report() -> None:
@@ -113,7 +109,7 @@ async def send_daily_report() -> None:
     Runs daily at 9pm. Sends a summary of the day's completions,
     current conflicts, and pending verifications.
     """
-    logger.info("Running daily report job")
+    logfire.info("Running daily report job")
 
     try:
         # Get household summary for today (last 1 day)
@@ -141,7 +137,7 @@ async def send_daily_report() -> None:
         )
 
         if not active_users:
-            logger.info("No active users to send daily report")
+            logfire.info("No active users to send daily report")
             return
 
         # Send report to each active user
@@ -155,18 +151,18 @@ async def send_daily_report() -> None:
 
                 if result.success:
                     sent_count += 1
-                    logger.debug(f"Sent daily report to {user['name']}")
+                    logfire.debug(f"Sent daily report to {user['name']}")
                 else:
-                    logger.warning(f"Failed to send daily report to {user['name']}: {result.error}")
+                    logfire.warn(f"Failed to send daily report to {user['name']}: {result.error}")
 
             except Exception as e:
-                logger.exception(f"Error sending daily report to user {user['id']}: {e}")
+                logfire.error(f"Error sending daily report to user {user['id']}: {e}")
                 continue
 
-        logger.info(f"Completed daily report job: sent to {sent_count}/{len(active_users)} users")
+        logfire.info(f"Completed daily report job: sent to {sent_count}/{len(active_users)} users")
 
     except Exception as e:
-        logger.exception(f"Error in daily report job: {e}")
+        logfire.error(f"Error in daily report job: {e}")
 
 
 def start_scheduler() -> None:
@@ -174,7 +170,7 @@ def start_scheduler() -> None:
 
     This should be called during FastAPI app startup.
     """
-    logger.info("Starting scheduler")
+    logfire.info("Starting scheduler")
 
     # Schedule overdue reminders job (daily at 8am)
     scheduler.add_job(
@@ -184,7 +180,7 @@ def start_scheduler() -> None:
         name="Send Overdue Chore Reminders",
         replace_existing=True,
     )
-    logger.info(f"Scheduled overdue reminders job: daily at {constants.DAILY_REMINDER_HOUR}:00")
+    logfire.info(f"Scheduled overdue reminders job: daily at {constants.DAILY_REMINDER_HOUR}:00")
 
     # Schedule daily report job (daily at 9pm)
     scheduler.add_job(
@@ -194,11 +190,11 @@ def start_scheduler() -> None:
         name="Send Daily Household Report",
         replace_existing=True,
     )
-    logger.info(f"Scheduled daily report job: daily at {constants.DAILY_REPORT_HOUR}:00")
+    logfire.info(f"Scheduled daily report job: daily at {constants.DAILY_REPORT_HOUR}:00")
 
     # Start the scheduler
     scheduler.start()
-    logger.info("Scheduler started successfully")
+    logfire.info("Scheduler started successfully")
 
 
 def stop_scheduler() -> None:
@@ -206,6 +202,6 @@ def stop_scheduler() -> None:
 
     This should be called during FastAPI app shutdown.
     """
-    logger.info("Stopping scheduler")
+    logfire.info("Stopping scheduler")
     scheduler.shutdown(wait=True)
-    logger.info("Scheduler stopped")
+    logfire.info("Scheduler stopped")

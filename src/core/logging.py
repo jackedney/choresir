@@ -40,24 +40,3 @@ def span(name: str) -> logfire.LogfireSpan:
             pass
     """
     return logfire.span(name)
-
-
-# Convenience functions for logging
-def log_info(message: str) -> None:
-    """Log an info-level message."""
-    logfire.info(message)
-
-
-def log_warning(message: str) -> None:
-    """Log a warning-level message."""
-    logfire.warn(message)
-
-
-def log_error(message: str) -> None:
-    """Log an error-level message."""
-    logfire.error(message)
-
-
-def log_debug(message: str) -> None:
-    """Log a debug-level message."""
-    logfire.debug(message)
