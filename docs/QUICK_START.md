@@ -30,6 +30,8 @@ nano .env  # Add your tokens
 Required `.env` variables:
 ```bash
 POCKETBASE_URL=http://127.0.0.1:8090
+POCKETBASE_ADMIN_EMAIL=<your email>
+POCKETBASE_ADMIN_PASSWORD=<your password>
 OPENROUTER_API_KEY=<your key>
 WHATSAPP_VERIFY_TOKEN=<your token>
 WHATSAPP_APP_SECRET=<your secret>

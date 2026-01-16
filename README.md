@@ -57,7 +57,6 @@ If starting from scratch:
 | **ngrok (Local Testing)** | [NGROK_SETUP.md](./docs/NGROK_SETUP.md) | 15 min | Required for local webhook testing |
 | **Logfire (Monitoring)** | [LOGFIRE_SETUP.md](./docs/LOGFIRE_SETUP.md) | 10 min | Optional but recommended |
 | **Railway (Production)** | [RAILWAY_DEPLOYMENT.md](./docs/RAILWAY_DEPLOYMENT.md) | 1 hour | For production deployment |
-| **Infrastructure as Code** | [INFRASTRUCTURE_AS_CODE.md](./docs/INFRASTRUCTURE_AS_CODE.md) | Reference | Automation options |
 
 ### Minimal Local Setup (5 minutes)
 

@@ -66,6 +66,8 @@ Go to **Variables** tab and add:
 ```bash
 # PocketBase (use private network)
 POCKETBASE_URL=http://pocketbase.railway.internal:8090
+POCKETBASE_ADMIN_EMAIL=<your admin email>
+POCKETBASE_ADMIN_PASSWORD=<your admin password>
 
 # OpenRouter
 OPENROUTER_API_KEY=<your key>
