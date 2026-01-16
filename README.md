@@ -91,5 +91,3 @@ See [Quick Start Guide](./docs/QUICK_START.md) for detailed instructions.
 3. Deploy FastAPI service (connect GitHub repo)
 4. Set environment variables
 5. Update WhatsApp webhook URL
-
-Full automation options available in [Infrastructure as Code guide](./docs/INFRASTRUCTURE_AS_CODE.md).
