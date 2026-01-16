@@ -41,3 +41,12 @@ jobs:
 
       - name: Run unit tests
         run: uv run pytest
+        env:
+          OPENROUTER_API_KEY: test_key_ci
+          WHATSAPP_VERIFY_TOKEN: test_verify_ci
+          WHATSAPP_APP_SECRET: test_secret_ci
+          WHATSAPP_ACCESS_TOKEN: test_access_ci
+          WHATSAPP_PHONE_NUMBER_ID: test_phone_id_ci
+          LOGFIRE_TOKEN: test_logfire_ci
+          HOUSE_CODE: TEST_CI_123
+          HOUSE_PASSWORD: test_pass_ci

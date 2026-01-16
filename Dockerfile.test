@@ -1,5 +1,5 @@
 # Multi-stage build for minimal test container with PocketBase
-FROM python:3.14-slim AS pocketbase-download
+FROM python:3.12-slim AS pocketbase-download
 
 # Download PocketBase
 RUN apt-get update && apt-get install -y wget unzip ca-certificates && \
@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y wget unzip ca-certificates && \
     rm pocketbase_0.23.6_linux_amd64.zip
 
 # Final stage
-FROM python:3.14-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
