@@ -57,7 +57,7 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
         title="Clean Bathroom",
         description="Scrub toilet, sink, and shower",
         recurrence="every 3 days",
-        assigned_to=sample_users["bob"]["phone"],
+        assigned_to=sample_users["bob"]["id"],
     )
 
     assert chore["title"] == "Clean Bathroom"
@@ -101,7 +101,7 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
         title="Mow Lawn",
         description="Cut grass in front and back yard",
         recurrence="every 7 days",
-        assigned_to=sample_users["charlie"]["phone"],
+        assigned_to=sample_users["charlie"]["id"],
     )
 
     # Step 2: Charlie logs completion
@@ -152,7 +152,7 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
         title="Vacuum Living Room",
         description="Vacuum carpet and under furniture",
         recurrence="every 5 days",
-        assigned_to=sample_users["bob"]["phone"],
+        assigned_to=sample_users["bob"]["id"],
     )
 
     assert chore["assigned_to"] == sample_users["bob"]["id"]
@@ -201,7 +201,7 @@ async def test_verifier_cannot_be_claimer(mock_db_module, db_client, sample_user
         title="Water Plants",
         description="Water all indoor plants",
         recurrence="every 2 days",
-        assigned_to=sample_users["bob"]["phone"],
+        assigned_to=sample_users["bob"]["id"],
     )
 
     await verification_service.request_verification(

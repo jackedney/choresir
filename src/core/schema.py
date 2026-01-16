@@ -18,13 +18,16 @@ COLLECTIONS = ["users", "chores", "logs"]
 
 
 def _get_collection_schema(*, collection_name: str) -> dict[str, Any]:
-    """Get the expected schema for a collection."""
+    """Get the expected schema for a collection.
+
+    Note: PocketBase v0.22+ uses 'fields' instead of 'schema' for field definitions.
+    """
     schemas = {
         "users": {
             "name": "users",
             "type": "auth",
             "system": False,
-            "schema": [
+            "fields": [
                 {"name": "phone", "type": "text", "required": True, "options": {"pattern": r"^\+[1-9]\d{1,14}$"}},
                 {"name": "role", "type": "select", "required": True, "options": {"values": ["admin", "member"]}},
                 {
@@ -40,7 +43,7 @@ def _get_collection_schema(*, collection_name: str) -> dict[str, Any]:
             "name": "chores",
             "type": "base",
             "system": False,
-            "schema": [
+            "fields": [
                 {"name": "title", "type": "text", "required": True},
                 {"name": "description", "type": "text", "required": False},
                 {"name": "schedule_cron", "type": "text", "required": True},
@@ -60,7 +63,7 @@ def _get_collection_schema(*, collection_name: str) -> dict[str, Any]:
             "name": "logs",
             "type": "base",
             "system": False,
-            "schema": [
+            "fields": [
                 {"name": "chore_id", "type": "relation", "required": True, "options": {"collectionId": "chores"}},
                 {"name": "user_id", "type": "relation", "required": True, "options": {"collectionId": "users"}},
                 {"name": "action", "type": "text", "required": True},
