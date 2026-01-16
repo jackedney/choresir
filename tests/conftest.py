@@ -358,18 +358,24 @@ def sample_users(db_client: MockDBClient, initialized_db: PocketBase) -> dict[st
             "name": "Alice Admin",
             "role": "admin",
             "status": "active",
+            "password": "test_password",
+            "passwordConfirm": "test_password",
         },
         "bob": {
             "phone": "+15557654321",
             "name": "Bob Member",
             "role": "member",
             "status": "active",
+            "password": "test_password",
+            "passwordConfirm": "test_password",
         },
         "charlie": {
             "phone": "+15559876543",
             "name": "Charlie Member",
             "role": "member",
             "status": "active",
+            "password": "test_password",
+            "passwordConfirm": "test_password",
         },
     }
 

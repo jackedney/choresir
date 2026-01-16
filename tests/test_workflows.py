@@ -16,8 +16,8 @@ async def test_join_house_workflow(mock_db_module, db_client) -> None:
     user = await user_service.request_join(
         phone="+15550001111",
         name="Diana Newbie",
-        house_code="TEST123",
-        password="testpass",
+        house_code="TEST_CI_123",
+        password="test_pass_ci",
     )
 
     assert user["phone"] == "+15550001111"
