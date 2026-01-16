@@ -30,6 +30,14 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
+      - name: Install PocketBase
+        run: |
+          wget -q https://github.com/pocketbase/pocketbase/releases/download/v0.23.4/pocketbase_0.23.4_linux_amd64.zip
+          unzip -q pocketbase_0.23.4_linux_amd64.zip
+          chmod +x pocketbase
+          sudo mv pocketbase /usr/local/bin/
+          pocketbase --version
+
       - name: Format check
         run: uv run ruff format --check
 
