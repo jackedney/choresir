@@ -95,8 +95,11 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
     Raises:
         HTTPException: If signature validation fails
     """
+    logfire.info("POST /webhook - Received webhook request")
+
     # Get raw body for signature verification
     body = await request.body()
+    logfire.info(f"POST /webhook - Body length: {len(body)} bytes")
 
     # Get signature from header
     signature = request.headers.get("X-Hub-Signature-256", "")
