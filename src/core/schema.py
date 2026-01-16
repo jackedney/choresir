@@ -62,6 +62,19 @@ def _get_collection_schema(*, collection_name: str) -> dict[str, Any]:
                 {"name": "timestamp", "type": "date", "required": True},
             ],
         },
+        "processed_messages": {
+            "name": "processed_messages",
+            "type": "base",
+            "system": False,
+            "schema": [
+                {"name": "message_id", "type": "text", "required": True},
+                {"name": "from_phone", "type": "text", "required": True},
+                {"name": "processed_at", "type": "date", "required": True},
+                {"name": "success", "type": "bool", "required": True},
+                {"name": "error_message", "type": "text", "required": False},
+            ],
+            "indexes": ["CREATE UNIQUE INDEX idx_message_id ON processed_messages (message_id)"],
+        },
     }
     return schemas[collection_name]
 
@@ -87,7 +100,7 @@ async def sync_schema() -> None:
     logger.info("Starting PocketBase schema sync...")
 
     async with httpx.AsyncClient(base_url=settings.pocketbase_url, timeout=30.0) as client:
-        for collection_name in ["users", "chores", "logs"]:
+        for collection_name in ["users", "chores", "logs", "processed_messages"]:
             schema = _get_collection_schema(collection_name=collection_name)
 
             if not await _collection_exists(client=client, collection_name=collection_name):
