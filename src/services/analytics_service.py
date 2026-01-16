@@ -42,11 +42,13 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
     for user_id, count in user_completion_counts.items():
         try:
             user = await db_client.get_record(collection="users", record_id=user_id)
-            leaderboard.append({
-                "user_id": user_id,
-                "user_name": user["name"],
-                "completion_count": count,
-            })
+            leaderboard.append(
+                {
+                    "user_id": user_id,
+                    "user_name": user["name"],
+                    "completion_count": count,
+                }
+            )
         except db_client.RecordNotFoundError:
             logger.warning("User %s not found for leaderboard", user_id)
             continue
