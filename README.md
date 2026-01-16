@@ -7,7 +7,7 @@
 **The "Household Operating System" that lives in WhatsApp.**
 
 > **Status:** Active Development
-> **Stack:** Python (FastAPI) | PocketBase | Pydantic AI | WhatsApp Cloud API
+> **Stack:** Python (FastAPI) | PocketBase | Pydantic AI | Twilio WhatsApp API
 
 choresir is not just a reminder bot. It is an agentic system designed to manage household chores, enforce accountability, and resolve disputes through natural language. It replaces the "mental load" of managing a home with a neutral, AI-driven third party.
 
@@ -37,41 +37,54 @@ Optimized for low cost, high performance, and strictly typed Python.
 | **Agent** | Pydantic AI | Strongly-typed AI logic & tool calling. |
 | **Observability** | **Logfire** | Structured tracing for AI & API. |
 | **Database** | PocketBase | Self-hosted SQLite backend + Admin UI. |
-| **Interface** | WhatsApp Cloud API | Direct integration (No Twilio markup). |
+| **Interface** | Twilio WhatsApp API | Reliable WhatsApp integration. |
 
 ## 🚀 Getting Started
 
+### Quick Start
+
+1. **Install dependencies:**
+   ```bash
+   uv sync
+   ```
+
+2. **Configure environment variables:**
+   Copy `.env.example` to `.env` and fill in your credentials:
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Start all services:**
+   ```bash
+   task dev
+   ```
+
+   This automatically:
+   - Installs PocketBase
+   - Creates admin account
+   - Starts FastAPI and ngrok
+   - Shows you the webhook URL
+
+4. **Configure webhook:**
+   Copy the ngrok URL and set it in Twilio Console → Messaging → WhatsApp Sandbox.
+
+### Full Setup Guide
+
+See [SETUP.md](./docs/SETUP.md) for detailed instructions including:
+- External service configuration (OpenRouter, Twilio, Logfire)
+- Production deployment
+- Webhook configuration
+
 ### Prerequisites
-1.  **uv** (The Python package manager)
-2.  PocketBase executable (v0.22+)
-3.  Meta Developer Account (WhatsApp Product)
-4.  OpenRouter API Key
+- **uv** (Python package manager) - [Install here](https://docs.astral.sh/uv/getting-started/installation/)
+- **ngrok** (for local webhook testing) - `brew install ngrok`
+- **Twilio Account** - For WhatsApp integration
+- **OpenRouter API Key** - [Get here](https://openrouter.ai)
 
-### 1. Database Setup
-1.  Start server: `./pocketbase serve`
-2.  Go to `http://127.0.0.1:8090/_/` and create Admin account.
-3.  Import schema (see `adrs/007-operations.md`).
+## 📖 Additional Documentation
 
-### 2. Environment Variables (`.env`)
-```bash
-POCKETBASE_URL="http://127.0.0.1:8090"
-OPENROUTER_API_KEY="sk-or-..."
-WHATSAPP_VERIFY_TOKEN="random_string"
-LOGFIRE_TOKEN="your_token"
-HOUSE_CODE="HOUSE123"
-HOUSE_PASSWORD="SecretPass"
-```
-
-### 3. Run the Server
-```bash
-uv sync
-uv run fastapi dev src/main.py
-```
-
-### 4. Connect WhatsApp (Localhost)
-1.  `ngrok http 8000`
-2.  Meta Developers -> Configuration -> Webhook URL: `https://xyz.ngrok-free.app/webhook`
-
-## ☁️ Deployment (Railway)
-1.  **PocketBase Service:** Use the template + Attach Volume to `/pb_data`.
-2.  **Python Worker:** Connect GitHub repo. Set `POCKETBASE_URL` to the internal service URL.
+- **[Local Development Guide](./docs/LOCAL_DEVELOPMENT.md)** - Detailed development workflow, debugging tips
+- **[Setup Guide](./docs/SETUP.md)** - Complete external service configuration (OpenRouter, WhatsApp, Logfire)
+- **[PocketBase Setup](./docs/POCKETBASE_SETUP.md)** - Database configuration details
+- **[Twilio Migration](./docs/TWILIO_MIGRATION.md)** - Migration from Meta to Twilio
+- **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment instructions

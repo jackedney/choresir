@@ -27,6 +27,43 @@ Decision: We will use Python (FastAPI) for the application logic and PocketBase 
     *   Secrets managed via `.env`.
     *   Rate limiting and Cost Caps ($0.10/day) implemented in-memory for the MVP.
 
+## WhatsApp Provider: Twilio (Revised 2026-01-16)
+
+**Decision:** We will use **Twilio WhatsApp API** instead of Meta's direct Cloud API.
+
+**Rationale:**
+*   Twilio provides a simpler abstraction over Meta's WhatsApp Business Platform
+*   Unified API pattern (same SDK for SMS, WhatsApp, Voice)
+*   Simpler webhook signature validation using Twilio's `RequestValidator`
+*   No Meta Developer Console complexity (app review, business verification)
+*   Built-in sandbox for testing without production approval
+*   Better documentation and Python SDK support
+
+**Trade-offs:**
+*   Slightly higher per-message cost (Twilio markup)
+*   Additional vendor dependency
+*   Template messages require Twilio Content API setup
+
+### Twilio Infrastructure Provisioning (Decided 2026-01-16)
+
+**Decision:** We will use **manual setup via Twilio Console** rather than Infrastructure as Code (IaC) tools like Pulumi or Terraform.
+
+**Rationale:**
+*   **Language Mismatch:** Available Pulumi Twilio providers are TypeScript/Node.js only, requiring npm/JavaScript in an otherwise Python-only project
+*   **Limited Scope:** Only 2 of 12 migration tasks (template creation, webhook configuration) could be automated via IaC
+*   **One-Time Setup:** Twilio configuration is essentially static after initial provisioning, not frequently-changing infrastructure
+*   **Experimental Status:** Community Pulumi providers are not production-ready
+*   **Complexity vs. Value:** Adding IaC tooling contradicts the "Indie Stack" philosophy of low maintenance and minimal dependencies
+*   **Manual Simplicity:** Current step-by-step guides can be executed in ~30 minutes with clear completion criteria
+
+**Alternative Considered:**
+Writing a Python script using Twilio SDK directly for programmatic setup was considered but rejected as unnecessary given the one-time nature of configuration and the need for WhatsApp approval (24-48 hours) regardless of automation method.
+
+**Implementation:**
+*   Account setup, sandbox configuration, and template creation documented in `.context/` task files
+*   Templates require manual WhatsApp approval via Twilio Console
+*   Webhook configuration tied to deployment environment (ngrok for local, Railway URL for production)
+
 Consequences:
 
     Positive: rapid development; "zero-config" database; extremely portable (can move to a $5 VPS easily).

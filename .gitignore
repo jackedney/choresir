@@ -58,8 +58,16 @@ Thumbs.db
 # Logs
 *.log
 
+# Process IDs
+*.pid
+
 # uv
 .uv_cache/
 
 # ngrok
 ngrok
+ngrok.yml
+.ngrok-domain
+
+# pb_migrations
+pb_migrations/

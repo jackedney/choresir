@@ -47,10 +47,9 @@ POCKETBASE_URL=http://${{pocketbase.RAILWAY_PRIVATE_DOMAIN}}:8090
 
 # Other required variables
 OPENROUTER_API_KEY=<your-key>
-WHATSAPP_VERIFY_TOKEN=<your-token>
-WHATSAPP_APP_SECRET=<your-secret>
-WHATSAPP_ACCESS_TOKEN=<your-token>
-WHATSAPP_PHONE_NUMBER_ID=<your-id>
+TWILIO_ACCOUNT_SID=<your-sid>
+TWILIO_AUTH_TOKEN=<your-token>
+TWILIO_WHATSAPP_NUMBER=<your-number>
 LOGFIRE_TOKEN=<your-token>
 HOUSE_CODE=<your-code>
 HOUSE_PASSWORD=<your-password>
@@ -68,11 +67,12 @@ MODEL_ID=anthropic/claude-3.5-sonnet (optional)
 
 ### Post-Deployment
 
-1. Configure WhatsApp webhook URL in Meta Developer Console
-2. Set webhook URL to: `https://<your-railway-url>/webhook`
-3. Verify webhook with GET request
-4. Monitor logs in Railway dashboard
-5. Check Logfire for application traces
+1. Configure WhatsApp webhook URL in Twilio Console
+2. Go to Messaging → WhatsApp Sandbox → Sandbox Configuration
+3. Set webhook URL to: `https://<your-railway-url>/webhook`
+4. Set HTTP method to POST and save
+5. Monitor logs in Railway dashboard
+6. Check Logfire for application traces
 
 ## Environment Variables Reference
 
@@ -80,10 +80,9 @@ MODEL_ID=anthropic/claude-3.5-sonnet (optional)
 |----------|-------------|----------|
 | `POCKETBASE_URL` | Internal URL of PocketBase service | Yes |
 | `OPENROUTER_API_KEY` | API key for OpenRouter LLM access | Yes |
-| `WHATSAPP_VERIFY_TOKEN` | Token for webhook verification handshake | Yes |
-| `WHATSAPP_APP_SECRET` | Secret for validating webhook signatures | Yes |
-| `WHATSAPP_ACCESS_TOKEN` | Access token for WhatsApp Cloud API | Yes |
-| `WHATSAPP_PHONE_NUMBER_ID` | Business phone number ID | Yes |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID | Yes |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token | Yes |
+| `TWILIO_WHATSAPP_NUMBER` | Twilio WhatsApp number | Yes |
 | `LOGFIRE_TOKEN` | Pydantic Logfire token for observability | Yes |
 | `HOUSE_CODE` | Code for users to join household | Yes |
 | `HOUSE_PASSWORD` | Password for users to join household | Yes |
@@ -98,4 +97,4 @@ MODEL_ID=anthropic/claude-3.5-sonnet (optional)
 
 - View logs in Railway dashboard
 - View traces in Pydantic Logfire dashboard
-- Monitor WhatsApp webhook deliveries in Meta Developer Console
+- Monitor WhatsApp webhook deliveries in Twilio Console
