@@ -1,6 +1,9 @@
 """User service for onboarding and member management."""
 
+import hmac
 import logging
+import secrets
+import string
 from typing import Any
 
 from src.core import db_client
@@ -33,7 +36,11 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
     """
     with span("user_service.request_join"):
         # Guard: Validate credentials
-        if house_code != settings.house_code or password != settings.house_password:
+        # Use constant-time comparison to prevent timing attacks
+        code_valid = hmac.compare_digest(house_code, settings.house_code)
+        pass_valid = hmac.compare_digest(password, settings.house_password)
+
+        if not code_valid or not pass_valid:
             msg = "Invalid house code or password"
             logger.warning("Failed join request for %s: %s", phone, msg)
             raise ValueError(msg)
@@ -51,14 +58,21 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         # Create pending user
         # Generate email from phone for PocketBase auth collection requirement
         email = f"{phone.replace('+', '').replace('-', '')}@choresir.local"
+
+        # 🛡️ SECURITY: Generate a strong random password for the user.
+        # This prevents account takeover attacks via PocketBase API since
+        # users created via this flow don't set their own passwords.
+        alphabet = string.ascii_letters + string.digits + string.punctuation
+        random_password = "".join(secrets.choice(alphabet) for _ in range(32))
+
         user_data = {
             "phone": phone,
             "name": name,
             "email": email,
             "role": UserRole.MEMBER,
             "status": UserStatus.PENDING,
-            "password": "temp_password_will_be_set_on_activation",
-            "passwordConfirm": "temp_password_will_be_set_on_activation",
+            "password": random_password,
+            "passwordConfirm": random_password,
         }
 
         record = await db_client.create_record(collection="users", data=user_data)
