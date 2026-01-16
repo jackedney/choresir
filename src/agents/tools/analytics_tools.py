@@ -5,6 +5,7 @@ from typing import Literal
 
 import logfire
 from pydantic import BaseModel, Field
+from pydantic_ai import RunContext
 
 from src.agents.base import Deps
 from src.agents.choresir_agent import agent
@@ -108,7 +109,7 @@ def _format_overdue_chores(chores: list[dict]) -> str:
 
 
 @agent.tool
-async def tool_get_analytics(_ctx: Deps, params: GetAnalytics) -> str:
+async def tool_get_analytics(_ctx: RunContext[Deps], params: GetAnalytics) -> str:
     """
     Get household analytics and metrics.
 

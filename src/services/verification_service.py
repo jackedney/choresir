@@ -8,7 +8,7 @@ from typing import Any
 from src.core import db_client
 from src.core.logging import span
 from src.domain.chore import ChoreState
-from src.services import chore_service
+from src.services import chore_service, conflict_service
 
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,8 @@ async def request_verification(
         log_data = {
             "chore_id": chore_id,
             "user_id": claimer_user_id,
-            "action": f"claimed_completion: {notes}" if notes else "claimed_completion",
+            "action": "claimed_completion",
+            "notes": notes,
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -97,12 +98,17 @@ async def verify_chore(
     """
     with span("verification_service.verify_chore"):
         # Guard: Get the original claim log to find the claimer
-        claim_logs = await db_client.list_records(
+        # Get all logs (PocketBase filter seems to have issues)
+        all_logs = await db_client.list_records(
             collection="logs",
-            filter_query=f'chore_id = "{chore_id}" && action ~ "claimed_completion"',
-            sort="-created",  # Most recent first
-            per_page=1,
+            filter_query="",  # No filter - get all logs
+            sort="",  # No sort either
+            per_page=100,
         )
+        # Filter manually for claimed_completion logs for this chore
+        claim_logs = [
+            log for log in all_logs if log.get("action") == "claimed_completion" and log.get("chore_id") == chore_id
+        ][:1]
 
         if not claim_logs:
             msg = f"No claim log found for chore {chore_id}"
@@ -117,11 +123,12 @@ async def verify_chore(
             raise PermissionError(msg)
 
         # Create verification log
-        action = f"{decision.lower()}_verification: {reason}" if reason else f"{decision.lower()}_verification"
+        action = f"{decision.lower()}_verification"
         log_data = {
             "chore_id": chore_id,
             "user_id": verifier_user_id,
             "action": action,
+            "notes": reason,
             "timestamp": datetime.now().isoformat(),
         }
         await db_client.create_record(collection="logs", data=log_data)
@@ -143,7 +150,8 @@ async def verify_chore(
                 chore_id,
                 claimer_user_id,
             )
-            # Note: Voting process not yet implemented
+            # Initiate voting process
+            await conflict_service.initiate_vote(chore_id=chore_id)
 
         return updated_chore
 
@@ -165,13 +173,19 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
         if user_id:
             filtered_chores = []
             for chore in chores:
-                # Get claim logs for this chore
-                claim_logs = await db_client.list_records(
+                # Get all logs (PocketBase filter seems to have issues)
+                all_logs = await db_client.list_records(
                     collection="logs",
-                    filter_query=f'chore_id = "{chore["id"]}" && action ~ "claimed_completion"',
-                    sort="-created",
-                    per_page=1,
+                    filter_query="",
+                    sort="",
+                    per_page=100,
                 )
+                # Filter manually
+                claim_logs = [
+                    log
+                    for log in all_logs
+                    if log.get("action") == "claimed_completion" and log.get("chore_id") == chore["id"]
+                ][:1]
                 # Exclude if this user claimed it
                 if not claim_logs or claim_logs[0]["user_id"] != user_id:
                     filtered_chores.append(chore)

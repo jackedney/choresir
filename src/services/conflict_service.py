@@ -54,14 +54,20 @@ async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
             raise ValueError(msg)
 
         # Get claimer and rejecter from logs
-        filter_claim_reject = (
-            f'chore_id = "{chore_id}" && (action ~ "claimed_completion" || action ~ "reject_verification")'
-        )
-        logs = await db_client.list_records(
+        # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
+        all_logs = await db_client.list_records(
             collection="logs",
-            filter_query=filter_claim_reject,
-            sort="-created",
+            filter_query="",
+            per_page=500,
+            sort="",
         )
+
+        # Filter for this chore's claimed_completion and reject_verification logs
+        logs = [
+            log
+            for log in all_logs
+            if log.get("chore_id") == chore_id and log.get("action") in ["claimed_completion", "reject_verification"]
+        ]
 
         excluded_user_ids = {log["user_id"] for log in logs}
 
@@ -128,26 +134,40 @@ async def cast_vote(
             msg = f"Cannot cast vote: chore {chore_id} is in {chore['current_state']} state"
             raise ValueError(msg)
 
-        # Guard: Check if user already voted
-        existing_vote = await db_client.get_first_record(
+        # Get all logs and filter in Python (PocketBase has issues with relation field filtering)
+        all_logs = await db_client.list_records(
             collection="logs",
-            filter_query=(
-                f'chore_id = "{chore_id}" && user_id = "{voter_user_id}" && (action = "vote_yes" || action = "vote_no")'
-            ),
+            filter_query="",
+            per_page=500,
+            sort="",  # No sort to avoid issues
         )
-        if existing_vote:
+
+        # Guard: Check if user already voted
+        existing_votes = [
+            log
+            for log in all_logs
+            if log.get("chore_id") == chore_id
+            and log.get("user_id") == voter_user_id
+            and log.get("action") in ["vote_yes", "vote_no"]
+        ]
+        if existing_votes:
             msg = f"User {voter_user_id} already voted on chore {chore_id}"
             raise ValueError(msg)
 
         # Find the pending vote record
-        pending_vote = await db_client.get_first_record(
-            collection="logs",
-            filter_query=f'chore_id = "{chore_id}" && user_id = "{voter_user_id}" && action = "vote_pending"',
-        )
+        pending_votes = [
+            log
+            for log in all_logs
+            if log.get("chore_id") == chore_id
+            and log.get("user_id") == voter_user_id
+            and log.get("action") == "vote_pending"
+        ]
 
-        if not pending_vote:
+        if not pending_votes:
             msg = f"No pending vote found for user {voter_user_id} on chore {chore_id}"
             raise db_client.RecordNotFoundError(msg)
+
+        pending_vote = pending_votes[0]
 
         # Update vote record
         vote_action = f"vote_{choice.lower()}"
@@ -163,10 +183,18 @@ async def cast_vote(
         logger.info("User %s voted %s on chore %s", voter_user_id, choice, chore_id)
 
         # Check if all votes are in
-        pending_votes = await db_client.list_records(
+        # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
+        all_logs_updated = await db_client.list_records(
             collection="logs",
-            filter_query=f'chore_id = "{chore_id}" && action = "vote_pending"',
+            filter_query="",  # Get all logs
+            per_page=500,  # Increase page size to avoid pagination issues
+            sort="",  # No sort to avoid issues
         )
+
+        # Filter manually for vote_pending logs for this chore
+        pending_votes = [
+            log for log in all_logs_updated if log.get("chore_id") == chore_id and log.get("action") == "vote_pending"
+        ]
 
         if not pending_votes:
             logger.info("All votes received for chore %s, ready to tally", chore_id)
@@ -200,24 +228,27 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
             msg = f"Cannot tally votes: chore {chore_id} is in {chore['current_state']} state"
             raise ValueError(msg)
 
-        # Guard: Verify all votes are cast
-        pending_votes = await db_client.list_records(
+        # Get all logs and filter in Python (PocketBase has issues with relation field filtering)
+        all_logs = await db_client.list_records(
             collection="logs",
-            filter_query=f'chore_id = "{chore_id}" && action = "vote_pending"',
+            filter_query="",
+            per_page=500,
+            sort="",  # No sort to avoid issues
         )
+
+        # Filter votes for this chore
+        pending_votes = [
+            log for log in all_logs if log.get("chore_id") == chore_id and log.get("action") == "vote_pending"
+        ]
+
+        # Guard: Verify all votes are cast
         if pending_votes:
             msg = f"Cannot tally: {len(pending_votes)} votes still pending for chore {chore_id}"
             raise ValueError(msg)
 
         # Get all votes
-        yes_votes = await db_client.list_records(
-            collection="logs",
-            filter_query=f'chore_id = "{chore_id}" && action = "vote_yes"',
-        )
-        no_votes = await db_client.list_records(
-            collection="logs",
-            filter_query=f'chore_id = "{chore_id}" && action = "vote_no"',
-        )
+        yes_votes = [log for log in all_logs if log.get("chore_id") == chore_id and log.get("action") == "vote_yes"]
+        no_votes = [log for log in all_logs if log.get("chore_id") == chore_id and log.get("action") == "vote_no"]
 
         yes_count = len(yes_votes)
         no_count = len(no_votes)
@@ -253,7 +284,7 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
         # Create tally log
         tally_log = {
             "chore_id": chore_id,
-            "user_id": "",  # System action
+            "user_id": None,  # System action (no user)
             "action": f"vote_tally: {result.lower()} (yes: {yes_count}, no: {no_count})",
             "timestamp": datetime.now().isoformat(),
         }
@@ -272,18 +303,20 @@ async def get_vote_status(*, chore_id: str) -> dict[str, Any]:
         Dictionary with vote counts and status
     """
     with span("conflict_service.get_vote_status"):
-        yes_votes = await db_client.list_records(
+        # Get all logs and filter in Python (PocketBase has issues with relation field filtering)
+        all_logs = await db_client.list_records(
             collection="logs",
-            filter_query=f'chore_id = "{chore_id}" && action = "vote_yes"',
+            filter_query="",
+            per_page=500,
+            sort="",  # No sort to avoid issues
         )
-        no_votes = await db_client.list_records(
-            collection="logs",
-            filter_query=f'chore_id = "{chore_id}" && action = "vote_no"',
-        )
-        pending_votes = await db_client.list_records(
-            collection="logs",
-            filter_query=f'chore_id = "{chore_id}" && action = "vote_pending"',
-        )
+
+        # Filter votes for this chore
+        yes_votes = [log for log in all_logs if log.get("chore_id") == chore_id and log.get("action") == "vote_yes"]
+        no_votes = [log for log in all_logs if log.get("chore_id") == chore_id and log.get("action") == "vote_no"]
+        pending_votes = [
+            log for log in all_logs if log.get("chore_id") == chore_id and log.get("action") == "vote_pending"
+        ]
 
         return {
             "chore_id": chore_id,
