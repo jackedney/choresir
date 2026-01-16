@@ -2,6 +2,7 @@
 
 import logfire
 from pydantic import BaseModel, Field
+from pydantic_ai import RunContext
 
 from src.agents.base import Deps
 from src.agents.choresir_agent import agent
@@ -23,7 +24,7 @@ class ApproveMember(BaseModel):
 
 
 @agent.tool
-async def tool_request_join(ctx: Deps, params: RequestJoin) -> str:
+async def tool_request_join(ctx: RunContext[Deps], params: RequestJoin) -> str:
     """
     Request to join the household.
 
@@ -37,9 +38,9 @@ async def tool_request_join(ctx: Deps, params: RequestJoin) -> str:
         Success or error message
     """
     try:
-        with logfire.span("tool_request_join", phone=ctx.user_phone):
+        with logfire.span("tool_request_join", phone=ctx.deps.user_phone):
             await user_service.request_join(
-                phone=ctx.user_phone,
+                phone=ctx.deps.user_phone,
                 name=params.display_name,
                 house_code=params.house_code,
                 password=params.password,
@@ -60,7 +61,7 @@ async def tool_request_join(ctx: Deps, params: RequestJoin) -> str:
 
 
 @agent.tool
-async def tool_approve_member(ctx: Deps, params: ApproveMember) -> str:
+async def tool_approve_member(ctx: RunContext[Deps], params: ApproveMember) -> str:
     """
     Approve a pending member (admin-only).
 
@@ -74,17 +75,17 @@ async def tool_approve_member(ctx: Deps, params: ApproveMember) -> str:
         Success or error message
     """
     try:
-        with logfire.span("tool_approve_member", admin_id=ctx.user_id, target=params.target_phone):
+        with logfire.span("tool_approve_member", admin_id=ctx.deps.user_id, target=params.target_phone):
             # Admin-only check will be performed in the service layer
             await user_service.approve_member(
-                admin_user_id=ctx.user_id,
+                admin_user_id=ctx.deps.user_id,
                 target_phone=params.target_phone,
             )
 
             return f"User {params.target_phone} has been approved and is now active."
 
     except PermissionError as e:
-        logfire.warning("Unauthorized approval attempt", user_id=ctx.user_id, error=str(e))
+        logfire.warning("Unauthorized approval attempt", user_id=ctx.deps.user_id, error=str(e))
         return "Error: Only admins can approve members."
     except ValueError as e:
         logfire.warning("Approval failed", error=str(e))

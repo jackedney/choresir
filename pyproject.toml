@@ -3,7 +3,7 @@ name = "choresir"
 version = "0.1.0"
 description = "Household Operating System living in WhatsApp"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.115.0",
     "pydantic>=2.10.0",
@@ -12,7 +12,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "apscheduler>=3.10.0",
     "croniter>=3.0.0",
-    "logfire>=2.5.0",
+    "logfire[fastapi]>=2.5.0",
     "httpx>=0.28.0",
 ]
 
@@ -32,7 +32,7 @@ packages = ["src"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py313"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -65,8 +65,13 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
     "S101",    # Allow assert in tests
+    "S106",    # Allow hardcoded passwords in tests
+    "S105",    # Allow hardcoded passwords in tests
+    "S603",    # Allow subprocess calls in tests
+    "S110",    # Allow try-except-pass in tests
     "ANN",     # Don't require type annotations in tests
     "ARG",     # Allow unused arguments in test fixtures
+    "PLR2004", # Allow magic values in tests
 ]
 
 [tool.ruff.lint.isort]
@@ -88,3 +93,13 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "unit: Unit tests (no external dependencies)",
+    "integration: Integration tests (requires PocketBase)",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+]

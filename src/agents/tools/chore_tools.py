@@ -2,6 +2,7 @@
 
 import logfire
 from pydantic import BaseModel, Field
+from pydantic_ai import RunContext
 
 from src.agents.base import Deps
 from src.agents.choresir_agent import agent
@@ -66,7 +67,7 @@ def _fuzzy_match_chore(chores: list[dict], title_query: str) -> dict | None:
 
 
 @agent.tool
-async def tool_define_chore(_ctx: Deps, params: DefineChore) -> str:
+async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
     """
     Define a new chore with recurrence schedule.
 
@@ -107,7 +108,7 @@ async def tool_define_chore(_ctx: Deps, params: DefineChore) -> str:
 
 
 @agent.tool
-async def tool_log_chore(ctx: Deps, params: LogChore) -> str:
+async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     """
     Log a chore completion and request verification.
 
@@ -143,7 +144,7 @@ async def tool_log_chore(ctx: Deps, params: LogChore) -> str:
             # Log the completion
             await verification_service.request_verification(
                 chore_id=chore_id,
-                claimer_user_id=ctx.user_id,
+                claimer_user_id=ctx.deps.user_id,
                 notes=params.notes or "",
             )
 
