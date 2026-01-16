@@ -2,13 +2,14 @@
 
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from croniter import croniter
 
 from src.core import db_client
 from src.domain.chore import ChoreState
+from src.services import chore_state_machine
 
 
 logger = logging.getLogger(__name__)
@@ -46,35 +47,6 @@ def _parse_recurrence_to_cron(recurrence: str) -> str:
     raise ValueError(msg)
 
 
-def _calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None = None) -> datetime:
-    """Calculate next deadline from CRON schedule.
-
-    Uses floating schedule logic: if from_time is provided, calculates next occurrence
-    from that time (useful for deadlines that shift based on completion time).
-
-    Args:
-        schedule_cron: CRON expression or INTERVAL:N:cron format
-        from_time: Starting time for calculation (defaults to now)
-
-    Returns:
-        Next deadline datetime
-    """
-    base_time = from_time or datetime.now()
-    
-    # Handle interval-based scheduling (e.g., "INTERVAL:3:0 0 * * *")
-    if schedule_cron.startswith("INTERVAL:"):
-        parts = schedule_cron.split(":", 2)
-        days = int(parts[1])
-        # Add X days to base time
-        next_time = base_time + timedelta(days=days)
-        # Set to midnight of that day
-        return next_time.replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    # Standard CRON expression
-    cron = croniter(schedule_cron, base_time)
-    return cron.get_next(datetime)
-
-
 async def create_chore(
     *,
     title: str,
@@ -101,7 +73,7 @@ async def create_chore(
     schedule_cron = _parse_recurrence_to_cron(recurrence)
 
     # Calculate initial deadline
-    deadline = _calculate_next_deadline(schedule_cron=schedule_cron)
+    deadline = chore_state_machine._calculate_next_deadline(schedule_cron=schedule_cron)
 
     # Create chore record
     chore_data = {
@@ -178,22 +150,7 @@ async def mark_pending_verification(*, chore_id: str) -> dict[str, Any]:
         InvalidStateTransitionError: If chore is not in TODO state
         db_client.RecordNotFoundError: If chore not found
     """
-    # Guard: Verify chore exists and is in TODO state
-    chore = await db_client.get_record(collection="chores", record_id=chore_id)
-    if chore["current_state"] != ChoreState.TODO:
-        msg = f"Cannot mark pending: chore {chore_id} is in {chore['current_state']} state"
-        raise ValueError(msg)
-
-    # Update state
-    updated_record = await db_client.update_record(
-        collection="chores",
-        record_id=chore_id,
-        data={"current_state": ChoreState.PENDING_VERIFICATION},
-    )
-
-    logger.info("Marked chore %s as pending verification", chore_id)
-
-    return updated_record
+    return await chore_state_machine.transition_to_pending_verification(chore_id=chore_id)
 
 
 async def complete_chore(*, chore_id: str) -> dict[str, Any]:
@@ -209,31 +166,7 @@ async def complete_chore(*, chore_id: str) -> dict[str, Any]:
         InvalidStateTransitionError: If chore is not in PENDING_VERIFICATION state
         db_client.RecordNotFoundError: If chore not found
     """
-    # Guard: Verify chore exists and is pending verification
-    chore = await db_client.get_record(collection="chores", record_id=chore_id)
-    if chore["current_state"] != ChoreState.PENDING_VERIFICATION:
-        msg = f"Cannot complete: chore {chore_id} is in {chore['current_state']} state"
-        raise ValueError(msg)
-
-    # Calculate next deadline from now (floating schedule)
-    next_deadline = _calculate_next_deadline(
-        schedule_cron=chore["schedule_cron"],
-        from_time=datetime.now(),
-    )
-
-    # Update state and deadline
-    updated_record = await db_client.update_record(
-        collection="chores",
-        record_id=chore_id,
-        data={
-            "current_state": ChoreState.COMPLETED,
-            "deadline": next_deadline.isoformat(),
-        },
-    )
-
-    logger.info("Completed chore %s, next deadline: %s", chore_id, next_deadline)
-
-    return updated_record
+    return await chore_state_machine.transition_to_completed(chore_id=chore_id)
 
 
 async def move_to_conflict(*, chore_id: str) -> dict[str, Any]:
@@ -249,22 +182,7 @@ async def move_to_conflict(*, chore_id: str) -> dict[str, Any]:
         InvalidStateTransitionError: If chore is not in PENDING_VERIFICATION state
         db_client.RecordNotFoundError: If chore not found
     """
-    # Guard: Verify chore exists and is pending verification
-    chore = await db_client.get_record(collection="chores", record_id=chore_id)
-    if chore["current_state"] != ChoreState.PENDING_VERIFICATION:
-        msg = f"Cannot move to conflict: chore {chore_id} is in {chore['current_state']} state"
-        raise ValueError(msg)
-
-    # Update state
-    updated_record = await db_client.update_record(
-        collection="chores",
-        record_id=chore_id,
-        data={"current_state": ChoreState.CONFLICT},
-    )
-
-    logger.info("Moved chore %s to conflict state", chore_id)
-
-    return updated_record
+    return await chore_state_machine.transition_to_conflict(chore_id=chore_id)
 
 
 async def reset_chore_to_todo(*, chore_id: str) -> dict[str, Any]:
@@ -276,15 +194,7 @@ async def reset_chore_to_todo(*, chore_id: str) -> dict[str, Any]:
     Returns:
         Updated chore record
     """
-    updated_record = await db_client.update_record(
-        collection="chores",
-        record_id=chore_id,
-        data={"current_state": ChoreState.TODO},
-    )
-
-    logger.info("Reset chore %s to TODO state", chore_id)
-
-    return updated_record
+    return await chore_state_machine.transition_to_todo(chore_id=chore_id)
 
 
 async def get_chore_by_id(*, chore_id: str) -> dict[str, Any]:

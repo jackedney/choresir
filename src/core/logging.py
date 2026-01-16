@@ -40,24 +40,3 @@ def span(name: str) -> logfire.LogfireSpan:
             pass
     """
     return logfire.span(name)
-
-
-# Convenience functions for logging
-def log_info(message: str, **kwargs: object) -> None:
-    """Log an info-level message with optional context."""
-    logfire.info(message, **kwargs)
-
-
-def log_warning(message: str, **kwargs: object) -> None:
-    """Log a warning-level message with optional context."""
-    logfire.warn(message, **kwargs)
-
-
-def log_error(message: str, **kwargs: object) -> None:
-    """Log an error-level message with optional context."""
-    logfire.error(message, **kwargs)
-
-
-def log_debug(message: str, **kwargs: object) -> None:
-    """Log a debug-level message with optional context."""
-    logfire.debug(message, **kwargs)

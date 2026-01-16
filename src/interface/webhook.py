@@ -4,6 +4,7 @@ import hashlib
 import hmac
 from typing import Any
 
+import logfire
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from pocketbase import PocketBase
@@ -12,7 +13,6 @@ from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.core import db_client
 from src.core.config import settings
-from src.core.logging import log_debug, log_error, log_info, log_warning
 from src.domain.user import UserStatus
 from src.interface import whatsapp_parser, whatsapp_sender
 
@@ -128,19 +128,19 @@ async def _handle_user_status(
     status = user_record["status"]
 
     if status == UserStatus.PENDING:
-        log_info("Pending user %s sent message", message.from_phone)
+        logfire.info(f"Pending user {message.from_phone} sent message")
         response = await choresir_agent.handle_pending_user(user_name=user_record["name"])
         await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
         return
 
     if status == UserStatus.BANNED:
-        log_info("Banned user %s sent message", message.from_phone)
+        logfire.info(f"Banned user {message.from_phone} sent message")
         response = await choresir_agent.handle_banned_user(user_name=user_record["name"])
         await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
         return
 
     if status == UserStatus.ACTIVE:
-        log_info("Processing active user %s message with agent", message.from_phone)
+        logfire.info(f"Processing active user {message.from_phone} message with agent")
         member_list = await choresir_agent.get_member_list(_db=db)
         agent_response = await choresir_agent.run_agent(
             user_message=message.text or "",
@@ -152,12 +152,12 @@ async def _handle_user_status(
             text=agent_response,
         )
         if not result.success:
-            log_error("Failed to send response to %s: %s", message.from_phone, result.error)
+            logfire.error(f"Failed to send response to {message.from_phone}: {result.error}")
         else:
-            log_info("Successfully processed message for %s", message.from_phone)
+            logfire.info(f"Successfully processed message for {message.from_phone}")
         return
 
-    log_warning("User %s has unknown status: %s", message.from_phone, status)
+    logfire.info(f"User {message.from_phone} has unknown status: {status}")
 
 
 async def process_webhook_message(payload: dict[str, Any]) -> None:
@@ -176,7 +176,7 @@ async def process_webhook_message(payload: dict[str, Any]) -> None:
     try:
         message = whatsapp_parser.extract_first_text_message(payload)
         if not message or not message.text:
-            log_info("No text message found in webhook payload, skipping")
+            logfire.info("No text message found in webhook payload, skipping")
             return
 
         # Check for duplicate message processing
@@ -185,16 +185,16 @@ async def process_webhook_message(payload: dict[str, Any]) -> None:
             filter_query=f'message_id = "{message.message_id}"',
         )
         if existing_log:
-            log_info("Message %s already processed, skipping", message.message_id)
+            logfire.info(f"Message {message.message_id} already processed, skipping")
             return
 
-        log_info("Processing message from %s: %s", message.from_phone, message.text)
+        logfire.info(f"Processing message from {message.from_phone}: {message.text}")
 
         db = db_client.get_client()
         deps = await choresir_agent.build_deps(db=db, user_phone=message.from_phone)
 
         if deps is None:
-            log_info("Unknown user %s, sending onboarding message", message.from_phone)
+            logfire.info(f"Unknown user {message.from_phone}, sending onboarding message")
             response = await choresir_agent.handle_unknown_user(_user_phone=message.from_phone)
             await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
             return
@@ -204,13 +204,13 @@ async def process_webhook_message(payload: dict[str, Any]) -> None:
             filter_query=f'phone = "{message.from_phone}"',
         )
         if not user_record:
-            log_error("User record not found after build_deps succeeded for %s", message.from_phone)
+            logfire.error(f"User record not found after build_deps succeeded for {message.from_phone}")
             return
 
         await _handle_user_status(user_record=user_record, message=message, db=db, deps=deps)
 
     except Exception as e:
-        log_error("Error processing webhook message: %s", e)
+        logfire.error(f"Error processing webhook message: {e}")
         try:
             parsed_message = whatsapp_parser.extract_first_text_message(payload)
             if parsed_message and parsed_message.from_phone:
@@ -219,4 +219,4 @@ async def process_webhook_message(payload: dict[str, Any]) -> None:
                     text="Sorry, an error occurred while processing your message. Please try again later.",
                 )
         except Exception as send_error:
-            log_error("Failed to send error message to user: %s", send_error)
+            logfire.error(f"Failed to send error message to user: {send_error}")

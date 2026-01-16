@@ -10,8 +10,8 @@ from src.agents.base import Deps
 from src.agents.choresir_agent import agent
 from src.core import db_client
 from src.domain.chore import ChoreState
-from src.domain.verification import VerificationDecision
 from src.services import chore_service, user_service, verification_service
+from src.services.verification_service import VerificationDecision
 
 
 class VerifyChore(BaseModel):
@@ -57,9 +57,7 @@ def _format_chore_status(chores: list[dict], user_name: str) -> str:
     # Find next due
     now = datetime.now()
     upcoming_chores = [
-        c
-        for c in chores
-        if c["current_state"] == ChoreState.TODO and datetime.fromisoformat(c["deadline"]) > now
+        c for c in chores if c["current_state"] == ChoreState.TODO and datetime.fromisoformat(c["deadline"]) > now
     ]
 
     next_due_msg = ""
@@ -107,10 +105,7 @@ async def tool_verify_chore(ctx: Deps, params: VerifyChore) -> str:
             if params.decision == "APPROVE":
                 deadline_str = datetime.fromisoformat(updated_chore["deadline"]).strftime("%b %d")
                 return f"Chore '{chore['title']}' approved. Next deadline: {deadline_str}."
-            return (
-                f"Chore '{chore['title']}' rejected. "
-                f"Moving to conflict resolution (voting will be implemented)."
-            )
+            return f"Chore '{chore['title']}' rejected. Moving to conflict resolution (voting will be implemented)."
 
     except PermissionError:
         logfire.warning("Self-verification attempt", user_id=ctx.user_id, log_id=params.log_id)

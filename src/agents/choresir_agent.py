@@ -5,13 +5,14 @@ from datetime import datetime
 import logfire
 from pocketbase import PocketBase
 from pydantic_ai import Agent
-from pydantic_ai.models.openrouter import OpenRouterModel
+from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterProvider
 
 from src.agents.base import Deps
 from src.core import db_client
 from src.core.config import settings
 from src.domain.user import UserStatus
 from src.services import user_service
+
 
 # Configure Logfire for observability
 logfire.configure(token=settings.logfire_token)
@@ -59,9 +60,10 @@ def _build_system_prompt(
 
 
 # Initialize the agent with OpenRouter
+provider = OpenRouterProvider(api_key=settings.openrouter_api_key)
 model = OpenRouterModel(
     model_name=settings.model_id,
-    api_key=settings.openrouter_api_key,
+    provider=provider,
 )
 
 # Create the agent
@@ -89,7 +91,7 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
         The agent's response as a string
     """
     # Build system prompt with context
-    system_prompt = _build_system_prompt(
+    instructions = _build_system_prompt(
         user_name=deps.user_name,
         user_phone=deps.user_phone,
         user_role=deps.user_role,
@@ -104,12 +106,12 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
                 user_message,
                 deps=deps,
                 message_history=[],
-                system_prompt=system_prompt,
+                instructions=instructions,
             )
-            return result.data
+            return result.output
     except Exception as e:
         logfire.error("Agent execution failed", error=str(e))
-        return f"Error: Unable to process request. {str(e)}"
+        return f"Error: Unable to process request. {e!s}"
 
 
 async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
@@ -179,12 +181,12 @@ async def handle_unknown_user(*, _user_phone: str) -> str:
         Onboarding prompt message
     """
     return (
-        f"Welcome! You're not yet a member of this household.\n\n"
-        f"To join, please provide:\n"
-        f"1. House code\n"
-        f"2. House password\n"
-        f"3. Your preferred name\n\n"
-        f"Say something like: 'I want to join. Code: XXXX, Password: YYYY, Name: Your Name'"
+        "Welcome! You're not yet a member of this household.\n\n"
+        "To join, please provide:\n"
+        "1. House code\n"
+        "2. House password\n"
+        "3. Your preferred name\n\n"
+        "Say something like: 'I want to join. Code: XXXX, Password: YYYY, Name: Your Name'"
     )
 
 

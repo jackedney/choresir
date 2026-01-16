@@ -8,6 +8,7 @@ from typing import Any
 from src.core import db_client
 from src.domain.chore import ChoreState
 from src.domain.user import UserStatus
+from src.services import chore_state_machine
 
 
 logger = logging.getLogger(__name__)
@@ -125,8 +126,7 @@ async def cast_vote(
     existing_vote = await db_client.get_first_record(
         collection="logs",
         filter_query=(
-            f'chore_id = "{chore_id}" && user_id = "{voter_user_id}" '
-            f'&& (action = "vote_yes" || action = "vote_no")'
+            f'chore_id = "{chore_id}" && user_id = "{voter_user_id}" && (action = "vote_yes" || action = "vote_no")'
         ),
     )
     if existing_vote:
@@ -228,27 +228,19 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
     if yes_count > no_count:
         result = VoteResult.APPROVED
         # Complete the chore
-        from src.services import chore_service  # noqa: PLC0415
-
-        updated_chore = await chore_service.complete_chore(chore_id=chore_id)
+        updated_chore = await chore_state_machine.transition_to_completed(chore_id=chore_id)
         logger.info("Vote result: APPROVED - chore %s completed", chore_id)
 
     elif no_count > yes_count:
         result = VoteResult.REJECTED
         # Reset chore to TODO
-        from src.services import chore_service  # noqa: PLC0415
-
-        updated_chore = await chore_service.reset_chore_to_todo(chore_id=chore_id)
+        updated_chore = await chore_state_machine.transition_to_todo(chore_id=chore_id)
         logger.info("Vote result: REJECTED - chore %s reset to TODO", chore_id)
 
     else:  # Tie - deadlock
         result = VoteResult.DEADLOCK
         # Transition to DEADLOCK state
-        updated_chore = await db_client.update_record(
-            collection="chores",
-            record_id=chore_id,
-            data={"current_state": ChoreState.DEADLOCK},
-        )
+        updated_chore = await chore_state_machine.transition_to_deadlock(chore_id=chore_id)
         logger.warning("Vote result: DEADLOCK - chore %s in deadlock state", chore_id)
 
     # Create tally log
