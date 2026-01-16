@@ -356,6 +356,7 @@ def sample_users(db_client: MockDBClient, initialized_db: PocketBase) -> dict[st
         "alice": {
             "phone": "+15551234567",
             "name": "Alice Admin",
+            "email": "alice@test.local",
             "role": "admin",
             "status": "active",
             "password": "test_password",
@@ -364,6 +365,7 @@ def sample_users(db_client: MockDBClient, initialized_db: PocketBase) -> dict[st
         "bob": {
             "phone": "+15557654321",
             "name": "Bob Member",
+            "email": "bob@test.local",
             "role": "member",
             "status": "active",
             "password": "test_password",
@@ -372,6 +374,7 @@ def sample_users(db_client: MockDBClient, initialized_db: PocketBase) -> dict[st
         "charlie": {
             "phone": "+15559876543",
             "name": "Charlie Member",
+            "email": "charlie@test.local",
             "role": "member",
             "status": "active",
             "password": "test_password",
@@ -405,11 +408,16 @@ async def create_test_admin(phone: str, name: str, db_client: MockDBClient) -> d
     Returns:
         Created admin user record
     """
+    # Generate email from phone for auth collection requirement
+    email = f"{phone.replace('+', '')}@test.local"
     admin_data = {
         "phone": phone,
         "name": name,
+        "email": email,
         "role": "admin",
         "status": "active",
+        "password": "test_password",
+        "passwordConfirm": "test_password",
     }
     return await db_client.create_record(collection="users", data=admin_data)
 

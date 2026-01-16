@@ -22,11 +22,10 @@ def _get_collection_schema(*, collection_name: str) -> dict[str, Any]:
     schemas = {
         "users": {
             "name": "users",
-            "type": "base",
+            "type": "auth",
             "system": False,
             "schema": [
                 {"name": "phone", "type": "text", "required": True, "options": {"pattern": r"^\+[1-9]\d{1,14}$"}},
-                {"name": "name", "type": "text", "required": True},
                 {"name": "role", "type": "select", "required": True, "options": {"values": ["admin", "member"]}},
                 {
                     "name": "status",
