@@ -4,6 +4,8 @@ import logging
 from typing import Any
 
 import httpx
+from pocketbase import PocketBase
+from pocketbase.client import ClientResponseError
 
 from src.core.config import settings
 
@@ -98,9 +100,6 @@ async def sync_schema(
         admin_email: Admin email for authentication (default for tests).
         admin_password: Admin password for authentication (default for tests).
     """
-    from pocketbase import PocketBase
-    from pocketbase.client import ClientResponseError
-
     logger.info("Starting PocketBase schema sync...")
 
     url = pocketbase_url or settings.pocketbase_url

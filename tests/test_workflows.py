@@ -4,6 +4,8 @@ import pytest
 
 from src.domain.chore import ChoreState
 from src.services import chore_service, conflict_service, user_service, verification_service
+from src.services.conflict_service import VoteChoice, VoteResult
+from src.services.verification_service import VerificationDecision
 from tests.conftest import create_test_admin
 
 
@@ -63,8 +65,6 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
     assert chore["current_state"] == ChoreState.TODO.value
 
     # Step 2: Bob logs completion
-    from src.services.verification_service import VerificationDecision
-
     log = await verification_service.request_verification(
         chore_id=chore["id"],
         claimer_user_id=sample_users["bob"]["id"],
@@ -105,8 +105,6 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
     )
 
     # Step 2: Charlie logs completion
-    from src.services.verification_service import VerificationDecision
-
     await verification_service.request_verification(
         chore_id=chore["id"],
         claimer_user_id=sample_users["charlie"]["id"],
@@ -128,8 +126,6 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
     assert conflict_chore["current_state"] == ChoreState.CONFLICT.value
 
     # Step 4: Bob votes (only eligible voter)
-    from src.services.conflict_service import VoteChoice
-
     vote = await conflict_service.cast_vote(
         chore_id=chore["id"],
         voter_user_id=sample_users["bob"]["id"],
@@ -139,9 +135,7 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
     assert vote["action"] == "vote_yes"
 
     # Step 5: Tally votes (should resolve conflict)
-    from src.services.conflict_service import VoteResult
-
-    tally_result, updated_chore = await conflict_service.tally_votes(chore_id=chore["id"])
+    tally_result, _updated_chore = await conflict_service.tally_votes(chore_id=chore["id"])
 
     assert tally_result == VoteResult.APPROVED
 
@@ -164,8 +158,6 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
     assert chore["assigned_to"] == sample_users["bob"]["id"]
 
     # Step 2: Alice logs completion on Bob's behalf
-    from src.services.verification_service import VerificationDecision
-
     log = await verification_service.request_verification(
         chore_id=chore["id"],
         claimer_user_id=sample_users["alice"]["id"],
@@ -205,8 +197,6 @@ async def test_invalid_house_credentials(mock_db_module, db_client) -> None:
 @pytest.mark.asyncio
 async def test_verifier_cannot_be_claimer(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Verifier cannot be the same as claimer."""
-    from src.services.verification_service import VerificationDecision
-
     chore = await chore_service.create_chore(
         title="Water Plants",
         description="Water all indoor plants",
