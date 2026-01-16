@@ -84,38 +84,39 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
         db_client.RecordNotFoundError: If admin or target user not found
         UserServiceError: If target user is not pending
     """
-    # Guard: Verify admin privileges
-    admin_record = await db_client.get_record(collection="users", record_id=admin_user_id)
-    if admin_record["role"] != UserRole.ADMIN:
-        msg = f"User {admin_user_id} is not authorized to approve members"
-        logger.warning(msg)
-        raise PermissionError(msg)
+    with span("user_service.approve_member"):
+        # Guard: Verify admin privileges
+        admin_record = await db_client.get_record(collection="users", record_id=admin_user_id)
+        if admin_record["role"] != UserRole.ADMIN:
+            msg = f"User {admin_user_id} is not authorized to approve members"
+            logger.warning(msg)
+            raise PermissionError(msg)
 
-    # Guard: Find target user
-    target_user = await db_client.get_first_record(
-        collection="users",
-        filter_query=f'phone = "{target_phone}"',
-    )
-    if not target_user:
-        msg = f"User with phone {target_phone} not found"
-        raise db_client.RecordNotFoundError(msg)
+        # Guard: Find target user
+        target_user = await db_client.get_first_record(
+            collection="users",
+            filter_query=f'phone = "{target_phone}"',
+        )
+        if not target_user:
+            msg = f"User with phone {target_phone} not found"
+            raise db_client.RecordNotFoundError(msg)
 
-    # Guard: Check user is pending
-    if target_user["status"] != UserStatus.PENDING:
-        msg = f"User {target_phone} is not pending approval (status: {target_user['status']})"
-        logger.warning(msg)
-        raise ValueError(msg)
+        # Guard: Check user is pending
+        if target_user["status"] != UserStatus.PENDING:
+            msg = f"User {target_phone} is not pending approval (status: {target_user['status']})"
+            logger.warning(msg)
+            raise ValueError(msg)
 
-    # Approve user
-    updated_record = await db_client.update_record(
-        collection="users",
-        record_id=target_user["id"],
-        data={"status": UserStatus.ACTIVE},
-    )
+        # Approve user
+        updated_record = await db_client.update_record(
+            collection="users",
+            record_id=target_user["id"],
+            data={"status": UserStatus.ACTIVE},
+        )
 
-    logger.info("Approved user %s by admin %s", target_phone, admin_user_id)
+        logger.info("Approved user %s by admin %s", target_phone, admin_user_id)
 
-    return updated_record
+        return updated_record
 
 
 async def ban_user(*, admin_user_id: str, target_user_id: str) -> dict[str, Any]:
@@ -134,26 +135,27 @@ async def ban_user(*, admin_user_id: str, target_user_id: str) -> dict[str, Any]
         UnauthorizedError: If requesting user is not an admin
         db_client.RecordNotFoundError: If admin or target user not found
     """
-    # Guard: Verify admin privileges
-    admin_record = await db_client.get_record(collection="users", record_id=admin_user_id)
-    if admin_record["role"] != UserRole.ADMIN:
-        msg = f"User {admin_user_id} is not authorized to ban users"
-        logger.warning(msg)
-        raise PermissionError(msg)
+    with span("user_service.ban_user"):
+        # Guard: Verify admin privileges
+        admin_record = await db_client.get_record(collection="users", record_id=admin_user_id)
+        if admin_record["role"] != UserRole.ADMIN:
+            msg = f"User {admin_user_id} is not authorized to ban users"
+            logger.warning(msg)
+            raise PermissionError(msg)
 
-    # Guard: Verify target user exists (will raise if not found)
-    await db_client.get_record(collection="users", record_id=target_user_id)
+        # Guard: Verify target user exists (will raise if not found)
+        await db_client.get_record(collection="users", record_id=target_user_id)
 
-    # Ban user
-    updated_record = await db_client.update_record(
-        collection="users",
-        record_id=target_user_id,
-        data={"status": UserStatus.BANNED},
-    )
+        # Ban user
+        updated_record = await db_client.update_record(
+            collection="users",
+            record_id=target_user_id,
+            data={"status": UserStatus.BANNED},
+        )
 
-    logger.info("Banned user %s by admin %s", target_user_id, admin_user_id)
+        logger.info("Banned user %s by admin %s", target_user_id, admin_user_id)
 
-    return updated_record
+        return updated_record
 
 
 async def get_user_by_phone(*, phone: str) -> dict[str, Any] | None:

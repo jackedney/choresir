@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 # Central list of all collections in the schema
-COLLECTIONS = ["users", "chores", "logs"]
+COLLECTIONS = ["users", "chores", "logs", "processed_messages"]
 
 
 def _get_collection_schema(
@@ -122,6 +122,19 @@ def _get_collection_schema(
                 {"name": "notes", "type": "text", "required": False},
                 {"name": "timestamp", "type": "date", "required": False},
             ],
+        },
+        "processed_messages": {
+            "name": "processed_messages",
+            "type": "base",
+            "system": False,
+            "fields": [
+                {"name": "message_id", "type": "text", "required": True},
+                {"name": "from_phone", "type": "text", "required": True},
+                {"name": "processed_at", "type": "date", "required": True},
+                {"name": "success", "type": "bool", "required": True},
+                {"name": "error_message", "type": "text", "required": False},
+            ],
+            "indexes": ["CREATE UNIQUE INDEX idx_message_id ON processed_messages (message_id)"],
         },
     }
     return schemas[collection_name]

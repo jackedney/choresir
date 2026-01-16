@@ -8,6 +8,7 @@ from typing import Any
 from croniter import croniter
 
 from src.core import db_client
+from src.core.logging import span
 from src.domain.chore import ChoreState
 from src.services import chore_state_machine
 
@@ -69,26 +70,27 @@ async def create_chore(
         ValueError: If recurrence format is invalid
         db_client.DatabaseError: If database operation fails
     """
-    # Parse and validate recurrence
-    schedule_cron = _parse_recurrence_to_cron(recurrence)
+    with span("chore_service.create_chore"):
+        # Parse and validate recurrence
+        schedule_cron = _parse_recurrence_to_cron(recurrence)
 
-    # Calculate initial deadline
-    deadline = chore_state_machine._calculate_next_deadline(schedule_cron=schedule_cron)
+        # Calculate initial deadline
+        deadline = chore_state_machine._calculate_next_deadline(schedule_cron=schedule_cron)
 
-    # Create chore record
-    chore_data = {
-        "title": title,
-        "description": description,
-        "schedule_cron": schedule_cron,
-        "assigned_to": assigned_to or "",  # Empty string for unassigned
-        "current_state": ChoreState.TODO,
-        "deadline": deadline.isoformat(),
-    }
+        # Create chore record
+        chore_data = {
+            "title": title,
+            "description": description,
+            "schedule_cron": schedule_cron,
+            "assigned_to": assigned_to or "",  # Empty string for unassigned
+            "current_state": ChoreState.TODO,
+            "deadline": deadline.isoformat(),
+        }
 
-    record = await db_client.create_record(collection="chores", data=chore_data)
-    logger.info("Created chore: %s (assigned to: %s)", title, assigned_to or "unassigned")
+        record = await db_client.create_record(collection="chores", data=chore_data)
+        logger.info("Created chore: %s (assigned to: %s)", title, assigned_to or "unassigned")
 
-    return record
+        return record
 
 
 async def get_chores(
@@ -109,32 +111,33 @@ async def get_chores(
     Returns:
         List of chore records matching filters
     """
-    # Build filter query
-    filters = []
+    with span("chore_service.get_chores"):
+        # Build filter query
+        filters = []
 
-    if user_id:
-        filters.append(f'assigned_to = "{user_id}"')
+        if user_id:
+            filters.append(f'assigned_to = "{user_id}"')
 
-    if state:
-        filters.append(f'current_state = "{state}"')
+        if state:
+            filters.append(f'current_state = "{state}"')
 
-    if time_range_start:
-        filters.append(f'deadline >= "{time_range_start.isoformat()}"')
+        if time_range_start:
+            filters.append(f'deadline >= "{time_range_start.isoformat()}"')
 
-    if time_range_end:
-        filters.append(f'deadline <= "{time_range_end.isoformat()}"')
+        if time_range_end:
+            filters.append(f'deadline <= "{time_range_end.isoformat()}"')
 
-    filter_query = " && ".join(filters) if filters else ""
+        filter_query = " && ".join(filters) if filters else ""
 
-    records = await db_client.list_records(
-        collection="chores",
-        filter_query=filter_query,
-        sort="+deadline",  # Sort by deadline ascending
-    )
+        records = await db_client.list_records(
+            collection="chores",
+            filter_query=filter_query,
+            sort="+deadline",  # Sort by deadline ascending
+        )
 
-    logger.debug("Retrieved %d chores with filters: %s", len(records), filter_query)
+        logger.debug("Retrieved %d chores with filters: %s", len(records), filter_query)
 
-    return records
+        return records
 
 
 async def mark_pending_verification(*, chore_id: str) -> dict[str, Any]:
