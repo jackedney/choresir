@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from src.core.config import settings
 from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
 from src.core.scheduler import start_scheduler, stop_scheduler
 from src.core.schema import sync_schema
@@ -18,7 +19,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Startup
     configure_logfire()
     instrument_pydantic_ai()
-    await sync_schema()
+    await sync_schema(
+        admin_email=settings.pocketbase_admin_email,
+        admin_password=settings.pocketbase_admin_password,
+    )
     start_scheduler()
     yield
     # Shutdown

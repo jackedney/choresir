@@ -187,3 +187,47 @@ tasks:
         else
           echo "No domain entered. Skipping."
         fi
+
+  clean:
+    desc: Remove PocketBase binary and data
+    cmds:
+      - rm -f {{.POCKETBASE_BIN}}
+      - rm -rf pb_data
+      - rm -rf pb_migrations
+
+  deploy:
+    desc: Deploy to Railway (requires Railway CLI)
+    cmds:
+      - |
+        if ! command -v railway &> /dev/null; then
+          echo "Railway CLI not found. Install with: npm install -g @railway/cli"
+          exit 1
+        fi
+      - echo "Deploying to Railway..."
+      - railway up
+
+  deploy-status:
+    desc: Check Railway deployment status
+    cmds:
+      - |
+        if ! command -v railway &> /dev/null; then
+          echo "Railway CLI not found. Install with: npm install -g @railway/cli"
+          exit 1
+        fi
+      - railway status
+
+  deploy-logs:
+    desc: View Railway deployment logs
+    cmds:
+      - |
+        if ! command -v railway &> /dev/null; then
+          echo "Railway CLI not found. Install with: npm install -g @railway/cli"
+          exit 1
+        fi
+      - railway logs
+
+  install-railway-cli:
+    desc: Install Railway CLI
+    cmds:
+      - npm install -g @railway/cli
+      - echo "Railway CLI installed. Run 'railway login' to authenticate."

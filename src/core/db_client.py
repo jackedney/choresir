@@ -26,9 +26,15 @@ class DatabaseConnectionError(DatabaseError):
 
 
 def get_client() -> PocketBase:
-    """Get PocketBase client instance."""
+    """Get PocketBase client instance with admin authentication."""
     try:
-        return PocketBase(settings.pocketbase_url)
+        client = PocketBase(settings.pocketbase_url)
+        # Authenticate as admin for full access to all collections
+        client.admins.auth_with_password(
+            settings.pocketbase_admin_email,
+            settings.pocketbase_admin_password,
+        )
+        return client
     except Exception as e:
         msg = f"Failed to connect to PocketBase: {e}"
         logger.error(msg)

@@ -81,6 +81,19 @@ See [SETUP.md](./docs/SETUP.md) for detailed instructions including:
 - **Twilio Account** - For WhatsApp integration
 - **OpenRouter API Key** - [Get here](https://openrouter.ai)
 
+## ☁️ Production Deployment
+
+**Platform:** Railway (recommended)
+**Cost:** ~$5-10/month
+**Guide:** [docs/RAILWAY_DEPLOYMENT.md](./docs/RAILWAY_DEPLOYMENT.md)
+
+**Quick deploy:**
+1. Create Railway project
+2. Deploy PocketBase service (with persistent volume)
+3. Deploy FastAPI service (connect GitHub repo)
+4. Set environment variables
+5. Update WhatsApp webhook URL
+
 ## 📖 Additional Documentation
 
 - **[Local Development Guide](./docs/LOCAL_DEVELOPMENT.md)** - Detailed development workflow, debugging tips
