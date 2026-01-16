@@ -11,6 +11,10 @@ from src.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+# Central list of all collections in the schema
+COLLECTIONS = ["users", "chores", "logs"]
+
+
 def _get_collection_schema(*, collection_name: str) -> dict[str, Any]:
     """Get the expected schema for a collection."""
     schemas = {
@@ -82,16 +86,44 @@ async def _create_collection(*, client: httpx.AsyncClient, schema: dict[str, Any
     logger.info("Created collection: %s", schema["name"])
 
 
-async def sync_schema() -> None:
-    """Sync PocketBase schema with domain models (idempotent)."""
+async def sync_schema(
+    pocketbase_url: str | None = None,
+    admin_email: str = "admin@test.local",
+    admin_password: str = "testpassword123",  # noqa: S107
+) -> None:
+    """Sync PocketBase schema with domain models (idempotent).
+
+    Args:
+        pocketbase_url: Optional PocketBase URL. If not provided, uses settings.pocketbase_url.
+        admin_email: Admin email for authentication (default for tests).
+        admin_password: Admin password for authentication (default for tests).
+    """
+    from pocketbase import PocketBase
+    from pocketbase.client import ClientResponseError
+
     logger.info("Starting PocketBase schema sync...")
 
-    async with httpx.AsyncClient(base_url=settings.pocketbase_url, timeout=30.0) as client:
-        for collection_name in ["users", "chores", "logs"]:
+    url = pocketbase_url or settings.pocketbase_url
+    client = PocketBase(url)
+
+    # Authenticate as admin using PocketBase SDK
+    try:
+        client.admins.auth_with_password(admin_email, admin_password)
+        logger.info("Successfully authenticated as admin")
+    except ClientResponseError as e:
+        logger.error(f"Failed to authenticate as admin: {e}")
+        raise
+
+    # Use httpx with the auth token from PocketBase SDK
+    async with httpx.AsyncClient(base_url=url, timeout=30.0) as http_client:
+        # Set authorization header
+        http_client.headers["Authorization"] = f"Bearer {client.auth_store.token}"
+
+        for collection_name in COLLECTIONS:
             schema = _get_collection_schema(collection_name=collection_name)
 
-            if not await _collection_exists(client=client, collection_name=collection_name):
-                await _create_collection(client=client, schema=schema)
+            if not await _collection_exists(client=http_client, collection_name=collection_name):
+                await _create_collection(client=http_client, schema=schema)
             else:
                 logger.info("Collection already exists: %s", collection_name)
 

@@ -5,6 +5,7 @@ from typing import Literal
 
 import logfire
 from pydantic import BaseModel, Field
+from pydantic_ai import RunContext
 
 from src.agents.base import Deps
 from src.agents.choresir_agent import agent
@@ -70,7 +71,7 @@ def _format_chore_status(chores: list[dict], user_name: str) -> str:
 
 
 @agent.tool
-async def tool_verify_chore(ctx: Deps, params: VerifyChore) -> str:
+async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
     """
     Verify or reject a chore completion claim.
 
@@ -97,7 +98,7 @@ async def tool_verify_chore(ctx: Deps, params: VerifyChore) -> str:
             decision_enum = VerificationDecision(params.decision)
             updated_chore = await verification_service.verify_chore(
                 chore_id=chore_id,
-                verifier_user_id=ctx.user_id,
+                verifier_user_id=ctx.deps.user_id,
                 decision=decision_enum,
                 reason=params.reason or "",
             )
@@ -108,7 +109,7 @@ async def tool_verify_chore(ctx: Deps, params: VerifyChore) -> str:
             return f"Chore '{chore['title']}' rejected. Moving to conflict resolution (voting will be implemented)."
 
     except PermissionError:
-        logfire.warning("Self-verification attempt", user_id=ctx.user_id, log_id=params.log_id)
+        logfire.warning("Self-verification attempt", user_id=ctx.deps.user_id, log_id=params.log_id)
         return "Error: You cannot verify your own chore claim."
     except ValueError as e:
         logfire.warning("Verification failed", error=str(e))
@@ -119,7 +120,7 @@ async def tool_verify_chore(ctx: Deps, params: VerifyChore) -> str:
 
 
 @agent.tool
-async def tool_get_status(ctx: Deps, params: GetStatus) -> str:
+async def tool_get_status(ctx: RunContext[Deps], params: GetStatus) -> str:
     """
     Get chore status summary for a user.
 
@@ -142,8 +143,8 @@ async def tool_get_status(ctx: Deps, params: GetStatus) -> str:
                 target_user_id = target_user["id"]
                 target_user_name = target_user["name"]
             else:
-                target_user_id = ctx.user_id
-                target_user_name = ctx.user_name
+                target_user_id = ctx.deps.user_id
+                target_user_name = ctx.deps.user_name
 
             # Get chores for the user in the time range
             time_range_start = datetime.now() - timedelta(days=params.time_range)
