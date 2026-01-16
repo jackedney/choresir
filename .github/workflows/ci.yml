@@ -60,3 +60,5 @@ jobs:
           LOGFIRE_TOKEN: test_logfire_ci
           HOUSE_CODE: TEST_CI_123
           HOUSE_PASSWORD: test_pass_ci
+          POCKETBASE_ADMIN_EMAIL: admin@test.local
+          POCKETBASE_ADMIN_PASSWORD: testpassword123

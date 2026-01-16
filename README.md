@@ -41,37 +41,53 @@ Optimized for low cost, high performance, and strictly typed Python.
 
 ## 🚀 Getting Started
 
-### Prerequisites
-1.  **uv** (The Python package manager)
-2.  PocketBase executable (v0.22+)
-3.  Meta Developer Account (WhatsApp Product)
-4.  OpenRouter API Key
+### Quick Start (Already Have Accounts)
+If you already have Meta/WhatsApp, OpenRouter, and the code:
+**→ [Quick Start Guide](./docs/QUICK_START.md)** (15-30 minutes)
 
-### 1. Database Setup
-1.  Start server: `./pocketbase serve`
-2.  Go to `http://127.0.0.1:8090/_/` and create Admin account.
-3.  Import schema (see `adrs/007-operations.md`).
+### First Time Setup (Complete Walkthrough)
+If starting from scratch:
+**→ [Complete Setup Guide](./docs/SETUP.md)** (2-3 hours + waiting for approvals)
 
-### 2. Environment Variables (`.env`)
+### Setup by Component
+
+| Component | Guide | Time | Status |
+|-----------|-------|------|--------|
+| **WhatsApp Templates** | [WHATSAPP_TEMPLATES.md](./docs/WHATSAPP_TEMPLATES.md) | 30 min + 1-2 days approval | Required for >24h messages |
+| **ngrok (Local Testing)** | [NGROK_SETUP.md](./docs/NGROK_SETUP.md) | 15 min | Required for local webhook testing |
+| **Logfire (Monitoring)** | [LOGFIRE_SETUP.md](./docs/LOGFIRE_SETUP.md) | 10 min | Optional but recommended |
+| **Railway (Production)** | [RAILWAY_DEPLOYMENT.md](./docs/RAILWAY_DEPLOYMENT.md) | 1 hour | For production deployment |
+
+### Minimal Local Setup (5 minutes)
+
 ```bash
-POCKETBASE_URL="http://127.0.0.1:8090"
-OPENROUTER_API_KEY="sk-or-..."
-WHATSAPP_VERIFY_TOKEN="random_string"
-LOGFIRE_TOKEN="your_token"
-HOUSE_CODE="HOUSE123"
-HOUSE_PASSWORD="SecretPass"
-```
-
-### 3. Run the Server
-```bash
+# Install dependencies
 uv sync
-uv run fastapi dev src/main.py
+
+# Download PocketBase
+task setup
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your tokens
+
+# Start services (3 terminals)
+./pocketbase serve                    # Terminal 1
+uv run fastapi dev src/main.py        # Terminal 2
+ngrok http 8000                       # Terminal 3
 ```
 
-### 4. Connect WhatsApp (Localhost)
-1.  `ngrok http 8000`
-2.  Meta Developers -> Configuration -> Webhook URL: `https://xyz.ngrok-free.app/webhook`
+See [Quick Start Guide](./docs/QUICK_START.md) for detailed instructions.
 
-## ☁️ Deployment (Railway)
-1.  **PocketBase Service:** Use the template + Attach Volume to `/pb_data`.
-2.  **Python Worker:** Connect GitHub repo. Set `POCKETBASE_URL` to the internal service URL.
+## ☁️ Production Deployment
+
+**Platform:** Railway (recommended)
+**Cost:** ~$5-10/month
+**Guide:** [docs/RAILWAY_DEPLOYMENT.md](./docs/RAILWAY_DEPLOYMENT.md)
+
+**Quick deploy:**
+1. Create Railway project
+2. Deploy PocketBase service (with persistent volume)
+3. Deploy FastAPI service (connect GitHub repo)
+4. Set environment variables
+5. Update WhatsApp webhook URL
