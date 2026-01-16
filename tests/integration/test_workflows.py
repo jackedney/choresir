@@ -9,6 +9,7 @@ from src.services.verification_service import VerificationDecision
 from tests.conftest import create_test_admin
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_join_house_workflow(mock_db_module, db_client) -> None:
     """Test: Join House workflow (request → approve → active)."""
@@ -16,8 +17,8 @@ async def test_join_house_workflow(mock_db_module, db_client) -> None:
     user = await user_service.request_join(
         phone="+15550001111",
         name="Diana Newbie",
-        house_code="TEST_CI_123",
-        password="test_pass_ci",
+        house_code="TEST123",
+        password="testpass",
     )
 
     assert user["phone"] == "+15550001111"
@@ -49,6 +50,7 @@ async def test_join_house_workflow(mock_db_module, db_client) -> None:
     assert retrieved_user["status"] == "active"
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Create & Complete Chore workflow (create → log → verify → completed)."""
@@ -86,13 +88,15 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
         reason="Looks good",
     )
 
-    assert result["status"] == "approved"
+    # verify_chore returns the updated chore record
+    assert result["current_state"] == ChoreState.COMPLETED.value
 
     # Verify chore is completed
     final_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
     assert final_chore["current_state"] == ChoreState.COMPLETED.value
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Conflict Resolution workflow (log → reject → vote → resolve)."""
@@ -119,7 +123,8 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
         reason="Grass still too long",
     )
 
-    assert result["status"] == "conflict"
+    # verify_chore returns the updated chore record
+    assert result["current_state"] == ChoreState.CONFLICT.value
 
     # Verify chore moved to CONFLICT state
     conflict_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
@@ -144,6 +149,7 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
     assert final_chore["current_state"] == ChoreState.COMPLETED.value
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Robin Hood Swap workflow (User A logs User B's chore)."""
@@ -175,13 +181,15 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
         reason="Confirmed clean",
     )
 
-    assert result["status"] == "approved"
+    # verify_chore returns the updated chore record
+    assert result["current_state"] == ChoreState.COMPLETED.value
 
     # Verify chore is completed
     final_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
     assert final_chore["current_state"] == ChoreState.COMPLETED.value
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_invalid_house_credentials(mock_db_module, db_client) -> None:
     """Test: Reject join request with invalid credentials."""
@@ -194,6 +202,7 @@ async def test_invalid_house_credentials(mock_db_module, db_client) -> None:
         )
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_verifier_cannot_be_claimer(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Verifier cannot be the same as claimer."""
@@ -211,7 +220,7 @@ async def test_verifier_cannot_be_claimer(mock_db_module, db_client, sample_user
     )
 
     # Bob tries to verify his own claim
-    with pytest.raises(PermissionError, match="Verifier cannot be the claimer"):
+    with pytest.raises(PermissionError, match="cannot verify their own chore claim"):
         await verification_service.verify_chore(
             chore_id=chore["id"],
             verifier_user_id=sample_users["bob"]["id"],

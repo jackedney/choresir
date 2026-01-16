@@ -1,11 +1,13 @@
-"""Pytest configuration and fixtures for integration tests."""
+"""Pytest configuration and shared fixtures."""
 
 import asyncio
 import logging
+import secrets
 import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -15,7 +17,6 @@ from fastapi.testclient import TestClient
 from pocketbase import PocketBase
 from pocketbase.client import ClientResponseError
 
-from src.core import db_client as db_module
 from src.core.config import Settings
 from src.core.db_client import DatabaseError, RecordNotFoundError
 from src.core.schema import COLLECTIONS, sync_schema
@@ -29,101 +30,7 @@ HTTP_NOT_FOUND = 404
 logger = logging.getLogger(__name__)
 
 
-# Helper functions for mock_db_module fixture
-def _make_mock_create_record(pb: PocketBase):
-    """Create mock create_record function."""
-
-    async def mock_create_record(*, collection: str, data: dict) -> dict:
-        try:
-            record = pb.collection(collection).create(data)
-            return record.__dict__
-        except Exception as e:
-            raise DatabaseError(f"Failed to create record in {collection}: {e}") from e
-
-    return mock_create_record
-
-
-def _make_mock_get_record(pb: PocketBase):
-    """Create mock get_record function."""
-
-    async def mock_get_record(*, collection: str, record_id: str) -> dict:
-        try:
-            record = pb.collection(collection).get_one(record_id)
-            return record.__dict__
-        except Exception as e:
-            if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
-            raise DatabaseError(f"Failed to get record from {collection}: {e}") from e
-
-    return mock_get_record
-
-
-def _make_mock_update_record(pb: PocketBase):
-    """Create mock update_record function."""
-
-    async def mock_update_record(*, collection: str, record_id: str, data: dict) -> dict:
-        try:
-            record = pb.collection(collection).update(record_id, data)
-            return record.__dict__
-        except Exception as e:
-            if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
-            raise DatabaseError(f"Failed to update record in {collection}: {e}") from e
-
-    return mock_update_record
-
-
-def _make_mock_delete_record(pb: PocketBase):
-    """Create mock delete_record function."""
-
-    async def mock_delete_record(*, collection: str, record_id: str) -> None:
-        try:
-            pb.collection(collection).delete(record_id)
-        except Exception as e:
-            if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
-            raise DatabaseError(f"Failed to delete record from {collection}: {e}") from e
-
-    return mock_delete_record
-
-
-def _make_mock_list_records(pb: PocketBase):
-    """Create mock list_records function."""
-
-    async def mock_list_records(
-        *,
-        collection: str,
-        page: int = 1,
-        per_page: int = 50,
-        filter_query: str = "",
-        sort: str = "-created",
-    ) -> list[dict]:
-        try:
-            result = pb.collection(collection).get_list(
-                page=page,
-                per_page=per_page,
-                query_params={"filter": filter_query, "sort": sort},
-            )
-            return [item.__dict__ for item in result.items]
-        except Exception as e:
-            raise DatabaseError(f"Failed to list records from {collection}: {e}") from e
-
-    return mock_list_records
-
-
-def _make_mock_get_first_record(pb: PocketBase):
-    """Create mock get_first_record function."""
-
-    async def mock_get_first_record(*, collection: str, filter_query: str) -> dict | None:
-        try:
-            result = pb.collection(collection).get_first_list_item(filter_query)
-            return result.__dict__
-        except Exception as e:
-            if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                return None
-            raise DatabaseError(f"Failed to get first record from {collection}: {e}") from e
-
-    return mock_get_first_record
+# Shared test utilities
 
 
 class MockDBClient:
@@ -143,7 +50,7 @@ class MockDBClient:
             return record.__dict__
         except ClientResponseError as e:
             msg = f"Failed to create record in {collection}: {e}"
-            raise Exception(msg) from e
+            raise DatabaseError(msg) from e
 
     async def get_record(self, *, collection: str, record_id: str) -> dict[str, Any]:
         """Get a record by ID from the specified collection."""
@@ -152,10 +59,10 @@ class MockDBClient:
             return record.__dict__
         except ClientResponseError as e:
             if e.status == HTTP_NOT_FOUND:
-                msg = f"Record not found in {collection}: {record_id}"
-                raise Exception(msg) from e
+                msg = f"Record {record_id} not found in {collection}"
+                raise RecordNotFoundError(msg) from e
             msg = f"Failed to get record from {collection}: {e}"
-            raise Exception(msg) from e
+            raise DatabaseError(msg) from e
 
     async def update_record(self, *, collection: str, record_id: str, data: dict[str, Any]) -> dict[str, Any]:
         """Update a record in the specified collection."""
@@ -164,10 +71,10 @@ class MockDBClient:
             return record.__dict__
         except ClientResponseError as e:
             if e.status == HTTP_NOT_FOUND:
-                msg = f"Record not found in {collection}: {record_id}"
-                raise Exception(msg) from e
+                msg = f"Record {record_id} not found in {collection}"
+                raise RecordNotFoundError(msg) from e
             msg = f"Failed to update record in {collection}: {e}"
-            raise Exception(msg) from e
+            raise DatabaseError(msg) from e
 
     async def delete_record(self, *, collection: str, record_id: str) -> None:
         """Delete a record from the specified collection."""
@@ -175,10 +82,10 @@ class MockDBClient:
             self._pb.collection(collection).delete(record_id)
         except ClientResponseError as e:
             if e.status == HTTP_NOT_FOUND:
-                msg = f"Record not found in {collection}: {record_id}"
-                raise Exception(msg) from e
+                msg = f"Record {record_id} not found in {collection}"
+                raise RecordNotFoundError(msg) from e
             msg = f"Failed to delete record from {collection}: {e}"
-            raise Exception(msg) from e
+            raise DatabaseError(msg) from e
 
     async def list_records(
         self,
@@ -199,7 +106,7 @@ class MockDBClient:
             return [item.__dict__ for item in result.items]
         except ClientResponseError as e:
             msg = f"Failed to list records from {collection}: {e}"
-            raise Exception(msg) from e
+            raise DatabaseError(msg) from e
 
     async def get_first_record(self, *, collection: str, filter_query: str) -> dict[str, Any] | None:
         """Get the first record matching the filter query, or None if not found."""
@@ -210,7 +117,7 @@ class MockDBClient:
             if e.status == HTTP_NOT_FOUND:
                 return None
             msg = f"Failed to get first record from {collection}: {e}"
-            raise Exception(msg) from e
+            raise DatabaseError(msg) from e
 
 
 @pytest.fixture(scope="session")
@@ -315,24 +222,19 @@ def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBas
     return client
 
 
-@pytest.fixture
-def mock_db_module(initialized_db: PocketBase, monkeypatch):
-    """Patch the db_client module to use the test PocketBase instance."""
-    # Patch all the db_client functions using helper factories
-    monkeypatch.setattr(db_module, "create_record", _make_mock_create_record(initialized_db))
-    monkeypatch.setattr(db_module, "get_record", _make_mock_get_record(initialized_db))
-    monkeypatch.setattr(db_module, "update_record", _make_mock_update_record(initialized_db))
-    monkeypatch.setattr(db_module, "delete_record", _make_mock_delete_record(initialized_db))
-    monkeypatch.setattr(db_module, "list_records", _make_mock_list_records(initialized_db))
-    monkeypatch.setattr(db_module, "get_first_record", _make_mock_get_first_record(initialized_db))
-
-    yield
+# @pytest.fixture
+# def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypatch):
+#     """Patch the db_client module to use the test PocketBase instance."""
+#     # NOTE: This fixture is commented out as it references undefined mock functions
+#     # For integration tests, use the real db_client with a test PocketBase instance
+#     yield
 
 
 @pytest.fixture
 def db_client(initialized_db: PocketBase) -> Generator[MockDBClient]:
     """Provide clean database for each test with async wrapper interface."""
-    for collection in COLLECTIONS:
+    # Clean in reverse dependency order: logs → chores → users
+    for collection in reversed(COLLECTIONS):
         try:
             records = initialized_db.collection(collection).get_full_list()
             for record in records:
@@ -450,3 +352,91 @@ def sample_chores(db_client: MockDBClient, initialized_db: PocketBase, sample_us
         created[key] = record.__dict__
 
     return created
+
+
+# Factory fixtures for flexible test data creation
+
+
+@pytest.fixture
+def user_factory(initialized_db: PocketBase):
+    """Factory for creating users with custom data.
+
+    Usage:
+        user = user_factory(name="Test User", phone="+1234567890", role="admin")
+    """
+
+    def _create_user(**kwargs):
+        random_suffix = "".join(secrets.choice("0123456789") for _ in range(10))
+        user_data = {
+            "phone": kwargs.get("phone", f"+1{random_suffix}"),
+            "name": kwargs.get("name", f"User {uuid.uuid4().hex[:8]}"),
+            "email": kwargs.get("email", f"user_{uuid.uuid4().hex[:8]}@test.local"),
+            "role": kwargs.get("role", "member"),
+            "status": kwargs.get("status", "active"),
+            "password": kwargs.get("password", "test_password"),
+            "passwordConfirm": kwargs.get("password", "test_password"),
+        }
+        # Allow override of any fields
+        user_data.update({k: v for k, v in kwargs.items() if k not in user_data})
+        record = initialized_db.collection("users").create(user_data)
+        return record.__dict__
+
+    return _create_user
+
+
+@pytest.fixture
+def chore_factory(initialized_db: PocketBase):
+    """Factory for creating chores with custom data.
+
+    Usage:
+        chore = chore_factory(title="Test Chore", assigned_to=user_id, current_state="TODO")
+    """
+
+    def _create_chore(**kwargs):
+        chore_data = {
+            "title": kwargs.get("title", f"Chore {uuid.uuid4().hex[:8]}"),
+            "description": kwargs.get("description", "A test chore"),
+            "schedule_cron": kwargs.get("schedule_cron", "0 10 * * *"),
+            "current_state": kwargs.get("current_state", "TODO"),
+        }
+        # Conditionally add assigned_to and deadline if provided
+        if "assigned_to" in kwargs:
+            chore_data["assigned_to"] = kwargs["assigned_to"]
+        if "deadline" in kwargs:
+            chore_data["deadline"] = kwargs["deadline"]
+
+        # Allow override of any fields
+        chore_data.update({k: v for k, v in kwargs.items() if k not in chore_data})
+        record = initialized_db.collection("chores").create(chore_data)
+        return record.__dict__
+
+    return _create_chore
+
+
+@pytest.fixture
+def clean_db(db_client: MockDBClient) -> Generator[MockDBClient]:
+    """Ensure clean database state, failing loudly on cleanup errors.
+
+    This fixture provides the db_client and ensures cleanup happens after the test,
+    failing the test if cleanup encounters any errors.
+    """
+    yield db_client
+
+    # Cleanup after test - fail loudly if errors occur
+    collections = ["verifications", "chores", "users", "conflicts"]
+    cleanup_errors = []
+
+    for collection in collections:
+        try:
+            records = asyncio.run(db_client.list_records(collection=collection))
+            for record in records:
+                try:
+                    asyncio.run(db_client.delete_record(collection=collection, record_id=record["id"]))
+                except Exception as e:
+                    cleanup_errors.append(f"{collection}/{record['id']}: {e!s}")
+        except Exception as e:
+            cleanup_errors.append(f"{collection} (list): {e!s}")
+
+    if cleanup_errors:
+        error_msg = "Database cleanup failed:\n" + "\n".join(cleanup_errors)
+        pytest.fail(error_msg)

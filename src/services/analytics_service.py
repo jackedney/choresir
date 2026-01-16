@@ -28,7 +28,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
     # Get all completion logs within period
     completion_logs = await db_client.list_records(
         collection="logs",
-        filter_query=f'action ~ "claimed_completion" && timestamp >= "{cutoff_date.isoformat()}"',
+        filter_query=f'action = "claimed_completion" && timestamp >= "{cutoff_date.isoformat()}"',
     )
 
     # Count completions per user
@@ -86,7 +86,7 @@ async def get_completion_rate(*, period_days: int = 30) -> dict[str, Any]:
     # We need to check logs for completions, then check if chore was overdue at completion time
     completion_logs = await db_client.list_records(
         collection="logs",
-        filter_query=f'action ~ "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
+        filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
     )
 
     # Note: Deadline history tracking not yet implemented for accurate on-time metrics.
@@ -184,10 +184,16 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> dict[st
             break
 
     # Get pending claims
-    pending_claims = await db_client.list_records(
+    # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
+    all_logs = await db_client.list_records(
         collection="logs",
-        filter_query=f'user_id = "{user_id}" && action ~ "claimed_completion"',
+        filter_query="",
+        per_page=500,
+        sort="",  # No sort to avoid issues
     )
+    pending_claims = [
+        log for log in all_logs if log.get("user_id") == user_id and log.get("action") == "claimed_completion"
+    ]
 
     # Filter to only those still pending (chore in PENDING_VERIFICATION state)
     claims_pending = 0
@@ -238,7 +244,7 @@ async def get_household_summary(*, period_days: int = 7) -> dict[str, Any]:
     # Get total completions in period
     completion_logs = await db_client.list_records(
         collection="logs",
-        filter_query=f'action ~ "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
+        filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
     )
 
     # Get current conflicts

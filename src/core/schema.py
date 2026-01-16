@@ -17,24 +17,45 @@ logger = logging.getLogger(__name__)
 COLLECTIONS = ["users", "chores", "logs"]
 
 
-def _get_collection_schema(*, collection_name: str) -> dict[str, Any]:
+def _get_collection_schema(
+    *,
+    collection_name: str,
+    collection_ids: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Get the expected schema for a collection.
 
-    Note: PocketBase v0.22+ uses 'fields' instead of 'schema' for field definitions.
+    Note: PocketBase v0.22+ uses 'fields' instead of 'schema' for field definitions,
+    and field options are flattened directly onto the field object (not nested in 'options').
+    PocketBase requires actual collection IDs (not names) in relation fields.
+
+    Args:
+        collection_name: The name of the collection to get the schema for.
+        collection_ids: Optional mapping of collection names to their actual IDs.
+            When provided, relation fields will use the actual IDs instead of names.
     """
+    ids = collection_ids or {}
+
     schemas = {
         "users": {
             "name": "users",
             "type": "auth",
             "system": False,
+            # API Rules: Anyone can list/view/create (needed for phone lookup and registration),
+            # users can only update themselves, deletion is admin-only
+            "listRule": "",
+            "viewRule": "",
+            "createRule": "",
+            "updateRule": "id = @request.auth.id",
+            "deleteRule": None,
             "fields": [
-                {"name": "phone", "type": "text", "required": True, "options": {"pattern": r"^\+[1-9]\d{1,14}$"}},
-                {"name": "role", "type": "select", "required": True, "options": {"values": ["admin", "member"]}},
+                {"name": "phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
+                {"name": "role", "type": "select", "required": True, "values": ["admin", "member"], "maxSelect": 1},
                 {
                     "name": "status",
                     "type": "select",
                     "required": True,
-                    "options": {"values": ["pending", "active", "banned"]},
+                    "values": ["pending", "active", "banned"],
+                    "maxSelect": 1,
                 },
             ],
             "indexes": ["CREATE UNIQUE INDEX idx_phone ON users (phone)"],
@@ -43,18 +64,30 @@ def _get_collection_schema(*, collection_name: str) -> dict[str, Any]:
             "name": "chores",
             "type": "base",
             "system": False,
+            # API Rules: Anyone can list/view/create/update (needed for state changes),
+            # deletion is admin-only
+            "listRule": "",
+            "viewRule": "",
+            "createRule": "",
+            "updateRule": "",
+            "deleteRule": None,
             "fields": [
                 {"name": "title", "type": "text", "required": True},
                 {"name": "description", "type": "text", "required": False},
                 {"name": "schedule_cron", "type": "text", "required": True},
-                {"name": "assigned_to", "type": "relation", "required": True, "options": {"collectionId": "users"}},
+                {
+                    "name": "assigned_to",
+                    "type": "relation",
+                    "required": True,
+                    "collectionId": ids.get("users", "users"),
+                    "maxSelect": 1,
+                },
                 {
                     "name": "current_state",
                     "type": "select",
                     "required": True,
-                    "options": {
-                        "values": ["TODO", "PENDING_VERIFICATION", "COMPLETED", "CONFLICT", "DEADLOCK"],
-                    },
+                    "values": ["TODO", "PENDING_VERIFICATION", "COMPLETED", "CONFLICT", "DEADLOCK"],
+                    "maxSelect": 1,
                 },
                 {"name": "deadline", "type": "date", "required": True},
             ],
@@ -63,11 +96,31 @@ def _get_collection_schema(*, collection_name: str) -> dict[str, Any]:
             "name": "logs",
             "type": "base",
             "system": False,
+            # API Rules: Anyone can list/view/create, but logs are immutable (no updates),
+            # deletion is admin-only
+            "listRule": "",
+            "viewRule": "",
+            "createRule": "",
+            "updateRule": None,
+            "deleteRule": None,
             "fields": [
-                {"name": "chore_id", "type": "relation", "required": True, "options": {"collectionId": "chores"}},
-                {"name": "user_id", "type": "relation", "required": True, "options": {"collectionId": "users"}},
-                {"name": "action", "type": "text", "required": True},
-                {"name": "timestamp", "type": "date", "required": True},
+                {
+                    "name": "chore_id",
+                    "type": "relation",
+                    "required": False,
+                    "collectionId": ids.get("chores", "chores"),
+                    "maxSelect": 1,
+                },
+                {
+                    "name": "user_id",
+                    "type": "relation",
+                    "required": False,
+                    "collectionId": ids.get("users", "users"),
+                    "maxSelect": 1,
+                },
+                {"name": "action", "type": "text", "required": False},
+                {"name": "notes", "type": "text", "required": False},
+                {"name": "timestamp", "type": "date", "required": False},
             ],
         },
     }
@@ -83,11 +136,139 @@ async def _collection_exists(*, client: httpx.AsyncClient, collection_name: str)
         return False
 
 
+async def _get_collection_id(*, client: httpx.AsyncClient, collection_name: str) -> str:
+    """Fetch the actual collection ID from PocketBase.
+
+    PocketBase v0.22+ requires actual collection IDs (not names) in relation field options.
+
+    Args:
+        client: The httpx client with authorization headers.
+        collection_name: The name of the collection.
+
+    Returns:
+        The actual collection ID (e.g., "pbc_1234567890").
+    """
+    response = await client.get(f"/api/collections/{collection_name}")
+    response.raise_for_status()
+    return response.json()["id"]
+
+
 async def _create_collection(*, client: httpx.AsyncClient, schema: dict[str, Any]) -> None:
     """Create a new collection in PocketBase."""
     response = await client.post("/api/collections", json=schema)
     response.raise_for_status()
     logger.info("Created collection: %s", schema["name"])
+
+
+# API rule keys that can be set on collections
+_API_RULE_KEYS = ("listRule", "viewRule", "createRule", "updateRule", "deleteRule")
+
+
+def _merge_fields(
+    schema: dict[str, Any],
+    current: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    """Merge desired fields with existing fields.
+
+    Returns:
+        Tuple of (merged_fields, fields_updated, fields_added).
+    """
+    desired_fields = {f["name"]: f for f in schema.get("fields", [])}
+    existing_fields = {f["name"]: f for f in current.get("fields", [])}
+
+    merged_fields = []
+    fields_updated = []
+    fields_added = []
+
+    # Update existing fields or keep them as-is
+    for field_name, existing_field in existing_fields.items():
+        if field_name in desired_fields:
+            merged_fields.append(desired_fields[field_name])
+            fields_updated.append(field_name)
+        else:
+            merged_fields.append(existing_field)
+
+    # Add new fields that don't exist yet
+    for field_name, desired_field in desired_fields.items():
+        if field_name not in existing_fields:
+            merged_fields.append(desired_field)
+            fields_added.append(field_name)
+
+    return merged_fields, fields_updated, fields_added
+
+
+def _get_rules_to_update(
+    schema: dict[str, Any],
+    current: dict[str, Any],
+) -> dict[str, str | None]:
+    """Get API rules that need updating.
+
+    Returns:
+        Dict of rule keys to their new values.
+    """
+    rules_to_update: dict[str, str | None] = {}
+    for rule_key in _API_RULE_KEYS:
+        if rule_key in schema and schema[rule_key] != current.get(rule_key):
+            rules_to_update[rule_key] = schema[rule_key]
+    return rules_to_update
+
+
+def _build_update_payload(
+    merged_fields: list[dict[str, Any]],
+    rules_to_update: dict[str, str | None],
+    schema: dict[str, Any],
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the update payload for a collection update."""
+    update_payload: dict[str, Any] = {"fields": merged_fields}
+    update_payload.update(rules_to_update)
+
+    # Include indexes if specified, merging with existing
+    if "indexes" in schema:
+        existing_indexes = set(current.get("indexes", []))
+        new_indexes = [idx for idx in schema["indexes"] if idx not in existing_indexes]
+        if new_indexes:
+            update_payload["indexes"] = list(existing_indexes) + new_indexes
+
+    return update_payload
+
+
+async def _update_collection(
+    *,
+    client: httpx.AsyncClient,
+    collection_name: str,
+    schema: dict[str, Any],
+) -> None:
+    """Update an existing collection in PocketBase to add missing fields and update existing ones.
+
+    This merges custom fields with existing fields instead of replacing them,
+    which preserves built-in auth collection fields. It also updates properties
+    of existing fields to match the desired schema.
+    """
+    response = await client.get(f"/api/collections/{collection_name}")
+    response.raise_for_status()
+    current = response.json()
+
+    merged_fields, fields_updated, fields_added = _merge_fields(schema, current)
+    rules_to_update = _get_rules_to_update(schema, current)
+
+    if not fields_added and not fields_updated and not rules_to_update:
+        logger.info("Collection %s schema is already up to date", collection_name)
+        return
+
+    update_payload = _build_update_payload(merged_fields, rules_to_update, schema, current)
+
+    response = await client.patch(f"/api/collections/{collection_name}", json=update_payload)
+    response.raise_for_status()
+
+    log_parts = []
+    if fields_added:
+        log_parts.append(f"added {fields_added}")
+    if fields_updated:
+        log_parts.append(f"updated {fields_updated}")
+    if rules_to_update:
+        log_parts.append(f"updated rules {list(rules_to_update.keys())}")
+    logger.info("Updated collection %s: %s", collection_name, ", ".join(log_parts))
 
 
 async def sync_schema(
@@ -120,12 +301,30 @@ async def sync_schema(
         # Set authorization header
         http_client.headers["Authorization"] = f"Bearer {client.auth_store.token}"
 
+        # Build collection ID mapping as we create collections.
+        # PocketBase requires actual collection IDs (not names) in relation field options.
+        collection_ids: dict[str, str] = {}
+
         for collection_name in COLLECTIONS:
-            schema = _get_collection_schema(collection_name=collection_name)
+            schema = _get_collection_schema(
+                collection_name=collection_name,
+                collection_ids=collection_ids,
+            )
 
             if not await _collection_exists(client=http_client, collection_name=collection_name):
                 await _create_collection(client=http_client, schema=schema)
             else:
-                logger.info("Collection already exists: %s", collection_name)
+                # Update existing collection to add any missing fields
+                await _update_collection(
+                    client=http_client,
+                    collection_name=collection_name,
+                    schema=schema,
+                )
+
+            # Fetch and store the collection ID for use by dependent collections
+            collection_ids[collection_name] = await _get_collection_id(
+                client=http_client,
+                collection_name=collection_name,
+            )
 
     logger.info("PocketBase schema sync complete")

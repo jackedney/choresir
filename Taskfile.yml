@@ -1,0 +1,98 @@
+version: '3'
+
+vars:
+  POCKETBASE_VERSION: 0.23.4
+  POCKETBASE_DIR: '{{.ROOT_DIR}}'
+  POCKETBASE_BIN: '{{.POCKETBASE_DIR}}/pocketbase'
+
+tasks:
+  setup:
+    desc: Install PocketBase locally
+    cmds:
+      - task: install-pocketbase
+
+  install-pocketbase:
+    desc: Download and install PocketBase for the current platform
+    status:
+      - test -f {{.POCKETBASE_BIN}}
+    cmds:
+      - echo "Installing PocketBase v{{.POCKETBASE_VERSION}}..."
+      - |
+        OS="{{OS}}"
+        ARCH="{{ARCH}}"
+
+        # Map OS names
+        case "$OS" in
+          darwin) OS_NAME="darwin" ;;
+          linux) OS_NAME="linux" ;;
+          windows) OS_NAME="windows" ;;
+          *) echo "Unsupported OS: $OS"; exit 1 ;;
+        esac
+
+        # Map architecture names
+        case "$ARCH" in
+          amd64|x86_64) ARCH_NAME="amd64" ;;
+          arm64|aarch64) ARCH_NAME="arm64" ;;
+          *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+
+        DOWNLOAD_URL="https://github.com/pocketbase/pocketbase/releases/download/v{{.POCKETBASE_VERSION}}/pocketbase_{{.POCKETBASE_VERSION}}_${OS_NAME}_${ARCH_NAME}.zip"
+
+        echo "Downloading from: $DOWNLOAD_URL"
+        curl -L -o /tmp/pocketbase.zip "$DOWNLOAD_URL"
+
+        echo "Extracting PocketBase..."
+        unzip -q -o /tmp/pocketbase.zip -d {{.POCKETBASE_DIR}}
+
+        chmod +x {{.POCKETBASE_BIN}}
+        rm /tmp/pocketbase.zip
+
+        echo "PocketBase installed successfully!"
+        {{.POCKETBASE_BIN}} --version
+
+  test:
+    desc: Run all tests (unit and integration)
+    deps: [install-pocketbase]
+    cmds:
+      - PATH={{.POCKETBASE_DIR}}:$PATH uv run pytest
+
+  test-unit:
+    desc: Run unit tests only
+    cmds:
+      - uv run pytest -m unit
+
+  test-integration:
+    desc: Run integration tests (requires PocketBase)
+    deps: [install-pocketbase]
+    cmds:
+      - PATH={{.POCKETBASE_DIR}}:$PATH uv run pytest -m integration
+
+  lint:
+    desc: Run linting checks
+    cmds:
+      - uv run ruff check
+
+  format:
+    desc: Format code
+    cmds:
+      - uv run ruff format
+
+  format-check:
+    desc: Check code formatting
+    cmds:
+      - uv run ruff format --check
+
+  clean:
+    desc: Clean up generated files
+    cmds:
+      - rm -rf .pytest_cache
+      - rm -rf .ruff_cache
+      - rm -rf **/__pycache__
+      - rm -rf .venv
+
+  clean-pocketbase:
+    desc: Remove PocketBase binary and data
+    cmds:
+      - rm -f {{.POCKETBASE_BIN}}
+      - rm -rf pb_data
+      - rm -rf pb_migrations
