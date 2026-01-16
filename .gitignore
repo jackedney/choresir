@@ -43,6 +43,7 @@ env/
 
 # PocketBase
 pb_data/
+pb_migrations/
 pocketbase
 
 # Testing
