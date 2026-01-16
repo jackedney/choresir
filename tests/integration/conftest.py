@@ -7,12 +7,14 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Generator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pocketbase import PocketBase
 
 from src.core import config as config_module, db_client as db_module
 from src.core.config import Settings
+from src.core.db_client import DatabaseError, RecordNotFoundError
 from src.core.schema import COLLECTIONS, sync_schema
 from src.services import user_service as user_service_module
 from tests.conftest import MockDBClient
@@ -33,8 +35,6 @@ def _make_mock_create_record(pb: PocketBase):
             record = pb.collection(collection).create(data)
             return record.__dict__
         except Exception as e:
-            from src.core.db_client import DatabaseError
-
             raise DatabaseError(f"Failed to create record in {collection}: {e}") from e
 
     return mock_create_record
@@ -48,8 +48,6 @@ def _make_mock_get_record(pb: PocketBase):
             record = pb.collection(collection).get_one(record_id)
             return record.__dict__
         except Exception as e:
-            from src.core.db_client import DatabaseError, RecordNotFoundError
-
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
                 raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
             raise DatabaseError(f"Failed to get record from {collection}: {e}") from e
@@ -65,8 +63,6 @@ def _make_mock_update_record(pb: PocketBase):
             record = pb.collection(collection).update(record_id, data)
             return record.__dict__
         except Exception as e:
-            from src.core.db_client import DatabaseError, RecordNotFoundError
-
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
                 raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
             raise DatabaseError(f"Failed to update record in {collection}: {e}") from e
@@ -81,8 +77,6 @@ def _make_mock_delete_record(pb: PocketBase):
         try:
             pb.collection(collection).delete(record_id)
         except Exception as e:
-            from src.core.db_client import DatabaseError, RecordNotFoundError
-
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
                 raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
             raise DatabaseError(f"Failed to delete record from {collection}: {e}") from e
@@ -109,8 +103,6 @@ def _make_mock_list_records(pb: PocketBase):
             )
             return [item.__dict__ for item in result.items]
         except Exception as e:
-            from src.core.db_client import DatabaseError
-
             raise DatabaseError(f"Failed to list records from {collection}: {e}") from e
 
     return mock_list_records
@@ -124,8 +116,6 @@ def _make_mock_get_first_record(pb: PocketBase):
             result = pb.collection(collection).get_first_list_item(filter_query)
             return result.__dict__
         except Exception as e:
-            from src.core.db_client import DatabaseError
-
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
                 return None
             raise DatabaseError(f"Failed to get first record from {collection}: {e}") from e
@@ -341,8 +331,6 @@ async def sample_users(db_client: MockDBClient) -> dict[str, dict]:
 @pytest.fixture
 async def sample_chores(db_client: MockDBClient, sample_users: dict[str, dict]) -> list[dict]:
     """Create sample chores using MockDBClient for consistency."""
-    from datetime import UTC, datetime, timedelta
-
     chores_data = [
         {
             "title": "Wash dishes",

@@ -2,6 +2,7 @@
 
 import pytest
 
+from src.core.config import settings
 from src.core.db_client import RecordNotFoundError
 from src.domain.user import UserRole, UserStatus
 from src.services import user_service
@@ -45,8 +46,6 @@ def sample_join_request(valid_join_credentials):
 @pytest.fixture
 def patched_settings(monkeypatch, valid_join_credentials):
     """Patch settings with test house credentials."""
-    from src.core.config import settings
-
     monkeypatch.setattr(settings, "house_code", valid_join_credentials["house_code"])
     monkeypatch.setattr(settings, "house_password", valid_join_credentials["house_password"])
 
