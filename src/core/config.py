@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     # PocketBase Configuration
     pocketbase_url: str = Field(default="http://127.0.0.1:8090", description="PocketBase server URL")
+    pocketbase_admin_email: str = Field(..., description="PocketBase admin email for schema sync")
+    pocketbase_admin_password: str = Field(..., description="PocketBase admin password for schema sync")
 
     # OpenRouter Configuration
     openrouter_api_key: str = Field(..., description="OpenRouter API key for LLM access")
