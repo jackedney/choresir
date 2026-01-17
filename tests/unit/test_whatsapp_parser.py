@@ -147,6 +147,7 @@ class TestParseTwilioWebhook:
         assert hasattr(result, "text")
         assert hasattr(result, "timestamp")
         assert hasattr(result, "message_type")
+        assert hasattr(result, "button_payload")
 
     def test_special_characters_in_body(self):
         """Test parsing message with special characters."""
@@ -174,3 +175,42 @@ class TestParseTwilioWebhook:
         assert result is not None
         assert result.text == "Line 1\nLine 2\nLine 3"
         assert "\n" in result.text
+
+    def test_parse_button_reply_approve(self):
+        """Test parsing an Approve button click."""
+        params = {
+            "MessageSid": "SM123",
+            "From": "whatsapp:+1234567890",
+            "Body": "Approve",
+            "ButtonPayload": "VERIFY:APPROVE:log123",
+        }
+        result = parse_twilio_webhook(params)
+        assert result is not None
+        assert result.message_type == "button_reply"
+        assert result.button_payload == "VERIFY:APPROVE:log123"
+        assert result.text == "Approve"
+
+    def test_parse_button_reply_reject(self):
+        """Test parsing a Reject button click."""
+        params = {
+            "MessageSid": "SM456",
+            "From": "whatsapp:+1234567890",
+            "Body": "Reject",
+            "ButtonPayload": "VERIFY:REJECT:log456",
+        }
+        result = parse_twilio_webhook(params)
+        assert result is not None
+        assert result.message_type == "button_reply"
+        assert result.button_payload == "VERIFY:REJECT:log456"
+
+    def test_parse_text_message_no_payload(self):
+        """Test regular text messages have no button_payload."""
+        params = {
+            "MessageSid": "SM789",
+            "From": "whatsapp:+1234567890",
+            "Body": "Regular text message",
+        }
+        result = parse_twilio_webhook(params)
+        assert result is not None
+        assert result.message_type == "text"
+        assert result.button_payload is None

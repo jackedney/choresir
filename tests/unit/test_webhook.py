@@ -6,10 +6,12 @@ import pytest
 from fastapi import HTTPException
 
 from src.interface.webhook import (
+    _handle_button_payload,
     process_webhook_message,
     receive_webhook,
     verify_twilio_signature,
 )
+from src.services.verification_service import VerificationDecision
 
 
 class TestVerifyTwilioSignature:
@@ -294,3 +296,217 @@ class TestProcessWebhookMessage:
         mock_sender.send_text_message.assert_called()
         call_args = mock_sender.send_text_message.call_args
         assert "error" in call_args.kwargs["text"].lower()
+
+
+class TestHandleButtonPayload:
+    """Test button payload handling."""
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.whatsapp_sender")
+    @patch("src.interface.webhook.db_client")
+    @patch("src.services.verification_service")
+    async def test_approve_button_success(self, mock_verification, mock_db, mock_sender):
+        """Test successful approval via button."""
+        # Create mock message with button payload
+        mock_message = MagicMock()
+        mock_message.from_phone = "+1234567890"
+        mock_message.button_payload = "VERIFY:APPROVE:log123"
+
+        # Mock user record
+        user_record = {"id": "user123", "name": "Alice"}
+
+        # Mock database responses
+        mock_db.get_record = AsyncMock(
+            side_effect=[
+                {"id": "log123", "chore_id": "chore456"},  # log record
+                {"id": "chore456", "title": "Wash dishes"},  # chore record
+            ]
+        )
+
+        # Mock verification service
+        mock_verification.verify_chore = AsyncMock()
+        mock_verification.VerificationDecision = VerificationDecision
+
+        # Mock sender
+        mock_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+
+        # Execute
+        success, error = await _handle_button_payload(message=mock_message, user_record=user_record)
+
+        # Assertions
+        assert success is True
+        assert error is None
+        mock_verification.verify_chore.assert_called_once()
+        mock_sender.send_text_message.assert_called_once()
+        call_args = mock_sender.send_text_message.call_args
+        assert "Approved" in call_args.kwargs["text"]
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.whatsapp_sender")
+    @patch("src.interface.webhook.db_client")
+    @patch("src.services.verification_service")
+    async def test_reject_button_success(self, mock_verification, mock_db, mock_sender):
+        """Test successful rejection via button."""
+        mock_message = MagicMock()
+        mock_message.from_phone = "+1234567890"
+        mock_message.button_payload = "VERIFY:REJECT:log123"
+
+        user_record = {"id": "user123", "name": "Alice"}
+
+        mock_db.get_record = AsyncMock(
+            side_effect=[
+                {"id": "log123", "chore_id": "chore456"},
+                {"id": "chore456", "title": "Wash dishes"},
+            ]
+        )
+
+        mock_verification.verify_chore = AsyncMock()
+        mock_verification.VerificationDecision = VerificationDecision
+
+        mock_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+
+        success, error = await _handle_button_payload(message=mock_message, user_record=user_record)
+
+        assert success is True
+        assert error is None
+        call_args = mock_sender.send_text_message.call_args
+        assert "Rejected" in call_args.kwargs["text"]
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.whatsapp_sender")
+    @patch("src.interface.webhook.db_client")
+    @patch("src.services.verification_service")
+    async def test_self_verification_blocked(self, mock_verification, mock_db, mock_sender):
+        """Test error when user tries to verify own claim."""
+        mock_message = MagicMock()
+        mock_message.from_phone = "+1234567890"
+        mock_message.button_payload = "VERIFY:APPROVE:log123"
+
+        user_record = {"id": "user123", "name": "Alice"}
+
+        mock_db.get_record = AsyncMock(
+            side_effect=[
+                {"id": "log123", "chore_id": "chore456"},
+                {"id": "chore456", "title": "Wash dishes"},
+            ]
+        )
+
+        # Simulate self-verification error
+        mock_verification.verify_chore = AsyncMock(side_effect=PermissionError("Cannot verify own claim"))
+        mock_verification.VerificationDecision = VerificationDecision
+
+        mock_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+
+        success, error = await _handle_button_payload(message=mock_message, user_record=user_record)
+
+        assert success is False
+        assert error == "Self-verification attempted"
+        call_args = mock_sender.send_text_message.call_args
+        assert "cannot verify your own" in call_args.kwargs["text"].lower()
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.whatsapp_sender")
+    async def test_invalid_payload_format(self, mock_sender):
+        """Test handling of malformed payload."""
+        mock_message = MagicMock()
+        mock_message.from_phone = "+1234567890"
+        mock_message.button_payload = "INVALID:FORMAT"
+
+        user_record = {"id": "user123", "name": "Alice"}
+
+        mock_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+
+        success, error = await _handle_button_payload(message=mock_message, user_record=user_record)
+
+        assert success is False
+        assert error is not None
+        assert "Invalid payload format" in error
+        call_args = mock_sender.send_text_message.call_args
+        assert "couldn't process" in call_args.kwargs["text"].lower()
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.whatsapp_sender")
+    @patch("src.interface.webhook.db_client")
+    async def test_expired_log_id(self, mock_db, mock_sender):
+        """Test handling when log_id not found."""
+        mock_message = MagicMock()
+        mock_message.from_phone = "+1234567890"
+        mock_message.button_payload = "VERIFY:APPROVE:nonexistent"
+
+        user_record = {"id": "user123", "name": "Alice"}
+
+        # Simulate RecordNotFoundError
+        mock_db.RecordNotFoundError = Exception
+        mock_db.get_record = AsyncMock(side_effect=mock_db.RecordNotFoundError("Record not found"))
+
+        mock_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+
+        success, error = await _handle_button_payload(message=mock_message, user_record=user_record)
+
+        assert success is False
+        assert error is not None
+        assert "Record not found" in error
+        call_args = mock_sender.send_text_message.call_args
+        assert "expired" in call_args.kwargs["text"].lower()
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.whatsapp_sender")
+    async def test_invalid_decision_type(self, mock_sender):
+        """Test handling when decision is not APPROVE or REJECT."""
+        mock_message = MagicMock()
+        mock_message.from_phone = "+1234567890"
+        mock_message.button_payload = "VERIFY:INVALID:log123"
+
+        user_record = {"id": "user123", "name": "Alice"}
+
+        mock_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+
+        success, error = await _handle_button_payload(message=mock_message, user_record=user_record)
+
+        assert success is False
+        assert error is not None
+        assert "Invalid decision" in error
+        call_args = mock_sender.send_text_message.call_args
+        assert "couldn't process that button click" in call_args.kwargs["text"].lower()
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.whatsapp_sender")
+    @patch("src.interface.webhook.db_client")
+    @patch("src.interface.webhook.logfire")
+    async def test_unexpected_exception_logging(self, mock_logfire, mock_db, mock_sender):
+        """Test that unexpected exceptions are logged with detailed information."""
+        mock_message = MagicMock()
+        mock_message.from_phone = "+1234567890"
+        mock_message.button_payload = "VERIFY:APPROVE:log123"
+
+        user_record = {"id": "user123", "name": "Alice"}
+
+        # Create a custom RecordNotFoundError class that won't catch AttributeError
+        class RecordNotFoundError(Exception):
+            pass
+
+        mock_db.RecordNotFoundError = RecordNotFoundError
+
+        # Simulate unexpected AttributeError
+        mock_db.get_record = AsyncMock(side_effect=AttributeError("'NoneType' object has no attribute 'get'"))
+
+        mock_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+
+        success, error = await _handle_button_payload(message=mock_message, user_record=user_record)
+
+        # Verify the function handles the error gracefully
+        assert success is False
+        assert error is not None
+        assert "Unexpected error:" in error
+        assert "AttributeError" in error
+
+        # Verify detailed logging with exception type and stack trace
+        mock_logfire.error.assert_called()
+        log_call = mock_logfire.error.call_args
+        assert "AttributeError" in log_call[0][0]  # Exception type in message
+        assert "Unexpected button handler error" in log_call[0][0]
+        assert log_call[1]["exc_info"] is True  # Stack trace included
+
+        # Verify user-friendly error message was sent
+        call_args = mock_sender.send_text_message.call_args
+        assert "error occurred" in call_args.kwargs["text"].lower()
