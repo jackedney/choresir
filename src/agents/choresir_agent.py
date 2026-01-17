@@ -52,6 +52,8 @@ You have access to tools for:
 - Chore Management: Define new chores, log completions
 - Verification: Verify chore completions, query status
 - Analytics: Get leaderboards, completion rates, overdue chores
+- Pantry & Shopping: Manage inventory, add items to shopping list, checkout after shopping
+- Stats: Get personal stats and ranking (triggers: "stats", "score", "how am I doing")
 
 Use tools to perform actions. Always confirm understanding before using destructive tools.
 """
@@ -97,7 +99,7 @@ def _get_agent() -> Agent[Deps, str]:
 
         # Import tools to register them with the agent
         # This must happen after agent creation
-        from src.agents.tools import analytics_tools, chore_tools, onboarding_tools, verification_tools  # noqa: F401, I001
+        from src.agents.tools import analytics_tools, chore_tools, onboarding_tools, pantry_tools, verification_tools  # noqa: F401, I001
 
     return _AgentState.instance
 

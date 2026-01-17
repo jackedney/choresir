@@ -1,5 +1,7 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
+from datetime import UTC, datetime
+
 import logfire
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -8,8 +10,17 @@ from src.core import db_client
 from src.core.config import constants
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
-from src.services.analytics_service import get_household_summary, get_overdue_chores
+from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
 
+
+# Rank position constants
+RANK_FIRST = 1
+RANK_SECOND = 2
+RANK_THIRD = 3
+
+# Completion threshold constants for dynamic titles
+COMPLETIONS_CARRYING_TEAM = 5
+COMPLETIONS_NEEDS_IMPROVEMENT = 2
 
 # Global scheduler instance
 scheduler = AsyncIOScheduler()
@@ -165,6 +176,169 @@ async def send_daily_report() -> None:
         logfire.error(f"Error in daily report job: {e}")
 
 
+def _get_rank_emoji(rank: int) -> str:
+    """Get emoji for leaderboard rank.
+
+    Args:
+        rank: Position in leaderboard (1-indexed)
+
+    Returns:
+        Rank emoji string
+    """
+    if rank == RANK_FIRST:
+        return "🥇"
+    if rank == RANK_SECOND:
+        return "🥈"
+    if rank == RANK_THIRD:
+        return "🥉"
+    return f"{rank}."
+
+
+def _get_dynamic_title(rank: int, total_users: int, completions: int) -> str:
+    """Get dynamic title based on performance.
+
+    Args:
+        rank: Position in leaderboard
+        total_users: Total number of users
+        completions: Number of completions
+
+    Returns:
+        Dynamic title string
+    """
+    if rank == RANK_FIRST and completions >= COMPLETIONS_CARRYING_TEAM:
+        return '"Carrying the team!"'
+    if rank == RANK_FIRST:
+        return '"MVP!"'
+    if rank == total_users and completions == 0:
+        return '"The Observer"'
+    if rank == total_users and completions <= COMPLETIONS_NEEDS_IMPROVEMENT:
+        return '"Room for improvement"'
+    return ""
+
+
+def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> str:
+    """Format weekly leaderboard for WhatsApp display.
+
+    Args:
+        leaderboard: List of leaderboard entries
+        overdue: List of overdue chores
+
+    Returns:
+        Formatted weekly report message
+    """
+    lines = ["🏆 *Weekly Chore Report*", ""]
+
+    if not leaderboard:
+        lines.append("No completions this week.")
+    else:
+        total_completions = sum(entry["completion_count"] for entry in leaderboard)
+        total_users = len(leaderboard)
+
+        # Show all users (max 10 for readability)
+        for rank, entry in enumerate(leaderboard[:10], start=1):
+            emoji = _get_rank_emoji(rank)
+            name = entry["user_name"]
+            count = entry["completion_count"]
+            title = _get_dynamic_title(rank, total_users, count)
+
+            if title:
+                lines.append(f"{emoji} *{name}* ({count} chores) - _{title}_")
+            else:
+                lines.append(f"{emoji} *{name}* ({count} chores)")
+
+        lines.append("")
+        lines.append(f"*Total House Output:* {total_completions} chores")
+
+    # Add most neglected chore info
+    if overdue:
+        # Find the most overdue chore
+        now = datetime.now(UTC)
+
+        # Filter out chores with invalid deadlines
+        valid_overdue = []
+        for chore in overdue:
+            try:
+                deadline = datetime.fromisoformat(chore["deadline"])
+                # If deadline is naive (no timezone), assume UTC
+                if deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=UTC)
+                valid_overdue.append((chore, deadline))
+            except (ValueError, TypeError) as e:
+                logfire.warn(
+                    "Failed to parse deadline for chore",
+                    chore_id=chore.get("id"),
+                    chore_title=chore.get("title"),
+                    deadline=chore.get("deadline"),
+                    error=str(e),
+                )
+                continue
+
+        if valid_overdue:
+            # Already the most overdue since sorted by +deadline
+            most_overdue_chore, most_overdue_deadline = valid_overdue[0]
+            overdue_days = (now - most_overdue_deadline).days
+            day_word = "day" if overdue_days == 1 else "days"
+            lines.append(
+                f'*Most Neglected Chore:* "{most_overdue_chore["title"]}" (Overdue by {overdue_days} {day_word})'
+            )
+
+    return "\n".join(lines)
+
+
+async def send_weekly_leaderboard() -> None:
+    """Send weekly leaderboard report to all active users.
+
+    Runs every Sunday at 8pm. Sends a gamified summary of the week's
+    chore completions with rankings, dynamic titles, and household stats.
+    """
+    logfire.info("Running weekly leaderboard job")
+
+    try:
+        # Get weekly leaderboard (last 7 days)
+        leaderboard = await get_leaderboard(period_days=7)
+
+        # Get overdue chores for "most neglected" stat
+        # Only need the oldest one (limit=1 for performance)
+        overdue = await get_overdue_chores(limit=1)
+
+        # Build formatted message
+        message = _format_weekly_leaderboard(leaderboard, overdue)
+
+        # Get all active users
+        active_users = await db_client.list_records(
+            collection="users",
+            filter_query=f'status = "{UserStatus.ACTIVE}"',
+        )
+
+        if not active_users:
+            logfire.info("No active users to send weekly leaderboard")
+            return
+
+        # Send report to each active user
+        sent_count = 0
+        for user in active_users:
+            try:
+                result = await send_text_message(
+                    to_phone=user["phone"],
+                    text=message,
+                )
+
+                if result.success:
+                    sent_count += 1
+                    logfire.debug(f"Sent weekly leaderboard to {user['name']}")
+                else:
+                    logfire.warn(f"Failed to send weekly leaderboard to {user['name']}: {result.error}")
+
+            except Exception as e:
+                logfire.error(f"Error sending weekly leaderboard to user {user['id']}: {e}")
+                continue
+
+        logfire.info(f"Completed weekly leaderboard job: sent to {sent_count}/{len(active_users)} users")
+
+    except Exception as e:
+        logfire.error(f"Error in weekly leaderboard job: {e}")
+
+
 def start_scheduler() -> None:
     """Start the scheduler and register all jobs.
 
@@ -191,6 +365,22 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
     logfire.info(f"Scheduled daily report job: daily at {constants.DAILY_REPORT_HOUR}:00")
+
+    # Schedule weekly leaderboard job (Sunday at 8pm)
+    scheduler.add_job(
+        send_weekly_leaderboard,
+        trigger=CronTrigger(
+            day_of_week=constants.WEEKLY_REPORT_DAY,
+            hour=constants.WEEKLY_REPORT_HOUR,
+            minute=0,
+        ),
+        id="weekly_leaderboard",
+        name="Send Weekly Leaderboard Report",
+        replace_existing=True,
+    )
+    logfire.info(
+        f"Scheduled weekly leaderboard job: day {constants.WEEKLY_REPORT_DAY} at {constants.WEEKLY_REPORT_HOUR}:00"
+    )
 
     # Start the scheduler
     scheduler.start()

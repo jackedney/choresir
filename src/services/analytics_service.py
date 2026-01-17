@@ -1,7 +1,7 @@
 """Analytics service for household chore statistics."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from src.core import db_client
@@ -25,7 +25,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
     """
     with span("analytics_service.get_leaderboard"):
         # Calculate cutoff date
-        cutoff_date = datetime.now() - timedelta(days=period_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=period_days)
 
         # Get all completion logs within period
         completion_logs = await db_client.list_records(
@@ -83,7 +83,7 @@ async def get_completion_rate(*, period_days: int = 30) -> dict[str, Any]:
     """
     with span("analytics_service.get_completion_rate"):
         # Calculate cutoff date
-        cutoff_date = datetime.now() - timedelta(days=period_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=period_days)
 
         # Get all chores that were completed in the period
         # We need to check logs for completions, then check if chore was overdue at completion time
@@ -118,7 +118,7 @@ async def get_completion_rate(*, period_days: int = 30) -> dict[str, Any]:
         return result
 
 
-async def get_overdue_chores(*, user_id: str | None = None) -> list[dict[str, Any]]:
+async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
     """Get all overdue chores.
 
     A chore is overdue if:
@@ -127,12 +127,13 @@ async def get_overdue_chores(*, user_id: str | None = None) -> list[dict[str, An
 
     Args:
         user_id: Optional filter by assigned user
+        limit: Optional maximum number of results to return
 
     Returns:
         List of overdue chore records
     """
     with span("analytics_service.get_overdue_chores"):
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         # Build filter query
         filters = [
@@ -145,11 +146,20 @@ async def get_overdue_chores(*, user_id: str | None = None) -> list[dict[str, An
 
         filter_query = " && ".join(filters)
 
-        overdue_chores = await db_client.list_records(
-            collection="chores",
-            filter_query=filter_query,
-            sort="+deadline",  # Oldest deadline first
-        )
+        # Fetch overdue chores with optional limit
+        if limit is not None:
+            overdue_chores = await db_client.list_records(
+                collection="chores",
+                filter_query=filter_query,
+                sort="+deadline",  # Oldest deadline first
+                per_page=limit,
+            )
+        else:
+            overdue_chores = await db_client.list_records(
+                collection="chores",
+                filter_query=filter_query,
+                sort="+deadline",  # Oldest deadline first
+            )
 
         logger.info("Found %d overdue chores", len(overdue_chores))
 
@@ -188,28 +198,24 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> dict[st
                 completions = entry["completion_count"]
                 break
 
-        # Get pending claims
-        # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
-        all_logs = await db_client.list_records(
+        # Get all pending verification chores first (single query)
+        pending_verification_chores = await db_client.list_records(
+            collection="chores",
+            filter_query=f'current_state = "{ChoreState.PENDING_VERIFICATION}"',
+            per_page=500,
+        )
+        pending_chore_ids = {chore["id"] for chore in pending_verification_chores}
+
+        # Get pending claims for this user
+        pending_claims = await db_client.list_records(
             collection="logs",
-            filter_query="",
+            filter_query=f'user_id = "{user_id}" && action = "claimed_completion"',
             per_page=500,
             sort="",  # No sort to avoid issues
         )
-        pending_claims = [
-            log for log in all_logs if log.get("user_id") == user_id and log.get("action") == "claimed_completion"
-        ]
 
-        # Filter to only those still pending (chore in PENDING_VERIFICATION state)
-        claims_pending = 0
-        for log in pending_claims:
-            chore_id = log["chore_id"]
-            try:
-                chore = await db_client.get_record(collection="chores", record_id=chore_id)
-                if chore["current_state"] == ChoreState.PENDING_VERIFICATION:
-                    claims_pending += 1
-            except db_client.RecordNotFoundError:
-                continue
+        # Count claims that are still pending (chore in PENDING_VERIFICATION state)
+        claims_pending = sum(1 for log in pending_claims if log["chore_id"] in pending_chore_ids)
 
         # Get overdue chores assigned to user
         overdue_chores = await get_overdue_chores(user_id=user_id)
@@ -239,7 +245,7 @@ async def get_household_summary(*, period_days: int = 7) -> dict[str, Any]:
         Dict with household-wide statistics
     """
     with span("analytics_service.get_household_summary"):
-        cutoff_date = datetime.now() - timedelta(days=period_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=period_days)
 
         # Get active users count
         active_users = await db_client.list_records(

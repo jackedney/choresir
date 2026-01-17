@@ -78,6 +78,8 @@ class Constants:
     # Scheduler Configuration
     DAILY_REMINDER_HOUR: int = 8  # 8am
     DAILY_REPORT_HOUR: int = 21  # 9pm
+    WEEKLY_REPORT_HOUR: int = 20  # 8pm Sunday
+    WEEKLY_REPORT_DAY: int = 6  # Sunday (0=Monday, 6=Sunday)
 
     # WhatsApp Message Window
     WHATSAPP_MESSAGE_WINDOW_HOURS: int = 24
