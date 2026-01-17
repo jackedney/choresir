@@ -39,9 +39,11 @@ async def add_to_shopping_list(
     with span("pantry_service.add_to_shopping_list"):
         # Check if item already exists on shopping list (case-insensitive)
         # Use PocketBase's ~ operator for case-insensitive matching at database level
+        # Escape double quotes in user input to prevent filter injection
+        escaped_item_name = item_name.replace('"', '\\"')
         existing_item = await db_client.get_first_record(
             collection="shopping_list",
-            filter_query=f'item_name ~ "{item_name}"',
+            filter_query=f'item_name ~ "{escaped_item_name}"',
         )
 
         if existing_item:
@@ -103,9 +105,11 @@ async def remove_from_shopping_list(*, item_name: str) -> bool:
     with span("pantry_service.remove_from_shopping_list"):
         # Find the item (case-insensitive)
         # Use PocketBase's ~ operator for case-insensitive matching at database level
+        # Escape double quotes in user input to prevent filter injection
+        escaped_item_name = item_name.replace('"', '\\"')
         item = await db_client.get_first_record(
             collection="shopping_list",
-            filter_query=f'item_name ~ "{item_name}"',
+            filter_query=f'item_name ~ "{escaped_item_name}"',
         )
 
         if item:
@@ -219,9 +223,11 @@ async def _update_pantry_item(
     """
     # Check if item exists in pantry (case-insensitive)
     # Use PocketBase's ~ operator for case-insensitive matching at database level
+    # Escape double quotes in user input to prevent filter injection
+    escaped_item_name = item_name.replace('"', '\\"')
     existing_item = await db_client.get_first_record(
         collection="pantry_items",
-        filter_query=f'name ~ "{item_name}"',
+        filter_query=f'name ~ "{escaped_item_name}"',
     )
 
     if existing_item:
@@ -282,9 +288,11 @@ async def update_pantry_item_status(*, item_name: str, status: PantryItemStatus)
     with span("pantry_service.update_pantry_item_status"):
         # Find the item (case-insensitive)
         # Use PocketBase's ~ operator for case-insensitive matching at database level
+        # Escape double quotes in user input to prevent filter injection
+        escaped_item_name = item_name.replace('"', '\\"')
         item = await db_client.get_first_record(
             collection="pantry_items",
-            filter_query=f'name ~ "{item_name}"',
+            filter_query=f'name ~ "{escaped_item_name}"',
         )
 
         if item:
