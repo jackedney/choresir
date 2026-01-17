@@ -1,7 +1,7 @@
 """Analytics service for household chore statistics."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from src.core import db_client
@@ -25,7 +25,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
     """
     with span("analytics_service.get_leaderboard"):
         # Calculate cutoff date
-        cutoff_date = datetime.now() - timedelta(days=period_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=period_days)
 
         # Get all completion logs within period
         completion_logs = await db_client.list_records(
@@ -83,7 +83,7 @@ async def get_completion_rate(*, period_days: int = 30) -> dict[str, Any]:
     """
     with span("analytics_service.get_completion_rate"):
         # Calculate cutoff date
-        cutoff_date = datetime.now() - timedelta(days=period_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=period_days)
 
         # Get all chores that were completed in the period
         # We need to check logs for completions, then check if chore was overdue at completion time
@@ -133,7 +133,7 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
         List of overdue chore records
     """
     with span("analytics_service.get_overdue_chores"):
-        now = datetime.now()
+        now = datetime.now(UTC)
 
         # Build filter query
         filters = [
@@ -245,7 +245,7 @@ async def get_household_summary(*, period_days: int = 7) -> dict[str, Any]:
         Dict with household-wide statistics
     """
     with span("analytics_service.get_household_summary"):
-        cutoff_date = datetime.now() - timedelta(days=period_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=period_days)
 
         # Get active users count
         active_users = await db_client.list_records(
