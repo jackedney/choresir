@@ -12,6 +12,10 @@ from src.domain.user import UserStatus
 
 logger = logging.getLogger(__name__)
 
+# Simple in-memory cache for leaderboard: {period_days: (timestamp, data)}
+_leaderboard_cache: dict[int, tuple[datetime, list[dict[str, Any]]]] = {}
+_CACHE_TTL_SECONDS = 300  # 5 minutes
+
 
 async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
     """Get leaderboard of completed chores per user.
@@ -23,9 +27,17 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
         List of dicts with user info and completion counts, sorted descending
         Format: [{"user_id": str, "user_name": str, "completion_count": int}, ...]
     """
+    # Check cache
+    now = datetime.now(UTC)
+    if period_days in _leaderboard_cache:
+        cached_ts, cached_data = _leaderboard_cache[period_days]
+        if (now - cached_ts).total_seconds() < _CACHE_TTL_SECONDS:
+            logger.debug("Returning cached leaderboard for %d days", period_days)
+            return cached_data
+
     with span("analytics_service.get_leaderboard"):
         # Calculate cutoff date
-        cutoff_date = datetime.now(UTC) - timedelta(days=period_days)
+        cutoff_date = now - timedelta(days=period_days)
 
         # Get all completion logs within period
         completion_logs = await db_client.list_records(
@@ -39,11 +51,16 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
             user_id = log["user_id"]
             user_completion_counts[user_id] = user_completion_counts.get(user_id, 0) + 1
 
-        # Get user details and build leaderboard
+        # Get all users in one batch to avoid N+1 queries
+        # Assuming household size is small enough to fit in one page (default 500 here to be safe)
+        all_users = await db_client.list_records(collection="users", per_page=500)
+        users_map = {u["id"]: u for u in all_users}
+
+        # Build leaderboard
         leaderboard = []
         for user_id, count in user_completion_counts.items():
-            try:
-                user = await db_client.get_record(collection="users", record_id=user_id)
+            if user_id in users_map:
+                user = users_map[user_id]
                 leaderboard.append(
                     {
                         "user_id": user_id,
@@ -51,7 +68,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
                         "completion_count": count,
                     }
                 )
-            except db_client.RecordNotFoundError:
+            else:
                 logger.warning("User %s not found for leaderboard", user_id)
                 continue
 
@@ -59,6 +76,9 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
         leaderboard.sort(key=lambda x: x["completion_count"], reverse=True)
 
         logger.info("Generated leaderboard for %d days: %d users", period_days, len(leaderboard))
+
+        # Update cache
+        _leaderboard_cache[period_days] = (now, leaderboard)
 
         return leaderboard
 
