@@ -47,7 +47,7 @@
 |---------|-------------|
 | 🛡️ **Gatekeeper Onboarding** | "Join HOUSE123" + Admin Approval prevents strangers from spamming |
 | 🗣️ **Conversational Config** | "Remind Alice to water the plants every Tuesday." (No forms, just text) |
-| ✅ **Verified Accountability** | When you say "I did the dishes," the bot asks someone else to verify it |
+| ✅ **Verified Accountability** | When you say "I did the dishes," the bot sends a message with [✅ Approve] [❌ Reject] buttons to household members |
 | 🏹 **The "Robin Hood" Protocol** | Swap chores dynamically. If you do someone else's task, you get the points |
 | ⚖️ **Conflict Resolution** | A "Jury System" for disputes. If User A claims "Done" and User B rejects it, the bot triggers a vote |
 

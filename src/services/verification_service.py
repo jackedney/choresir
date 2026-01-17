@@ -8,7 +8,7 @@ from typing import Any
 from src.core import db_client
 from src.core.logging import span
 from src.domain.chore import ChoreState
-from src.services import chore_service, conflict_service
+from src.services import chore_service, conflict_service, notification_service
 
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,20 @@ async def request_verification(
             chore_id,
         )
 
-        # Note: Notification system not yet implemented
+        # Send verification request notifications to household members
+        try:
+            await notification_service.send_verification_request(
+                log_id=log_record["id"],
+                chore_id=chore_id,
+                claimer_user_id=claimer_user_id,
+            )
+        except Exception:
+            # Log with full traceback for debugging
+            # Note: Notification failure doesn't fail the claim itself
+            logger.exception(
+                "Failed to send verification notifications for chore %s",
+                chore_id,
+            )
 
         return log_record
 

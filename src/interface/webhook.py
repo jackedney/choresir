@@ -18,6 +18,14 @@ from src.interface import whatsapp_parser, whatsapp_sender
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 
+# Button payload format constants
+BUTTON_PAYLOAD_PARTS_COUNT = 3
+
+# Error messages
+ERROR_MSG_BUTTON_PROCESSING_FAILED = (
+    "Sorry, I couldn't process that button click. Please try typing your response instead."
+)
+
 
 def verify_twilio_signature(url: str, params: dict[str, str], signature: str) -> bool:
     """Verify Twilio webhook signature.
@@ -147,6 +155,111 @@ async def _handle_user_status(
     return (False, f"Unknown user status: {status}")
 
 
+async def _handle_button_payload(
+    *,
+    message: whatsapp_parser.ParsedMessage,
+    user_record: dict[str, Any],
+) -> tuple[bool, str | None]:
+    """Handle button click payloads directly (bypasses agent).
+
+    Parses payload format: VERIFY:{APPROVE|REJECT}:{log_id}
+
+    Args:
+        message: Parsed message with button_payload
+        user_record: User database record
+
+    Returns:
+        Tuple of (success, error_message)
+    """
+    # Local imports to avoid circular dependency
+    from src.services import verification_service
+    from src.services.verification_service import VerificationDecision
+
+    payload = message.button_payload
+    if not payload:
+        logfire.error("Button payload is missing")
+        result = await whatsapp_sender.send_text_message(
+            to_phone=message.from_phone,
+            text=ERROR_MSG_BUTTON_PROCESSING_FAILED,
+        )
+        return (False, "Missing button payload")
+
+    # Parse payload: VERIFY:APPROVE:log_id or VERIFY:REJECT:log_id
+    parts = payload.split(":")
+    if len(parts) != BUTTON_PAYLOAD_PARTS_COUNT or parts[0] != "VERIFY":
+        logfire.error(f"Invalid button payload format: {payload}")
+        result = await whatsapp_sender.send_text_message(
+            to_phone=message.from_phone,
+            text=ERROR_MSG_BUTTON_PROCESSING_FAILED,
+        )
+        return (False, f"Invalid payload format: {payload}")
+
+    _, decision_str, log_id = parts
+
+    # Validate decision type
+    if decision_str not in ("APPROVE", "REJECT"):
+        logfire.error(f"Invalid decision in payload: {decision_str}")
+        result = await whatsapp_sender.send_text_message(
+            to_phone=message.from_phone,
+            text="Sorry, I couldn't process that button click. Please try typing your response instead.",
+        )
+        return (False, f"Invalid decision: {decision_str}")
+
+    try:
+        # Get log record to find chore_id
+        log_record = await db_client.get_record(collection="logs", record_id=log_id)
+        chore_id = log_record["chore_id"]
+        chore = await db_client.get_record(collection="chores", record_id=chore_id)
+
+        # Execute verification
+        decision = VerificationDecision(decision_str)
+        await verification_service.verify_chore(
+            chore_id=chore_id,
+            verifier_user_id=user_record["id"],
+            decision=decision,
+            reason="Via quick reply button",
+        )
+
+        # Send confirmation
+        if decision == VerificationDecision.APPROVE:
+            response = f"Approved! '{chore['title']}' has been marked as completed."
+        else:
+            response = f"Rejected. '{chore['title']}' has been moved to conflict resolution."
+
+        result = await whatsapp_sender.send_text_message(
+            to_phone=message.from_phone,
+            text=response,
+        )
+        return (result.success, result.error)
+
+    except PermissionError:
+        await whatsapp_sender.send_text_message(
+            to_phone=message.from_phone,
+            text="You cannot verify your own chore claim.",
+        )
+        return (False, "Self-verification attempted")
+
+    except db_client.RecordNotFoundError as e:
+        logfire.error(f"Record not found for button payload: {e}")
+        await whatsapp_sender.send_text_message(
+            to_phone=message.from_phone,
+            text="This verification request may have expired or been processed already.",
+        )
+        return (False, str(e))
+
+    except Exception as e:
+        # Log with more detail for unexpected exceptions
+        logfire.error(
+            f"Unexpected button handler error ({type(e).__name__}): {e}",
+            exc_info=True,  # Include stack trace
+        )
+        await whatsapp_sender.send_text_message(
+            to_phone=message.from_phone,
+            text="Sorry, an error occurred while processing your verification.",
+        )
+        return (False, f"Unexpected error: {type(e).__name__}: {e!s}")
+
+
 async def process_webhook_message(params: dict[str, str]) -> None:
     """Process Twilio webhook message in background.
 
@@ -162,6 +275,50 @@ async def process_webhook_message(params: dict[str, str]) -> None:
     """
     try:
         message = whatsapp_parser.parse_twilio_webhook(params)
+
+        # Handle button clicks separately (bypass agent)
+        if message and message.message_type == "button_reply" and message.button_payload:
+            # Still need to check duplicates and get user
+            existing_log = await db_client.get_first_record(
+                collection="processed_messages",
+                filter_query=f'message_id = "{message.message_id}"',
+            )
+            if existing_log:
+                logfire.info(f"Button click {message.message_id} already processed, skipping")
+                return
+
+            logfire.info(f"Processing button click from {message.from_phone}: {message.button_payload}")
+
+            # Log processing start
+            await db_client.create_record(
+                collection="processed_messages",
+                data={
+                    "message_id": message.message_id,
+                    "from_phone": message.from_phone,
+                    "processed_at": datetime.now().isoformat(),
+                    "success": False,
+                    "error_message": "Button processing started",
+                },
+            )
+
+            # Get user record
+            user_record = await db_client.get_first_record(
+                collection="users",
+                filter_query=f'phone = "{message.from_phone}"',
+            )
+            if not user_record:
+                logfire.warning(f"Unknown user clicked button: {message.from_phone}")
+                await whatsapp_sender.send_text_message(
+                    to_phone=message.from_phone,
+                    text="Sorry, I don't recognize your number. Please contact your household admin.",
+                )
+                return
+
+            success, error = await _handle_button_payload(message=message, user_record=user_record)
+            await _update_message_status(message_id=message.message_id, success=success, error=error)
+            return
+
+        # Existing text message flow (unchanged)
         if not message or not message.text:
             logfire.info("No text message found, skipping")
             return
