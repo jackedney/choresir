@@ -43,12 +43,6 @@
 
 ## ✨ Features
 
-<div align="center">
-
-<img src="assets/images/feature-flow.png" alt="Process diagram showing five steps using simple neobrutalist icons: Onboarding, Config, Verification, Swap, and Resolution" width="100%">
-
-</div>
-
 | Feature | Description |
 |---------|-------------|
 | 🛡️ **Gatekeeper Onboarding** | "Join HOUSE123" + Admin Approval prevents strangers from spamming |
@@ -62,8 +56,6 @@
 <div align="center">
 
 *Optimized for low cost, high performance, and strictly typed Python*
-
-<img src="assets/images/tech-stack.png" alt="Visual representation of the tech stack layers: FastAPI, Pydantic AI, PocketBase, and WhatsApp" width="400">
 
 </div>
 
