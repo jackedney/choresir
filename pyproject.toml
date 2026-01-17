@@ -74,6 +74,9 @@ ignore = [
     "ARG",     # Allow unused arguments in test fixtures
     "PLR2004", # Allow magic values in tests
 ]
+"src/agents/agent_instance.py" = [
+    "PLC0415", # Allow imports inside functions to avoid circular imports
+]
 
 [tool.ruff.lint.isort]
 force-single-line = false
