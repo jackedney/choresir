@@ -26,19 +26,42 @@ class Settings(BaseSettings):
     )
 
     # OpenRouter Configuration
-    openrouter_api_key: str = Field(..., description="OpenRouter API key for LLM access")
+    openrouter_api_key: str | None = Field(default=None, description="OpenRouter API key for LLM access")
 
     # Twilio Configuration
-    twilio_account_sid: str = Field(..., description="Twilio Account SID")
-    twilio_auth_token: str = Field(..., description="Twilio Auth Token")
-    twilio_whatsapp_number: str = Field(..., description="Twilio WhatsApp number (format: whatsapp:+14155238886)")
+    twilio_account_sid: str | None = Field(default=None, description="Twilio Account SID")
+    twilio_auth_token: str | None = Field(default=None, description="Twilio Auth Token")
+    twilio_whatsapp_number: str = Field(
+        default="whatsapp:+14155238886", description="Twilio WhatsApp number (format: whatsapp:+14155238886)"
+    )
 
-    # Pydantic Logfire Configuration
-    logfire_token: str = Field(..., description="Pydantic Logfire token for observability")
+    # Pydantic Logfire Configuration (optional)
+    logfire_token: str | None = Field(default=None, description="Pydantic Logfire token for observability")
 
     # House Onboarding Configuration
-    house_code: str = Field(..., description="House code for member onboarding")
-    house_password: str = Field(..., description="House password for member onboarding")
+    house_code: str | None = Field(default=None, description="House code for member onboarding")
+    house_password: str | None = Field(default=None, description="House password for member onboarding")
+
+    def require_credential(self, field_name: str, service_name: str) -> str:
+        """Validate that a required credential is set, raising a clear error if missing.
+
+        Args:
+            field_name: Name of the field to check
+            service_name: Human-readable service name for error message
+
+        Returns:
+            The credential value
+
+        Raises:
+            ValueError: If the credential is None or empty
+        """
+        value = getattr(self, field_name)
+        if not value:
+            raise ValueError(
+                f"{service_name} credential not configured. "
+                f"Set {field_name.upper()} environment variable or add to .env file."
+            )
+        return value
 
     # AI Model Configuration
     model_id: str = Field(
@@ -46,13 +69,13 @@ class Settings(BaseSettings):
         description="Model ID for OpenRouter (defaults to Claude 3.5 Sonnet)",
     )
 
-    # Twilio Content API Template SIDs (set after creating templates in Twilio Console)
-    template_chore_reminder_sid: str = Field(default="", description="Content SID for chore reminder template")
-    template_verification_request_sid: str = Field(
-        default="", description="Content SID for verification request template"
+    # Twilio Content API Template SIDs (optional - set after creating templates in Twilio Console)
+    template_chore_reminder_sid: str | None = Field(default=None, description="Content SID for chore reminder template")
+    template_verification_request_sid: str | None = Field(
+        default=None, description="Content SID for verification request template"
     )
-    template_conflict_notification_sid: str = Field(
-        default="", description="Content SID for conflict notification template"
+    template_conflict_notification_sid: str | None = Field(
+        default=None, description="Content SID for conflict notification template"
     )
 
 

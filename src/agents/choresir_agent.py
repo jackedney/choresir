@@ -5,18 +5,13 @@ from datetime import datetime
 
 import logfire
 from pocketbase import PocketBase
-from pydantic_ai import Agent
-from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterProvider
 
+from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
 from src.core import db_client
-from src.core.config import settings
 from src.domain.user import UserStatus
 from src.services import user_service
 
-
-# Configure Logfire for observability
-logfire.configure(token=settings.logfire_token)
 
 # System prompt template
 SYSTEM_PROMPT_TEMPLATE = """You are choresir, a household chore management assistant. Your role is strictly functional.
@@ -62,31 +57,6 @@ def _build_system_prompt(
     )
 
 
-# Initialize the agent with OpenRouter
-provider = OpenRouterProvider(api_key=settings.openrouter_api_key)
-model = OpenRouterModel(
-    model_name=settings.model_id,
-    provider=provider,
-)
-
-# Create the agent
-agent: Agent[Deps, str] = Agent(
-    model=model,
-    deps_type=Deps,
-    retries=2,
-)
-
-# Import tools to register them with the agent
-# This must happen after agent creation
-from src.agents.tools import (  # noqa: F401, E402
-    analytics_tools,
-    chore_tools,
-    onboarding_tools,
-    pantry_tools,
-    verification_tools,
-)
-
-
 async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
     """
     Run the choresir agent with the given message and context.
@@ -109,6 +79,9 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
     )
 
     try:
+        # Get agent instance (lazy initialization)
+        agent = get_agent()
+
         # Run the agent with Logfire tracing
         with logfire.span("choresir_agent_run", user_id=deps.user_id):
             result = await agent.run(

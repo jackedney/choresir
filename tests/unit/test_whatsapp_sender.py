@@ -277,8 +277,15 @@ class TestGetTwilioClient:
         # Reset singleton state
         sender_module._TwilioClientSingleton._instance = None
 
-        mock_settings.twilio_account_sid = "ACtest123"
-        mock_settings.twilio_auth_token = "test_token"
+        # Mock require_credential to return appropriate values
+        def require_credential_side_effect(key, _description):
+            if key == "twilio_account_sid":
+                return "ACtest123"
+            if key == "twilio_auth_token":
+                return "test_token"
+            raise ValueError(f"Unknown credential: {key}")
+
+        mock_settings.require_credential.side_effect = require_credential_side_effect
         mock_client_instance = MagicMock()
         mock_client_class.return_value = mock_client_instance
 
@@ -289,10 +296,21 @@ class TestGetTwilioClient:
         assert client == mock_client_instance
 
     @patch("src.interface.whatsapp_sender.Client")
-    def test_get_twilio_client_singleton(self, mock_client_class):
+    @patch("src.interface.whatsapp_sender.settings")
+    def test_get_twilio_client_singleton(self, mock_settings, mock_client_class):
         """Test that get_twilio_client returns same instance."""
         # Reset singleton state
         sender_module._TwilioClientSingleton._instance = None
+
+        # Mock require_credential to return appropriate values
+        def require_credential_side_effect(key, _description):
+            if key == "twilio_account_sid":
+                return "ACtest123"
+            if key == "twilio_auth_token":
+                return "test_token"
+            raise ValueError(f"Unknown credential: {key}")
+
+        mock_settings.require_credential.side_effect = require_credential_side_effect
 
         # Create a client
         mock_client_instance = MagicMock()
