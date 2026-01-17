@@ -9,7 +9,7 @@ This guide outlines all human configuration required to get choresir running, fr
 - Python 3.12+
 - `uv` package manager
 - Git
-- A Meta/Facebook Developer account
+- A Twilio account
 - A WhatsApp phone number for your bot
 
 ---
@@ -19,33 +19,12 @@ This guide outlines all human configuration required to get choresir running, fr
 ### Step 1: Clone and Install Dependencies
 
 ```bash
-git clone <repository-url>
-cd wellington
+git clone https://github.com/jackedney/choresir.git
+cd choresir
 uv sync
 ```
 
-### Step 2: Download PocketBase
-
-Download the PocketBase binary for your platform from https://pocketbase.io/docs/
-
-```bash
-# macOS/Linux
-wget https://github.com/pocketbase/pocketbase/releases/download/v0.XX.X/pocketbase_X.X.X_darwin_amd64.zip
-unzip pocketbase_*.zip
-chmod +x pocketbase
-
-# The binary should be in the project root
-./pocketbase serve
-```
-
-### Step 3: Create PocketBase Admin Account
-
-1. Start PocketBase: `./pocketbase serve`
-2. Navigate to http://127.0.0.1:8090/_/
-3. Create an admin account (save credentials securely)
-4. Database schema will auto-sync when you start the FastAPI app
-
-### Step 4: Configure Environment Variables
+### Step 2: Configure Environment Variables
 
 Create a `.env` file in the project root:
 
@@ -56,11 +35,10 @@ POCKETBASE_URL=http://127.0.0.1:8090
 # OpenRouter Configuration (REQUIRED)
 OPENROUTER_API_KEY=<get from openrouter.ai>
 
-# WhatsApp Configuration (REQUIRED for webhook)
-WHATSAPP_VERIFY_TOKEN=<create a secure random token>
-WHATSAPP_APP_SECRET=<get from Meta Developer Console>
-WHATSAPP_ACCESS_TOKEN=<get from Meta Developer Console>
-WHATSAPP_PHONE_NUMBER_ID=<get from Meta Developer Console>
+# Twilio Configuration (REQUIRED for webhook)
+TWILIO_ACCOUNT_SID=<get from Twilio Console>
+TWILIO_AUTH_TOKEN=<get from Twilio Console>
+TWILIO_WHATSAPP_NUMBER=<get from Twilio Console, format: whatsapp:+14155238886>
 
 # Pydantic Logfire Configuration (OPTIONAL but recommended)
 LOGFIRE_TOKEN=<get from logfire.pydantic.dev>
@@ -72,6 +50,22 @@ HOUSE_PASSWORD=<create a secure password>
 # AI Model Configuration (OPTIONAL - has sensible default)
 MODEL_ID=anthropic/claude-3.5-sonnet
 ```
+
+### Step 3: Start Development Environment
+
+The easiest way to start all services (PocketBase, FastAPI, ngrok) is:
+
+```bash
+task dev
+```
+
+This automatically:
+- Downloads and installs PocketBase (if needed)
+- Creates the admin account
+- Starts all services
+- Shows you the ngrok URL for webhook configuration
+
+For more control, see [Local Development Guide](LOCAL_DEVELOPMENT.md).
 
 ---
 
@@ -90,39 +84,26 @@ MODEL_ID=anthropic/claude-3.5-sonnet
 
 **Cost Estimate:** ~$0.10/day for moderate household usage
 
-### B. WhatsApp Business API
+### B. Twilio WhatsApp API
 
 **Required for:** Receiving and sending messages
 
-#### Step 1: Create Meta Business Account
+#### Step 1: Create Twilio Account
+1. Go to https://www.twilio.com
+2. Sign up for an account
+3. Navigate to Console → Messaging → Try it Out → WhatsApp Sandbox
 
-1. Go to https://business.facebook.com
-2. Create a Business account
-3. Complete business verification (may require business documents)
+#### Step 2: Connect Your Phone
+1. Send the join code shown in the sandbox to the Twilio number
+2. Wait for confirmation message
 
-#### Step 2: Create WhatsApp Business App
+#### Step 3: Get Credentials
+1. Go to Console → Account → API keys & tokens
+2. Copy Account SID → `TWILIO_ACCOUNT_SID`
+3. Copy Auth Token → `TWILIO_AUTH_TOKEN`
+4. Note sandbox number → `TWILIO_WHATSAPP_NUMBER` (format: `whatsapp:+14155238886`)
 
-1. Go to https://developers.facebook.com
-2. Click "My Apps" → "Create App"
-3. Select "Business" as the app type
-4. Fill in app details
-5. Add "WhatsApp" product to your app
-
-#### Step 3: Configure WhatsApp
-
-1. In the WhatsApp product section:
-   - Select a phone number (test number provided by Meta or your own)
-   - Note the **Phone Number ID** → add to `.env` as `WHATSAPP_PHONE_NUMBER_ID`
-   - Generate a **Permanent Access Token** → add to `.env` as `WHATSAPP_ACCESS_TOKEN`
-
-2. In App Settings → Basic:
-   - Note the **App Secret** → add to `.env` as `WHATSAPP_APP_SECRET`
-
-3. Create a **Verify Token** (any secure random string):
-   - Generate: `openssl rand -hex 32`
-   - Add to `.env` as `WHATSAPP_VERIFY_TOKEN`
-
-#### Step 4: Configure Webhook (After Task 23 is complete)
+#### Step 4: Configure Webhook (After setup is complete)
 
 See [Part 4: Webhook Setup](#part-4-webhook-setup-local-testing) below.
 
@@ -146,7 +127,7 @@ See [Part 4: Webhook Setup](#part-4-webhook-setup-local-testing) below.
 
 ### Templates to Register
 
-You need to create and get approval for these templates in Meta Developer Console:
+You need to create and get approval for these templates in Twilio Content Editor:
 
 #### 1. Chore Reminder Template
 
@@ -198,11 +179,12 @@ Your vote is needed to resolve this.
 
 ### How to Submit Templates
 
-1. Go to Meta Developer Console → Your App → WhatsApp → Message Templates
-2. Click "Create Template"
-3. Fill in the template details
-4. Submit for approval
-5. Wait 24-48 hours for Meta approval
+1. Go to Twilio Console → Messaging → Content Editor
+2. Click "Create new Content"
+3. Select "WhatsApp" as the channel
+4. Fill in the template details
+5. Submit for approval
+6. Wait 24-48 hours for Twilio approval
 
 **Note:** Templates can only be edited by resubmitting. Changes require re-approval.
 
@@ -210,7 +192,7 @@ Your vote is needed to resolve this.
 
 ## Part 4: Webhook Setup (Local Testing)
 
-**Prerequisites:** Tasks 8-11 and Task 23 must be completed.
+**Prerequisites:** Development environment must be running.
 
 ### Step 1: Install ngrok
 
@@ -240,24 +222,21 @@ ngrok http 8000
 
 ngrok will output a URL like: `https://abc123.ngrok-free.app`
 
-### Step 4: Configure WhatsApp Webhook
+### Step 4: Configure Twilio Webhook
 
-1. Go to Meta Developer Console → Your App → WhatsApp → Configuration
-2. Click "Edit" next to Webhook
-3. Enter the callback URL: `https://abc123.ngrok-free.app/webhook`
-4. Enter your `WHATSAPP_VERIFY_TOKEN` (from `.env`)
-5. Click "Verify and Save"
-6. Subscribe to webhook fields:
-   - ✅ messages
-   - ✅ message_status (optional)
+1. Go to Twilio Console → Messaging → Try it Out → WhatsApp Sandbox
+2. In the "Sandbox Configuration" section
+3. Set "When a message comes in" webhook URL: `https://abc123.ngrok-free.app/webhook`
+4. Set HTTP method to: POST
+5. Click "Save"
 
 ### Step 5: Test the Webhook
 
-1. Send a WhatsApp message to your bot number
+1. Send a WhatsApp message to your Twilio sandbox number
 2. Check the FastAPI logs for incoming webhook
 3. Check Logfire for detailed traces (if configured)
 
-**Note:** ngrok free tier URLs change on restart. You'll need to update the webhook URL in Meta console each time ngrok restarts.
+**Note:** ngrok free tier URLs change on restart. You'll need to update the webhook URL in Twilio console each time ngrok restarts.
 
 ---
 
@@ -312,7 +291,7 @@ ngrok http 8000
 - [ ] PocketBase running at http://127.0.0.1:8090
 - [ ] FastAPI running at http://localhost:8000
 - [ ] ngrok tunnel active (if testing WhatsApp)
-- [ ] Webhook configured in Meta Developer Console
+- [ ] Webhook configured in Twilio Console
 - [ ] At least one admin user exists
 - [ ] `.env` file has all required keys
 - [ ] OpenRouter API key has credits
@@ -352,10 +331,9 @@ ngrok http 8000
 4. Set environment variables (ALL from your `.env`):
    - `POCKETBASE_URL=<internal Railway URL of PocketBase service>`
    - `OPENROUTER_API_KEY=<your key>`
-   - `WHATSAPP_VERIFY_TOKEN=<your token>`
-   - `WHATSAPP_APP_SECRET=<from Meta>`
-   - `WHATSAPP_ACCESS_TOKEN=<from Meta>`
-   - `WHATSAPP_PHONE_NUMBER_ID=<from Meta>`
+   - `TWILIO_ACCOUNT_SID=<from Twilio>`
+   - `TWILIO_AUTH_TOKEN=<from Twilio>`
+   - `TWILIO_WHATSAPP_NUMBER=<from Twilio>`
    - `LOGFIRE_TOKEN=<your token>`
    - `HOUSE_CODE=<your code>`
    - `HOUSE_PASSWORD=<your password>`
@@ -365,15 +343,15 @@ ngrok http 8000
 ### Step 4: Update WhatsApp Webhook
 
 1. Get the public URL from Railway (e.g., `https://choresir-api.railway.app`)
-2. Go to Meta Developer Console → WhatsApp → Configuration
+2. Go to Twilio Console → Messaging → WhatsApp Sandbox → Sandbox Configuration
 3. Update webhook URL to: `https://choresir-api.railway.app/webhook`
-4. Verify and save
+4. Set HTTP method to POST and save
 
 ### Step 5: Production Verification
 
 - [ ] PocketBase service healthy
 - [ ] FastAPI service healthy
-- [ ] Webhook verified by Meta
+- [ ] Webhook configured in Twilio
 - [ ] Test message from WhatsApp works
 - [ ] Logfire shows traces (if configured)
 - [ ] PocketBase data persists across deploys
@@ -388,10 +366,10 @@ ngrok http 8000
 - Check `HOUSE_CODE` and `HOUSE_PASSWORD` in `.env`
 - Ensure they match what the user is sending
 
-#### Webhook fails verification
-- Check `WHATSAPP_VERIFY_TOKEN` matches in both `.env` and Meta console
-- Ensure webhook URL is correct and accessible
-- Check FastAPI logs for verification attempts
+#### Webhook fails
+- Check webhook URL is correct and accessible in Twilio console
+- Ensure HTTP method is set to POST
+- Check FastAPI logs for webhook attempts
 
 #### Agent not responding
 - Check `OPENROUTER_API_KEY` is valid and has credits
@@ -399,8 +377,8 @@ ngrok http 8000
 - Verify PocketBase is running and accessible
 
 #### Messages not sending
-- Check `WHATSAPP_ACCESS_TOKEN` is valid
-- Verify `WHATSAPP_PHONE_NUMBER_ID` is correct
+- Check `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` are valid
+- Verify `TWILIO_WHATSAPP_NUMBER` is correct (format: `whatsapp:+14155238886`)
 - Ensure you're within the 24-hour window OR using template messages
 
 #### Database schema errors
@@ -412,7 +390,7 @@ ngrok http 8000
 - Check Logfire dashboard for detailed error traces
 - Review FastAPI logs: `uv run fastapi run src/main.py --log-level debug`
 - Check PocketBase logs in the admin UI
-- Review Meta Developer Console webhook logs
+- Review Twilio Console webhook logs
 
 ---
 
@@ -429,7 +407,7 @@ ngrok http 8000
 - Railway: ~$5-10/month (PocketBase + FastAPI)
 - OpenRouter: ~$0.10/day (~$3/month)
 - Logfire: Free tier or ~$20/month for pro
-- WhatsApp Business API: Free for low volume
+- Twilio WhatsApp API: Free sandbox, $0.005/message for production
 - **Total:** ~$8-33/month
 
 ---
@@ -438,8 +416,8 @@ ngrok http 8000
 
 - [ ] Never commit `.env` file to git
 - [ ] Use strong `HOUSE_PASSWORD`
-- [ ] Rotate `WHATSAPP_VERIFY_TOKEN` periodically
-- [ ] Enable 2FA on Meta Business account
+- [ ] Rotate `TWILIO_AUTH_TOKEN` periodically
+- [ ] Enable 2FA on Twilio account
 - [ ] Restrict Railway service access
 - [ ] Monitor OpenRouter usage for anomalies
 - [ ] Regularly backup PocketBase data (volume snapshots)

@@ -28,11 +28,10 @@ class Settings(BaseSettings):
     # OpenRouter Configuration
     openrouter_api_key: str = Field(..., description="OpenRouter API key for LLM access")
 
-    # WhatsApp Configuration
-    whatsapp_verify_token: str = Field(..., description="WhatsApp webhook verification token")
-    whatsapp_app_secret: str = Field(..., description="WhatsApp app secret for signature verification")
-    whatsapp_access_token: str = Field(..., description="WhatsApp Cloud API access token")
-    whatsapp_phone_number_id: str = Field(..., description="WhatsApp business phone number ID")
+    # Twilio Configuration
+    twilio_account_sid: str = Field(..., description="Twilio Account SID")
+    twilio_auth_token: str = Field(..., description="Twilio Auth Token")
+    twilio_whatsapp_number: str = Field(..., description="Twilio WhatsApp number (format: whatsapp:+14155238886)")
 
     # Pydantic Logfire Configuration
     logfire_token: str = Field(..., description="Pydantic Logfire token for observability")
@@ -45,6 +44,15 @@ class Settings(BaseSettings):
     model_id: str = Field(
         default="anthropic/claude-3.5-sonnet",
         description="Model ID for OpenRouter (defaults to Claude 3.5 Sonnet)",
+    )
+
+    # Twilio Content API Template SIDs (set after creating templates in Twilio Console)
+    template_chore_reminder_sid: str = Field(default="", description="Content SID for chore reminder template")
+    template_verification_request_sid: str = Field(
+        default="", description="Content SID for verification request template"
+    )
+    template_conflict_notification_sid: str = Field(
+        default="", description="Content SID for conflict notification template"
     )
 
 

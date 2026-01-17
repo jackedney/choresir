@@ -1,92 +1,98 @@
-# ngrok Setup Guide
+# ngrok Static Domain Setup
 
-ngrok creates a secure tunnel from a public HTTPS URL to your local development server for testing WhatsApp webhooks.
+## Why Use a Static Domain?
 
-## Install
+By default, ngrok generates a random URL each time it starts (e.g., `https://abc-xyz-123.ngrok-free.app`). This means you would need to update your Twilio webhook URL every time you restart your development environment.
 
-**macOS:**
+A **static domain** stays the same across restarts, so you only need to configure Twilio once.
+
+## Setup Instructions
+
+### Option 1: Automatic Setup (Recommended)
+
+Run the setup task:
+
 ```bash
-brew install ngrok
+task setup-ngrok
 ```
 
-**Manual:**
-```bash
-curl -o ngrok.zip https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-darwin-amd64.zip
-unzip ngrok.zip
-sudo mv ngrok /usr/local/bin/
+This will:
+1. Guide you to create a static domain on the ngrok dashboard
+2. Save the domain to `.ngrok-domain` file
+3. Configure `task dev` to use this domain automatically
+
+### Option 2: Manual Setup
+
+1. **Visit ngrok dashboard:**
+   ```
+   https://dashboard.ngrok.com/domains
+   ```
+
+2. **Create a domain:**
+   - Click "Create Domain" or "New Domain"
+   - Free plan includes 1 static domain
+   - Copy the domain name (e.g., `your-app-name.ngrok-free.app`)
+
+3. **Save the domain:**
+   ```bash
+   echo "your-app-name.ngrok-free.app" > .ngrok-domain
+   ```
+
+4. **Start development:**
+   ```bash
+   task dev
+   ```
+
+   ngrok will now use your static domain!
+
+## Verify Configuration
+
+After setup, when you run `task dev`, you should see:
+
+```
+Starting ngrok...
+Using saved static domain: your-app-name.ngrok-free.app
+Webhook URL: https://your-app-name.ngrok-free.app/webhook/whatsapp
 ```
 
-## Configure
+## Configure Twilio Webhook
 
-1. Create account at [ngrok.com](https://ngrok.com)
-2. Get auth token from dashboard
-3. Configure:
-```bash
-ngrok config add-authtoken YOUR_TOKEN_HERE
+Once you have your static domain, configure Twilio to send WhatsApp messages to:
+
+```
+https://your-app-name.ngrok-free.app/webhook/whatsapp
 ```
 
-## Usage
+This URL will remain the same across all development sessions.
 
-Start three terminals:
+## Troubleshooting
 
-**Terminal 1: PocketBase**
+### Domain already in use
+
+If you see an error like "endpoint is already online", another ngrok instance is using this domain. Stop it with:
+
 ```bash
-./pocketbase serve
+task stop-dev
+# or
+pkill ngrok
 ```
 
-**Terminal 2: FastAPI**
+### Lost domain
+
+If you forgot your domain, check:
+
 ```bash
-uv run fastapi dev src/main.py --port 8000
+cat .ngrok-domain
 ```
 
-**Terminal 3: ngrok**
-```bash
-ngrok http 8000
+Or visit: https://dashboard.ngrok.com/domains
+
+### Using random domain
+
+If `.ngrok-domain` is empty or missing, `task dev` will use a random domain. You'll see:
+
+```
+Using random domain for now...
 ```
 
-Copy the HTTPS forwarding URL (e.g., `https://abc123.ngrok-free.app`).
-
-## Configure WhatsApp Webhook
-
-1. Go to [Meta Developer Console](https://developers.facebook.com)
-2. Navigate to **WhatsApp** → **Configuration**
-3. Edit webhook:
-   - **Callback URL**: `https://abc123.ngrok-free.app/webhook`
-   - **Verify Token**: (from your `.env`)
-4. Subscribe to **messages** events
-
-## Testing
-
-Send a WhatsApp message to your bot. Check all three terminals for activity.
-
-**ngrok web interface** (useful for debugging):
-```bash
-open http://127.0.0.1:4040
-```
-
-## Free vs Paid
-
-**Free Tier:**
-- ✅ HTTPS tunnels, web interface
-- ❌ Random URL on each restart
-
-**Personal ($8/month):**
-- ✅ Static URL (never changes)
-- ✅ No rate limits
-
-Start with free tier. Upgrade if URL changes become annoying.
-
-## Common Issues
-
-**Webhook verification fails:**
-- Check FastAPI is running on port 8000
-- Verify ngrok tunnel is active
-- Ensure verify token matches `.env`
-
-**Bot doesn't reply:**
-- Check `OPENROUTER_API_KEY` is valid
-- Verify `WHATSAPP_ACCESS_TOKEN` is correct
-- Check FastAPI logs for errors
-
-**URL changes every restart:**
-Workaround for free tier - update webhook URL in Meta console each time, or upgrade to paid plan for static URL.
+Run `task setup-ngrok` to configure a static domain.

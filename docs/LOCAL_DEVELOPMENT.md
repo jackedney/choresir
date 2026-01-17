@@ -14,14 +14,51 @@
    - Get auth token from dashboard
    - Configure: `ngrok config add-authtoken <your-token>`
 
-### Setup Process
+### Quick Start (Recommended)
+
+#### 1. Set up ngrok static domain (one-time setup)
+
+Free ngrok accounts include 1 static domain. To configure it:
+
+```bash
+task setup-ngrok
+```
+
+Follow the prompts to:
+1. Visit the ngrok dashboard to create/view your static domain
+2. Save the domain for reuse
+
+**Note:** If you skip this step, ngrok will use a random URL that changes each restart.
+
+#### 2. Start all services
+
+Use the integrated dev command to start all services at once:
+
+```bash
+task dev
+```
+
+This will automatically:
+- Install PocketBase if not present
+- Start PocketBase on http://127.0.0.1:8090
+- Create admin account (if needed)
+- Start FastAPI on http://0.0.0.0:8000
+- Start ngrok tunnel with your static domain (or random URL if not configured)
+- Display the webhook URL
+
+Press Ctrl+C to stop all services.
+
+### Manual Setup (Alternative)
+
+If you prefer to run services separately:
 
 1. **Start PocketBase locally:**
    ```bash
+   task install-pocketbase  # First time only
    ./pocketbase serve
    ```
    - Access admin UI at http://127.0.0.1:8090/_/
-   - Create admin account if first run
+   - Create admin account: `./pocketbase superuser upsert admin@test.local testpassword123`
 
 2. **Start FastAPI application:**
    ```bash
@@ -30,19 +67,18 @@
 
 3. **Start ngrok tunnel:**
    ```bash
-   ./scripts/start_ngrok.sh
+   ngrok http 8000
    ```
-   - Default port: 8000
-   - Custom port: `./scripts/start_ngrok.sh 8080`
 
-4. **Configure Meta Developer Console:**
-   - Navigate to: https://developers.facebook.com/apps
-   - Select your app → WhatsApp → Configuration
-   - Click "Edit" on webhook settings
-   - Set Callback URL: `https://<your-ngrok-url>/webhook`
-   - Set Verify Token: (match `WHATSAPP_VERIFY_TOKEN` in `.env`)
-   - Subscribe to message events
-   - Click "Verify and Save"
+### Webhook Configuration
+
+4. **Configure Twilio Console:**
+   - Go to: https://console.twilio.com
+   - Navigate to Messaging → Try it Out → WhatsApp Sandbox
+   - In "Sandbox Configuration" section
+   - Set "When a message comes in" webhook URL: `https://<your-ngrok-url>/webhook`
+   - Set HTTP method: POST
+   - Click "Save"
 
 ### Environment Variables
 
@@ -55,11 +91,10 @@ POCKETBASE_URL=http://127.0.0.1:8090
 # OpenRouter
 OPENROUTER_API_KEY=sk-or-...
 
-# WhatsApp
-WHATSAPP_VERIFY_TOKEN=your_verify_token_here
-WHATSAPP_APP_SECRET=your_app_secret_here
-WHATSAPP_ACCESS_TOKEN=your_access_token_here
-WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id_here
+# Twilio
+TWILIO_ACCOUNT_SID=your_account_sid_here
+TWILIO_AUTH_TOKEN=your_auth_token_here
+TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 
 # Logfire
 LOGFIRE_TOKEN=your_logfire_token_here
@@ -82,13 +117,13 @@ MODEL_ID=anthropic/claude-3.5-sonnet
 
 ### Common Issues
 
-#### Webhook Verification Fails
-- **Cause:** Verify token mismatch
-- **Fix:** Ensure `WHATSAPP_VERIFY_TOKEN` in `.env` matches Meta console
+#### Webhook Fails
+- **Cause:** Webhook URL or configuration issue
+- **Fix:** Ensure webhook URL is correct in Twilio console and HTTP method is POST
 
-#### Signature Validation Fails
-- **Cause:** Incorrect `WHATSAPP_APP_SECRET`
-- **Fix:** Copy exact secret from Meta console → App Settings → Basic
+#### Authentication Fails
+- **Cause:** Incorrect Twilio credentials
+- **Fix:** Verify `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` in `.env` match Twilio console
 
 #### Messages Not Processed
 - **Cause:** Background task error
@@ -96,7 +131,7 @@ MODEL_ID=anthropic/claude-3.5-sonnet
 
 #### ngrok URL Changes on Restart
 - **Cause:** Free tier assigns random URLs
-- **Fix:** Update webhook URL in Meta console, or upgrade to paid plan for static URLs
+- **Fix:** Update webhook URL in Twilio console, or upgrade to paid plan for static URLs
 
 #### Rate Limiting
 - **Cause:** Too many requests to WhatsApp API
@@ -123,25 +158,37 @@ MODEL_ID=anthropic/claude-3.5-sonnet
 ### Development Commands
 
 ```bash
+# Start all services (PocketBase, FastAPI, ngrok)
+task dev
+
+# Stop all services
+task stop-dev
+
+# Install PocketBase only
+task install-pocketbase
+
 # Install dependencies
 uv sync
 
 # Run linter
-uv run ruff check src/
+task lint
 
 # Run formatter
-uv run ruff format src/
-
-# Run type checker
-uv run ty src/
+task format
 
 # Run tests
-uv run pytest
+task test
 
-# Start dev server with auto-reload
+# Run unit tests only
+task test-unit
+
+# Run integration tests
+task test-integration
+
+# Start dev server with auto-reload (manual)
 uv run fastapi dev src/main.py
 
-# Start production server
+# Start production server (manual)
 uv run fastapi run src/main.py
 ```
 
