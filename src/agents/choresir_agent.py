@@ -97,7 +97,7 @@ def _get_agent() -> Agent[Deps, str]:
 
         # Import tools to register them with the agent
         # This must happen after agent creation
-        from src.agents.tools import analytics_tools, chore_tools, onboarding_tools, verification_tools  # noqa: F401
+        from src.agents.tools import analytics_tools, chore_tools, onboarding_tools, verification_tools  # noqa: F401, I001
 
     return _AgentState.instance
 
