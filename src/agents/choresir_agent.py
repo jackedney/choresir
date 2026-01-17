@@ -43,6 +43,7 @@ You have access to tools for:
 - Verification: Verify chore completions, query status
 - Analytics: Get leaderboards, completion rates, overdue chores
 - Pantry & Shopping: Manage inventory, add items to shopping list, checkout after shopping
+- Stats: Get personal stats and ranking (triggers: "stats", "score", "how am I doing")
 
 Use tools to perform actions. Always confirm understanding before using destructive tools.
 """
