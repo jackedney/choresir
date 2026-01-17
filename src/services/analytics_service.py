@@ -198,7 +198,15 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> dict[st
                 completions = entry["completion_count"]
                 break
 
-        # Get pending claims - filter at database level for efficiency
+        # Get all pending verification chores first (single query)
+        pending_verification_chores = await db_client.list_records(
+            collection="chores",
+            filter_query=f'current_state = "{ChoreState.PENDING_VERIFICATION}"',
+            per_page=500,
+        )
+        pending_chore_ids = {chore["id"] for chore in pending_verification_chores}
+
+        # Get pending claims for this user
         pending_claims = await db_client.list_records(
             collection="logs",
             filter_query=f'user_id = "{user_id}" && action = "claimed_completion"',
@@ -206,16 +214,8 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> dict[st
             sort="",  # No sort to avoid issues
         )
 
-        # Filter to only those still pending (chore in PENDING_VERIFICATION state)
-        claims_pending = 0
-        for log in pending_claims:
-            chore_id = log["chore_id"]
-            try:
-                chore = await db_client.get_record(collection="chores", record_id=chore_id)
-                if chore["current_state"] == ChoreState.PENDING_VERIFICATION:
-                    claims_pending += 1
-            except db_client.RecordNotFoundError:
-                continue
+        # Count claims that are still pending (chore in PENDING_VERIFICATION state)
+        claims_pending = sum(1 for log in pending_claims if log["chore_id"] in pending_chore_ids)
 
         # Get overdue chores assigned to user
         overdue_chores = await get_overdue_chores(user_id=user_id)
