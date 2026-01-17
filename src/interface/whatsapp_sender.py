@@ -78,7 +78,9 @@ class _TwilioClientSingleton:
             Initialized Twilio client
         """
         if cls._instance is None:
-            cls._instance = Client(settings.twilio_account_sid, settings.twilio_auth_token)
+            account_sid = settings.require_credential("twilio_account_sid", "Twilio Account SID")
+            auth_token = settings.require_credential("twilio_auth_token", "Twilio Auth Token")
+            cls._instance = Client(account_sid, auth_token)
         return cls._instance
 
 

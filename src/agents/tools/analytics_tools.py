@@ -1,15 +1,24 @@
 """Analytics tools for the choresir agent."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 import logfire
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
-from src.agents.choresir_agent import agent
 from src.services import analytics_service
+
+
+# Title threshold constants for user stats
+TITLE_THRESHOLD_MACHINE = 10
+TITLE_THRESHOLD_CONTRIBUTOR = 5
+TITLE_THRESHOLD_STARTER = 1
+
+# Period constants for analytics
+PERIOD_WEEKLY_DAYS = 7
+PERIOD_MONTHLY_DAYS = 30
 
 
 class GetAnalytics(BaseModel):
@@ -84,12 +93,15 @@ def _format_overdue_chores(chores: list[dict]) -> str:
     if not chores:
         return "✅ No overdue chores!"
 
-    now = datetime.now()
+    now = datetime.now(UTC)
     lines = [f"⚠️ {len(chores)} overdue chore(s):"]
 
     for chore in chores[:5]:  # Limit to 5 for WhatsApp readability
         title = chore["title"]
         deadline = datetime.fromisoformat(chore["deadline"])
+        # If deadline is naive (no timezone), assume UTC
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=UTC)
         days_overdue = (now - deadline).days
 
         if days_overdue == 0:
@@ -108,7 +120,6 @@ def _format_overdue_chores(chores: list[dict]) -> str:
     return "\n".join(lines)
 
 
-@agent.tool
 async def tool_get_analytics(_ctx: RunContext[Deps], params: GetAnalytics) -> str:
     """
     Get household analytics and metrics.
@@ -141,3 +152,100 @@ async def tool_get_analytics(_ctx: RunContext[Deps], params: GetAnalytics) -> st
     except Exception as e:
         logfire.error("Unexpected error in tool_get_analytics", error=str(e))
         return "Error: Unable to retrieve analytics. Please try again."
+
+
+class GetStats(BaseModel):
+    """Parameters for getting user statistics."""
+
+    period_days: int = Field(
+        default=7,
+        description="Number of days to look back for statistics (default: 7 for weekly)",
+    )
+
+
+def _format_user_stats(stats: dict, period_days: int) -> str:
+    """Format user statistics for WhatsApp display.
+
+    Args:
+        stats: User statistics dictionary
+        period_days: Period in days for context
+
+    Returns:
+        Formatted stats message
+    """
+    rank_str = f"#{stats['rank']}" if stats["rank"] is not None else "Not ranked yet"
+    completions = stats["completions"]
+    pending = stats["claims_pending"]
+    overdue = stats["overdue_chores"]
+
+    # Build dynamic title based on performance
+    if completions >= TITLE_THRESHOLD_MACHINE:
+        title = "🏆 The Machine"
+    elif completions >= TITLE_THRESHOLD_CONTRIBUTOR:
+        title = "💪 Solid Contributor"
+    elif completions >= TITLE_THRESHOLD_STARTER:
+        title = "👍 Getting Started"
+    else:
+        title = "😴 The Observer"
+
+    if period_days == PERIOD_WEEKLY_DAYS:
+        period_label = "This Week"
+    elif period_days == PERIOD_MONTHLY_DAYS:
+        period_label = "This Month"
+    else:
+        period_label = f"Last {period_days} Days"
+
+    lines = [
+        f"📊 *Your Stats ({period_label})*",
+        "",
+        f"*{title}*",
+        "",
+        f"Rank: {rank_str}",
+        f"Chores Completed: {completions}",
+        f"Pending Verification: {pending}",
+        f"Overdue: {overdue}",
+    ]
+
+    # Add encouragement/warning based on status
+    if overdue > 0:
+        lines.append("")
+        lines.append(f"⚠️ You have {overdue} overdue chore(s)!")
+    elif completions == 0:
+        lines.append("")
+        lines.append("💡 Complete a chore to get on the board!")
+
+    return "\n".join(lines)
+
+
+async def tool_get_stats(ctx: RunContext[Deps], params: GetStats) -> str:
+    """Get your personal chore statistics and leaderboard ranking.
+
+    Use this when the user asks for their stats, score, ranking, or standing.
+    Common triggers: "stats", "my stats", "score", "how am I doing", "leaderboard".
+
+    Args:
+        ctx: Agent runtime context with dependencies
+        params: Stats query parameters
+
+    Returns:
+        Formatted personal statistics message
+    """
+    try:
+        with logfire.span("tool_get_stats", user_id=ctx.deps.user_id, period=params.period_days):
+            # Get user statistics from analytics service
+            stats = await analytics_service.get_user_statistics(
+                user_id=ctx.deps.user_id,
+                period_days=params.period_days,
+            )
+
+            return _format_user_stats(stats, params.period_days)
+
+    except Exception as e:
+        logfire.error("Unexpected error in tool_get_stats", error=str(e))
+        return "Error: Unable to retrieve your stats. Please try again."
+
+
+def register_tools(agent: Agent[Deps, str]) -> None:
+    """Register tools with the agent."""
+    agent.tool(tool_get_analytics)
+    agent.tool(tool_get_stats)

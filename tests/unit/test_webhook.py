@@ -18,8 +18,10 @@ class TestVerifyTwilioSignature:
     """Test Twilio signature verification."""
 
     @patch("src.interface.webhook.RequestValidator")
-    def test_verify_twilio_signature_valid(self, mock_validator_class):
+    @patch("src.interface.webhook.settings")
+    def test_verify_twilio_signature_valid(self, mock_settings, mock_validator_class):
         """Test signature verification with valid signature."""
+        mock_settings.require_credential.return_value = "test_auth_token"
         mock_validator = MagicMock()
         mock_validator.validate.return_value = True
         mock_validator_class.return_value = mock_validator
@@ -34,8 +36,10 @@ class TestVerifyTwilioSignature:
         mock_validator.validate.assert_called_once_with(url, params, signature)
 
     @patch("src.interface.webhook.RequestValidator")
-    def test_verify_twilio_signature_invalid(self, mock_validator_class):
+    @patch("src.interface.webhook.settings")
+    def test_verify_twilio_signature_invalid(self, mock_settings, mock_validator_class):
         """Test signature verification with invalid signature."""
+        mock_settings.require_credential.return_value = "test_auth_token"
         mock_validator = MagicMock()
         mock_validator.validate.return_value = False
         mock_validator_class.return_value = mock_validator
@@ -52,7 +56,7 @@ class TestVerifyTwilioSignature:
     @patch("src.interface.webhook.settings")
     def test_verify_twilio_signature_uses_auth_token(self, mock_settings, mock_validator_class):
         """Test that signature verification uses auth token from settings."""
-        mock_settings.twilio_auth_token = "test_auth_token"
+        mock_settings.require_credential.return_value = "test_auth_token"
         mock_validator = MagicMock()
         mock_validator.validate.return_value = True
         mock_validator_class.return_value = mock_validator
@@ -63,7 +67,8 @@ class TestVerifyTwilioSignature:
 
         verify_twilio_signature(url, params, signature)
 
-        # Verify RequestValidator was initialized with auth token
+        # Verify require_credential was called and RequestValidator was initialized with the token
+        mock_settings.require_credential.assert_called_once_with("twilio_auth_token", "Twilio Auth Token")
         mock_validator_class.assert_called_once_with("test_auth_token")
 
 

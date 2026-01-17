@@ -38,7 +38,8 @@ def verify_twilio_signature(url: str, params: dict[str, str], signature: str) ->
     Returns:
         True if signature is valid, False otherwise
     """
-    validator = RequestValidator(settings.twilio_auth_token)
+    auth_token = settings.require_credential("twilio_auth_token", "Twilio Auth Token")
+    validator = RequestValidator(auth_token)
     return validator.validate(url, params, signature)
 
 

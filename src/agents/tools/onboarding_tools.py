@@ -2,10 +2,9 @@
 
 import logfire
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
-from src.agents.choresir_agent import agent
 from src.services import user_service
 
 
@@ -23,7 +22,6 @@ class ApproveMember(BaseModel):
     target_phone: str = Field(description="Phone number of the user to approve (E.164 format)")
 
 
-@agent.tool
 async def tool_request_join(ctx: RunContext[Deps], params: RequestJoin) -> str:
     """
     Request to join the household.
@@ -60,7 +58,6 @@ async def tool_request_join(ctx: RunContext[Deps], params: RequestJoin) -> str:
         return "Error: Unable to process join request. Please try again."
 
 
-@agent.tool
 async def tool_approve_member(ctx: RunContext[Deps], params: ApproveMember) -> str:
     """
     Approve a pending member (admin-only).
@@ -93,3 +90,9 @@ async def tool_approve_member(ctx: RunContext[Deps], params: ApproveMember) -> s
     except Exception as e:
         logfire.error("Unexpected error in tool_approve_member", error=str(e))
         return "Error: Unable to approve member. Please try again."
+
+
+def register_tools(agent: Agent[Deps, str]) -> None:
+    """Register tools with the agent."""
+    agent.tool(tool_request_join)
+    agent.tool(tool_approve_member)

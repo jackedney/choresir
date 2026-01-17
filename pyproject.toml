@@ -79,6 +79,9 @@ ignore = [
     "C901",    # Allow complex functions (webhook processing logic)
     "PLR0911", # Allow multiple return statements in webhook handlers
 ]
+"src/agents/agent_instance.py" = [
+    "PLC0415", # Allow imports inside functions to avoid circular imports
+]
 
 [tool.ruff.lint.isort]
 force-single-line = false
