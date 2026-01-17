@@ -206,16 +206,26 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> dict[st
         )
         pending_chore_ids = {chore["id"] for chore in pending_verification_chores}
 
-        # Get pending claims for this user
-        pending_claims = await db_client.list_records(
-            collection="logs",
-            filter_query=f'user_id = "{user_id}" && action = "claimed_completion"',
-            per_page=500,
-            sort="",  # No sort to avoid issues
-        )
-
         # Count claims that are still pending (chore in PENDING_VERIFICATION state)
-        claims_pending = sum(1 for log in pending_claims if log["chore_id"] in pending_chore_ids)
+        claims_pending = 0
+        if pending_chore_ids:
+            # Optimize: Only fetch claims for the specific chores that are pending
+            # This avoids fetching thousands of historical claims.
+            # We process in chunks to avoid potentially long filter queries.
+            chore_ids_list = list(pending_chore_ids)
+            chunk_size = 50
+
+            for i in range(0, len(chore_ids_list), chunk_size):
+                chunk = chore_ids_list[i : i + chunk_size]
+                or_clause = " || ".join([f'chore_id = "{cid}"' for cid in chunk])
+
+                logs = await db_client.list_records(
+                    collection="logs",
+                    filter_query=f'user_id = "{user_id}" && action = "claimed_completion" && ({or_clause})',
+                    per_page=500,
+                    sort="",  # No sort to avoid issues
+                )
+                claims_pending += len(logs)
 
         # Get overdue chores assigned to user
         overdue_chores = await get_overdue_chores(user_id=user_id)
