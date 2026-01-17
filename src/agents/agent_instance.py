@@ -21,7 +21,8 @@ class _LogfireState:
 def _ensure_logfire_configured() -> None:
     """Ensure Logfire is configured (lazy initialization)."""
     if not _LogfireState.configured:
-        logfire.configure(token=settings.logfire_token)
+        if settings.logfire_token:
+            logfire.configure(token=settings.logfire_token)
         _LogfireState.configured = True
 
 
