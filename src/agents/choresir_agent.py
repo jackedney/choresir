@@ -15,8 +15,18 @@ from src.domain.user import UserStatus
 from src.services import user_service
 
 
-# Configure Logfire for observability
-logfire.configure(token=settings.logfire_token)
+class _LogfireState:
+    """Singleton state for logfire configuration."""
+
+    configured = False
+
+
+def _ensure_logfire_configured() -> None:
+    """Ensure Logfire is configured (lazy initialization)."""
+    if not _LogfireState.configured:
+        logfire.configure(token=settings.logfire_token)
+        _LogfireState.configured = True
+
 
 # System prompt template
 SYSTEM_PROMPT_TEMPLATE = """You are choresir, a household chore management assistant. Your role is strictly functional.
@@ -60,23 +70,48 @@ def _build_system_prompt(
     )
 
 
-# Initialize the agent with OpenRouter
-provider = OpenRouterProvider(api_key=settings.openrouter_api_key)
-model = OpenRouterModel(
-    model_name=settings.model_id,
-    provider=provider,
-)
+class _AgentState:
+    """Singleton state for agent instance."""
 
-# Create the agent
-agent: Agent[Deps, str] = Agent(
-    model=model,
-    deps_type=Deps,
-    retries=2,
-)
+    instance: Agent[Deps, str] | None = None
 
-# Import tools to register them with the agent
-# This must happen after agent creation
-from src.agents.tools import analytics_tools, chore_tools, onboarding_tools, verification_tools  # noqa: F401, E402
+
+def _get_agent() -> Agent[Deps, str]:
+    """Get or create the agent instance (lazy initialization)."""
+    if _AgentState.instance is None:
+        _ensure_logfire_configured()
+
+        # Initialize the agent with OpenRouter
+        provider = OpenRouterProvider(api_key=settings.openrouter_api_key)
+        model = OpenRouterModel(
+            model_name=settings.model_id,
+            provider=provider,
+        )
+
+        # Create the agent
+        _AgentState.instance = Agent(
+            model=model,
+            deps_type=Deps,
+            retries=2,
+        )
+
+        # Import tools to register them with the agent
+        # This must happen after agent creation
+        from src.agents.tools import analytics_tools, chore_tools, onboarding_tools, verification_tools  # noqa: F401
+
+    return _AgentState.instance
+
+
+# Backwards compatibility: export agent that lazily initializes
+# Tools import this and use @agent.tool decorator
+class _AgentProxy:
+    """Proxy for lazy agent access."""
+
+    def __getattr__(self, name: str):  # noqa: ANN204
+        return getattr(_get_agent(), name)
+
+
+agent: Agent[Deps, str] = _AgentProxy()  # type: ignore[assignment]
 
 
 async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
@@ -101,6 +136,9 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
     )
 
     try:
+        # Get agent instance (lazy initialization)
+        agent = _get_agent()
+
         # Run the agent with Logfire tracing
         with logfire.span("choresir_agent_run", user_id=deps.user_id):
             result = await agent.run(

@@ -26,19 +26,21 @@ class Settings(BaseSettings):
     )
 
     # OpenRouter Configuration
-    openrouter_api_key: str = Field(..., description="OpenRouter API key for LLM access")
+    openrouter_api_key: str = Field(default="", description="OpenRouter API key for LLM access")
 
     # Twilio Configuration
-    twilio_account_sid: str = Field(..., description="Twilio Account SID")
-    twilio_auth_token: str = Field(..., description="Twilio Auth Token")
-    twilio_whatsapp_number: str = Field(..., description="Twilio WhatsApp number (format: whatsapp:+14155238886)")
+    twilio_account_sid: str = Field(default="", description="Twilio Account SID")
+    twilio_auth_token: str = Field(default="", description="Twilio Auth Token")
+    twilio_whatsapp_number: str = Field(
+        default="whatsapp:+14155238886", description="Twilio WhatsApp number (format: whatsapp:+14155238886)"
+    )
 
     # Pydantic Logfire Configuration
-    logfire_token: str = Field(..., description="Pydantic Logfire token for observability")
+    logfire_token: str = Field(default="", description="Pydantic Logfire token for observability")
 
     # House Onboarding Configuration
-    house_code: str = Field(..., description="House code for member onboarding")
-    house_password: str = Field(..., description="House password for member onboarding")
+    house_code: str = Field(default="", description="House code for member onboarding")
+    house_password: str = Field(default="", description="House password for member onboarding")
 
     # AI Model Configuration
     model_id: str = Field(
