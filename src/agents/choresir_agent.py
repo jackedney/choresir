@@ -6,7 +6,7 @@ from datetime import datetime
 import logfire
 from pocketbase import PocketBase
 
-from src.agents.agent_instance import _get_agent
+from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
 from src.core import db_client
 from src.domain.user import UserStatus
@@ -80,7 +80,7 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
 
     try:
         # Get agent instance (lazy initialization)
-        agent = _get_agent()
+        agent = get_agent()
 
         # Run the agent with Logfire tracing
         with logfire.span("choresir_agent_run", user_id=deps.user_id):

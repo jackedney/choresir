@@ -5,9 +5,8 @@ from typing import Literal
 
 import logfire
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
 
-from src.agents.agent_instance import agent
 from src.agents.base import Deps
 from src.services import analytics_service
 
@@ -121,7 +120,6 @@ def _format_overdue_chores(chores: list[dict]) -> str:
     return "\n".join(lines)
 
 
-@agent.tool
 async def tool_get_analytics(_ctx: RunContext[Deps], params: GetAnalytics) -> str:
     """
     Get household analytics and metrics.
@@ -219,7 +217,6 @@ def _format_user_stats(stats: dict, period_days: int) -> str:
     return "\n".join(lines)
 
 
-@agent.tool
 async def tool_get_stats(ctx: RunContext[Deps], params: GetStats) -> str:
     """Get your personal chore statistics and leaderboard ranking.
 
@@ -246,3 +243,9 @@ async def tool_get_stats(ctx: RunContext[Deps], params: GetStats) -> str:
     except Exception as e:
         logfire.error("Unexpected error in tool_get_stats", error=str(e))
         return "Error: Unable to retrieve your stats. Please try again."
+
+
+def register_tools(agent: Agent[Deps, str]) -> None:
+    """Register tools with the agent."""
+    agent.tool(tool_get_analytics)
+    agent.tool(tool_get_stats)

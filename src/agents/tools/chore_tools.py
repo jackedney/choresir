@@ -2,9 +2,8 @@
 
 import logfire
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
 
-from src.agents.agent_instance import agent
 from src.agents.base import Deps
 from src.domain.chore import ChoreState
 from src.services import chore_service, user_service, verification_service
@@ -66,7 +65,6 @@ def _fuzzy_match_chore(chores: list[dict], title_query: str) -> dict | None:
     return None
 
 
-@agent.tool
 async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
     """
     Define a new chore with recurrence schedule.
@@ -107,7 +105,6 @@ async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
         return "Error: Unable to create chore. Please try again."
 
 
-@agent.tool
 async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     """
     Log a chore completion and request verification.
@@ -159,3 +156,9 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     except Exception as e:
         logfire.error("Unexpected error in tool_log_chore", error=str(e))
         return "Error: Unable to log chore. Please try again."
+
+
+def register_tools(agent: Agent[Deps, str]) -> None:
+    """Register chore tools with the agent."""
+    agent.tool(tool_define_chore)
+    agent.tool(tool_log_chore)

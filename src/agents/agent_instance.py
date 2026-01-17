@@ -32,46 +32,44 @@ class _AgentState:
     instance: Agent[Deps, str] | None = None
 
 
-def _get_agent() -> Agent[Deps, str]:
-    """Get or create the agent instance (lazy initialization)."""
+def _create_agent() -> Agent[Deps, str]:
+    """Create the agent instance (called once during initialization)."""
+    _ensure_logfire_configured()
+
+    # Initialize the agent with OpenRouter
+    api_key = settings.require_credential("openrouter_api_key", "OpenRouter API key")
+    provider = OpenRouterProvider(api_key=api_key)
+    model = OpenRouterModel(
+        model_name=settings.model_id,
+        provider=provider,
+    )
+
+    # Create the agent
+    return Agent(
+        model=model,
+        deps_type=Deps,
+        retries=2,
+    )
+
+
+def get_agent() -> Agent[Deps, str]:
+    """Get or create the agent instance with all tools registered."""
     if _AgentState.instance is None:
-        _ensure_logfire_configured()
-
-        # Initialize the agent with OpenRouter
-        api_key = settings.require_credential("openrouter_api_key", "OpenRouter API key")
-        provider = OpenRouterProvider(api_key=api_key)
-        model = OpenRouterModel(
-            model_name=settings.model_id,
-            provider=provider,
-        )
-
-        # Create the agent
-        _AgentState.instance = Agent(
-            model=model,
-            deps_type=Deps,
-            retries=2,
-        )
-
-        # Import tools AFTER agent creation to avoid circular imports
-        # This allows tools to use @agent.tool decorator at module level
-        from src.agents.tools import (  # noqa: F401
-            analytics_tools,
-            chore_tools,
-            onboarding_tools,
-            pantry_tools,
-            verification_tools,
-        )
+        _AgentState.instance = _create_agent()
+        _register_all_tools(_AgentState.instance)
 
     return _AgentState.instance
 
 
-# Backwards compatibility: export agent that lazily initializes
-# Tools import this and use @agent.tool decorator
-class _AgentProxy:
-    """Proxy for lazy agent access."""
+def _register_all_tools(agent_instance: Agent[Deps, str]) -> None:
+    """Register all tool modules with the agent."""
+    # Import tools and explicitly register them
+    # This avoids decorator execution at import time
+    from src.agents.tools import analytics_tools, chore_tools, onboarding_tools, pantry_tools, verification_tools
 
-    def __getattr__(self, name: str) -> object:
-        return getattr(_get_agent(), name)
-
-
-agent: Agent[Deps, str] = _AgentProxy()  # type: ignore[assignment]
+    # Each module registers its tools via register_tools(agent)
+    analytics_tools.register_tools(agent_instance)
+    chore_tools.register_tools(agent_instance)
+    onboarding_tools.register_tools(agent_instance)
+    pantry_tools.register_tools(agent_instance)
+    verification_tools.register_tools(agent_instance)

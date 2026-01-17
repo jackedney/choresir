@@ -5,9 +5,8 @@ from typing import Literal
 
 import logfire
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
 
-from src.agents.agent_instance import agent
 from src.agents.base import Deps
 from src.core import db_client
 from src.domain.chore import ChoreState
@@ -70,7 +69,6 @@ def _format_chore_status(chores: list[dict], user_name: str) -> str:
     return f"{user_name}: {todo} todo, {pending} pending, {completed} completed.{next_due_msg}"
 
 
-@agent.tool
 async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
     """
     Verify or reject a chore completion claim.
@@ -119,7 +117,6 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
         return "Error: Unable to verify chore. Please try again."
 
 
-@agent.tool
 async def tool_get_status(ctx: RunContext[Deps], params: GetStatus) -> str:
     """
     Get chore status summary for a user.
@@ -158,3 +155,9 @@ async def tool_get_status(ctx: RunContext[Deps], params: GetStatus) -> str:
     except Exception as e:
         logfire.error("Unexpected error in tool_get_status", error=str(e))
         return "Error: Unable to retrieve status. Please try again."
+
+
+def register_tools(agent: Agent[Deps, str]) -> None:
+    """Register tools with the agent."""
+    agent.tool(tool_verify_chore)
+    agent.tool(tool_get_status)
