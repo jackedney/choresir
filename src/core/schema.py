@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 # Central list of all collections in the schema
-COLLECTIONS = ["users", "chores", "logs", "processed_messages", "pantry_items", "shopping_list"]
+COLLECTIONS = ["users", "chores", "logs", "processed_messages"]
 
 
 def _get_collection_schema(
@@ -143,58 +143,6 @@ def _get_collection_schema(
                 {"name": "error_message", "type": "text", "required": False},
             ],
             "indexes": ["CREATE UNIQUE INDEX idx_message_id ON processed_messages (message_id)"],
-        },
-        "pantry_items": {
-            "name": "pantry_items",
-            "type": "base",
-            "system": False,
-            # API Rules: Anyone can list/view/create/update pantry items.
-            # Deletion is admin-only to preserve inventory history and prevent accidental data loss.
-            # The pantry_service uses admin auth, so it can still perform deletions when needed.
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "",
-            "deleteRule": None,
-            "fields": [
-                {"name": "name", "type": "text", "required": True},
-                {"name": "quantity", "type": "number", "required": False},
-                {
-                    "name": "status",
-                    "type": "select",
-                    "required": True,
-                    "values": ["IN_STOCK", "LOW", "OUT"],
-                    "maxSelect": 1,
-                },
-                {"name": "last_restocked", "type": "date", "required": False},
-            ],
-            "indexes": ["CREATE UNIQUE INDEX idx_pantry_item_name ON pantry_items (name)"],
-        },
-        "shopping_list": {
-            "name": "shopping_list",
-            "type": "base",
-            "system": False,
-            # API Rules: Anyone can list/view/create/update/delete shopping list items.
-            # Unlike pantry_items, shopping list items are transient and users should be able
-            # to remove them freely (e.g., when items are no longer needed).
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "",
-            "deleteRule": "",
-            "fields": [
-                {"name": "item_name", "type": "text", "required": True},
-                {
-                    "name": "added_by",
-                    "type": "relation",
-                    "required": True,
-                    "collectionId": ids.get("users", "users"),
-                    "maxSelect": 1,
-                },
-                {"name": "added_at", "type": "date", "required": True},
-                {"name": "quantity", "type": "number", "required": False},
-                {"name": "notes", "type": "text", "required": False},
-            ],
         },
     }
     return schemas[collection_name]

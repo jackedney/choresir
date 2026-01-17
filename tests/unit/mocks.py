@@ -223,7 +223,7 @@ class InMemoryDBClient:
 
         Supports:
         - field = "value" (exact match)
-        - field ~ "substring" (case-insensitive contains, matching PocketBase)
+        - field ~ "substring" (contains)
         - field != "value" (not equal)
         - Multiple conditions with && (AND)
 
@@ -255,14 +255,14 @@ class InMemoryDBClient:
             value = parts[1].strip().strip("'\"")
             return str(record.get(field, "")) != value
 
-        # Try ~ operator (case-insensitive contains, matching PocketBase behavior)
+        # Try ~ operator (contains)
         if "~" in filter_str:
             parts = filter_str.split("~", 1)
             if len(parts) != 2:
                 raise DatabaseError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
-            return value.lower() in str(record.get(field, "")).lower()
+            return value in str(record.get(field, ""))
 
         # Try = operator (exact match)
         if "=" in filter_str:
