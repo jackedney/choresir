@@ -112,14 +112,11 @@
 ## 🚀 Getting Started
 
 <div align="center">
-
-<img src="assets/images/setup-comparison.png" alt="Comparison of Quick Start (lightning bolt) and First Time Setup (rocket) in a bold split design" width="100%">
-
 </div>
 
 <table>
 <tr>
-<td width="50%">
+<td width="80%">
 
 ### ⚡ Quick Start
 *Already have Meta/WhatsApp & OpenRouter accounts?*
@@ -199,15 +196,9 @@ ngrok http 8000                       # Terminal 3: Public Webhook
 
 ## ☁️ Production Deployment
 
-<div align="center">
-
-<img src="assets/images/railway-deployment.png" alt="Railway tracks visual metaphor showing the steps for production deployment" width="80%">
-
-</div>
-
 <table>
 <tr>
-<td width="60%">
+<td width="80%">
 
 ### 🚂 Railway Deployment
 
@@ -226,8 +217,6 @@ ngrok http 8000                       # Terminal 3: Public Webhook
 <td width="40%">
 
 <div align="center">
-
-<img src="https://img.shields.io/badge/Railway-0B0D0E?style=for-the-badge&logo=railway&logoColor=white" alt="Railway">
 
 ### Cost Breakdown
 
