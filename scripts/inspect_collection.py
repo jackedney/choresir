@@ -2,9 +2,14 @@
 """Inspect the processed_messages collection using httpx directly."""
 
 import asyncio
+import logging
 
 import httpx
 from pocketbase import PocketBase
+
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
@@ -22,14 +27,16 @@ async def main() -> None:
         collection = response.json()
 
         for rule in ["listRule", "viewRule", "createRule", "updateRule", "deleteRule"]:
-            collection.get(rule)
+            logger.info(f"{rule}: {collection.get(rule)}")
 
         if "schema" in collection:
+            logger.info("Schema fields:")
             for field in collection["schema"]:
+                logger.info(f"  - {field.get('name', 'unknown')}: {field.get('type', 'unknown')}")
                 if "options" in field:
-                    pass
+                    logger.info(f"    options: {field['options']}")
         else:
-            pass
+            logger.info("No schema found")
 
 
 if __name__ == "__main__":

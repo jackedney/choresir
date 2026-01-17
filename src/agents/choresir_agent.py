@@ -187,13 +187,15 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
     """
     # Try to parse join request: Code: XXX, Password: YYY, Name: ZZZ
     # Pattern matches case-insensitive and handles various formatting
-    pattern = r"code:\s*([A-Z0-9]+).*?password:\s*([^\s,]+).*?name:\s*(.+?)(?:\s*$|\.)"
+    # Supports quoted passwords for spaces/commas: Password: "my pass"
+    pattern = r'code:\s*([A-Z0-9]+).*?password:\s*(?:"([^"]+)|([^\s,]+)).*?name:\s*(.+?)(?:\s*$|\.)'
     match = re.search(pattern, message_text, re.IGNORECASE | re.DOTALL)
 
     if match:
         house_code = match.group(1).strip()
-        password = match.group(2).strip()
-        name = match.group(3).strip()
+        # Password is in group 2 (quoted) or group 3 (unquoted)
+        password = (match.group(2) or match.group(3)).strip()
+        name = match.group(4).strip()
 
         # Attempt to process the join request
         try:
@@ -228,7 +230,8 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
         "1. House code\n"
         "2. House password\n"
         "3. Your preferred name\n\n"
-        "Say something like: 'I want to join. Code: XXXX, Password: YYYY, Name: Your Name'"
+        "Say something like: 'I want to join. Code: XXXX, Password: YYYY, Name: Your Name'\n"
+        '(Use quotes around password if it contains spaces or commas: Password: "my pass")'
     )
 
 

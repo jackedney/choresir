@@ -7,10 +7,15 @@ Usage:
 """
 
 import asyncio
+import logging
 import sys
 
 from src.core import db_client
 from src.domain.user import UserStatus
+
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 
 async def list_pending_users() -> None:
@@ -23,8 +28,8 @@ async def list_pending_users() -> None:
     if not pending_users:
         return
 
-    for _user in pending_users:
-        pass
+    for user in pending_users:
+        logger.info(f"{user['phone']} - {user.get('name', 'Unknown')} (Status: {user['status']})")
 
 
 async def approve_user(phone: str, role: str = "member") -> None:
@@ -49,9 +54,12 @@ async def approve_user(phone: str, role: str = "member") -> None:
 
     if current_status == UserStatus.ACTIVE:
         if current_role != role:
-            pass
-        else:
-            return
+            await db_client.update_record(
+                collection="users",
+                record_id=user["id"],
+                data={"role": role},
+            )
+        return
 
     # Update user
     await db_client.update_record(
@@ -66,6 +74,7 @@ async def approve_user(phone: str, role: str = "member") -> None:
 
 def print_usage() -> None:
     """Print usage information."""
+    logger.info(__doc__)
 
 
 async def main() -> None:

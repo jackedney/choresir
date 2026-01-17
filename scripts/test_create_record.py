@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Test creating a record in processed_messages."""
 
+import logging
 from datetime import datetime
 
 import httpx
 
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 # HTTP status codes
 HTTP_OK = 200
@@ -24,9 +28,9 @@ def main() -> None:
     response = httpx.post("http://127.0.0.1:8090/api/collections/processed_messages/records", json=data)
 
     if response.status_code == HTTP_OK:
-        pass
+        logger.info(f"Success: Record created with response: {response.json()}")
     else:
-        pass
+        logger.error(f"Error: Failed to create record. Status: {response.status_code}, Response: {response.text}")
 
 
 if __name__ == "__main__":

@@ -16,7 +16,8 @@ def main() -> None:
     # Authenticate as admin
     try:
         pb.admins.auth_with_password("admin@test.local", "testpassword123")
-    except Exception:
+    except Exception as e:
+        logger.error(f"Authentication failed: {e}")
         return
 
     # Get collection info
@@ -28,9 +29,11 @@ def main() -> None:
         if schema_fields:
             for field in schema_fields:
                 field_dict = field.__dict__ if hasattr(field, "__dict__") else field
-                field_dict.get("name", "unknown")
-                field_dict.get("type", "unknown")
-                "required" if field_dict.get("required", False) else "optional"
+                logger.info(
+                    f"Field: {field_dict.get('name', 'unknown')} "
+                    f"({field_dict.get('type', 'unknown')}) - "
+                    f"{'required' if field_dict.get('required', False) else 'optional'}"
+                )
         else:
             pass
 
