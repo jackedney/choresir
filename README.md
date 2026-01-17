@@ -1,103 +1,272 @@
-# choresir 🏠
+<div align="center">
+
+<img src="assets/images/hero-banner.png" alt="Minimalist neobrutalist illustration of a house with a robot face and a single speech bubble on a clean background" width="100%">
+
+### The Household Operating System that lives in WhatsApp
 
 <p align="center">
-  <img src="logo.png" width="200" alt="choresir logo">
+  <img src="https://img.shields.io/badge/status-active%20development-green?style=for-the-badge" alt="Status">
+  <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/WhatsApp-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp">
 </p>
 
-**The "Household Operating System" that lives in WhatsApp.**
+---
 
-> **Status:** Active Development
-> **Stack:** Python (FastAPI) | PocketBase | Pydantic AI | Twilio WhatsApp API
+**choresir** is not just a reminder bot. It's an agentic system designed to manage household chores, enforce accountability, and resolve disputes through natural language. It replaces the "mental load" of managing a home with a neutral, AI-driven third party.
 
-choresir is not just a reminder bot. It is an agentic system designed to manage household chores, enforce accountability, and resolve disputes through natural language. It replaces the "mental load" of managing a home with a neutral, AI-driven third party.
+</div>
 
 ## 📚 Documentation
 
-### For Users & Architects
-*   **[Architecture Decisions](./adrs/):** The "Why" behind the system (Stack, Conflict Resolution, etc.).
-*   **[Agent Personas](./adrs/002-agents.md):** Functional specifications for the `choresir` agent.
+<table>
+<tr>
+<td width="50%">
 
-### For Developers & AI Assistants
-*   **[Contribution Guide](./AGENTS.md):** Coding standards, engineering patterns, and the "System Prompt" for this repo. **Read this before writing code.**
+### 👥 For Users & Architects
+- 📐 **[Architecture Decisions](./adrs/)** - The "Why" behind the system
+- 🤖 **[Agent Personas](./adrs/002-agents.md)** - Functional specifications
+
+</td>
+<td width="50%">
+
+### 💻 For Developers & AI Assistants
+- 📝 **[Contribution Guide](./AGENTS.md)** - Coding standards & patterns
+  *Read this before writing code*
+
+</td>
+</tr>
+</table>
 
 ## ✨ Features
-*   **🛡️ Gatekeeper Onboarding:** "Join HOUSE123" + Admin Approval prevents strangers from spamming.
-*   **🗣️ Conversational Config:** "Remind Alice to water the plants every Tuesday." (No forms, just text).
-*   **✅ Verified Accountability:** When you say "I did the dishes," the bot asks someone else to verify it.
-*   **🏹 The "Robin Hood" Protocol:** Swap chores dynamically. If you do someone else's task, you get the points.
-*   **⚖️ Conflict Resolution:** A "Jury System" for disputes. If User A claims "Done" and User B rejects it, the bot triggers a vote.
 
-## 🛠️ Tech Stack (The "Astral" Stack)
-Optimized for low cost, high performance, and strictly typed Python.
+<div align="center">
 
-| Component | Technology | Role |
-| :--- | :--- | :--- |
-| **Server** | Python (FastAPI) | Core logic & Webhook receiver. |
-| **Tooling** | **uv, ruff, ty** | Blazing fast package management, linting, and type checking. |
-| **Agent** | Pydantic AI | Strongly-typed AI logic & tool calling. |
-| **Observability** | **Logfire** | Structured tracing for AI & API. |
-| **Database** | PocketBase | Self-hosted SQLite backend + Admin UI. |
-| **Interface** | Twilio WhatsApp API | Reliable WhatsApp integration. |
+<img src="assets/images/feature-flow.png" alt="Process diagram showing five steps using simple neobrutalist icons: Onboarding, Config, Verification, Swap, and Resolution" width="100%">
+
+</div>
+
+| Feature | Description |
+|---------|-------------|
+| 🛡️ **Gatekeeper Onboarding** | "Join HOUSE123" + Admin Approval prevents strangers from spamming |
+| 🗣️ **Conversational Config** | "Remind Alice to water the plants every Tuesday." (No forms, just text) |
+| ✅ **Verified Accountability** | When you say "I did the dishes," the bot asks someone else to verify it |
+| 🏹 **The "Robin Hood" Protocol** | Swap chores dynamically. If you do someone else's task, you get the points |
+| ⚖️ **Conflict Resolution** | A "Jury System" for disputes. If User A claims "Done" and User B rejects it, the bot triggers a vote |
+
+## 🛠️ Tech Stack
+
+<div align="center">
+
+*Optimized for low cost, high performance, and strictly typed Python*
+
+<img src="assets/images/tech-stack.png" alt="Visual representation of the tech stack layers: FastAPI, Pydantic AI, PocketBase, and WhatsApp" width="400">
+
+</div>
+
+<table>
+<thead>
+<tr>
+<th width="25%">Component</th>
+<th width="35%">Technology</th>
+<th width="40%">Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🖥️ <strong>Server</strong></td>
+<td><img src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white" alt="FastAPI"></td>
+<td>Core logic & Webhook receiver</td>
+</tr>
+<tr>
+<td>🔧 <strong>Tooling</strong></td>
+<td><strong>uv, ruff, ty</strong></td>
+<td>Blazing fast package management, linting, and type checking</td>
+</tr>
+<tr>
+<td>🤖 <strong>Agent</strong></td>
+<td><img src="https://img.shields.io/badge/Pydantic_AI-E92063?style=flat&logo=pydantic&logoColor=white" alt="Pydantic AI"></td>
+<td>Strongly-typed AI logic & tool calling</td>
+</tr>
+<tr>
+<td>📊 <strong>Observability</strong></td>
+<td><strong>Logfire</strong></td>
+<td>Structured tracing for AI & API</td>
+</tr>
+<tr>
+<td>💾 <strong>Database</strong></td>
+<td><img src="https://img.shields.io/badge/PocketBase-B8DBE4?style=flat&logo=pocketbase&logoColor=black" alt="PocketBase"></td>
+<td>Self-hosted SQLite backend + Admin UI</td>
+</tr>
+<tr>
+<td>💬 <strong>Interface</strong></td>
+<td><img src="https://img.shields.io/badge/WhatsApp_Cloud_API-25D366?style=flat&logo=whatsapp&logoColor=white" alt="WhatsApp"></td>
+<td>Direct integration (No Twilio markup)</td>
+</tr>
+</tbody>
+</table>
 
 ## 🚀 Getting Started
 
-### Quick Start
+<div align="center">
 
-1. **Install dependencies:**
-   ```bash
-   uv sync
-   ```
+<img src="assets/images/setup-comparison.png" alt="Comparison of Quick Start (lightning bolt) and First Time Setup (rocket) in a bold split design" width="100%">
 
-2. **Configure environment variables:**
-   Copy `.env.example` to `.env` and fill in your credentials:
-   ```bash
-   cp .env.example .env
-   ```
+</div>
 
-3. **Start all services:**
-   ```bash
-   task dev
-   ```
+<table>
+<tr>
+<td width="50%">
 
-   This automatically:
-   - Installs PocketBase
-   - Creates admin account
-   - Starts FastAPI and ngrok
-   - Shows you the webhook URL
+### ⚡ Quick Start
+*Already have Meta/WhatsApp & OpenRouter accounts?*
 
-4. **Configure webhook:**
-   Copy the ngrok URL and set it in Twilio Console → Messaging → WhatsApp Sandbox.
+**→ [Quick Start Guide](./docs/QUICK_START.md)**
 
-### Full Setup Guide
+⏱️ **15-30 minutes**
 
-See [SETUP.md](./docs/SETUP.md) for detailed instructions including:
-- External service configuration (OpenRouter, Twilio, Logfire)
-- Production deployment
-- Webhook configuration
+</td>
+<td width="50%">
 
-### Prerequisites
-- **uv** (Python package manager) - [Install here](https://docs.astral.sh/uv/getting-started/installation/)
-- **ngrok** (for local webhook testing) - `brew install ngrok`
-- **Twilio Account** - For WhatsApp integration
-- **OpenRouter API Key** - [Get here](https://openrouter.ai)
+### 🔰 First Time Setup
+*Starting from scratch?*
+
+**→ [Complete Setup Guide](./docs/SETUP.md)**
+
+⏱️ **2-3 hours + approval wait**
+
+</td>
+</tr>
+</table>
+
+### 📦 Setup by Component
+
+<table>
+<thead>
+<tr>
+<th width="30%">Component</th>
+<th width="35%">Guide</th>
+<th width="20%">Time</th>
+<th width="15%">Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>💬 <strong>WhatsApp Templates</strong></td>
+<td><a href="./docs/WHATSAPP_TEMPLATES.md">WHATSAPP_TEMPLATES.md</a></td>
+<td>30 min + 1-2 days approval</td>
+<td><img src="https://img.shields.io/badge/required-red?style=flat" alt="Required"></td>
+</tr>
+<tr>
+<td>🌐 <strong>ngrok (Local Testing)</strong></td>
+<td><a href="./docs/NGROK_SETUP.md">NGROK_SETUP.md</a></td>
+<td>15 min</td>
+<td><img src="https://img.shields.io/badge/required-red?style=flat" alt="Required"></td>
+</tr>
+<tr>
+<td>📊 <strong>Logfire (Monitoring)</strong></td>
+<td><a href="./docs/LOGFIRE_SETUP.md">LOGFIRE_SETUP.md</a></td>
+<td>10 min</td>
+<td><img src="https://img.shields.io/badge/recommended-orange?style=flat" alt="Recommended"></td>
+</tr>
+<tr>
+<td>🚂 <strong>Railway (Production)</strong></td>
+<td><a href="./docs/RAILWAY_DEPLOYMENT.md">RAILWAY_DEPLOYMENT.md</a></td>
+<td>1 hour</td>
+<td><img src="https://img.shields.io/badge/production-blue?style=flat" alt="Production"></td>
+</tr>
+</tbody>
+</table>
+
+### 💻 Minimal Local Setup
+
+<div align="center">
+
+⏱️ **5 minutes to get running locally**
+
+</div>
+
+```bash
+# 1️⃣ Install dependencies
+uv sync
+
+# 2️⃣ Download PocketBase
+task setup
+
+# 3️⃣ Configure environment
+cp .env.example .env
+# Edit .env with your tokens
+
+# 4️⃣ Start services (requires 3 terminals)
+./pocketbase serve                    # Terminal 1: Database
+uv run fastapi dev src/main.py        # Terminal 2: API Server
+ngrok http 8000                       # Terminal 3: Public Webhook
+```
+
+<div align="center">
+
+📖 **See [Quick Start Guide](./docs/QUICK_START.md) for detailed instructions**
+
+</div>
 
 ## ☁️ Production Deployment
 
+<div align="center">
+
+<img src="assets/images/railway-deployment.png" alt="Railway tracks visual metaphor showing the steps for production deployment" width="80%">
+
+</div>
+
+<table>
+<tr>
+<td width="60%">
+
+### 🚂 Railway Deployment
+
 **Platform:** Railway (recommended)
 **Cost:** ~$5-10/month
-**Guide:** [docs/RAILWAY_DEPLOYMENT.md](./docs/RAILWAY_DEPLOYMENT.md)
+**Guide:** [RAILWAY_DEPLOYMENT.md](./docs/RAILWAY_DEPLOYMENT.md)
 
-**Quick deploy:**
-1. Create Railway project
-2. Deploy PocketBase service (with persistent volume)
-3. Deploy FastAPI service (connect GitHub repo)
-4. Set environment variables
-5. Update WhatsApp webhook URL
+#### Quick Deploy Steps:
+1. ✅ Create Railway project
+2. 💾 Deploy PocketBase service (with persistent volume)
+3. 🖥️ Deploy FastAPI service (connect GitHub repo)
+4. 🔐 Set environment variables
+5. 🔗 Update WhatsApp webhook URL
 
-## 📖 Additional Documentation
+</td>
+<td width="40%">
 
-- **[Local Development Guide](./docs/LOCAL_DEVELOPMENT.md)** - Detailed development workflow, debugging tips
-- **[Setup Guide](./docs/SETUP.md)** - Complete external service configuration (OpenRouter, WhatsApp, Logfire)
-- **[PocketBase Setup](./docs/POCKETBASE_SETUP.md)** - Database configuration details
-- **[Twilio Migration](./docs/TWILIO_MIGRATION.md)** - Migration from Meta to Twilio
-- **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment instructions
+<div align="center">
+
+<img src="https://img.shields.io/badge/Railway-0B0D0E?style=for-the-badge&logo=railway&logoColor=white" alt="Railway">
+
+### Cost Breakdown
+
+| Service | Monthly Cost |
+|---------|--------------|
+| PocketBase | ~$3-5 |
+| FastAPI | ~$2-5 |
+| **Total** | **$5-10** |
+
+</div>
+
+</td>
+</tr>
+</table>
+
+---
+
+<div align="center">
+
+<img src="assets/images/whatsapp-integration.png" alt="Stylized smartphone icon featuring the WhatsApp logo and small chore notification bubbles" width="200">
+
+### 🎯 Ready to transform your household management?
+
+**[Get Started Now](./docs/QUICK_START.md)** | **[Read the Docs](./adrs/)** | **[View Architecture](./AGENTS.md)**
+
+---
+
+<sub>Built with ❤️ | MIT License</sub>
+
+</div>
