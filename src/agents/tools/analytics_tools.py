@@ -1,6 +1,6 @@
 """Analytics tools for the choresir agent."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 import logfire
@@ -94,7 +94,7 @@ def _format_overdue_chores(chores: list[dict]) -> str:
     if not chores:
         return "✅ No overdue chores!"
 
-    now = datetime.now()
+    now = datetime.now(UTC)
     lines = [f"⚠️ {len(chores)} overdue chore(s):"]
 
     for chore in chores[:5]:  # Limit to 5 for WhatsApp readability
