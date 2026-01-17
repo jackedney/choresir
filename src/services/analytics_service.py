@@ -13,6 +13,7 @@ from src.domain.user import UserStatus
 logger = logging.getLogger(__name__)
 
 # Simple in-memory cache for leaderboard: {period_days: (timestamp, data)}
+# Note: This is per-process. With multiple workers, each will maintain its own cache.
 _leaderboard_cache: dict[int, tuple[datetime, list[dict[str, Any]]]] = {}
 _CACHE_TTL_SECONDS = 300  # 5 minutes
 
