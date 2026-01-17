@@ -4,14 +4,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-
 # Add src to pythonpath
 sys.path.append(str(Path.cwd()))
 
 from src.core import db_client
 from src.domain.chore import ChoreState
-from src.services import chore_service, verification_service
-
+from src.services import chore_service
+from src.services import verification_service
 
 # Global variables for metrics
 call_count = 0
@@ -23,11 +22,16 @@ async def mocked_list_records(*args: Any, **kwargs: Any) -> list[dict[str, Any]]
         call_count += 1
         # Simulate network delay
         await asyncio.sleep(0.005)
+
+        # Get pagination params
+        page = kwargs.get("page", 1)
+        per_page = kwargs.get("per_page", 50)
+
         # Return dummy logs
         # We need logs that match the chores.
         # Chore IDs are chore_0 to chore_49.
         # Let's create logs where user2 claimed all of them.
-        return [
+        all_logs = [
             {
                 "id": f"log_{i}",
                 "action": "claimed_completion",
@@ -36,6 +40,11 @@ async def mocked_list_records(*args: Any, **kwargs: Any) -> list[dict[str, Any]]
             }
             for i in range(1000)
         ]
+
+        # Implement simple pagination
+        start = (page - 1) * per_page
+        end = start + per_page
+        return all_logs[start:end]
     return []
 
 

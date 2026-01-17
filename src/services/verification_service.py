@@ -185,12 +185,23 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
         # If user_id provided, filter out chores they claimed
         if user_id:
             # Get all logs once (PocketBase filter seems to have issues)
-            all_logs = await db_client.list_records(
-                collection="logs",
-                filter_query="",
-                sort="",
-                per_page=100,
-            )
+            # Fetch all pages to avoid missing data
+            all_logs = []
+            page = 1
+            while True:
+                page_logs = await db_client.list_records(
+                    collection="logs",
+                    filter_query="",
+                    sort="-created",
+                    per_page=500,
+                    page=page,
+                )
+                if not page_logs:
+                    break
+                all_logs.extend(page_logs)
+                if len(page_logs) < 500:
+                    break
+                page += 1
 
             # Build map of chore claims
             # Map chore_id -> user_id of the claimer
