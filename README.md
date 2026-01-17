@@ -9,6 +9,9 @@
   <img src="https://img.shields.io/badge/python-3.12+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/WhatsApp-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="WhatsApp">
+  <img src="https://img.shields.io/badge/Logfire-FF6B6B?style=for-the-badge" alt="Logfire">
+  <img src="https://img.shields.io/badge/uv-DE5FE9?style=for-the-badge&logo=astral&logoColor=white" alt="uv">
+  <img src="https://img.shields.io/badge/Ruff-FCC21B?style=for-the-badge&logo=ruff&logoColor=black" alt="Ruff">
 </p>
 
 ---
@@ -123,8 +126,6 @@
 
 **→ [Quick Start Guide](./docs/QUICK_START.md)**
 
-⏱️ **15-30 minutes**
-
 </td>
 <td width="50%">
 
@@ -132,8 +133,6 @@
 *Starting from scratch?*
 
 **→ [Complete Setup Guide](./docs/SETUP.md)**
-
-⏱️ **2-3 hours + approval wait**
 
 </td>
 </tr>
@@ -144,47 +143,36 @@
 <table>
 <thead>
 <tr>
-<th width="30%">Component</th>
-<th width="35%">Guide</th>
-<th width="20%">Time</th>
-<th width="15%">Status</th>
+<th width="40%">Component</th>
+<th width="40%">Guide</th>
+<th width="20%">Status</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>💬 <strong>WhatsApp Templates</strong></td>
 <td><a href="./docs/WHATSAPP_TEMPLATES.md">WHATSAPP_TEMPLATES.md</a></td>
-<td>30 min + 1-2 days approval</td>
 <td><img src="https://img.shields.io/badge/required-red?style=flat" alt="Required"></td>
 </tr>
 <tr>
 <td>🌐 <strong>ngrok (Local Testing)</strong></td>
 <td><a href="./docs/NGROK_SETUP.md">NGROK_SETUP.md</a></td>
-<td>15 min</td>
 <td><img src="https://img.shields.io/badge/required-red?style=flat" alt="Required"></td>
 </tr>
 <tr>
 <td>📊 <strong>Logfire (Monitoring)</strong></td>
 <td><a href="./docs/LOGFIRE_SETUP.md">LOGFIRE_SETUP.md</a></td>
-<td>10 min</td>
 <td><img src="https://img.shields.io/badge/recommended-orange?style=flat" alt="Recommended"></td>
 </tr>
 <tr>
 <td>🚂 <strong>Railway (Production)</strong></td>
 <td><a href="./docs/RAILWAY_DEPLOYMENT.md">RAILWAY_DEPLOYMENT.md</a></td>
-<td>1 hour</td>
 <td><img src="https://img.shields.io/badge/production-blue?style=flat" alt="Production"></td>
 </tr>
 </tbody>
 </table>
 
 ### 💻 Minimal Local Setup
-
-<div align="center">
-
-⏱️ **5 minutes to get running locally**
-
-</div>
 
 ```bash
 # 1️⃣ Install dependencies
