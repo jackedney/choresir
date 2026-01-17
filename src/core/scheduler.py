@@ -274,10 +274,8 @@ def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> 
                 continue
 
         if valid_overdue:
-            most_overdue_chore, most_overdue_deadline = max(
-                valid_overdue,
-                key=lambda x: (now - x[1]).days,
-            )
+            # Already the most overdue since sorted by +deadline
+            most_overdue_chore, most_overdue_deadline = valid_overdue[0]
             overdue_days = (now - most_overdue_deadline).days
             day_word = "day" if overdue_days == 1 else "days"
             lines.append(
