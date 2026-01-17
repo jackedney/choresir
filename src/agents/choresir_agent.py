@@ -42,6 +42,7 @@ You have access to tools for:
 - Chore Management: Define new chores, log completions
 - Verification: Verify chore completions, query status
 - Analytics: Get leaderboards, completion rates, overdue chores
+- Stats: Get personal stats and ranking (triggers: "stats", "score", "how am I doing")
 
 Use tools to perform actions. Always confirm understanding before using destructive tools.
 """

@@ -118,7 +118,7 @@ async def get_completion_rate(*, period_days: int = 30) -> dict[str, Any]:
         return result
 
 
-async def get_overdue_chores(*, user_id: str | None = None) -> list[dict[str, Any]]:
+async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
     """Get all overdue chores.
 
     A chore is overdue if:
@@ -127,6 +127,7 @@ async def get_overdue_chores(*, user_id: str | None = None) -> list[dict[str, An
 
     Args:
         user_id: Optional filter by assigned user
+        limit: Optional maximum number of results to return
 
     Returns:
         List of overdue chore records
@@ -145,11 +146,20 @@ async def get_overdue_chores(*, user_id: str | None = None) -> list[dict[str, An
 
         filter_query = " && ".join(filters)
 
-        overdue_chores = await db_client.list_records(
-            collection="chores",
-            filter_query=filter_query,
-            sort="+deadline",  # Oldest deadline first
-        )
+        # Fetch overdue chores with optional limit
+        if limit is not None:
+            overdue_chores = await db_client.list_records(
+                collection="chores",
+                filter_query=filter_query,
+                sort="+deadline",  # Oldest deadline first
+                per_page=limit,
+            )
+        else:
+            overdue_chores = await db_client.list_records(
+                collection="chores",
+                filter_query=filter_query,
+                sort="+deadline",  # Oldest deadline first
+            )
 
         logger.info("Found %d overdue chores", len(overdue_chores))
 
