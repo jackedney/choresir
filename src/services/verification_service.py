@@ -184,23 +184,30 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
 
         # If user_id provided, filter out chores they claimed
         if user_id:
+            # Get all logs once (PocketBase filter seems to have issues)
+            all_logs = await db_client.list_records(
+                collection="logs",
+                filter_query="",
+                sort="",
+                per_page=100,
+            )
+
+            # Build map of chore claims
+            # Map chore_id -> user_id of the claimer
+            # We preserve the behavior of taking the first matching log in the list
+            chore_claims = {}
+            for log in all_logs:
+                if log.get("action") == "claimed_completion":
+                    c_id = log.get("chore_id")
+                    # Only take the first claim log found for each chore
+                    if c_id and c_id not in chore_claims:
+                        chore_claims[c_id] = log.get("user_id")
+
             filtered_chores = []
             for chore in chores:
-                # Get all logs (PocketBase filter seems to have issues)
-                all_logs = await db_client.list_records(
-                    collection="logs",
-                    filter_query="",
-                    sort="",
-                    per_page=100,
-                )
-                # Filter manually
-                claim_logs = [
-                    log
-                    for log in all_logs
-                    if log.get("action") == "claimed_completion" and log.get("chore_id") == chore["id"]
-                ][:1]
                 # Exclude if this user claimed it
-                if not claim_logs or claim_logs[0]["user_id"] != user_id:
+                claimer_id = chore_claims.get(chore["id"])
+                if claimer_id != user_id:
                     filtered_chores.append(chore)
             return filtered_chores
 
