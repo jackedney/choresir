@@ -198,17 +198,13 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> dict[st
                 completions = entry["completion_count"]
                 break
 
-        # Get pending claims
-        # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
-        all_logs = await db_client.list_records(
+        # Get pending claims - filter at database level for efficiency
+        pending_claims = await db_client.list_records(
             collection="logs",
-            filter_query="",
+            filter_query=f'user_id = "{user_id}" && action = "claimed_completion"',
             per_page=500,
             sort="",  # No sort to avoid issues
         )
-        pending_claims = [
-            log for log in all_logs if log.get("user_id") == user_id and log.get("action") == "claimed_completion"
-        ]
 
         # Filter to only those still pending (chore in PENDING_VERIFICATION state)
         claims_pending = 0
