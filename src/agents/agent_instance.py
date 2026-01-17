@@ -37,7 +37,8 @@ def _get_agent() -> Agent[Deps, str]:
         _ensure_logfire_configured()
 
         # Initialize the agent with OpenRouter
-        provider = OpenRouterProvider(api_key=settings.openrouter_api_key)
+        api_key = settings.require_credential("openrouter_api_key", "OpenRouter API key")
+        provider = OpenRouterProvider(api_key=api_key)
         model = OpenRouterModel(
             model_name=settings.model_id,
             provider=provider,
