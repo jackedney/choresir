@@ -1,5 +1,6 @@
 """PocketBase client wrapper with CRUD operations."""
 
+import functools
 import logging
 from typing import Any, TypeVar
 
@@ -25,15 +26,29 @@ class DatabaseConnectionError(DatabaseError):
     """Raised when database connection fails."""
 
 
+@functools.lru_cache(maxsize=1)
+def _get_authenticated_client() -> PocketBase:
+    """Internal function to create and authenticate client."""
+    client = PocketBase(settings.pocketbase_url)
+    client.admins.auth_with_password(
+        settings.pocketbase_admin_email,
+        settings.pocketbase_admin_password,
+    )
+    return client
+
+
 def get_client() -> PocketBase:
-    """Get PocketBase client instance with admin authentication."""
+    """Get PocketBase client instance with admin authentication.
+
+    Uses a singleton pattern to reuse the authenticated client.
+    Automatically re-authenticates if the token is invalid.
+    """
     try:
-        client = PocketBase(settings.pocketbase_url)
-        # Authenticate as admin for full access to all collections
-        client.admins.auth_with_password(
-            settings.pocketbase_admin_email,
-            settings.pocketbase_admin_password,
-        )
+        client = _get_authenticated_client()
+        # Check if token is present
+        if not client.auth_store.token:
+            _get_authenticated_client.cache_clear()
+            client = _get_authenticated_client()
         return client
     except Exception as e:
         msg = f"Failed to connect to PocketBase: {e}"
