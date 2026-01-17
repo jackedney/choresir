@@ -2,10 +2,9 @@
 
 import logfire
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
-from src.agents.choresir_agent import agent
 from src.domain.pantry import PantryItemStatus
 from src.services import pantry_service
 
@@ -38,7 +37,6 @@ class MarkItemStatus(BaseModel):
     )
 
 
-@agent.tool
 async def tool_add_to_shopping_list(ctx: RunContext[Deps], params: AddToShoppingList) -> str:
     """
     Add an item to the shared shopping list.
@@ -92,7 +90,6 @@ async def tool_add_to_shopping_list(ctx: RunContext[Deps], params: AddToShopping
         return f"Error: Unable to add item to shopping list. {e!s}"
 
 
-@agent.tool
 async def tool_get_shopping_list(_ctx: RunContext[Deps]) -> str:
     """
     Get the current shopping list.
@@ -138,7 +135,6 @@ async def tool_get_shopping_list(_ctx: RunContext[Deps]) -> str:
         return f"Error: Unable to retrieve shopping list. {e!s}"
 
 
-@agent.tool
 async def tool_checkout_shopping_list(ctx: RunContext[Deps]) -> str:
     """
     Check out the shopping list after shopping.
@@ -177,7 +173,6 @@ async def tool_checkout_shopping_list(ctx: RunContext[Deps]) -> str:
         return f"Error: Unable to checkout shopping list. {e!s}"
 
 
-@agent.tool
 async def tool_remove_from_shopping_list(_ctx: RunContext[Deps], params: RemoveFromShoppingList) -> str:
     """
     Remove an item from the shopping list.
@@ -207,7 +202,6 @@ async def tool_remove_from_shopping_list(_ctx: RunContext[Deps], params: RemoveF
         return f"Error: Unable to remove item from shopping list. {e!s}"
 
 
-@agent.tool
 async def tool_mark_item_out(ctx: RunContext[Deps], params: MarkItemStatus) -> str:
     """
     Mark a pantry item as low or out of stock.
@@ -248,7 +242,6 @@ async def tool_mark_item_out(ctx: RunContext[Deps], params: MarkItemStatus) -> s
         return f"Error: Unable to update item status. {e!s}"
 
 
-@agent.tool
 async def tool_get_pantry_status(_ctx: RunContext[Deps]) -> str:
     """
     Get the current pantry inventory status.
@@ -292,3 +285,13 @@ async def tool_get_pantry_status(_ctx: RunContext[Deps]) -> str:
     except Exception as e:
         logfire.error("Failed to get pantry status", error=str(e))
         return f"Error: Unable to retrieve pantry status. {e!s}"
+
+
+def register_tools(agent: Agent[Deps, str]) -> None:
+    """Register tools with the agent."""
+    agent.tool(tool_add_to_shopping_list)
+    agent.tool(tool_get_shopping_list)
+    agent.tool(tool_checkout_shopping_list)
+    agent.tool(tool_remove_from_shopping_list)
+    agent.tool(tool_mark_item_out)
+    agent.tool(tool_get_pantry_status)

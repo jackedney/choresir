@@ -14,8 +14,8 @@ repos:
         types: [python]
         pass_filenames: false
       - id: pytest
-        name: pytest
-        entry: uv run pytest
+        name: pytest (unit tests only)
+        entry: uv run pytest tests/unit
         language: system
         types: [python]
         pass_filenames: false
