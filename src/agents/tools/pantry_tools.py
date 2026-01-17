@@ -4,8 +4,8 @@ import logfire
 from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 
+from src.agents.agent_instance import agent
 from src.agents.base import Deps
-from src.agents.choresir_agent import agent
 from src.domain.pantry import PantryItemStatus
 from src.services import pantry_service
 

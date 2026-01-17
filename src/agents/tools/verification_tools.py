@@ -7,8 +7,8 @@ import logfire
 from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 
+from src.agents.agent_instance import agent
 from src.agents.base import Deps
-from src.agents.choresir_agent import agent
 from src.core import db_client
 from src.domain.chore import ChoreState
 from src.services import chore_service, user_service, verification_service
