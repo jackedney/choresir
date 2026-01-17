@@ -54,6 +54,20 @@ Meta enforces a 24-hour window for free-form responses.
 *   **Decision:** We will register **Template Messages** (e.g., `chore_reminder`, `verification_request`) to break the 24h barrier.
 *   **Implementation:** The `Notifier` service will check the time since the last user message. If >24h, it sends a Template; otherwise, it sends free text.
 
+#### Twilio WhatsApp API (Revised 2026-01-16)
+We use Twilio as our WhatsApp provider rather than Meta's direct Cloud API. Key differences:
+
+| Aspect | Implementation |
+|--------|---------------|
+| **Authentication** | `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` |
+| **Webhook Format** | Form-encoded (`application/x-www-form-urlencoded`) |
+| **Signature Validation** | `X-Twilio-Signature` header with `RequestValidator` |
+| **Phone Format** | `whatsapp:+1234567890` prefix required |
+| **Sending Messages** | Twilio Python SDK `client.messages.create()` |
+| **Templates** | Twilio Content API with Content SIDs |
+
+See `docs/TWILIO_MIGRATION.md` for full implementation details.
+
 ### 4. Testing Strategy (The "Real" Test)
 We reject "mocking the world."
 *   **Decision:** Integration tests will spin up an **ephemeral PocketBase instance** (using a temporary `pb_data` directory).

@@ -7,25 +7,17 @@ template messages can be sent.
 This module provides utilities for:
 1. Tracking the 24-hour messaging window
 2. Sending template messages when outside the window
-3. Documenting required templates to register in Meta Developer Console
+3. Documenting required templates to register in Twilio Console
 """
 
+import json
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any
 
-import httpx
-from pydantic import BaseModel, Field
+from twilio.base.exceptions import TwilioRestException
 
 from src.core.config import constants, settings
-
-
-class TemplateMessageResult(BaseModel):
-    """Result of sending a WhatsApp template message."""
-
-    success: bool = Field(..., description="Whether the template was sent successfully")
-    message_id: str | None = Field(None, description="WhatsApp message ID if successful")
-    error: str | None = Field(None, description="Error message if failed")
+from src.interface.whatsapp_sender import SendMessageResult, get_twilio_client
 
 
 class MessageWindowTracker:
@@ -68,107 +60,65 @@ window_tracker = MessageWindowTracker()
 async def send_template_message(
     *,
     to_phone: str,
-    template_name: str,
-    template_params: list[str] | None = None,
-    language_code: str = "en_US",
-) -> TemplateMessageResult:
-    """Send a WhatsApp template message.
+    content_sid: str,
+    variables: dict[str, str],
+) -> SendMessageResult:
+    """Send a WhatsApp template message using Twilio Content API.
 
-    Template messages must be pre-approved in Meta Developer Console.
+    Template messages must be created in Twilio Console with Content API.
     Use this function when outside the 24-hour messaging window.
 
     Args:
-        to_phone: Recipient phone number in E.164 format
-        template_name: Name of the approved template (e.g., "chore_reminder")
-        template_params: List of parameter values for template variables
-        language_code: Template language code (default: en_US)
+        to_phone: Recipient phone number in E.164 format (e.g., "1234567890")
+        content_sid: Twilio Content SID for the template (e.g., "HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        variables: Dictionary mapping variable positions to values (e.g., {"1": "chore_name", "2": "due_date"})
 
     Returns:
-        TemplateMessageResult indicating success or failure
+        SendMessageResult indicating success or failure
     """
-    url = f"https://graph.facebook.com/v18.0/{settings.whatsapp_phone_number_id}/messages"
-
-    headers = {
-        "Authorization": f"Bearer {settings.whatsapp_access_token}",
-        "Content-Type": "application/json",
-    }
-
-    # Build template components
-    components = []
-    if template_params:
-        components.append(
-            {
-                "type": "body",
-                "parameters": [{"type": "text", "text": param} for param in template_params],
-            }
-        )
-
-    payload = {
-        "messaging_product": "whatsapp",
-        "recipient_type": "individual",
-        "to": to_phone,
-        "type": "template",
-        "template": {
-            "name": template_name,
-            "language": {"code": language_code},
-            "components": components,
-        },
-    }
+    # Format phone number for Twilio WhatsApp
+    to_whatsapp = f"whatsapp:{to_phone}" if not to_phone.startswith("whatsapp:") else to_phone
 
     try:
-        async with httpx.AsyncClient(timeout=constants.API_TIMEOUT_SECONDS) as client:
-            response = await client.post(url, headers=headers, json=payload)
-
-            if response.status_code == constants.HTTP_OK:
-                data: dict[str, Any] = response.json()
-                message_id = data.get("messages", [{}])[0].get("id")
-
-                return TemplateMessageResult(
-                    success=True,
-                    message_id=message_id,
-                )
-
-            error_data = response.json() if response.text else {}
-            error_message = error_data.get("error", {}).get("message", f"HTTP {response.status_code}")
-
-            return TemplateMessageResult(
-                success=False,
-                error=f"Template send failed: {error_message}",
-            )
-
-    except Exception as e:
-        return TemplateMessageResult(
-            success=False,
-            error=f"Unexpected error: {e!s}",
+        client = get_twilio_client()
+        message = client.messages.create(
+            from_=settings.twilio_whatsapp_number,
+            to=to_whatsapp,
+            content_sid=content_sid,
+            content_variables=json.dumps(variables),
         )
+        return SendMessageResult(success=True, message_id=message.sid)
+    except TwilioRestException as e:
+        return SendMessageResult(success=False, error=str(e))
 
 
 """
-REQUIRED TEMPLATE MESSAGES TO REGISTER IN META DEVELOPER CONSOLE
-==================================================================
+REQUIRED TEMPLATE MESSAGES TO CREATE IN TWILIO CONSOLE
+=======================================================
 
-You must create and get approval for these templates in your Meta Developer Console
-(WhatsApp > Message Templates section) before using them in production.
+You must create these templates in your Twilio Console using the Content API
+before using them in production. After creation, add the Content SIDs to .env file.
 
-Template Name: chore_reminder
-Category: UTILITY
+Template: chore_reminder
+Content Type: WhatsApp Template
 Language: English (US)
 Body Text:
   "🔔 Reminder: Your chore *{{1}}* is due {{2}}. Please complete it soon!"
 Variables:
   {{1}} = Chore title (e.g., "Take out trash")
   {{2}} = Due date (e.g., "today at 5pm")
+Config Setting: TEMPLATE_CHORE_REMINDER_SID
 Example Usage:
   await send_template_message(
       to_phone="1234567890",
-      template_name="chore_reminder",
-      template_params=["Take out trash", "today at 5pm"]
+      content_sid=settings.template_chore_reminder_sid,
+      variables={"1": "Take out trash", "2": "today at 5pm"}
   )
 
 ---
 
-Template Name: verification_request
-Category: UTILITY
+Template: verification_request
+Content Type: WhatsApp Template
 Language: English (US)
 Body Text:
   "✅ {{1}} claims they completed *{{2}}*. Can you verify this?"
@@ -178,39 +128,48 @@ Variables:
 Buttons:
   - "Yes, verified" (quick_reply)
   - "No, not done" (quick_reply)
+Config Setting: TEMPLATE_VERIFICATION_REQUEST_SID
 Example Usage:
   await send_template_message(
       to_phone="1234567890",
-      template_name="verification_request",
-      template_params=["Alice", "Dishes"]
+      content_sid=settings.template_verification_request_sid,
+      variables={"1": "Alice", "2": "Dishes"}
   )
 
 ---
 
-Template Name: conflict_notification
-Category: UTILITY
+Template: conflict_notification
+Content Type: WhatsApp Template
 Language: English (US)
 Body Text:
   "⚖️ There's a dispute about *{{1}}*. Your vote is needed to resolve it. Check your messages for details."
 Variables:
   {{1}} = Chore title (e.g., "Vacuuming")
+Config Setting: TEMPLATE_CONFLICT_NOTIFICATION_SID
 Example Usage:
   await send_template_message(
       to_phone="1234567890",
-      template_name="conflict_notification",
-      template_params=["Vacuuming"]
+      content_sid=settings.template_conflict_notification_sid,
+      variables={"1": "Vacuuming"}
   )
 
 ---
 
 SETUP INSTRUCTIONS:
-1. Go to Meta Developers (https://developers.facebook.com/)
-2. Navigate to your WhatsApp Business App
-3. Go to WhatsApp > Message Templates
-4. Click "Create Template" for each template above
-5. Copy the body text exactly as shown
-6. Submit for approval (usually takes 1-3 business days)
-7. Once approved, templates can be used via send_template_message()
+1. Go to Twilio Console (https://console.twilio.com/)
+2. Navigate to Messaging > Content API > Create new content
+3. Select "WhatsApp Template" as content type
+4. For each template above:
+   - Copy the body text exactly as shown
+   - Configure variables using {{1}}, {{2}} format
+   - Add buttons if specified
+   - Submit for WhatsApp approval (usually takes 1-3 business days)
+5. Once approved, copy the Content SID (format: HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)
+6. Add to .env file:
+   TEMPLATE_CHORE_REMINDER_SID=HXxxxx...
+   TEMPLATE_VERIFICATION_REQUEST_SID=HXxxxx...
+   TEMPLATE_CONFLICT_NOTIFICATION_SID=HXxxxx...
+7. Templates can now be used via send_template_message()
 
-NOTE: Template names must match exactly. Variable formatting ({{1}}, {{2}}) is required.
+NOTE: Content SIDs must be exact. Variable formatting ({{1}}, {{2}}) is required.
 """

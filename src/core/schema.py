@@ -127,11 +127,19 @@ def _get_collection_schema(
             "name": "processed_messages",
             "type": "base",
             "system": False,
+            # API Rules: Allow unauthenticated access for webhook processing
+            # App needs to check for duplicates and track message status
+            "listRule": "",
+            "viewRule": "",
+            "createRule": "",
+            "updateRule": "",
+            "deleteRule": None,
             "fields": [
                 {"name": "message_id", "type": "text", "required": True},
                 {"name": "from_phone", "type": "text", "required": True},
                 {"name": "processed_at", "type": "date", "required": True},
-                {"name": "success", "type": "bool", "required": True},
+                # Note: required=False due to PocketBase bug where False values fail validation on required bool fields
+                {"name": "success", "type": "bool", "required": False},
                 {"name": "error_message", "type": "text", "required": False},
             ],
             "indexes": ["CREATE UNIQUE INDEX idx_message_id ON processed_messages (message_id)"],

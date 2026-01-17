@@ -1,5 +1,6 @@
 """Main Pydantic AI agent for choresir household management."""
 
+import re
 from datetime import datetime
 
 import logfire
@@ -170,23 +171,67 @@ async def get_member_list(*, _db: PocketBase) -> str:
     return "\n".join(lines)
 
 
-async def handle_unknown_user(*, _user_phone: str) -> str:
+async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
     """
     Handle message from unknown user.
 
+    Checks if the message contains join credentials and processes them.
+    Otherwise returns an onboarding prompt.
+
     Args:
         user_phone: Phone number of unknown user
+        message_text: The message text from the user
 
     Returns:
-        Onboarding prompt message
+        Join success message or onboarding prompt
     """
+    # Try to parse join request: Code: XXX, Password: YYY, Name: ZZZ
+    # Pattern matches case-insensitive and handles various formatting
+    # Supports quoted passwords for spaces/commas: Password: "my pass"
+    pattern = r'code:\s*([A-Z0-9]+).*?password:\s*(?:"([^"]+)|([^\s,]+)).*?name:\s*(.+?)(?:\s*$|\.)'
+    match = re.search(pattern, message_text, re.IGNORECASE | re.DOTALL)
+
+    if match:
+        house_code = match.group(1).strip()
+        # Password is in group 2 (quoted) or group 3 (unquoted)
+        password = (match.group(2) or match.group(3)).strip()
+        name = match.group(4).strip()
+
+        # Attempt to process the join request
+        try:
+            await user_service.request_join(
+                phone=user_phone,
+                name=name,
+                house_code=house_code,
+                password=password,
+            )
+
+            return (
+                f"Welcome, {name}! "
+                f"Your membership request has been submitted. "
+                f"An admin will review your request shortly."
+            )
+        except ValueError as e:
+            # Invalid credentials
+            logfire.warning(f"Join request failed for {user_phone}: {e}")
+            return (
+                f"Sorry, I couldn't process your join request: {e}\n\n"
+                "Please check your house code and password and try again."
+            )
+        except Exception as e:
+            # Unexpected error
+            logfire.error(f"Unexpected error processing join request for {user_phone}: {e}")
+            return "Sorry, an error occurred while processing your join request. Please try again later."
+
+    # No join request detected, return onboarding prompt
     return (
         "Welcome! You're not yet a member of this household.\n\n"
         "To join, please provide:\n"
         "1. House code\n"
         "2. House password\n"
         "3. Your preferred name\n\n"
-        "Say something like: 'I want to join. Code: XXXX, Password: YYYY, Name: Your Name'"
+        "Say something like: 'I want to join. Code: XXXX, Password: YYYY, Name: Your Name'\n"
+        '(Use quotes around password if it contains spaces or commas: Password: "my pass")'
     )
 
 

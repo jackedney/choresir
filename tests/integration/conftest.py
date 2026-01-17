@@ -202,10 +202,9 @@ def test_settings(pocketbase_server: str) -> Settings:
     return Settings(
         pocketbase_url=pocketbase_server,
         openrouter_api_key="test_key",
-        whatsapp_verify_token="test_verify",
-        whatsapp_app_secret="test_secret",
-        whatsapp_access_token="test_access",
-        whatsapp_phone_number_id="test_phone_id",
+        twilio_account_sid="test_account_sid",
+        twilio_auth_token="test_auth_token",
+        twilio_whatsapp_number="whatsapp:+14155238886",
         logfire_token="test_logfire",
         house_code="TEST123",
         house_password="testpass",
