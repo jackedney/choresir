@@ -100,6 +100,9 @@ def _format_overdue_chores(chores: list[dict]) -> str:
     for chore in chores[:5]:  # Limit to 5 for WhatsApp readability
         title = chore["title"]
         deadline = datetime.fromisoformat(chore["deadline"])
+        # If deadline is naive (no timezone), assume UTC
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=UTC)
         days_overdue = (now - deadline).days
 
         if days_overdue == 0:
