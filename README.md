@@ -50,6 +50,8 @@
 | ✅ **Verified Accountability** | When you say "I did the dishes," the bot sends a message with [✅ Approve] [❌ Reject] buttons to household members |
 | 🏹 **The "Robin Hood" Protocol** | Swap chores dynamically. If you do someone else's task, you get the points |
 | ⚖️ **Conflict Resolution** | A "Jury System" for disputes. If User A claims "Done" and User B rejects it, the bot triggers a vote |
+| 📊 **Weekly Leaderboard** | Gamified chore completion tracking with weekly stats and analytics |
+| 🛒 **Smart Pantry** | Inventory tracking and smart shopping list generation |
 
 ## 🛠️ Tech Stack
 
@@ -100,8 +102,8 @@
 </tr>
 <tr>
 <td>💬 <strong>Interface</strong></td>
-<td><img src="https://img.shields.io/badge/WhatsApp_Cloud_API-25D366?style=flat&logo=whatsapp&logoColor=white" alt="WhatsApp"></td>
-<td>Direct integration (No Twilio markup)</td>
+<td><img src="https://img.shields.io/badge/WhatsApp_via_Twilio-25D366?style=flat&logo=whatsapp&logoColor=white" alt="WhatsApp"></td>
+<td>WhatsApp via Twilio Business API</td>
 </tr>
 </tbody>
 </table>

@@ -121,19 +121,20 @@ Template: verification_request
 Content Type: WhatsApp Template
 Language: English (US)
 Body Text:
-  "✅ {{1}} claims they completed *{{2}}*. Can you verify this?"
+  "{{1}} claims they completed *{{2}}*. Can you verify this?"
 Variables:
   {{1}} = User name (e.g., "Alice")
   {{2}} = Chore title (e.g., "Dishes")
+  {{3}} = Log ID (used in button payloads, not shown in body)
 Buttons:
-  - "Yes, verified" (quick_reply)
-  - "No, not done" (quick_reply)
+  - "✅ Approve" (quick_reply, payload: VERIFY:APPROVE:{{3}})
+  - "❌ Reject" (quick_reply, payload: VERIFY:REJECT:{{3}})
 Config Setting: TEMPLATE_VERIFICATION_REQUEST_SID
 Example Usage:
   await send_template_message(
       to_phone="1234567890",
       content_sid=settings.template_verification_request_sid,
-      variables={"1": "Alice", "2": "Dishes"}
+      variables={"1": "Alice", "2": "Dishes", "3": "rec_abc123"}
   )
 
 ---

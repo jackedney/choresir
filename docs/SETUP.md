@@ -32,6 +32,9 @@ Create a `.env` file in the project root:
 # PocketBase Configuration
 POCKETBASE_URL=http://127.0.0.1:8090
 
+# Redis Configuration (REQUIRED for leaderboard caching)
+REDIS_URL=redis://localhost:6379
+
 # OpenRouter Configuration (REQUIRED)
 OPENROUTER_API_KEY=<get from openrouter.ai>
 
@@ -46,6 +49,10 @@ LOGFIRE_TOKEN=<get from logfire.pydantic.dev>
 # House Onboarding Configuration
 HOUSE_CODE=<create a memorable code, e.g., "FAMILY2024">
 HOUSE_PASSWORD=<create a secure password>
+
+# Admin Notification Configuration (OPTIONAL)
+ENABLE_ADMIN_NOTIFICATIONS=true  # Set to false to disable admin notifications
+ADMIN_NOTIFICATION_COOLDOWN_MINUTES=60  # Minimum time between notifications (default: 60)
 
 # AI Model Configuration (OPTIONAL - has sensible default)
 MODEL_ID=anthropic/claude-3.5-sonnet
@@ -71,7 +78,74 @@ For more control, see [Local Development Guide](LOCAL_DEVELOPMENT.md).
 
 ## Part 2: External Service Setup
 
-### A. OpenRouter (AI Model Access)
+### A. Redis (Leaderboard Caching)
+
+**Required for:** Leaderboard functionality
+
+**IMPORTANT:** Redis is REQUIRED for the leaderboard feature. Without Redis configured, leaderboard endpoints (`/leaderboard`, `/stats`) will fail with connection errors. Redis is used to cache leaderboard data to improve performance and reduce database load.
+
+#### Option 1: Local Development with Docker (Recommended)
+
+```bash
+# Start Redis using Docker
+docker run -d -p 6379:6379 --name choresir-redis redis:alpine
+
+# Verify it's running
+docker ps | grep redis
+```
+
+Add to `.env`:
+```bash
+REDIS_URL=redis://localhost:6379
+```
+
+#### Option 2: Local Development with Homebrew (macOS)
+
+```bash
+# Install Redis
+brew install redis
+
+# Start Redis
+brew services start redis
+
+# Verify it's running
+redis-cli ping  # Should return "PONG"
+```
+
+Add to `.env`:
+```bash
+REDIS_URL=redis://localhost:6379
+```
+
+#### Option 3: Redis Cloud (Free Tier)
+
+For development or production, you can use a managed Redis instance:
+
+1. Go to https://redis.com/try-free/
+2. Create a free account
+3. Create a new database
+4. Note your connection details:
+   - **Endpoint:** `redis-12345.c1.us-east-1-2.ec2.redns.redis-cloud.com:12345`
+   - **Password:** Copy from dashboard
+
+Add to `.env`:
+```bash
+REDIS_URL=redis://:your-password@redis-12345.c1.us-east-1-2.ec2.redns.redis-cloud.com:12345
+```
+
+**Cost:** Free tier includes 30MB storage (more than enough for leaderboard data)
+
+#### Testing Redis Connection
+
+```bash
+# Using redis-cli (if installed locally)
+redis-cli -u redis://localhost:6379 ping
+
+# Or test from Python
+uv run python -c "import redis; r = redis.from_url('redis://localhost:6379'); print(r.ping())"
+```
+
+### B. OpenRouter (AI Model Access)
 
 **Required for:** Agent execution
 
@@ -84,7 +158,7 @@ For more control, see [Local Development Guide](LOCAL_DEVELOPMENT.md).
 
 **Cost Estimate:** ~$0.10/day for moderate household usage
 
-### B. Twilio WhatsApp API
+### C. Twilio WhatsApp API
 
 **Required for:** Receiving and sending messages
 
@@ -107,7 +181,7 @@ For more control, see [Local Development Guide](LOCAL_DEVELOPMENT.md).
 
 See [Part 4: Webhook Setup](#part-4-webhook-setup-local-testing) below.
 
-### C. Pydantic Logfire (Observability)
+### D. Pydantic Logfire (Observability)
 
 **Optional but recommended for:** Monitoring, debugging, performance tracking
 
@@ -190,7 +264,96 @@ Your vote is needed to resolve this.
 
 ---
 
-## Part 4: Webhook Setup (Local Testing)
+## Part 4: Obtaining Template Content SIDs
+
+**Required for:** Sending template messages in your code
+
+After WhatsApp approves your templates (typically 24-48 hours after submission), you need to retrieve the Content SIDs to use them in your application.
+
+### Where to Find Content SIDs
+
+#### Method 1: Twilio Console (Easiest)
+
+1. Go to Twilio Console → **Messaging** → **Content Editor**
+2. Find your approved template in the list (status should show "Approved")
+3. Click on the template name to open details
+4. Copy the **Content SID** (format: `HXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`)
+
+#### Method 2: Twilio API
+
+```bash
+curl -X GET "https://content.twilio.com/v1/Content" \
+  -u "TWILIO_ACCOUNT_SID:TWILIO_AUTH_TOKEN"
+```
+
+Look for your template name in the response and copy the `sid` field.
+
+### Template SID Mapping
+
+You'll need Content SIDs for these templates:
+
+| Template Name | Purpose | Required For |
+|---------------|---------|--------------|
+| `chore_reminder` | Send scheduled chore deadline reminders | Chore scheduler system |
+| `verification_request` | Request chore completion verification with approve/reject buttons | Verification workflow |
+| `household_update` | Notify members of household changes (new members, removals, settings) | Admin operations |
+| `conflict_notification` | Alert members when verification is disputed | Conflict resolution |
+
+### Adding Content SIDs to Your Code
+
+Once you have all Content SIDs, update your configuration file:
+
+```python
+# src/interface/whatsapp_templates.py
+TEMPLATE_CONTENT_SIDS = {
+    "chore_reminder": "HXabcdef1234567890abcdef1234567890",
+    "verification_request": "HXfedcba0987654321fedcba0987654321",
+    "household_update": "HX1122334455667788991122334455667788",
+    "conflict_notification": "HX9988776655443322119988776655443322",
+}
+```
+
+**Important:** Replace the example SIDs with your actual Content SIDs from Twilio Console.
+
+### Testing Your Templates
+
+After adding Content SIDs to your code, test each template:
+
+#### Quick Test via Twilio Console
+
+1. Go to **Messaging** → **Content Editor**
+2. Click on your template
+3. Click **"Send Test Message"**
+4. Fill in:
+   - **To:** Your WhatsApp number
+   - **From:** Your Twilio WhatsApp sender
+   - **Variables:** Example values for `{{1}}`, `{{2}}`, etc.
+5. Check WhatsApp to verify the message appears correctly
+
+#### Test via Code
+
+```python
+from twilio.rest import Client
+
+client = Client(account_sid, auth_token)
+
+message = client.messages.create(
+    from_='whatsapp:+14155238886',
+    content_sid='HXabcdef1234567890abcdef1234567890',  # Your Content SID
+    content_variables={
+        "1": "Alice",
+        "2": "Wash Dishes", 
+        "3": "Jan 16, 8:00 PM"
+    },
+    to='whatsapp:+1234567890'
+)
+```
+
+**For detailed template specifications and troubleshooting, see [WhatsApp Templates Guide](WHATSAPP_TEMPLATES.md).**
+
+---
+
+## Part 5: Webhook Setup (Local Testing)
 
 **Prerequisites:** Development environment must be running.
 
@@ -240,7 +403,7 @@ ngrok will output a URL like: `https://abc123.ngrok-free.app`
 
 ---
 
-## Part 5: First User Setup
+## Part 6: First User Setup
 
 After the system is running, you need to create the first admin user.
 
@@ -271,7 +434,7 @@ Now you can approve other members via WhatsApp!
 
 ---
 
-## Part 6: Running the Application
+## Part 7: Running the Application
 
 ### Local Development
 
@@ -289,6 +452,7 @@ ngrok http 8000
 ### Verification Checklist
 
 - [ ] PocketBase running at http://127.0.0.1:8090
+- [ ] Redis running at localhost:6379 (test with `redis-cli ping`)
 - [ ] FastAPI running at http://localhost:8000
 - [ ] ngrok tunnel active (if testing WhatsApp)
 - [ ] Webhook configured in Twilio Console
@@ -298,7 +462,7 @@ ngrok http 8000
 
 ---
 
-## Part 7: Production Deployment (Railway)
+## Part 8: Production Deployment (Railway)
 
 **Prerequisites:** Tasks 28-29 must be completed.
 
@@ -398,6 +562,7 @@ ngrok http 8000
 
 ### Development (Free/Minimal)
 - PocketBase: Free (self-hosted)
+- Redis: Free (self-hosted via Docker or Homebrew)
 - ngrok: Free tier (URL changes on restart)
 - Logfire: Free tier (5GB/month)
 - OpenRouter: ~$0.10/day (~$3/month)
@@ -405,10 +570,11 @@ ngrok http 8000
 
 ### Production (Railway)
 - Railway: ~$5-10/month (PocketBase + FastAPI)
+- Redis Cloud: Free tier (30MB) or ~$5/month for more capacity
 - OpenRouter: ~$0.10/day (~$3/month)
 - Logfire: Free tier or ~$20/month for pro
 - Twilio WhatsApp API: Free sandbox, $0.005/message for production
-- **Total:** ~$8-33/month
+- **Total:** ~$8-38/month
 
 ---
 

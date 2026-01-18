@@ -2,10 +2,11 @@
 
 ## Railway Deployment
 
-This application deploys as two separate services on Railway:
+This application deploys as three separate services on Railway:
 
 1. **PocketBase Service**: Database backend
-2. **FastAPI Worker**: Application server
+2. **Redis Service**: Cache layer for leaderboard data
+3. **FastAPI Worker**: Application server
 
 ### Prerequisites
 
@@ -16,7 +17,7 @@ This application deploys as two separate services on Railway:
 ### Service 1: PocketBase
 
 **Configuration:**
-- Uses `Dockerfile.pocketbase` for deployment
+- Uses `Dockerfile.pocketbase` for deployment (PocketBase v0.23.6)
 - Mounts persistent volume at `/pb_data`
 - Health check endpoint: `/api/health`
 - Internal port: 8090
@@ -29,7 +30,37 @@ This application deploys as two separate services on Railway:
    - Example: `http://pocketbase.railway.internal:8090`
    - Alternative using reference variables: `http://${{pocketbase.RAILWAY_PRIVATE_DOMAIN}}:8090`
 
-### Service 2: FastAPI Worker
+### Service 2: Redis
+
+**REQUIRED for leaderboard functionality**
+
+**Configuration:**
+- Uses Railway's Redis template or custom Docker image
+- No persistent volume needed (cache can rebuild)
+- Internal port: 6379
+
+**Important:** Without Redis configured, leaderboard endpoints will fail. Redis is not optional for production deployments.
+
+**Setup:**
+
+#### Option 1: Railway Redis Template (Recommended)
+1. Create new service in Railway
+2. Select "Redis" from templates
+3. Deploy with default configuration
+4. Note the internal URL: `redis://redis.railway.internal:6379`
+   - Or using reference: `redis://${{redis.RAILWAY_PRIVATE_DOMAIN}}:6379`
+
+#### Option 2: External Redis Cloud
+1. Sign up at https://redis.com/try-free/
+2. Create a new database
+3. Copy the connection URL (includes password)
+4. Use this external URL in FastAPI environment variables
+
+**Cost Comparison:**
+- Railway Redis: ~$5/month
+- Redis Cloud Free Tier: $0 (30MB limit, sufficient for leaderboard data)
+
+### Service 3: FastAPI Worker
 
 **Configuration:**
 - Uses `railway.toml` for deployment
@@ -39,11 +70,24 @@ This application deploys as two separate services on Railway:
 
 **Required Environment Variables:**
 ```
+# PocketBase Configuration
 # Option 1: Direct service name reference
 POCKETBASE_URL=http://pocketbase.railway.internal:8090
 
 # Option 2: Using Railway reference variables (recommended)
 POCKETBASE_URL=http://${{pocketbase.RAILWAY_PRIVATE_DOMAIN}}:8090
+
+# PocketBase Admin Credentials (required for schema synchronization)
+POCKETBASE_ADMIN_EMAIL=<your-admin-email>
+POCKETBASE_ADMIN_PASSWORD=<your-admin-password>
+
+# Redis Configuration (REQUIRED for leaderboard caching)
+# Option 1: Railway Redis service
+REDIS_URL=redis://redis.railway.internal:6379
+# Option 2: Using Railway reference variables (recommended)
+REDIS_URL=redis://${{redis.RAILWAY_PRIVATE_DOMAIN}}:6379
+# Option 3: External Redis Cloud
+REDIS_URL=redis://:your-password@redis-12345.c1.us-east-1-2.ec2.redns.redis-cloud.com:12345
 
 # Other required variables
 OPENROUTER_API_KEY=<your-key>
@@ -79,6 +123,9 @@ MODEL_ID=anthropic/claude-3.5-sonnet (optional)
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `POCKETBASE_URL` | Internal URL of PocketBase service | Yes |
+| `POCKETBASE_ADMIN_EMAIL` | Admin email for PocketBase schema synchronization | Yes |
+| `POCKETBASE_ADMIN_PASSWORD` | Admin password for PocketBase schema synchronization | Yes |
+| `REDIS_URL` | Redis connection URL (REQUIRED: leaderboard endpoints will fail without this) | Yes |
 | `OPENROUTER_API_KEY` | API key for OpenRouter LLM access | Yes |
 | `TWILIO_ACCOUNT_SID` | Twilio Account SID | Yes |
 | `TWILIO_AUTH_TOKEN` | Twilio Auth Token | Yes |
