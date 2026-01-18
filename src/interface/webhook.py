@@ -10,8 +10,9 @@ from twilio.request_validator import RequestValidator
 
 from src.agents import choresir_agent
 from src.agents.base import Deps
-from src.core import db_client
+from src.core import admin_notifier, db_client
 from src.core.config import settings
+from src.core.errors import classify_agent_error
 from src.domain.user import UserStatus
 from src.interface import whatsapp_parser, whatsapp_sender
 
@@ -147,7 +148,7 @@ async def _handle_user_status(
     return (False, f"Unknown user status: {status}")
 
 
-async def process_webhook_message(params: dict[str, str]) -> None:
+async def process_webhook_message(params: dict[str, str]) -> None:  # noqa: C901
     """Process Twilio webhook message in background.
 
     This function:
@@ -219,6 +220,31 @@ async def process_webhook_message(params: dict[str, str]) -> None:
 
     except Exception as e:
         logfire.error(f"Error processing webhook message: {e}")
+
+        # Classify the error to determine if admins should be notified
+        error_category, user_message = classify_agent_error(e)
+
+        # Notify admins for critical errors
+        if admin_notifier.should_notify_admins(error_category):
+            try:
+                parsed_message = whatsapp_parser.parse_twilio_webhook(params)
+                user_context = "Unknown user"
+                if parsed_message and parsed_message.from_phone:
+                    user_context = parsed_message.from_phone
+
+                timestamp = datetime.now().isoformat()
+                error_preview = str(e)[:100]
+                notification_msg = (
+                    f"⚠️ Webhook error: {error_category.value}\n"
+                    f"User: {user_context}\nTime: {timestamp}\nError: {error_preview}"
+                )
+                await admin_notifier.notify_admins(
+                    message=notification_msg,
+                    severity="critical",
+                )
+            except Exception as notify_error:
+                logfire.error(f"Failed to notify admins of critical error: {notify_error}")
+
         try:
             parsed_message = whatsapp_parser.parse_twilio_webhook(params)
             if parsed_message and parsed_message.from_phone:
@@ -243,7 +269,7 @@ async def process_webhook_message(params: dict[str, str]) -> None:
 
                 await whatsapp_sender.send_text_message(
                     to_phone=parsed_message.from_phone,
-                    text="Sorry, an error occurred while processing your message. Please try again later.",
+                    text=user_message,
                 )
         except Exception as send_error:
             logfire.error(f"Failed to send error message to user: {send_error}")
