@@ -67,7 +67,7 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[dict]) -> bool:
         logfire.warn(f"Failed to send reminder to {user['name']}: {result.error}")
         return False
 
-    except db_client.RecordNotFoundError:
+    except KeyError:
         logfire.warn(f"User {user_id} not found for overdue reminders")
         return False
     except Exception as e:

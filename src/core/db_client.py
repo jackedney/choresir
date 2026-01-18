@@ -1,5 +1,6 @@
 """PocketBase client wrapper with CRUD operations."""
 
+import functools
 import logging
 from typing import Any, TypeVar
 
@@ -13,32 +14,35 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-class DatabaseError(Exception):
-    """Base exception for database operations."""
-
-
-class RecordNotFoundError(DatabaseError):
-    """Raised when a record is not found."""
-
-
-class DatabaseConnectionError(DatabaseError):
-    """Raised when database connection fails."""
+@functools.lru_cache(maxsize=1)
+def _get_authenticated_client() -> PocketBase:
+    """Internal function to create and authenticate client."""
+    client = PocketBase(settings.pocketbase_url)
+    client.admins.auth_with_password(
+        settings.pocketbase_admin_email,
+        settings.pocketbase_admin_password,
+    )
+    return client
 
 
 def get_client() -> PocketBase:
-    """Get PocketBase client instance with admin authentication."""
+    """Get PocketBase client instance with admin authentication.
+
+    Uses a singleton pattern to reuse the authenticated client.
+    Automatically re-authenticates if the token is invalid.
+    """
     try:
-        client = PocketBase(settings.pocketbase_url)
-        # Authenticate as admin for full access to all collections
-        client.admins.auth_with_password(
-            settings.pocketbase_admin_email,
-            settings.pocketbase_admin_password,
-        )
+        client = _get_authenticated_client()
+        # Check if token is present and valid
+        if not client.auth_store.token or not client.auth_store.is_valid:
+            # Clear cache and re-authenticate to get fresh client
+            _get_authenticated_client.cache_clear()
+            client = _get_authenticated_client()
         return client
     except Exception as e:
         msg = f"Failed to connect to PocketBase: {e}"
         logger.error(msg)
-        raise DatabaseConnectionError(msg) from e
+        raise ConnectionError(msg) from e
 
 
 async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -51,7 +55,7 @@ async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, A
     except ClientResponseError as e:
         msg = f"Failed to create record in {collection}: {e}"
         logger.error(msg)
-        raise DatabaseError(msg) from e
+        raise RuntimeError(msg) from e
 
 
 async def get_record(*, collection: str, record_id: str) -> dict[str, Any]:
@@ -63,10 +67,10 @@ async def get_record(*, collection: str, record_id: str) -> dict[str, Any]:
     except ClientResponseError as e:
         if e.status == 404:  # noqa: PLR2004
             msg = f"Record not found in {collection}: {record_id}"
-            raise RecordNotFoundError(msg) from e
+            raise KeyError(msg) from e
         msg = f"Failed to get record from {collection}: {e}"
         logger.error(msg)
-        raise DatabaseError(msg) from e
+        raise RuntimeError(msg) from e
 
 
 async def update_record(*, collection: str, record_id: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -79,10 +83,10 @@ async def update_record(*, collection: str, record_id: str, data: dict[str, Any]
     except ClientResponseError as e:
         if e.status == 404:  # noqa: PLR2004
             msg = f"Record not found in {collection}: {record_id}"
-            raise RecordNotFoundError(msg) from e
+            raise KeyError(msg) from e
         msg = f"Failed to update record in {collection}: {e}"
         logger.error(msg)
-        raise DatabaseError(msg) from e
+        raise RuntimeError(msg) from e
 
 
 async def delete_record(*, collection: str, record_id: str) -> None:
@@ -94,10 +98,10 @@ async def delete_record(*, collection: str, record_id: str) -> None:
     except ClientResponseError as e:
         if e.status == 404:  # noqa: PLR2004
             msg = f"Record not found in {collection}: {record_id}"
-            raise RecordNotFoundError(msg) from e
+            raise KeyError(msg) from e
         msg = f"Failed to delete record from {collection}: {e}"
         logger.error(msg)
-        raise DatabaseError(msg) from e
+        raise RuntimeError(msg) from e
 
 
 async def list_records(
@@ -120,7 +124,7 @@ async def list_records(
     except ClientResponseError as e:
         msg = f"Failed to list records from {collection}: {e}"
         logger.error(msg)
-        raise DatabaseError(msg) from e
+        raise RuntimeError(msg) from e
 
 
 async def get_first_record(*, collection: str, filter_query: str) -> dict[str, Any] | None:
@@ -134,4 +138,4 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
             return None
         msg = f"Failed to get first record from {collection}: {e}"
         logger.error(msg)
-        raise DatabaseError(msg) from e
+        raise RuntimeError(msg) from e
