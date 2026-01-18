@@ -96,10 +96,15 @@ def _make_mock_list_records(pb: PocketBase):
         sort: str = "-created",
     ) -> list[dict]:
         try:
+            # Only include filter in query_params if it's not empty
+            query_params = {"sort": sort}
+            if filter_query:
+                query_params["filter"] = filter_query
+
             result = pb.collection(collection).get_list(
                 page=page,
                 per_page=per_page,
-                query_params={"filter": filter_query, "sort": sort},
+                query_params=query_params,
             )
             return [item.__dict__ for item in result.items]
         except Exception as e:
