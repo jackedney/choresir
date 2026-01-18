@@ -87,11 +87,11 @@ class RedisClient:
             logger.warning("Redis SET error for key %s: %s", key, e)
             return False
 
-    async def delete(self, key: str) -> bool:
-        """Delete key from Redis.
+    async def delete(self, *keys: str) -> bool:
+        """Delete one or more keys from Redis.
 
         Args:
-            key: Cache key to delete
+            *keys: Cache keys to delete
 
         Returns:
             True if successful, False otherwise
@@ -99,13 +99,36 @@ class RedisClient:
         if not self.is_available or not self._client:
             return False
 
+        if not keys:
+            return False
+
         try:
-            await self._client.delete(key)
-            logger.debug("Deleted cache key: %s", key)
+            await self._client.delete(*keys)
+            logger.debug("Deleted %d cache key(s)", len(keys))
             return True
         except RedisError as e:
-            logger.warning("Redis DELETE error for key %s: %s", key, e)
+            logger.warning("Redis DELETE error: %s", e)
             return False
+
+    async def keys(self, pattern: str) -> list[str]:
+        """Find keys matching a pattern.
+
+        Args:
+            pattern: Pattern to match (e.g., 'leaderboard:*')
+
+        Returns:
+            List of matching keys, empty list if none found or error occurred
+        """
+        if not self.is_available or not self._client:
+            return []
+
+        try:
+            keys = await self._client.keys(pattern)
+            # Handle both bytes and string responses
+            return [k.decode() if isinstance(k, bytes) else k for k in keys]
+        except RedisError as e:
+            logger.warning("Redis KEYS error for pattern %s: %s", pattern, e)
+            return []
 
     async def close(self) -> None:
         """Close Redis connection."""

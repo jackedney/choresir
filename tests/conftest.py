@@ -14,13 +14,25 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from pocketbase import PocketBase
-from pocketbase.client import ClientResponseError
 
 from src.core.config import Settings
 from src.core.db_client import DatabaseError, RecordNotFoundError
-from src.core.schema import COLLECTIONS, sync_schema
-from src.main import app
+
+
+# Import pocketbase only for integration tests
+try:
+    from pocketbase import PocketBase
+    from pocketbase.client import ClientResponseError
+
+    from src.core.schema import COLLECTIONS, sync_schema
+    from src.main import app
+
+    POCKETBASE_AVAILABLE = True
+except ImportError:
+    POCKETBASE_AVAILABLE = False
+    PocketBase = None  # type: ignore[assignment]
+    ClientResponseError = None  # type: ignore[assignment]
+    COLLECTIONS = []
 
 
 # HTTP status codes
@@ -123,6 +135,8 @@ class MockDBClient:
 @pytest.fixture(scope="session")
 def pocketbase_server() -> Generator[str]:
     """Start ephemeral PocketBase instance for testing."""
+    if not POCKETBASE_AVAILABLE:
+        pytest.skip("PocketBase not available - skipping integration test")
     pb_data_dir = tempfile.mkdtemp(prefix="pb_test_")
     pb_binary = shutil.which("pocketbase")
 
