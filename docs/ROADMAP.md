@@ -16,7 +16,7 @@ These tasks must be completed in order before parallel tracks can begin.
 - Install and configure `uv`, `ruff`, `ty`
 - Set up pyproject.toml with dependencies
 - Configure ruff (120 char line length, import sorting)
-- Configure ty for strict type checking
+- Configure ty for strict type checking (available via `uv run ty`)
 - **Dependencies:** None
 - **Track:** Foundation
 
@@ -469,6 +469,72 @@ Intelligent error classification and notification system for API failures:
 - `ENABLE_ADMIN_NOTIFICATIONS` - Enable/disable admin notifications (default: true)
 - `ADMIN_NOTIFICATION_COOLDOWN_MINUTES` - Cooldown between notifications (default: 60)
 
+### Redis Caching for Leaderboard Performance ✅
+**Completed:** 2026-01-18
+
+High-performance caching layer for analytics queries:
+- **Redis Integration:** In-memory caching for frequently accessed leaderboard data
+- **Automatic Cache Invalidation:** Smart invalidation on chore completion events
+- **Performance Optimization:** Reduces database load for expensive aggregation queries
+- **Configurable TTL:** Customizable time-to-live for cached data (default: 5 minutes)
+- **Fallback Strategy:** Gracefully falls back to direct database queries if Redis is unavailable
+
+**Implementation:**
+- `src/services/analytics_service.py` - Redis-backed leaderboard caching
+- Cache invalidation triggered on chore state transitions
+- Connection pooling for optimal Redis performance
+
+**Configuration:**
+- `REDIS_URL` - Redis connection string (optional, defaults to localhost:6379)
+- `LEADERBOARD_CACHE_TTL` - Cache duration in seconds (default: 300)
+
+### Weekly Leaderboard Analytics ✅
+**Completed:** 2026-01-18
+
+Scheduled weekly analytics reports for household engagement:
+- **Automated Reports:** Weekly summary of household chore completion statistics
+- **Leaderboard Rankings:** Top performers by completed chores over the past week
+- **Completion Trends:** Week-over-week comparison and trend analysis
+- **Broadcast Distribution:** Automatic WhatsApp delivery to all active household members
+- **Configurable Schedule:** Flexible timing for weekly report generation (default: Sunday 8pm)
+
+**Implementation:**
+- `src/core/scheduler.py` - APScheduler job for weekly report generation
+- `src/services/analytics_service.py` - Weekly aggregation and trend calculation
+- Integration with WhatsApp sender for broadcast delivery
+
+**Configuration:**
+- `WEEKLY_REPORT_ENABLED` - Enable/disable weekly reports (default: true)
+- `WEEKLY_REPORT_DAY` - Day of week for report (default: 6 = Sunday)
+- `WEEKLY_REPORT_HOUR` - Hour of day for report (default: 20 = 8pm)
+
+### Smart Pantry Inventory Tracking ✅
+**Completed:** 2026-01-18
+
+AI-powered pantry item management and shopping list generation:
+- **Natural Language Inventory:** Add/remove pantry items using conversational commands
+- **Smart Categorization:** Automatic categorization of items (produce, dairy, pantry staples, etc.)
+- **Quantity Tracking:** Track quantities and units (e.g., "2 cartons of milk", "500g flour")
+- **Low Stock Alerts:** Configurable thresholds for automatic low-stock notifications
+- **Shopping List Generation:** Generate shopping lists based on depleted items
+- **Shared Household View:** All members can view and update the shared pantry inventory
+
+**Implementation:**
+- `src/domain/pantry.py` - Pydantic models for pantry items and categories
+- `src/services/pantry_service.py` - Business logic for inventory management
+- `src/agents/tools/pantry_tools.py` - AI agent tools for natural language interaction
+- PocketBase `pantry_items` collection for persistent storage
+
+**Agent Tools:**
+- `tool_add_pantry_item` - Add items with quantity and category
+- `tool_remove_pantry_item` - Remove or reduce quantity of items
+- `tool_view_pantry` - View current inventory (filtered by category or low-stock)
+- `tool_generate_shopping_list` - Create shopping list from depleted items
+
+**Configuration:**
+- `LOW_STOCK_THRESHOLD` - Percentage threshold for low-stock alerts (default: 20%)
+- `PANTRY_NOTIFICATIONS_ENABLED` - Enable/disable low-stock notifications (default: true)
+
 ---
 
 ## Notes
@@ -477,6 +543,7 @@ Intelligent error classification and notification system for API failures:
 - **Parallelization:** Tracks B, C, D can run simultaneously after Track A completes Task 7
 - **Testing Strategy:** Per ADR 007, we use integration tests with ephemeral PocketBase instances
 - **Code Standards:** All code must follow ADR 006 (ruff, ty, functional style, guard clauses)
+- **Type Checking:** Type checking is performed using `ty` (run via `uv run ty`)
 
 ---
 
