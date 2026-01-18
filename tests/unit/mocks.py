@@ -166,19 +166,19 @@ class InMemoryDBClient:
         page: int = 1,
         per_page: int = 50,
         filter_query: str = "",
-        sort: str = "-created",
+        sort: str = "",
     ) -> list[dict[str, Any]]:
         """List records from the collection with optional filtering and sorting.
 
         Args:
             collection: Name of the collection
-            page: Page number (1-indexed, not currently used in implementation)
-            per_page: Number of records per page (not currently used in implementation)
+            page: Page number (1-indexed)
+            per_page: Number of records per page
             filter_query: Filter expression (supports =, ~, !=)
             sort: Sort field (prefix with - for descending)
 
         Returns:
-            List of matching records
+            List of matching records (paginated)
 
         Raises:
             RuntimeError: For invalid filter syntax
@@ -199,8 +199,13 @@ class InMemoryDBClient:
             if sort:
                 records = self._apply_sort(records, sort)
 
+            # Apply pagination
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            paginated_records = records[start_idx:end_idx]
+
             # Return deep copies to prevent external modifications
-            return [copy.deepcopy(r) for r in records]
+            return [copy.deepcopy(r) for r in paginated_records]
         except RuntimeError:
             raise
         except Exception as e:
