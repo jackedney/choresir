@@ -3,8 +3,10 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from fastapi import FastAPI
 
 from src.core.config import Settings
+from src.main import lifespan
 
 
 def test_startup_fails_without_house_code():
@@ -53,16 +55,11 @@ def test_startup_succeeds_with_valid_credentials():
 @pytest.mark.asyncio
 async def test_fastapi_lifespan_validates_credentials():
     """Test that FastAPI lifespan context manager validates credentials at startup."""
-    from fastapi import FastAPI
-
     # Mock the settings to have missing credentials
     with patch("src.main.settings") as mock_settings:
         mock_settings.require_credential = Mock(
             side_effect=ValueError("House onboarding code credential not configured")
         )
-
-        # Import the lifespan after patching
-        from src.main import lifespan
 
         # Create a test app
         test_app = FastAPI()
