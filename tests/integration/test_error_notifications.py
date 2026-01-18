@@ -9,19 +9,14 @@ from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.interface import webhook
 from src.interface.whatsapp_parser import ParsedMessage
-from tests.conftest import create_test_admin
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client) -> None:
+async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client, sample_users: dict) -> None:
     """Test that admin receives notification when OpenRouter quota is exceeded."""
-    # Create admin user
-    admin = await create_test_admin(
-        phone="+15550000000",
-        name="Admin User",
-        db_client=db_client,
-    )
+    # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
+    admin = sample_users["alice"]
 
     # Create regular user
     user_data = {
@@ -82,14 +77,10 @@ async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client) -
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_webhook_critical_error_notification(mock_db_module, db_client) -> None:
+async def test_webhook_critical_error_notification(mock_db_module, db_client, sample_users: dict) -> None:
     """Test that webhook errors trigger admin notifications for critical errors."""
-    # Create admin user
-    admin = await create_test_admin(
-        phone="+15550000000",
-        name="Admin User",
-        db_client=db_client,
-    )
+    # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
+    admin = sample_users["alice"]
 
     # Mock WhatsApp webhook params
     params = {
@@ -148,14 +139,9 @@ async def test_webhook_critical_error_notification(mock_db_module, db_client) ->
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_non_critical_error_no_notification(mock_db_module, db_client) -> None:
+async def test_non_critical_error_no_notification(mock_db_module, db_client, sample_users: dict) -> None:
     """Test that non-critical errors do not trigger admin notifications."""
-    # Create admin user (should NOT receive notification)
-    await create_test_admin(
-        phone="+15550000000",
-        name="Admin User",
-        db_client=db_client,
-    )
+    # alice is admin from sample_users but should NOT receive notification for non-critical errors
 
     # Create regular user
     user_data = {

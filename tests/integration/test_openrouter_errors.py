@@ -14,7 +14,6 @@ from src.agents.choresir_agent import run_agent
 from src.core import admin_notifier
 from src.core.admin_notifier import notification_rate_limiter
 from src.core.errors import ErrorCategory
-from tests.conftest import create_test_admin
 
 
 @pytest.mark.integration
@@ -32,12 +31,8 @@ class TestOpenRouterErrorFlow:
         4. User receives friendly error message
         5. Admin receives critical notification
         """
-        # Setup: Create admin user for notifications
-        admin = await create_test_admin(
-            phone="+15550000000",
-            name="Admin User",
-            db_client=db_client,
-        )
+        # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
+        admin = sample_users["alice"]
 
         # Setup dependencies for agent
         deps = Deps(
@@ -140,12 +135,8 @@ class TestOpenRouterErrorFlow:
         3. User receives message to contact support
         4. Admin receives critical notification
         """
-        # Setup admin for notifications
-        _admin = await create_test_admin(
-            phone="+15550000000",
-            name="Admin User",
-            db_client=db_client,
-        )
+        # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
+        _admin = sample_users["alice"]
 
         deps = Deps(
             db=db_client._pb,
@@ -227,7 +218,7 @@ class TestOpenRouterErrorFlow:
 class TestAdminNotificationRateLimiting:
     """Test admin notification rate limiting functionality."""
 
-    async def test_rate_limiter_prevents_spam(self, mock_db_module, db_client):
+    async def test_rate_limiter_prevents_spam(self, mock_db_module, db_client, sample_users: dict):
         """Test that duplicate notifications within cooldown period are blocked.
 
         Flow:
@@ -235,12 +226,8 @@ class TestAdminNotificationRateLimiting:
         2. Second quota exceeded error within 1 hour is rate limited
         3. No duplicate notification sent
         """
-        # Create admin user
-        _admin = await create_test_admin(
-            phone="+15550000000",
-            name="Admin User",
-            db_client=db_client,
-        )
+        # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
+        _admin = sample_users["alice"]
 
         # Reset rate limiter to clean state
         notification_rate_limiter._notifications.clear()
@@ -271,7 +258,7 @@ class TestAdminNotificationRateLimiting:
             # This would be blocked at the caller level (not implemented in MVP)
             # For now, we just verify the rate limiter logic works
 
-    async def test_different_error_types_not_rate_limited(self, mock_db_module, db_client):
+    async def test_different_error_types_not_rate_limited(self, mock_db_module, db_client, sample_users: dict):
         """Test that different error categories have independent rate limits.
 
         Flow:
@@ -279,11 +266,8 @@ class TestAdminNotificationRateLimiting:
         2. Authentication error notification can still be sent
         3. Both notifications go through
         """
-        _admin = await create_test_admin(
-            phone="+15550000000",
-            name="Admin User",
-            db_client=db_client,
-        )
+        # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
+        _admin = sample_users["alice"]
 
         # Reset rate limiter
         notification_rate_limiter._notifications.clear()
@@ -313,11 +297,8 @@ class TestAdminNotificationFailures:
         3. Failure is logged
         4. User still receives error message
         """
-        _admin = await create_test_admin(
-            phone="+15550000000",
-            name="Admin User",
-            db_client=db_client,
-        )
+        # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
+        _admin = sample_users["alice"]
 
         deps = Deps(
             db=db_client._pb,
