@@ -11,6 +11,7 @@ import pytest
 
 from src.agents.base import Deps
 from src.agents.choresir_agent import run_agent
+from src.core import admin_notifier
 from src.core.admin_notifier import notification_rate_limiter
 from src.core.errors import ErrorCategory
 from tests.conftest import create_test_admin
@@ -248,8 +249,6 @@ class TestAdminNotificationRateLimiting:
             mock_send_message.return_value = MagicMock(success=True, message_id="msg_123")
 
             # First notification should succeed
-            from src.core import admin_notifier
-
             assert admin_notifier.notification_rate_limiter.can_notify(ErrorCategory.SERVICE_QUOTA_EXCEEDED)
 
             await admin_notifier.notify_admins(
@@ -291,8 +290,6 @@ class TestAdminNotificationRateLimiting:
 
         with patch("src.core.admin_notifier.send_text_message") as mock_send_message:
             mock_send_message.return_value = MagicMock(success=True, message_id="msg_123")
-
-            from src.core import admin_notifier
 
             # Send quota exceeded notification
             assert admin_notifier.notification_rate_limiter.can_notify(ErrorCategory.SERVICE_QUOTA_EXCEEDED)
