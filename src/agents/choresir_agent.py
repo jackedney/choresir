@@ -9,7 +9,7 @@ from pocketbase import PocketBase
 from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
-from src.core.errors import ErrorCategory, classify_agent_error
+from src.core.errors import classify_agent_error
 from src.domain.user import UserStatus
 from src.services import user_service
 
@@ -103,8 +103,8 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
             error_category=error_category.value,
         )
 
-        # Notify admins for SERVICE_QUOTA_EXCEEDED errors
-        if error_category == ErrorCategory.SERVICE_QUOTA_EXCEEDED:
+        # Notify admins for critical errors
+        if admin_notifier.should_notify_admins(error_category):
             try:
                 timestamp = datetime.now().isoformat()
                 message = (

@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pocketbase import PocketBase
 
-from src.core import config as config_module, db_client as db_module
+from src.core import admin_notifier as admin_notifier_module, config as config_module, db_client as db_module
 from src.core.config import Settings
 from src.core.db_client import DatabaseError, RecordNotFoundError
 from src.core.schema import COLLECTIONS, sync_schema
@@ -238,6 +238,7 @@ def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypa
     # Patch the global settings to use test settings
     monkeypatch.setattr(config_module, "settings", test_settings)
     monkeypatch.setattr(user_service_module, "settings", test_settings)
+    monkeypatch.setattr(admin_notifier_module, "settings", test_settings)
 
     yield
 

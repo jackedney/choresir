@@ -110,6 +110,8 @@ async def test_webhook_critical_error_notification(mock_db_module, db_client) ->
         message_id="test_msg_123",
         from_phone="+15551234567",
         text="test message",
+        timestamp="1234567890",
+        message_type="text",
     )
 
     # Mock build_deps to raise an authentication error (critical)
