@@ -115,10 +115,17 @@ async def list_records(
     """List records from the specified collection with filtering and pagination."""
     try:
         client = get_client()
+        # Only include filter and sort in query_params if they're not empty
+        query_params = {}
+        if sort:
+            query_params["sort"] = sort
+        if filter_query:
+            query_params["filter"] = filter_query
+
         result = client.collection(collection).get_list(
             page=page,
             per_page=per_page,
-            query_params={"filter": filter_query, "sort": sort},
+            query_params=query_params,
         )
         return [item.__dict__ for item in result.items]
     except ClientResponseError as e:
