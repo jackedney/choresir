@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.core.db_client import RecordNotFoundError
+# KeyError replaced with KeyError
 from src.domain.chore import ChoreState
 from src.services import chore_service
 
@@ -167,7 +167,7 @@ class TestMarkPendingVerification:
 
     async def test_mark_pending_verification_not_found(self, patched_chore_db):
         """Test marking non-existent chore raises error."""
-        with pytest.raises(RecordNotFoundError):
+        with pytest.raises(KeyError):
             await chore_service.mark_pending_verification(chore_id="nonexistent_id")
 
 
@@ -198,7 +198,7 @@ class TestCompleteChore:
 
     async def test_complete_chore_not_found(self, patched_chore_db):
         """Test completing non-existent chore raises error."""
-        with pytest.raises(RecordNotFoundError):
+        with pytest.raises(KeyError):
             await chore_service.complete_chore(chore_id="nonexistent_id")
 
 
@@ -226,7 +226,7 @@ class TestMoveToConflict:
 
     async def test_move_to_conflict_not_found(self, patched_chore_db):
         """Test moving non-existent chore to conflict raises error."""
-        with pytest.raises(RecordNotFoundError):
+        with pytest.raises(KeyError):
             await chore_service.move_to_conflict(chore_id="nonexistent_id")
 
 
@@ -256,7 +256,7 @@ class TestResetChoreToTodo:
 
     async def test_reset_chore_to_todo_not_found(self, patched_chore_db):
         """Test resetting non-existent chore raises error."""
-        with pytest.raises(RecordNotFoundError):
+        with pytest.raises(KeyError):
             await chore_service.reset_chore_to_todo(chore_id="nonexistent_id")
 
 
@@ -283,8 +283,8 @@ class TestGetChoreById:
         assert result["description"] == test_chore["description"]
 
     async def test_get_chore_by_id_not_found(self, patched_chore_db):
-        """Test retrieving non-existent chore raises RecordNotFoundError."""
-        with pytest.raises(RecordNotFoundError):
+        """Test retrieving non-existent chore raises KeyError."""
+        with pytest.raises(KeyError):
             await chore_service.get_chore_by_id(chore_id="nonexistent_id")
 
 

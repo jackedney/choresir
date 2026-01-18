@@ -1,10 +1,12 @@
 """Unit tests for verification_service module."""
 
+from datetime import datetime
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.core.db_client import RecordNotFoundError
+# KeyError replaced with KeyError
 from src.domain.chore import ChoreState
 from src.services import chore_service, verification_service
 from src.services.verification_service import VerificationDecision
@@ -69,7 +71,7 @@ class TestRequestVerification:
 
     async def test_request_verification_chore_not_found(self, patched_verification_db):
         """Test requesting verification for non-existent chore raises error."""
-        with pytest.raises(RecordNotFoundError):
+        with pytest.raises(KeyError):
             await verification_service.request_verification(
                 chore_id="nonexistent_id",
                 claimer_user_id="user1",
@@ -181,7 +183,7 @@ class TestVerifyChore:
         # Manually transition to pending (bypassing normal claim flow)
         await chore_service.mark_pending_verification(chore_id=chore["id"])
 
-        with pytest.raises(RecordNotFoundError, match="No claim log found"):
+        with pytest.raises(KeyError, match="No claim log found"):
             await verification_service.verify_chore(
                 chore_id=chore["id"],
                 verifier_user_id="user2",
@@ -340,3 +342,438 @@ class TestVerificationWorkflow:
         )
 
         assert final_chore["current_state"] == ChoreState.CONFLICT
+
+
+@pytest.mark.unit
+class TestVerificationCacheInvalidation:
+    """Tests for cache invalidation during verification workflow."""
+
+    @patch("src.services.verification_service.analytics_service.invalidate_leaderboard_cache")
+    async def test_approve_verification_invalidates_cache(self, mock_invalidate_cache, patched_verification_db):
+        """Verify cache is invalidated when chore verification is approved."""
+        mock_invalidate_cache.return_value = None
+
+        # Create and claim chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Done",
+        )
+
+        # Approve verification
+        await verification_service.verify_chore(
+            chore_id=chore["id"],
+            verifier_user_id="user2",
+            decision=VerificationDecision.APPROVE,
+            reason="Looks good",
+        )
+
+        # Verify cache invalidation was called
+        mock_invalidate_cache.assert_called_once()
+
+    @patch("src.services.verification_service.analytics_service.invalidate_leaderboard_cache")
+    async def test_reject_verification_invalidates_cache(self, mock_invalidate_cache, patched_verification_db):
+        """Verify cache is invalidated when chore verification is rejected."""
+        mock_invalidate_cache.return_value = None
+
+        # Create and claim chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Done",
+        )
+
+        # Reject verification
+        await verification_service.verify_chore(
+            chore_id=chore["id"],
+            verifier_user_id="user2",
+            decision=VerificationDecision.REJECT,
+            reason="Not acceptable",
+        )
+
+        # Verify cache invalidation was called
+        mock_invalidate_cache.assert_called_once()
+
+    @patch("src.services.analytics_service.redis_client.keys")
+    async def test_verification_succeeds_if_cache_invalidation_fails(self, mock_redis_keys, patched_verification_db):
+        """Verify verification succeeds even if cache invalidation fails."""
+        # Mock Redis to fail - this tests the internal exception handling in invalidate_leaderboard_cache
+        mock_redis_keys.side_effect = Exception("Redis connection error")
+
+        # Create and claim chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Done",
+        )
+
+        # Approve verification - should succeed despite cache failure
+        result = await verification_service.verify_chore(
+            chore_id=chore["id"],
+            verifier_user_id="user2",
+            decision=VerificationDecision.APPROVE,
+            reason="Looks good",
+        )
+
+        # Verify chore was still completed successfully
+        assert result["current_state"] == ChoreState.COMPLETED
+
+        # Verify Redis was accessed (cache invalidation was attempted)
+        mock_redis_keys.assert_called_once()
+
+
+@pytest.mark.unit
+class TestVerifyChorePagination:
+    """Tests for verify_chore pagination edge cases."""
+
+    async def _create_logs(
+        self, patched_verification_db, count: int, chore_id: str, action: str = "other_action"
+    ) -> list[dict[str, Any]]:
+        """Helper to create multiple log entries."""
+        logs = []
+        for i in range(count):
+            log_data = {
+                "chore_id": chore_id if action == "claimed_completion" else f"other_chore_{i}",
+                "user_id": f"user_{i}",
+                "action": action,
+                "notes": f"Log {i}",
+                "timestamp": datetime.now().isoformat(),
+            }
+            log = await patched_verification_db.create_record(collection="logs", data=log_data)
+            logs.append(log)
+        return logs
+
+    async def test_claim_log_on_first_page(self, patched_verification_db):
+        """Test that verify_chore finds claim log on first page with 1 page fetch."""
+        # Create chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+
+        # Create 100 other logs
+        await self._create_logs(patched_verification_db, 100, chore["id"], action="other_action")
+
+        # Request verification (creates claim log)
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Completed",
+        )
+
+        # Verify should succeed - claim log is on first page
+        result = await verification_service.verify_chore(
+            chore_id=chore["id"],
+            verifier_user_id="user2",
+            decision=VerificationDecision.APPROVE,
+            reason="Looks good",
+        )
+
+        assert result["current_state"] == ChoreState.COMPLETED
+
+    async def test_claim_log_on_second_page(self, patched_verification_db):
+        """Test that verify_chore correctly finds claim log beyond first page."""
+        # Create chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+
+        # Request verification first (creates claim log)
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Completed",
+        )
+
+        # Create 500 other logs AFTER the claim log (sorted -created, so newer logs come first)
+        await self._create_logs(patched_verification_db, 500, chore["id"], action="other_action")
+
+        # Verify should succeed - claim log is on second page
+        result = await verification_service.verify_chore(
+            chore_id=chore["id"],
+            verifier_user_id="user2",
+            decision=VerificationDecision.APPROVE,
+            reason="Looks good",
+        )
+
+        assert result["current_state"] == ChoreState.COMPLETED
+
+    async def test_claim_log_on_exact_boundary(self, patched_verification_db):
+        """Test claim log at position 500 (exact page boundary)."""
+        # Create chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+
+        # Request verification first
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Completed",
+        )
+
+        # Create exactly 499 other logs AFTER (so claim log is at position 500)
+        await self._create_logs(patched_verification_db, 499, chore["id"], action="other_action")
+
+        # Verify should succeed
+        result = await verification_service.verify_chore(
+            chore_id=chore["id"],
+            verifier_user_id="user2",
+            decision=VerificationDecision.APPROVE,
+            reason="Looks good",
+        )
+
+        assert result["current_state"] == ChoreState.COMPLETED
+
+    async def test_no_claim_log_exists(self, patched_verification_db):
+        """Test that verify_chore raises error when no claim log exists after checking all pages."""
+        # Create chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+
+        # Manually transition to pending (bypassing normal claim flow)
+        await chore_service.mark_pending_verification(chore_id=chore["id"])
+
+        # Create 600 other logs (spans 2 pages)
+        await self._create_logs(patched_verification_db, 600, chore["id"], action="other_action")
+
+        # Verify should raise error - no claim log exists
+        with pytest.raises(KeyError, match="No claim log found"):
+            await verification_service.verify_chore(
+                chore_id=chore["id"],
+                verifier_user_id="user2",
+                decision=VerificationDecision.APPROVE,
+                reason="",
+            )
+
+    async def test_empty_logs_collection(self, patched_verification_db):
+        """Test that verify_chore raises error when logs collection is empty."""
+        # Create chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+
+        # Manually transition to pending (bypassing normal claim flow)
+        await chore_service.mark_pending_verification(chore_id=chore["id"])
+
+        # No logs created - empty collection
+
+        # Verify should raise error
+        with pytest.raises(KeyError, match="No claim log found"):
+            await verification_service.verify_chore(
+                chore_id=chore["id"],
+                verifier_user_id="user2",
+                decision=VerificationDecision.APPROVE,
+                reason="",
+            )
+
+    async def test_self_verification_prevented(self, patched_verification_db):
+        """Test that claimer cannot verify their own chore (existing behavior verification)."""
+        # Create chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+
+        # Request verification
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Completed",
+        )
+
+        # Create 500 other logs to ensure pagination works even with self-verification check
+        await self._create_logs(patched_verification_db, 500, chore["id"], action="other_action")
+
+        # Self-verification should fail
+        with pytest.raises(PermissionError, match="cannot verify their own chore claim"):
+            await verification_service.verify_chore(
+                chore_id=chore["id"],
+                verifier_user_id="user1",  # Same as claimer
+                decision=VerificationDecision.APPROVE,
+                reason="",
+            )
+
+
+@pytest.mark.unit
+class TestGetPendingVerificationsPagination:
+    """Tests for get_pending_verifications pagination edge cases."""
+
+    async def _create_chore_with_claim(
+        self, patched_verification_db, title: str, claimer_user_id: str
+    ) -> dict[str, Any]:
+        """Helper to create a chore and claim it."""
+        chore = await chore_service.create_chore(
+            title=title,
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to=claimer_user_id,
+        )
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id=claimer_user_id,
+            notes="Done",
+        )
+        return chore
+
+    async def _create_logs(
+        self, patched_verification_db, count: int, chore_id: str = "other_chore"
+    ) -> list[dict[str, Any]]:
+        """Helper to create multiple log entries."""
+        logs = []
+        for i in range(count):
+            log_data = {
+                "chore_id": chore_id,
+                "user_id": f"user_{i}",
+                "action": "other_action",
+                "notes": f"Log {i}",
+                "timestamp": datetime.now().isoformat(),
+            }
+            log = await patched_verification_db.create_record(collection="logs", data=log_data)
+            logs.append(log)
+        return logs
+
+    async def test_no_user_id_filter(self, patched_verification_db):
+        """Test that without user_id filter, all pending chores are returned."""
+        # Create 3 pending chores claimed by different users
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
+        chore3 = await self._create_chore_with_claim(patched_verification_db, "Chore 3", "user3")
+
+        # Get all pending verifications
+        result = await verification_service.get_pending_verifications()
+
+        assert len(result) == 3
+        result_ids = {c["id"] for c in result}
+        assert _chore1["id"] in result_ids
+        assert chore2["id"] in result_ids
+        assert chore3["id"] in result_ids
+
+    async def test_user_id_filter_with_logs_on_multiple_pages(self, patched_verification_db):
+        """Test filtering correctly when logs span multiple pages."""
+        # Create 2 pending chores
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
+
+        # Create 500 other logs to force pagination
+        await self._create_logs(patched_verification_db, 500)
+
+        # user1 should only see chore2 (claimed by user2)
+        result = await verification_service.get_pending_verifications(user_id="user1")
+
+        assert len(result) == 1
+        assert result[0]["id"] == chore2["id"]
+
+    async def test_user_claimed_chore_on_page_2(self, patched_verification_db):
+        """Test that chore claimed by user on page 2 is correctly excluded."""
+        # Create chore claimed by user1
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
+
+        # Create 500 other logs AFTER claim log (so claim log ends up on page 2)
+        await self._create_logs(patched_verification_db, 500, chore_id="other_chore")
+
+        # Create another chore claimed by user2
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
+
+        # user1 should only see chore2
+        result = await verification_service.get_pending_verifications(user_id="user1")
+
+        assert len(result) == 1
+        assert result[0]["id"] == chore2["id"]
+
+    async def test_all_chores_claimed_by_user(self, patched_verification_db):
+        """Test that user who claimed all pending chores sees empty list."""
+        # Create 3 chores all claimed by user1
+        await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
+        await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user1")
+        await self._create_chore_with_claim(patched_verification_db, "Chore 3", "user1")
+
+        # user1 should see no chores
+        result = await verification_service.get_pending_verifications(user_id="user1")
+
+        assert result == []
+
+    async def test_no_chores_in_pending_verification(self, patched_verification_db):
+        """Test that empty list is returned when no chores are pending verification."""
+        # Create a chore but don't claim it (stays in TODO state)
+        await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+
+        result = await verification_service.get_pending_verifications()
+
+        assert result == []
+
+    async def test_logs_on_exact_page_boundary(self, patched_verification_db):
+        """Test handling of claim log at exact page boundary (position 500)."""
+        # Create chore claimed by user1
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
+
+        # Create exactly 499 other logs AFTER (so claim log is at position 500)
+        await self._create_logs(patched_verification_db, 499, chore_id="other_chore")
+
+        # Create another chore claimed by user2
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
+
+        # user1 should only see chore2
+        result = await verification_service.get_pending_verifications(user_id="user1")
+
+        assert len(result) == 1
+        assert result[0]["id"] == chore2["id"]
+
+    async def test_large_log_collection(self, patched_verification_db):
+        """Test correct filtering with 1000+ logs."""
+        # Create 3 pending chores
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
+        chore3 = await self._create_chore_with_claim(patched_verification_db, "Chore 3", "user3")
+
+        # Create 1000 other logs
+        await self._create_logs(patched_verification_db, 1000, chore_id="other_chore")
+
+        # user1 should see chore2 and chore3
+        result = await verification_service.get_pending_verifications(user_id="user1")
+
+        assert len(result) == 2
+        result_ids = {c["id"] for c in result}
+        assert chore2["id"] in result_ids
+        assert chore3["id"] in result_ids
+        assert _chore1["id"] not in result_ids

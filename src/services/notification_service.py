@@ -43,7 +43,7 @@ async def send_verification_request(
         try:
             chore = await db_client.get_record(collection="chores", record_id=chore_id)
             chore_title = chore["title"]
-        except db_client.RecordNotFoundError:
+        except KeyError:
             logger.error("Chore not found: %s", chore_id)
             return []
 
@@ -51,7 +51,7 @@ async def send_verification_request(
         try:
             claimer = await db_client.get_record(collection="users", record_id=claimer_user_id)
             claimer_name = claimer.get("name", "Someone")
-        except db_client.RecordNotFoundError:
+        except KeyError:
             logger.error("Claimer user not found: %s", claimer_user_id)
             claimer_name = "Someone"
 

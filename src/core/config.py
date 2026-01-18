@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Pydantic Logfire Configuration (optional)
     logfire_token: str | None = Field(default=None, description="Pydantic Logfire token for observability")
 
+    # Redis Configuration (optional)
+    redis_url: str | None = Field(default=None, description="Redis connection URL (e.g., redis://localhost:6379)")
+
     # House Onboarding Configuration
     house_code: str | None = Field(default=None, description="House code for member onboarding")
     house_password: str | None = Field(default=None, description="House password for member onboarding")
@@ -76,6 +79,14 @@ class Settings(BaseSettings):
     )
     template_conflict_notification_sid: str | None = Field(
         default=None, description="Content SID for conflict notification template"
+    )
+
+    # Admin Notification Configuration
+    enable_admin_notifications: bool = Field(
+        default=True, description="Enable/disable admin notifications for critical errors"
+    )
+    admin_notification_cooldown_minutes: int = Field(
+        default=60, description="Cooldown period between notifications for the same error category (in minutes)"
     )
 
 

@@ -94,6 +94,11 @@
 <td>Self-hosted SQLite backend + Admin UI</td>
 </tr>
 <tr>
+<td>⚡ <strong>Cache</strong></td>
+<td><img src="https://img.shields.io/badge/Redis-DC382D?style=flat&logo=redis&logoColor=white" alt="Redis"></td>
+<td>High-performance caching for leaderboards & analytics</td>
+</tr>
+<tr>
 <td>💬 <strong>Interface</strong></td>
 <td><img src="https://img.shields.io/badge/WhatsApp_Cloud_API-25D366?style=flat&logo=whatsapp&logoColor=white" alt="WhatsApp"></td>
 <td>Direct integration (No Twilio markup)</td>
@@ -114,6 +119,11 @@
 *Already have Meta/WhatsApp & OpenRouter accounts?*
 
 **→ [Quick Start Guide](./docs/QUICK_START.md)**
+
+**Required Accounts:**
+- [OpenRouter](https://openrouter.ai) - AI model access (~$3/month)
+- [Meta Developer](https://developers.facebook.com) - WhatsApp API (free)
+- [ngrok](https://ngrok.com) - Local webhook tunnel (free)
 
 </td>
 <td width="50%">
@@ -170,11 +180,22 @@ uv sync
 # 2️⃣ Download PocketBase
 task setup
 
-# 3️⃣ Configure environment
-cp .env.example .env
-# Edit .env with your tokens
+# 3️⃣ Start Redis (choose one method):
+# Option A: Docker (recommended)
+docker run -d -p 6379:6379 redis:7-alpine
 
-# 4️⃣ Start services (requires 3 terminals)
+# Option B: Docker Compose
+docker-compose up -d redis
+
+# Option C: Local installation
+# macOS: brew install redis && brew services start redis
+# Linux: sudo apt-get install redis-server && sudo systemctl start redis
+
+# 4️⃣ Configure environment
+cp .env.example .env
+# Edit .env with your tokens (OpenRouter API key, WhatsApp credentials, etc.)
+
+# 5️⃣ Start services (requires 3 terminals)
 ./pocketbase serve                    # Terminal 1: Database
 uv run fastapi dev src/main.py        # Terminal 2: API Server
 ngrok http 8000                       # Terminal 3: Public Webhook
@@ -201,9 +222,10 @@ ngrok http 8000                       # Terminal 3: Public Webhook
 #### Quick Deploy Steps:
 1. ✅ Create Railway project
 2. 💾 Deploy PocketBase service (with persistent volume)
-3. 🖥️ Deploy FastAPI service (connect GitHub repo)
-4. 🔐 Set environment variables
-5. 🔗 Update WhatsApp webhook URL
+3. ⚡ Add Redis plugin (for caching)
+4. 🖥️ Deploy FastAPI service (connect GitHub repo)
+5. 🔐 Set environment variables (including REDIS_URL)
+6. 🔗 Update WhatsApp webhook URL
 
 </td>
 <td width="40%">
@@ -215,8 +237,9 @@ ngrok http 8000                       # Terminal 3: Public Webhook
 | Service | Monthly Cost |
 |---------|--------------|
 | PocketBase | ~$3-5 |
+| Redis | ~$1-3 |
 | FastAPI | ~$2-5 |
-| **Total** | **$5-10** |
+| **Total** | **$6-13** |
 
 </div>
 

@@ -5,7 +5,8 @@ import copy
 from datetime import UTC, datetime
 from typing import Any
 
-from src.core.db_client import DatabaseError, RecordNotFoundError
+
+# No longer importing custom exceptions - using Python standard exceptions
 
 
 class InMemoryDBClient:
@@ -32,10 +33,10 @@ class InMemoryDBClient:
             Created record with id, created, and updated timestamps
 
         Raises:
-            DatabaseError: If collection access fails
+            RuntimeError: If collection access fails
         """
         if not isinstance(data, dict):
-            raise DatabaseError(f"Data must be a dictionary, got {type(data)}")
+            raise RuntimeError(f"Data must be a dictionary, got {type(data)}")
 
         try:
             # Ensure collection exists
@@ -68,7 +69,7 @@ class InMemoryDBClient:
 
             return copy.deepcopy(record)
         except Exception as e:
-            raise DatabaseError(f"Failed to create record in {collection}: {e}") from e
+            raise RuntimeError(f"Failed to create record in {collection}: {e}") from e
 
     async def get_record(self, collection: str, record_id: str) -> dict[str, Any]:
         """Get a record by ID from the specified collection.
@@ -81,24 +82,24 @@ class InMemoryDBClient:
             The requested record
 
         Raises:
-            RecordNotFoundError: If record not found
-            DatabaseError: For other failures
+            KeyError: If record not found
+            RuntimeError: For other failures
         """
         if not isinstance(record_id, str):
-            raise DatabaseError(f"Record ID must be a string, got {type(record_id)}")
+            raise RuntimeError(f"Record ID must be a string, got {type(record_id)}")
 
         try:
             if collection not in self._collections:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}")
+                raise KeyError(f"Record not found in {collection}: {record_id}")
 
             if record_id not in self._collections[collection]:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}")
+                raise KeyError(f"Record not found in {collection}: {record_id}")
 
             return copy.deepcopy(self._collections[collection][record_id])
-        except RecordNotFoundError:
+        except KeyError:
             raise
         except Exception as e:
-            raise DatabaseError(f"Failed to get record from {collection}: {e}") from e
+            raise RuntimeError(f"Failed to get record from {collection}: {e}") from e
 
     async def update_record(self, collection: str, record_id: str, data: dict[str, Any]) -> dict[str, Any]:
         """Update an existing record.
@@ -112,21 +113,21 @@ class InMemoryDBClient:
             Updated record
 
         Raises:
-            RecordNotFoundError: If record not found
-            DatabaseError: For other failures
+            KeyError: If record not found
+            RuntimeError: For other failures
         """
         if not isinstance(data, dict):
-            raise DatabaseError(f"Data must be a dictionary, got {type(data)}")
+            raise RuntimeError(f"Data must be a dictionary, got {type(data)}")
 
         if not isinstance(record_id, str):
-            raise DatabaseError(f"Record ID must be a string, got {type(record_id)}")
+            raise RuntimeError(f"Record ID must be a string, got {type(record_id)}")
 
         try:
             if collection not in self._collections:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}")
+                raise KeyError(f"Record not found in {collection}: {record_id}")
 
             if record_id not in self._collections[collection]:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}")
+                raise KeyError(f"Record not found in {collection}: {record_id}")
 
             # Update record
             # Add small delay to ensure updated timestamp differs from created
@@ -136,10 +137,10 @@ class InMemoryDBClient:
             record["updated"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
             return copy.deepcopy(record)
-        except RecordNotFoundError:
+        except KeyError:
             raise
         except Exception as e:
-            raise DatabaseError(f"Failed to update record in {collection}: {e}") from e
+            raise RuntimeError(f"Failed to update record in {collection}: {e}") from e
 
     async def delete_record(self, collection: str, record_id: str) -> bool:
         """Delete a record from the collection.
@@ -152,16 +153,16 @@ class InMemoryDBClient:
             True on success
 
         Raises:
-            RecordNotFoundError: If record not found
+            KeyError: If record not found
         """
         if not isinstance(record_id, str):
-            raise DatabaseError(f"Record ID must be a string, got {type(record_id)}")
+            raise RuntimeError(f"Record ID must be a string, got {type(record_id)}")
 
         if collection not in self._collections:
-            raise RecordNotFoundError(f"Record not found in {collection}: {record_id}")
+            raise KeyError(f"Record not found in {collection}: {record_id}")
 
         if record_id not in self._collections[collection]:
-            raise RecordNotFoundError(f"Record not found in {collection}: {record_id}")
+            raise KeyError(f"Record not found in {collection}: {record_id}")
 
         del self._collections[collection][record_id]
         return True
@@ -172,7 +173,7 @@ class InMemoryDBClient:
         page: int = 1,
         per_page: int = 50,
         filter_query: str = "",
-        sort: str = "-created",
+        sort: str = "",
     ) -> list[dict[str, Any]]:
         """List records from the collection with optional filtering and sorting.
 
@@ -184,10 +185,10 @@ class InMemoryDBClient:
             sort: Sort field (prefix with - for descending)
 
         Returns:
-            List of matching records
+            List of matching records (paginated)
 
         Raises:
-            DatabaseError: For invalid filter syntax
+            RuntimeError: For invalid filter syntax
         """
         try:
             # Return empty list if collection doesn't exist
@@ -209,14 +210,14 @@ class InMemoryDBClient:
             # Calculate start and end indices for the requested page
             start_index = (page - 1) * per_page
             end_index = start_index + per_page
-            records = records[start_index:end_index]
+            paginated_records = records[start_index:end_index]
 
             # Return deep copies to prevent external modifications
-            return [copy.deepcopy(r) for r in records]
-        except DatabaseError:
+            return [copy.deepcopy(r) for r in paginated_records]
+        except RuntimeError:
             raise
         except Exception as e:
-            raise DatabaseError(f"Failed to list records from {collection}: {e}") from e
+            raise RuntimeError(f"Failed to list records from {collection}: {e}") from e
 
     async def get_first_record(self, collection: str, filter_query: str) -> dict[str, Any] | None:
         """Get the first matching record or None.
@@ -236,12 +237,12 @@ class InMemoryDBClient:
 
         Supports:
         - field = "value" (exact match)
-        - field ~ "substring" (case-insensitive contains, matching PocketBase)
         - field != "value" (not equal)
-        - field < "value" (less than)
-        - field <= "value" (less than or equal)
-        - field > "value" (greater than)
+        - field ~ "substring" (case-insensitive contains, matching PocketBase)
         - field >= "value" (greater than or equal)
+        - field > "value" (greater than)
+        - field <= "value" (less than or equal)
+        - field < "value" (less than)
         - Multiple conditions with && (AND)
         - Multiple conditions with || (OR) - supports parentheses
 
@@ -253,7 +254,7 @@ class InMemoryDBClient:
             True if record matches filter
 
         Raises:
-            DatabaseError: For invalid filter syntax
+            RuntimeError: For invalid filter syntax
         """
         if not filter_str:
             return True
@@ -287,12 +288,11 @@ class InMemoryDBClient:
         if filter_str.startswith("(") and filter_str.endswith(")"):
             filter_str = filter_str[1:-1].strip()
 
-        # Parse single condition
-        # Try comparison operators (check these before = to avoid matching = in >=, <=)
+        # Parse single condition - try comparison operators (longer first)
         if ">=" in filter_str:
             parts = filter_str.split(">=", 1)
             if len(parts) != 2:
-                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             record_value = str(record.get(field, ""))
@@ -301,44 +301,46 @@ class InMemoryDBClient:
         if "<=" in filter_str:
             parts = filter_str.split("<=", 1)
             if len(parts) != 2:
-                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             record_value = str(record.get(field, ""))
             return record_value <= value
 
+        # Try != operator (before =)
+        if "!=" in filter_str:
+            parts = filter_str.split("!=", 1)
+            if len(parts) != 2:
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
+            field = parts[0].strip()
+            value = parts[1].strip().strip("'\"")
+            return str(record.get(field, "")) != value
+
+        # Try > operator
         if ">" in filter_str:
             parts = filter_str.split(">", 1)
             if len(parts) != 2:
-                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             record_value = str(record.get(field, ""))
             return record_value > value
 
+        # Try < operator
         if "<" in filter_str:
             parts = filter_str.split("<", 1)
             if len(parts) != 2:
-                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             record_value = str(record.get(field, ""))
             return record_value < value
 
-        # Try != operator (before =)
-        if "!=" in filter_str:
-            parts = filter_str.split("!=", 1)
-            if len(parts) != 2:
-                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
-            field = parts[0].strip()
-            value = parts[1].strip().strip("'\"")
-            return str(record.get(field, "")) != value
-
         # Try ~ operator (case-insensitive contains, matching PocketBase behavior)
         if "~" in filter_str:
             parts = filter_str.split("~", 1)
             if len(parts) != 2:
-                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             return value.lower() in str(record.get(field, "")).lower()
@@ -347,7 +349,7 @@ class InMemoryDBClient:
         if "=" in filter_str:
             parts = filter_str.split("=", 1)
             if len(parts) != 2:
-                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
 
@@ -357,7 +359,7 @@ class InMemoryDBClient:
 
             return str(record.get(field, "")) == value
 
-        raise DatabaseError(f"Invalid filter syntax (no operator found): {filter_str}")
+        raise RuntimeError(f"Invalid filter syntax (no operator found): {filter_str}")
 
     def _apply_sort(self, records: list[dict], sort: str) -> list[dict]:
         """Sort records by field.

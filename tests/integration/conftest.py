@@ -12,9 +12,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pocketbase import PocketBase
 
-from src.core import config as config_module, db_client as db_module
+from src.core import admin_notifier as admin_notifier_module, config as config_module, db_client as db_module
 from src.core.config import Settings
-from src.core.db_client import DatabaseError, RecordNotFoundError
 from src.core.schema import COLLECTIONS, sync_schema
 from src.services import user_service as user_service_module
 from tests.conftest import MockDBClient
@@ -35,7 +34,7 @@ def _make_mock_create_record(pb: PocketBase):
             record = pb.collection(collection).create(data)
             return record.__dict__
         except Exception as e:
-            raise DatabaseError(f"Failed to create record in {collection}: {e}") from e
+            raise RuntimeError(f"Failed to create record in {collection}: {e}") from e
 
     return mock_create_record
 
@@ -49,8 +48,8 @@ def _make_mock_get_record(pb: PocketBase):
             return record.__dict__
         except Exception as e:
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
-            raise DatabaseError(f"Failed to get record from {collection}: {e}") from e
+                raise KeyError(f"Record not found in {collection}: {record_id}") from e
+            raise RuntimeError(f"Failed to get record from {collection}: {e}") from e
 
     return mock_get_record
 
@@ -64,8 +63,8 @@ def _make_mock_update_record(pb: PocketBase):
             return record.__dict__
         except Exception as e:
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
-            raise DatabaseError(f"Failed to update record in {collection}: {e}") from e
+                raise KeyError(f"Record not found in {collection}: {record_id}") from e
+            raise RuntimeError(f"Failed to update record in {collection}: {e}") from e
 
     return mock_update_record
 
@@ -78,8 +77,8 @@ def _make_mock_delete_record(pb: PocketBase):
             pb.collection(collection).delete(record_id)
         except Exception as e:
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
-            raise DatabaseError(f"Failed to delete record from {collection}: {e}") from e
+                raise KeyError(f"Record not found in {collection}: {record_id}") from e
+            raise RuntimeError(f"Failed to delete record from {collection}: {e}") from e
 
     return mock_delete_record
 
@@ -93,17 +92,24 @@ def _make_mock_list_records(pb: PocketBase):
         page: int = 1,
         per_page: int = 50,
         filter_query: str = "",
-        sort: str = "-created",
+        sort: str = "",
     ) -> list[dict]:
         try:
+            # Only include filter and sort in query_params if they're not empty
+            query_params = {}
+            if sort:
+                query_params["sort"] = sort
+            if filter_query:
+                query_params["filter"] = filter_query
+
             result = pb.collection(collection).get_list(
                 page=page,
                 per_page=per_page,
-                query_params={"filter": filter_query, "sort": sort},
+                query_params=query_params,
             )
             return [item.__dict__ for item in result.items]
         except Exception as e:
-            raise DatabaseError(f"Failed to list records from {collection}: {e}") from e
+            raise RuntimeError(f"Failed to list records from {collection}: {e}") from e
 
     return mock_list_records
 
@@ -118,7 +124,7 @@ def _make_mock_get_first_record(pb: PocketBase):
         except Exception as e:
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
                 return None
-            raise DatabaseError(f"Failed to get first record from {collection}: {e}") from e
+            raise RuntimeError(f"Failed to get first record from {collection}: {e}") from e
 
     return mock_get_first_record
 
@@ -227,17 +233,32 @@ def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBas
 @pytest.fixture
 def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypatch):
     """Patch the db_client module to use the test PocketBase instance."""
+    # Clear the LRU cache to prevent stale connections
+    db_module._get_authenticated_client.cache_clear()
+
     # Patch all the db_client functions using helper factories
+    mock_list_records = _make_mock_list_records(initialized_db)
     monkeypatch.setattr(db_module, "create_record", _make_mock_create_record(initialized_db))
     monkeypatch.setattr(db_module, "get_record", _make_mock_get_record(initialized_db))
     monkeypatch.setattr(db_module, "update_record", _make_mock_update_record(initialized_db))
     monkeypatch.setattr(db_module, "delete_record", _make_mock_delete_record(initialized_db))
-    monkeypatch.setattr(db_module, "list_records", _make_mock_list_records(initialized_db))
+    monkeypatch.setattr(db_module, "list_records", mock_list_records)
     monkeypatch.setattr(db_module, "get_first_record", _make_mock_get_first_record(initialized_db))
+
+    # Patch get_client to return the already-authenticated test PocketBase instance
+    def mock_get_client() -> PocketBase:
+        return initialized_db
+
+    monkeypatch.setattr(db_module, "get_client", mock_get_client)
+
+    # Patch admin_notifier's imported list_records to use the same mock
+    monkeypatch.setattr(admin_notifier_module, "list_records", mock_list_records)
 
     # Patch the global settings to use test settings
     monkeypatch.setattr(config_module, "settings", test_settings)
+    monkeypatch.setattr(db_module, "settings", test_settings)
     monkeypatch.setattr(user_service_module, "settings", test_settings)
+    monkeypatch.setattr(admin_notifier_module, "settings", test_settings)
 
     yield
 

@@ -165,7 +165,7 @@ async def cast_vote(
 
         if not pending_votes:
             msg = f"No pending vote found for user {voter_user_id} on chore {chore_id}"
-            raise db_client.RecordNotFoundError(msg)
+            raise KeyError(msg)
 
         pending_vote = pending_votes[0]
 
