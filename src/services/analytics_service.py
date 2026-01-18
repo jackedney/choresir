@@ -94,9 +94,10 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
         cutoff_date = now - timedelta(days=period_days)
 
         # Get all completion logs within period
+        # Count only approved verifications, not claims (claims can be rejected)
         completion_logs = await db_client.list_records(
             collection="logs",
-            filter_query=f'action = "claimed_completion" && timestamp >= "{cutoff_date.isoformat()}"',
+            filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
         )
 
         # Count completions per user
