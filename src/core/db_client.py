@@ -17,13 +17,13 @@ T = TypeVar("T")
 class DatabaseError(Exception):
     """Base exception for database operations."""
 
+    pass
+
 
 class RecordNotFoundError(DatabaseError):
-    """Raised when a record is not found."""
+    """Exception raised when a record is not found in the database."""
 
-
-class DatabaseConnectionError(DatabaseError):
-    """Raised when database connection fails."""
+    pass
 
 
 @functools.lru_cache(maxsize=1)
@@ -45,15 +45,15 @@ def get_client() -> PocketBase:
     """
     try:
         client = _get_authenticated_client()
-        # Check if token is present
-        if not client.auth_store.token:
+        # Check if token is present and valid
+        if not client.auth_store.token or not client.auth_store.is_valid:
             _get_authenticated_client.cache_clear()
             client = _get_authenticated_client()
         return client
     except Exception as e:
         msg = f"Failed to connect to PocketBase: {e}"
         logger.error(msg)
-        raise DatabaseConnectionError(msg) from e
+        raise ConnectionError(msg) from e
 
 
 async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, Any]:
