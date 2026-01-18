@@ -75,7 +75,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
             collection="logs",
             data={
                 "user_id": sample_users[0]["id"],
-                "action": "claimed_completion",
+                "action": "approve_verification",
                 "timestamp": (now - timedelta(days=i)).isoformat(),
                 "chore_id": f"chore_{i}",
             },
@@ -88,7 +88,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
             collection="logs",
             data={
                 "user_id": sample_users[1]["id"],
-                "action": "claimed_completion",
+                "action": "approve_verification",
                 "timestamp": (now - timedelta(days=i)).isoformat(),
                 "chore_id": f"chore_{i + 10}",
             },
@@ -100,7 +100,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
         collection="logs",
         data={
             "user_id": sample_users[2]["id"],
-            "action": "claimed_completion",
+            "action": "approve_verification",
             "timestamp": now.isoformat(),
             "chore_id": "chore_20",
         },
@@ -270,7 +270,7 @@ class TestGetLeaderboardBulkFetch:
             collection="logs",
             data={
                 "user_id": "nonexistent_user",
-                "action": "claimed_completion",
+                "action": "approve_verification",
                 "timestamp": datetime.now(UTC).isoformat(),
                 "chore_id": "chore_99",
             },
@@ -313,7 +313,7 @@ class TestGetLeaderboardEdgeCases:
             collection="logs",
             data={
                 "user_id": sample_users[0]["id"],
-                "action": "claimed_completion",
+                "action": "approve_verification",
                 "timestamp": datetime.now(UTC).isoformat(),
                 "chore_id": "chore_1",
             },
@@ -337,7 +337,7 @@ class TestGetLeaderboardEdgeCases:
                 collection="logs",
                 data={
                     "user_id": sample_users[0]["id"],
-                    "action": "claimed_completion",
+                    "action": "approve_verification",
                     "timestamp": (now - timedelta(days=i)).isoformat(),
                     "chore_id": f"chore_a_{i}",
                 },
@@ -349,7 +349,7 @@ class TestGetLeaderboardEdgeCases:
                 collection="logs",
                 data={
                     "user_id": sample_users[1]["id"],
-                    "action": "claimed_completion",
+                    "action": "approve_verification",
                     "timestamp": (now - timedelta(days=i)).isoformat(),
                     "chore_id": f"chore_b_{i}",
                 },
@@ -373,7 +373,7 @@ class TestGetLeaderboardEdgeCases:
             collection="logs",
             data={
                 "user_id": sample_users[0]["id"],
-                "action": "claimed_completion",
+                "action": "approve_verification",
                 "timestamp": (now - timedelta(days=10)).isoformat(),
                 "chore_id": "old_chore",
             },
@@ -384,7 +384,7 @@ class TestGetLeaderboardEdgeCases:
             collection="logs",
             data={
                 "user_id": sample_users[1]["id"],
-                "action": "claimed_completion",
+                "action": "approve_verification",
                 "timestamp": (now - timedelta(days=2)).isoformat(),
                 "chore_id": "recent_chore",
             },
@@ -409,7 +409,7 @@ class TestGetLeaderboardEdgeCases:
                 collection="logs",
                 data={
                     "user_id": sample_users[0]["id"],
-                    "action": "claimed_completion",
+                    "action": "approve_verification",
                     "timestamp": (now - timedelta(hours=i)).isoformat(),
                     "chore_id": f"chore_{i}",
                 },
