@@ -236,6 +236,12 @@ def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypa
     monkeypatch.setattr(db_module, "list_records", mock_list_records)
     monkeypatch.setattr(db_module, "get_first_record", _make_mock_get_first_record(initialized_db))
 
+    # Patch get_client to return the already-authenticated test PocketBase instance
+    def mock_get_client() -> PocketBase:
+        return initialized_db
+
+    monkeypatch.setattr(db_module, "get_client", mock_get_client)
+
     # Patch admin_notifier's imported list_records to use the same mock
     monkeypatch.setattr(admin_notifier_module, "list_records", mock_list_records)
 
