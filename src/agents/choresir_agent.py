@@ -8,7 +8,8 @@ from pocketbase import PocketBase
 
 from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
-from src.core import db_client
+from src.core import admin_notifier, db_client
+from src.core.errors import classify_agent_error
 from src.domain.user import UserStatus
 from src.services import user_service
 
@@ -92,8 +93,31 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
             )
             return result.output
     except Exception as e:
-        logfire.error("Agent execution failed", error=str(e))
-        return f"Error: Unable to process request. {e!s}"
+        # Classify the error and get user-friendly message
+        error_category, user_message = classify_agent_error(e)
+
+        # Log the error with category information
+        logfire.error(
+            "Agent execution failed",
+            error=str(e),
+            error_category=error_category.value,
+        )
+
+        # Notify admins for critical errors
+        if admin_notifier.should_notify_admins(error_category):
+            try:
+                timestamp = datetime.now().isoformat()
+                message = (
+                    f"⚠️ OpenRouter quota exceeded. User {deps.user_name} ({deps.user_phone}) affected at {timestamp}"
+                )
+                await admin_notifier.notify_admins(
+                    message=message,
+                    severity="critical",
+                )
+            except Exception as notify_error:
+                logfire.error(f"Failed to notify admins of quota exceeded error: {notify_error}")
+
+        return user_message
 
 
 async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
