@@ -35,11 +35,9 @@ def get_client() -> PocketBase:
         client = _get_authenticated_client()
         # Check if token is present and valid
         if not client.auth_store.token or not client.auth_store.is_valid:
-            # Re-authenticate the existing client instead of creating new one
-            client.admins.auth_with_password(
-                settings.pocketbase_admin_email,
-                settings.pocketbase_admin_password,
-            )
+            # Clear cache and re-authenticate to get fresh client
+            _get_authenticated_client.cache_clear()
+            client = _get_authenticated_client()
         return client
     except Exception as e:
         msg = f"Failed to connect to PocketBase: {e}"
