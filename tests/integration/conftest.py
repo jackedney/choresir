@@ -228,12 +228,16 @@ def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBas
 def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypatch):
     """Patch the db_client module to use the test PocketBase instance."""
     # Patch all the db_client functions using helper factories
+    mock_list_records = _make_mock_list_records(initialized_db)
     monkeypatch.setattr(db_module, "create_record", _make_mock_create_record(initialized_db))
     monkeypatch.setattr(db_module, "get_record", _make_mock_get_record(initialized_db))
     monkeypatch.setattr(db_module, "update_record", _make_mock_update_record(initialized_db))
     monkeypatch.setattr(db_module, "delete_record", _make_mock_delete_record(initialized_db))
-    monkeypatch.setattr(db_module, "list_records", _make_mock_list_records(initialized_db))
+    monkeypatch.setattr(db_module, "list_records", mock_list_records)
     monkeypatch.setattr(db_module, "get_first_record", _make_mock_get_first_record(initialized_db))
+
+    # Patch admin_notifier's imported list_records to use the same mock
+    monkeypatch.setattr(admin_notifier_module, "list_records", mock_list_records)
 
     # Patch the global settings to use test settings
     monkeypatch.setattr(config_module, "settings", test_settings)
