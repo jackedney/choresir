@@ -105,6 +105,43 @@ HOUSE_PASSWORD=welcomehome
 
 # Model (optional)
 MODEL_ID=anthropic/claude-3.5-sonnet
+
+# Admin Notifications (optional)
+ENABLE_ADMIN_NOTIFICATIONS=true
+ADMIN_NOTIFICATION_COOLDOWN_MINUTES=60
+```
+
+### Admin Notification Configuration
+
+The system sends WhatsApp notifications to admin users when critical errors occur (e.g., service quota exceeded, authentication failures).
+
+**Configuration Options:**
+
+- `ENABLE_ADMIN_NOTIFICATIONS` (default: `true`)
+  - Controls whether admin notifications are sent
+  - Set to `false` to disable all admin notifications during local testing
+  - Useful when testing error scenarios to avoid spamming admin accounts
+
+- `ADMIN_NOTIFICATION_COOLDOWN_MINUTES` (default: `60`)
+  - Time period between notifications for the same error category
+  - Prevents notification spam for recurring errors
+  - Minimum recommended value: 5 minutes
+
+**When Notifications Are Triggered:**
+
+Admin notifications are sent for critical errors that require immediate attention:
+- **Service Quota Exceeded**: API rate limits or quota exhaustion
+- **Authentication Failed**: Credential or permission issues with external services
+
+Transient errors (network timeouts, temporary service disruptions) do not trigger notifications.
+
+**Disabling for Testing:**
+
+To test error handling without sending notifications:
+
+```bash
+# In your .env file
+ENABLE_ADMIN_NOTIFICATIONS=false
 ```
 
 ### Testing Workflow

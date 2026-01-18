@@ -115,6 +115,11 @@
 
 **→ [Quick Start Guide](./docs/QUICK_START.md)**
 
+**Required Accounts:**
+- [OpenRouter](https://openrouter.ai) - AI model access (~$3/month)
+- [Meta Developer](https://developers.facebook.com) - WhatsApp API (free)
+- [ngrok](https://ngrok.com) - Local webhook tunnel (free)
+
 </td>
 <td width="50%">
 
@@ -172,7 +177,7 @@ task setup
 
 # 3️⃣ Configure environment
 cp .env.example .env
-# Edit .env with your tokens
+# Edit .env with your tokens (OpenRouter API key, WhatsApp credentials, etc.)
 
 # 4️⃣ Start services (requires 3 terminals)
 ./pocketbase serve                    # Terminal 1: Database
