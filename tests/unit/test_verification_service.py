@@ -1,5 +1,7 @@
 """Unit tests for verification_service module."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from src.core.db_client import RecordNotFoundError
@@ -73,6 +75,39 @@ class TestRequestVerification:
                 claimer_user_id="user1",
                 notes="Test",
             )
+
+    @patch("src.services.verification_service.notification_service")
+    async def test_request_verification_sends_notifications(self, mock_notify, patched_verification_db, todo_chore):
+        """Verify notification service is called when requesting verification."""
+        mock_notify.send_verification_request = AsyncMock(return_value=[])
+
+        result = await verification_service.request_verification(
+            chore_id=todo_chore["id"],
+            claimer_user_id="user1",
+            notes="Done!",
+        )
+
+        mock_notify.send_verification_request.assert_called_once_with(
+            log_id=result["id"],
+            chore_id=todo_chore["id"],
+            claimer_user_id="user1",
+        )
+
+    @patch("src.services.verification_service.notification_service")
+    async def test_request_verification_succeeds_if_notification_fails(
+        self, mock_notify, patched_verification_db, todo_chore
+    ):
+        """Claim should succeed even if notifications fail."""
+        mock_notify.send_verification_request = AsyncMock(side_effect=Exception("Twilio error"))
+
+        # Should not raise
+        result = await verification_service.request_verification(
+            chore_id=todo_chore["id"],
+            claimer_user_id="user1",
+        )
+
+        assert result is not None
+        assert result["action"] == "claimed_completion"
 
 
 @pytest.mark.unit

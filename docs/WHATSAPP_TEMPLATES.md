@@ -25,23 +25,39 @@ Hello {{1}}, this is a reminder about your chore: "{{2}}". The deadline is {{3}}
 Hello Alice, this is a reminder about your chore: "Wash Dishes". The deadline is Jan 16, 8:00 PM. Please complete it on time.
 ```
 
-### 2. Verification Request
+### 2. Verification Request (with Interactive Buttons)
 
 **Name:** `verification_request`
 **Category:** UTILITY
 **Body:**
 ```
-{{1}} has completed: "{{2}}". Please verify or reject this completion. Reply to this message to respond.
+{{1}} claims they completed *{{2}}*. Can you verify this?
 ```
 
 **Variables:**
-1. User who completed the chore
+1. User who claimed completion
 2. Chore title
+3. Log ID (used in button payloads)
+
+**Buttons:**
+1. **Approve** (Quick Reply)
+   - Button text: "✅ Approve"
+   - Payload: `VERIFY:APPROVE:{{3}}`
+2. **Reject** (Quick Reply)
+   - Button text: "❌ Reject"
+   - Payload: `VERIFY:REJECT:{{3}}`
 
 **Example:**
 ```
-Bob has completed: "Mow Lawn". Please verify or reject this completion. Reply to this message to respond.
+Alice claims they completed *Dishes*. Can you verify this?
+[✅ Approve] [❌ Reject]
 ```
+
+**Implementation Notes:**
+- Buttons use Quick Reply type (not URL buttons)
+- Button payloads are processed directly without AI agent (faster, deterministic)
+- Fallback: Users can still type "approve {log_id}" or "reject {log_id}"
+- See ADR 008 for architecture details
 
 ### 3. Conflict Notification
 
@@ -77,6 +93,8 @@ For each template:
 - [ ] Variables are formatted as `{{1}}`, `{{2}}`, etc.
 - [ ] Template ends with text (not a variable)
 - [ ] Example preview makes sense
+- [ ] **For interactive templates:** Buttons are Quick Reply type (not URL buttons)
+- [ ] **For interactive templates:** Button payloads use correct format (e.g., `VERIFY:APPROVE:{{3}}`)
 
 ## Common Rejection Reasons
 
@@ -129,6 +147,17 @@ Read rejection reason and resubmit with fixes.
 
 **How many variables can a template have?**
 Up to 10 variables per template.
+
+**What's the difference between Quick Reply and URL buttons?**
+- **Quick Reply:** Sends a payload back to your webhook (used for verification buttons)
+- **URL Buttons:** Opens a web link (used for external actions)
+- Use Quick Reply for in-app actions like Approve/Reject
+
+**Can button payloads contain variables?**
+Yes! Use `{{variable_number}}` in button payloads. Example: `VERIFY:APPROVE:{{3}}`
+
+**How do I test interactive buttons?**
+Use Twilio's "Send Test Message" feature in Console after template approval. Click buttons to verify payloads are received correctly.
 
 ## Timeline
 
