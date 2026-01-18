@@ -1,6 +1,7 @@
 """User service for onboarding and member management."""
 
 import logging
+import secrets
 from typing import Any
 
 from src.core import db_client
@@ -33,7 +34,15 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
     """
     with span("user_service.request_join"):
         # Guard: Validate credentials
-        if house_code != settings.house_code or password != settings.house_password:
+        # Use bitwise AND to prevent short-circuit and ensure constant-time evaluation
+        # Note: These are validated at startup by require_credential()
+        assert settings.house_code is not None
+        assert settings.house_password is not None
+        house_code_valid = secrets.compare_digest(house_code, settings.house_code)
+        password_valid = secrets.compare_digest(password, settings.house_password)
+
+        # Use bitwise AND to prevent short-circuit evaluation and maintain constant time
+        if not (house_code_valid & password_valid):
             msg = "Invalid house code or password"
             logger.warning("Failed join request for %s: %s", phone, msg)
             raise ValueError(msg)

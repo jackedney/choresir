@@ -17,6 +17,10 @@ from src.interface.webhook import router as webhook_router
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan context manager."""
     # Startup
+    # Validate required credentials before starting services
+    settings.require_credential("house_code", "House onboarding code")
+    settings.require_credential("house_password", "House onboarding password")
+
     configure_logfire()
     instrument_pydantic_ai()
     await sync_schema(
