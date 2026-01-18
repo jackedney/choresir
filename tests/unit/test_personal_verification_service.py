@@ -62,7 +62,7 @@ class TestLogPersonalChore:
     async def test_auto_convert_inactive_partner(self, patched_db):
         """Test auto-converting to self-verified when partner is inactive."""
         # Create inactive partner user
-        partner = await db_client.create_record(
+        await db_client.create_record(
             collection="users",
             data={
                 "phone": "+15559999999",
@@ -477,14 +477,14 @@ class TestGetPersonalStats:
             recurrence="every 2 days",
         )
 
-        chore2 = await personal_chore_service.create_personal_chore(
+        await personal_chore_service.create_personal_chore(
             owner_phone="+15551234567",
             title="Meditation",
             recurrence="every morning",
         )
 
         # Log completions
-        log1 = await personal_verification_service.log_personal_chore(
+        await personal_verification_service.log_personal_chore(
             chore_id=chore1["id"],
             owner_phone="+15551234567",
         )
@@ -521,7 +521,7 @@ class TestGetPersonalStats:
         )
 
         # Log chore (creates PENDING)
-        log = await personal_verification_service.log_personal_chore(
+        await personal_verification_service.log_personal_chore(
             chore_id=chore["id"],
             owner_phone="+15551234567",
         )
@@ -550,7 +550,7 @@ class TestGetPersonalStats:
             recurrence="every morning",
         )
 
-        chore3 = await personal_chore_service.create_personal_chore(
+        await personal_chore_service.create_personal_chore(
             owner_phone="+15551234567",
             title="Reading",
             recurrence="every 3 days",
@@ -597,7 +597,7 @@ class TestGetPersonalStats:
 
         # Create old completion (outside 30 day period)
         old_time = datetime.now() - timedelta(days=40)
-        old_log = await db_client.create_record(
+        await db_client.create_record(
             collection="personal_chore_logs",
             data={
                 "personal_chore_id": chore["id"],
