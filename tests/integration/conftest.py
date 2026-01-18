@@ -241,6 +241,7 @@ def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypa
 
     # Patch the global settings to use test settings
     monkeypatch.setattr(config_module, "settings", test_settings)
+    monkeypatch.setattr(db_module, "settings", test_settings)
     monkeypatch.setattr(user_service_module, "settings", test_settings)
     monkeypatch.setattr(admin_notifier_module, "settings", test_settings)
 
