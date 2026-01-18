@@ -7,7 +7,7 @@ Deploy choresir to Railway for production use.
 ## Prerequisites
 
 - GitHub repository with code
-- WhatsApp tokens
+- Twilio WhatsApp tokens
 - OpenRouter API key
 - Railway account ([railway.app](https://railway.app))
 
@@ -29,7 +29,7 @@ Deploy choresir to Railway for production use.
 
 **Settings:**
 - **Builder**: Dockerfile
-- **Dockerfile Path**: `Dockerfile.pocketbase`
+- **Dockerfile Path**: `Dockerfile.pocketbase` (deploys PocketBase v0.23.6)
 
 **Add Volume:**
 1. Go to **Settings** → **Volumes**
@@ -72,7 +72,7 @@ POCKETBASE_ADMIN_PASSWORD=<your admin password>
 # OpenRouter
 OPENROUTER_API_KEY=<your key>
 
-# WhatsApp
+# Twilio WhatsApp
 WHATSAPP_VERIFY_TOKEN=<your token>
 WHATSAPP_APP_SECRET=<your secret>
 WHATSAPP_ACCESS_TOKEN=<your token>
@@ -99,17 +99,75 @@ Test health endpoint:
 curl https://choresir-api-production.up.railway.app/health
 ```
 
-## 4. Configure WhatsApp Webhook
+## 4. Add Redis Cache
 
-1. Go to [Meta Developer Console](https://developers.facebook.com)
-2. Navigate to **WhatsApp** → **Configuration**
-3. Edit webhook:
-   - **Callback URL**: `https://choresir-api-production.up.railway.app/webhook`
+### Add Redis Plugin
+
+1. In your Railway project, click **+ New**
+2. Select **Database** → **Add Redis**
+3. Railway will create a Redis service named `redis`
+
+### Auto-Configuration
+
+Railway automatically provides these environment variables to all services in the project:
+
+```bash
+REDIS_URL=redis://default:password@redis.railway.internal:6379
+REDIS_PRIVATE_URL=redis://default:password@redis.railway.internal:6379
+REDIS_PUBLIC_URL=redis://default:password@host.railway.app:port
+```
+
+The FastAPI application will automatically detect and use `REDIS_URL` for caching.
+
+### Manual Configuration (if needed)
+
+If the auto-configuration doesn't work, add to FastAPI service variables:
+
+```bash
+REDIS_URL=${{redis.REDIS_PRIVATE_URL}}
+```
+
+This creates a reference to the Redis service's private URL.
+
+### Verify Redis Connection
+
+1. Check FastAPI deployment logs for:
+   ```
+   Redis cache initialized successfully
+   ```
+
+2. Test cache endpoint:
+   ```bash
+   curl https://choresir-api-production.up.railway.app/health
+   ```
+
+   Look for `redis_connected: true` in the response.
+
+3. If connection fails, check:
+   - Redis service is deployed (green status)
+   - `REDIS_URL` variable exists in FastAPI service
+   - Logs show connection errors
+
+### Redis Usage
+
+The application uses Redis for:
+- Caching verification listings (reduces database queries)
+- Session management
+- Rate limiting (if configured)
+
+Cache automatically expires after configured TTL (default: 5 minutes).
+
+## 5. Configure Twilio WhatsApp Webhook
+
+1. Go to [Twilio Console](https://console.twilio.com)
+2. Navigate to **Messaging** → **Try it out** → **Send a WhatsApp message**
+3. Configure webhook for your WhatsApp sender:
+   - **When a message comes in**: `https://choresir-api-production.up.railway.app/webhook`
    - **Verify Token**: (from your `.env`)
-4. Subscribe to **messages** events
-5. Test by sending WhatsApp message
+4. Save configuration
+5. Test by sending WhatsApp message to your Twilio number
 
-## 5. Create Admin User
+## 6. Create Admin User
 
 ### Option 1: Via WhatsApp
 
@@ -135,8 +193,10 @@ Access PocketBase admin:
 
 - [ ] PocketBase service healthy (green in Railway)
 - [ ] PocketBase has persistent volume mounted
+- [ ] Redis service healthy (green in Railway)
 - [ ] FastAPI service healthy
 - [ ] Health endpoint returns 200
+- [ ] Redis connection verified (`redis_connected: true`)
 - [ ] WhatsApp webhook verified (green checkmark)
 - [ ] Test message gets reply
 - [ ] Admin user exists
@@ -164,15 +224,16 @@ PocketBase data volume snapshots available on Railway Pro plan.
 
 **Railway Hobby Plan ($5/month base):**
 - PocketBase: ~$2-3/month
+- Redis: ~$1-2/month
 - FastAPI: ~$3-5/month
-- **Total**: ~$5-8/month
+- **Total**: ~$6-10/month
 
 **External Services:**
 - OpenRouter: ~$3/month
-- WhatsApp: Free (<1,000 conversations/month)
+- Twilio WhatsApp: Free (<1,000 conversations/month)
 - Logfire: Free or $20/month
 
-**Total Monthly: ~$8-31**
+**Total Monthly: ~$9-33**
 
 ## Troubleshooting
 
@@ -183,12 +244,18 @@ Ensure volume is mounted at `/pb_data` in service settings.
 Verify `POCKETBASE_URL` uses `http://pocketbase.railway.internal:8090` (not public URL).
 
 **Webhook verification fails:**
-Check `WHATSAPP_VERIFY_TOKEN` matches exactly. Redeploy after changing env vars.
+Check `WHATSAPP_VERIFY_TOKEN` matches exactly in both Railway and Twilio Console. Redeploy after changing env vars.
 
 **Messages not sending:**
-- Check `WHATSAPP_ACCESS_TOKEN` is valid
-- Verify `WHATSAPP_PHONE_NUMBER_ID` is correct
+- Check `WHATSAPP_ACCESS_TOKEN` is valid in Twilio Console
+- Verify `WHATSAPP_PHONE_NUMBER_ID` matches your Twilio WhatsApp sender
 - Check Railway logs for errors
+
+**Redis connection failed:**
+- Verify Redis service is deployed and healthy (green status)
+- Check `REDIS_URL` variable exists in FastAPI service variables
+- Ensure using private URL (`redis.railway.internal`) not public URL
+- Restart FastAPI service after adding Redis
 
 ## Security
 

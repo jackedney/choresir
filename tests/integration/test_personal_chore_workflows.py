@@ -260,14 +260,17 @@ async def test_fuzzy_matching(mock_db_module, db_client, sample_users: dict) -> 
 
     # Test exact match
     match = personal_chore_service.fuzzy_match_personal_chore(chores, "Go to the gym")
+    assert match is not None
     assert match["id"] == chore["id"]
 
     # Test contains match
     match = personal_chore_service.fuzzy_match_personal_chore(chores, "gym")
+    assert match is not None
     assert match["id"] == chore["id"]
 
     # Test partial word match
     match = personal_chore_service.fuzzy_match_personal_chore(chores, "go")
+    assert match is not None
     assert match["id"] == chore["id"]
 
     # Test no match

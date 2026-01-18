@@ -3,7 +3,7 @@
 Get the bot running locally and test your first message.
 
 **Time:** 30 minutes
-**Prerequisites:** Meta WhatsApp Business App, WhatsApp tokens, OpenRouter API key
+**Prerequisites:** Twilio account with WhatsApp enabled, OpenRouter API key
 
 ## 1. Submit WhatsApp Templates (Start Now)
 
@@ -30,13 +30,12 @@ nano .env  # Add your tokens
 Required `.env` variables:
 ```bash
 POCKETBASE_URL=http://127.0.0.1:8090
-POCKETBASE_ADMIN_EMAIL=<your email>
-POCKETBASE_ADMIN_PASSWORD=<your password>
+POCKETBASE_ADMIN_EMAIL=admin@example.com
+POCKETBASE_ADMIN_PASSWORD=your_admin_password_here
 OPENROUTER_API_KEY=<your key>
-WHATSAPP_VERIFY_TOKEN=<your token>
-WHATSAPP_APP_SECRET=<your secret>
-WHATSAPP_ACCESS_TOKEN=<your token>
-WHATSAPP_PHONE_NUMBER_ID=<your id>
+TWILIO_ACCOUNT_SID=<your sid>
+TWILIO_AUTH_TOKEN=<your token>
+TWILIO_WHATSAPP_NUMBER=<your number>
 HOUSE_CODE=HOUSE123
 HOUSE_PASSWORD=SecretPass
 ```
@@ -74,14 +73,14 @@ ngrok http 8000
 ```
 Copy the HTTPS URL (e.g., `https://abc123.ngrok-free.app`)
 
-## 5. Configure WhatsApp Webhook
+## 5. Configure Twilio WhatsApp Webhook
 
-1. Go to [Meta Developer Console](https://developers.facebook.com)
-2. Navigate to **WhatsApp** → **Configuration**
-3. Edit webhook:
-   - **Callback URL**: `https://abc123.ngrok-free.app/webhook`
-   - **Verify Token**: (from your `.env`)
-4. Subscribe to **messages** events
+1. Go to [Twilio Console](https://console.twilio.com)
+2. Navigate to **Messaging** → **WhatsApp Sandbox** → **Sandbox Configuration**
+3. Set webhook configuration:
+   - **When a message comes in**: `https://abc123.ngrok-free.app/webhook`
+   - **HTTP Method**: POST
+4. Save configuration
 
 ## 6. Create First Admin User
 
@@ -117,12 +116,12 @@ I watered the plants
 **Webhook verification fails:**
 - FastAPI running on port 8000?
 - ngrok tunnel active?
-- Verify token matches `.env`?
+- Webhook URL correctly configured in Twilio Console?
 
 **Bot doesn't reply:**
 - OpenRouter API key valid?
-- WhatsApp access token valid?
-- Check FastAPI logs
+- Twilio credentials (SID and auth token) valid?
+- Check FastAPI logs for errors
 
 ## Next Steps
 

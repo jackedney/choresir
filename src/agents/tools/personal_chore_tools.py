@@ -2,7 +2,7 @@
 
 import logfire
 from pydantic import BaseModel, Field
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
 from src.core import db_client
@@ -329,7 +329,7 @@ async def tool_remove_personal_chore(ctx: RunContext[Deps], params: RemovePerson
         return "Error: Unable to remove personal chore. Please try again."
 
 
-def register_tools(agent: object) -> None:
+def register_tools(agent: Agent[Deps, str]) -> None:
     """Register personal chore tools with the agent."""
 
     agent.tool(tool_create_personal_chore)

@@ -226,6 +226,7 @@ class TestFuzzyMatchPersonalChore:
         ]
 
         result = personal_chore_service.fuzzy_match_personal_chore(chores, "go to gym")
+        assert result is not None
         assert result["id"] == "1"
 
     def test_contains_match(self):
@@ -235,6 +236,7 @@ class TestFuzzyMatchPersonalChore:
         ]
 
         result = personal_chore_service.fuzzy_match_personal_chore(chores, "gym")
+        assert result is not None
         assert result["id"] == "1"
 
     def test_partial_word_match(self):
@@ -244,6 +246,7 @@ class TestFuzzyMatchPersonalChore:
         ]
 
         result = personal_chore_service.fuzzy_match_personal_chore(chores, "meditation")
+        assert result is not None
         assert result["id"] == "1"
 
     def test_no_match(self):
@@ -261,6 +264,7 @@ class TestFuzzyMatchPersonalChore:
         ]
 
         result = personal_chore_service.fuzzy_match_personal_chore(chores, "GO TO GYM")
+        assert result is not None
         assert result["id"] == "1"
 
     def test_empty_list(self):
