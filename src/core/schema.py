@@ -50,12 +50,11 @@ def _get_collection_schema(
             "name": "users",
             "type": "auth",
             "system": False,
-            # API Rules: Anyone can list/view/create (needed for phone lookup and registration),
-            # users can only update themselves, deletion is admin-only
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "id = @request.auth.id",
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
             "deleteRule": None,
             "fields": [
                 {"name": "phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
@@ -74,12 +73,11 @@ def _get_collection_schema(
             "name": "chores",
             "type": "base",
             "system": False,
-            # API Rules: Anyone can list/view/create/update (needed for state changes),
-            # deletion is admin-only
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "",
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
             "deleteRule": None,
             "fields": [
                 {"name": "title", "type": "text", "required": True},
@@ -106,11 +104,10 @@ def _get_collection_schema(
             "name": "logs",
             "type": "base",
             "system": False,
-            # API Rules: Anyone can list/view/create, but logs are immutable (no updates),
-            # deletion is admin-only
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
             "updateRule": None,
             "deleteRule": None,
             "fields": [
@@ -137,12 +134,11 @@ def _get_collection_schema(
             "name": "processed_messages",
             "type": "base",
             "system": False,
-            # API Rules: Allow unauthenticated access for webhook processing
-            # App needs to check for duplicates and track message status
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "",
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
             "deleteRule": None,
             "fields": [
                 {"name": "message_id", "type": "text", "required": True},
@@ -158,13 +154,11 @@ def _get_collection_schema(
             "name": "pantry_items",
             "type": "base",
             "system": False,
-            # API Rules: Anyone can list/view/create/update pantry items.
-            # Deletion is admin-only to preserve inventory history and prevent accidental data loss.
-            # The pantry_service uses admin auth, so it can still perform deletions when needed.
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "",
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
             "deleteRule": None,
             "fields": [
                 {"name": "name", "type": "text", "required": True},
@@ -184,14 +178,12 @@ def _get_collection_schema(
             "name": "shopping_list",
             "type": "base",
             "system": False,
-            # API Rules: Anyone can list/view/create/update/delete shopping list items.
-            # Unlike pantry_items, shopping list items are transient and users should be able
-            # to remove them freely (e.g., when items are no longer needed).
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "",
-            "deleteRule": "",
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
+            "deleteRule": None,
             "fields": [
                 {"name": "item_name", "type": "text", "required": True},
                 {
