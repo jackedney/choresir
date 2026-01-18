@@ -231,6 +231,9 @@ def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBas
 @pytest.fixture
 def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypatch):
     """Patch the db_client module to use the test PocketBase instance."""
+    # Clear the LRU cache to prevent stale connections
+    db_module._get_authenticated_client.cache_clear()
+
     # Patch all the db_client functions using helper factories
     monkeypatch.setattr(db_module, "create_record", _make_mock_create_record(initialized_db))
     monkeypatch.setattr(db_module, "get_record", _make_mock_get_record(initialized_db))
@@ -238,6 +241,12 @@ def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypa
     monkeypatch.setattr(db_module, "delete_record", _make_mock_delete_record(initialized_db))
     monkeypatch.setattr(db_module, "list_records", _make_mock_list_records(initialized_db))
     monkeypatch.setattr(db_module, "get_first_record", _make_mock_get_first_record(initialized_db))
+
+    # Patch get_client to return the already-authenticated test PocketBase instance
+    def mock_get_client() -> PocketBase:
+        return initialized_db
+
+    monkeypatch.setattr(db_module, "get_client", mock_get_client)
 
     # Patch the global settings to use test settings
     monkeypatch.setattr(config_module, "settings", test_settings)
