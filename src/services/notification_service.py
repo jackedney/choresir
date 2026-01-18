@@ -166,76 +166,61 @@ async def _send_verification_message(
 async def send_personal_verification_request(
     *,
     log_id: str,
-    chore_id: str,
-    owner_phone: str,
+    chore_title: str,
+    owner_name: str,
     partner_phone: str,
 ) -> None:
     """Send accountability partner notification for personal chore verification.
 
     Args:
         log_id: Personal chore log ID
-        chore_id: Personal chore ID
-        owner_phone: Owner's phone number
+        chore_title: Personal chore title
+        owner_name: Owner's display name
         partner_phone: Accountability partner's phone number
 
     Raises:
         Exception: If notification fails (logged but not raised)
     """
     try:
-        from src.interface.whatsapp_sender import send_text_message
-        from src.services import user_service
-
-        # Get chore details
-        chore = await db_client.get_record(
-            collection="personal_chores",
-            record_id=chore_id,
-        )
-
-        # Get owner details
-        owner = await user_service.get_user_by_phone(phone=owner_phone)
-        owner_name = owner["name"] if owner else "someone"
-
         # Build notification message
         message = (
             f"💪 Verification Request\n\n"
-            f"{owner_name} claims they completed their personal chore: '{chore['title']}'\n\n"
+            f"{owner_name} claims they completed their personal chore: '{chore_title}'\n\n"
             f"Verify? Reply:\n"
             f"'/personal verify {log_id} approve' to approve\n"
             f"'/personal verify {log_id} reject' to reject"
         )
 
         # Send DM to accountability partner
-        result = await send_text_message(
+        result = await whatsapp_sender.send_text_message(
             to_phone=partner_phone,
             text=message,
         )
 
         if result.success:
-            logger.info("Sent personal verification request to %s for chore %s", partner_phone, chore_id)
+            logger.info("Sent personal verification request to %s for chore '%s'", partner_phone, chore_title)
         else:
             logger.error("Failed to send personal verification request: %s", result.error)
 
     except Exception:
-        logger.exception("Error sending personal verification request for chore %s", chore_id)
+        logger.exception("Error sending personal verification request for chore '%s'", chore_title)
         # Don't raise - notification failure shouldn't fail the claim
 
 
 async def send_personal_verification_result(
     *,
-    log_id: str,
     chore_title: str,
     owner_phone: str,
-    verifier_phone: str,
+    verifier_name: str,
     approved: bool,
     feedback: str = "",
 ) -> None:
     """Notify user when their personal chore is verified/rejected.
 
     Args:
-        log_id: Personal chore log ID
         chore_title: Personal chore title
         owner_phone: Owner's phone number
-        verifier_phone: Verifier's phone number
+        verifier_name: Verifier's display name
         approved: True if approved, False if rejected
         feedback: Optional feedback from verifier
 
@@ -243,13 +228,6 @@ async def send_personal_verification_result(
         Exception: If notification fails (logged but not raised)
     """
     try:
-        from src.interface.whatsapp_sender import send_text_message
-        from src.services import user_service
-
-        # Get verifier details
-        verifier = await user_service.get_user_by_phone(phone=verifier_phone)
-        verifier_name = verifier["name"] if verifier else "your accountability partner"
-
         # Build notification message
         if approved:
             emoji = "✅"
@@ -264,7 +242,7 @@ async def send_personal_verification_result(
             message += f"\n\nFeedback: {feedback}"
 
         # Send DM to owner
-        result = await send_text_message(
+        result = await whatsapp_sender.send_text_message(
             to_phone=owner_phone,
             text=message,
         )
@@ -275,5 +253,5 @@ async def send_personal_verification_result(
             logger.error("Failed to send personal verification result: %s", result.error)
 
     except Exception:
-        logger.exception("Error sending personal verification result for log %s", log_id)
+        logger.exception("Error sending personal verification result for chore '%s'", chore_title)
         # Don't raise - notification failure shouldn't fail the verification

@@ -1,6 +1,6 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import logfire
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -340,6 +340,63 @@ async def send_weekly_leaderboard() -> None:
         logfire.error(f"Error in weekly leaderboard job: {e}")
 
 
+def _is_chore_due_today(chore: dict, today: date) -> bool:
+    """Check if a personal chore is due today."""
+    due_date_str = chore.get("due_date", "")
+    recurrence = chore.get("recurrence", "")
+
+    # For one-time chores, check if due_date is today
+    if due_date_str:
+        try:
+            due_date = datetime.fromisoformat(due_date_str).date()
+            return due_date == today
+        except (ValueError, AttributeError):
+            return False
+
+    # For recurring chores, remind daily (can be enhanced with cron parsing)
+    return bool(recurrence)
+
+
+def _build_reminder_message(chores: list[dict]) -> str:
+    """Build reminder message for personal chores."""
+    chore_list = "\n".join([f"• {chore['title']}" for chore in chores])
+    return (
+        f"🔔 Personal Chore Reminder\n\n"
+        f"You have {len(chores)} personal task(s) today:\n\n"
+        f"{chore_list}\n\n"
+        f"Reply 'done [task]' when complete."
+    )
+
+
+async def _send_personal_chore_reminder_to_user(user: dict, today: date) -> bool:
+    """Send personal chore reminder to a single user. Returns True if sent successfully."""
+    # Get user's active personal chores
+    personal_chores = await personal_chore_service.get_personal_chores(
+        owner_phone=user["phone"],
+        status="ACTIVE",
+    )
+
+    # Filter chores that are due today
+    due_today = [chore for chore in personal_chores if _is_chore_due_today(chore, today)]
+
+    if not due_today:
+        return False
+
+    # Send DM
+    message = _build_reminder_message(due_today)
+    result = await send_text_message(
+        to_phone=user["phone"],
+        text=message,
+    )
+
+    if result.success:
+        logfire.debug(f"Sent personal chore reminder to {user['name']}")
+        return True
+
+    logfire.warn(f"Failed to send personal chore reminder to {user['name']}: {result.error}")
+    return False
+
+
 async def send_personal_chore_reminders() -> None:
     """Send reminders for personal chores due today.
 
@@ -361,61 +418,12 @@ async def send_personal_chore_reminders() -> None:
             logfire.info("No active users for personal chore reminders")
             return
 
+        # Send reminders to all users
         sent_count = 0
-
         for user in active_users:
             try:
-                # Get user's active personal chores
-                personal_chores = await personal_chore_service.get_personal_chores(
-                    owner_phone=user["phone"],
-                    status="ACTIVE",
-                )
-
-                # Filter chores that are due today (have recurrence pattern)
-                due_today = []
-                for chore in personal_chores:
-                    recurrence = chore.get("recurrence", "")
-                    due_date_str = chore.get("due_date", "")
-
-                    # For recurring chores, check if they're due based on last completion
-                    # For one-time chores, check if due_date is today
-                    if due_date_str:
-                        try:
-                            due_date = datetime.fromisoformat(due_date_str).date()
-                            if due_date == today:
-                                due_today.append(chore)
-                        except (ValueError, AttributeError):
-                            continue
-                    elif recurrence:
-                        # For recurring chores, we'll remind daily at 8 AM
-                        # (This is a simple implementation; could be enhanced with cron parsing)
-                        due_today.append(chore)
-
-                if not due_today:
-                    continue
-
-                # Build reminder message
-                chore_list = "\n".join([f"• {chore['title']}" for chore in due_today])
-
-                message = (
-                    f"🔔 Personal Chore Reminder\n\n"
-                    f"You have {len(due_today)} personal task(s) today:\n\n"
-                    f"{chore_list}\n\n"
-                    f"Reply 'done [task]' when complete."
-                )
-
-                # Send DM
-                result = await send_text_message(
-                    to_phone=user["phone"],
-                    text=message,
-                )
-
-                if result.success:
+                if await _send_personal_chore_reminder_to_user(user, today):
                     sent_count += 1
-                    logfire.debug(f"Sent personal chore reminder to {user['name']}")
-                else:
-                    logfire.warn(f"Failed to send personal chore reminder to {user['name']}: {result.error}")
-
             except Exception as e:
                 logfire.error(f"Error sending reminder to user {user['id']}: {e}")
                 continue

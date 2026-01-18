@@ -6,7 +6,7 @@ from typing import Any
 
 from src.core import db_client
 from src.core.logging import span
-from src.services import personal_chore_service, user_service
+from src.services import notification_service, personal_chore_service, user_service
 
 
 logger = logging.getLogger(__name__)
@@ -89,12 +89,14 @@ async def log_personal_chore(
         # Send verification request notification if pending
         if verification_status == "PENDING" and partner_phone:
             try:
-                from src.services import notification_service
+                # Get owner details for notification
+                owner = await user_service.get_user_by_phone(phone=owner_phone)
+                owner_name = owner["name"] if owner else "Someone"
 
                 await notification_service.send_personal_verification_request(
                     log_id=log_record["id"],
-                    chore_id=chore_id,
-                    owner_phone=owner_phone,
+                    chore_title=chore["title"],
+                    owner_name=owner_name,
                     partner_phone=partner_phone,
                 )
             except Exception:
@@ -159,17 +161,17 @@ async def verify_personal_chore(
 
         # Send result notification to owner
         try:
-            from src.services import notification_service
-
             chore = await db_client.get_record(
                 collection="personal_chores",
                 record_id=log_record["personal_chore_id"],
             )
+            verifier = await user_service.get_user_by_phone(phone=verifier_phone)
+            verifier_name = verifier["name"] if verifier else "your accountability partner"
+
             await notification_service.send_personal_verification_result(
-                log_id=log_id,
                 chore_title=chore["title"],
                 owner_phone=log_record["owner_phone"],
-                verifier_phone=verifier_phone,
+                verifier_name=verifier_name,
                 approved=approved,
                 feedback=feedback,
             )
@@ -254,17 +256,17 @@ async def auto_verify_expired_logs() -> int:
 
                 # Send auto-verify notification to owner
                 try:
-                    from src.services import notification_service
-
                     chore = await db_client.get_record(
                         collection="personal_chores",
                         record_id=log["personal_chore_id"],
                     )
+                    partner = await user_service.get_user_by_phone(phone=log["accountability_partner_phone"])
+                    partner_name = partner["name"] if partner else "your accountability partner"
+
                     await notification_service.send_personal_verification_result(
-                        log_id=log["id"],
                         chore_title=chore["title"],
                         owner_phone=log["owner_phone"],
-                        verifier_phone=log["accountability_partner_phone"],
+                        verifier_name=partner_name,
                         approved=True,
                         feedback="Auto-verified (partner did not respond within 48 hours)",
                     )

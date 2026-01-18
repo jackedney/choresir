@@ -83,19 +83,6 @@ ignore = [
 "src/agents/agent_instance.py" = [
     "PLC0415", # Allow imports inside functions to avoid circular imports
 ]
-"src/agents/tools/chore_tools.py" = [
-    "PLC0415", # Allow imports inside functions to avoid circular imports
-]
-"src/services/notification_service.py" = [
-    "PLC0415", # Allow imports inside functions to avoid circular imports
-    "PLR0913", # Allow more than 5 arguments in notification functions
-]
-"src/services/personal_verification_service.py" = [
-    "PLC0415", # Allow imports inside functions to avoid circular imports
-]
-"src/core/scheduler.py" = [
-    "C901",    # Allow complex functions (scheduler logic)
-]
 
 [tool.ruff.lint.isort]
 force-single-line = false

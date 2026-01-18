@@ -6,7 +6,7 @@ from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
 from src.domain.chore import ChoreState
-from src.services import chore_service, user_service, verification_service
+from src.services import chore_service, personal_chore_service, user_service, verification_service
 
 
 class DefineChore(BaseModel):
@@ -121,9 +121,6 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     """
     try:
         with logfire.span("tool_log_chore", title=params.chore_title_fuzzy, is_swap=params.is_swap):
-            # Import personal chore service for collision detection
-            from src.services import personal_chore_service
-
             # Get all household chores to fuzzy match
             all_chores = await chore_service.get_chores()
 
