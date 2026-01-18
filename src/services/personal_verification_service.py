@@ -213,9 +213,12 @@ async def get_pending_partner_verifications(
                     collection="personal_chores",
                     record_id=log["personal_chore_id"],
                 )
-                log["chore_title"] = chore["title"]
-                log["owner_phone"] = chore["owner_phone"]
-                enriched_logs.append(log)
+                # Create enriched view (not a database record)
+                # Note: chore_title and owner_phone are added for display only
+                enriched_view = dict(log)  # Shallow copy to avoid mutating DB record
+                enriched_view["chore_title"] = chore["title"]
+                enriched_view["owner_phone"] = chore["owner_phone"]
+                enriched_logs.append(enriched_view)
             except KeyError:
                 logger.warning("Chore %s not found for log %s", log["personal_chore_id"], log["id"])
                 continue

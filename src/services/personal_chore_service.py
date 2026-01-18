@@ -6,7 +6,7 @@ from typing import Any
 
 from src.core import db_client
 from src.core.logging import span
-from src.services.chore_service import _parse_recurrence_for_personal_chore
+from src.core.recurrence_parser import parse_recurrence_for_personal_chore
 
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ async def create_personal_chore(
         due_date = None
 
         if recurrence:
-            cron_expression, due_date = _parse_recurrence_for_personal_chore(recurrence)
+            cron_expression, due_date = parse_recurrence_for_personal_chore(recurrence)
 
         # Create chore record
         chore_data = {

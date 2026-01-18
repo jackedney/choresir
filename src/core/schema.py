@@ -246,7 +246,7 @@ def _get_collection_schema(
             "listRule": "",
             "viewRule": "",
             "createRule": "",
-            "updateRule": None,  # Logs are immutable
+            "updateRule": "",  # Allow updates for verification status
             "deleteRule": None,
             "fields": [
                 {

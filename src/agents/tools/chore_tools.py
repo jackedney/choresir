@@ -138,18 +138,12 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
 
             # Check for collision
             if household_match and personal_match:
-                # Store disambiguation context
-                ctx.deps.pending_disambiguation = {
-                    "type": "chore_completion",
-                    "household_id": household_match["id"],
-                    "personal_id": personal_match["id"],
-                    "chore_name": params.chore_title_fuzzy,
-                }
-
+                # Cannot disambiguate - require more specific input
                 return (
                     f"I found both a household chore '{household_match['title']}' and "
                     f"your personal chore '{personal_match['title']}'. "
-                    f"Which one did you complete? Reply 'household' or 'personal'."
+                    f"Please be more specific: use '/personal done {params.chore_title_fuzzy}' "
+                    f"for personal chores or provide the full household chore name."
                 )
 
             # No collision - proceed with household chore logging
