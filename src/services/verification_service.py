@@ -210,7 +210,7 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
                 page_logs = await db_client.list_records(
                     collection="logs",
                     filter_query="",
-                    sort="-created",
+                    sort="-timestamp",
                     per_page=LOGS_PAGE_SIZE,
                     page=page,
                 )
