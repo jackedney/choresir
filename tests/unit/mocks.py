@@ -2,6 +2,7 @@
 
 import asyncio
 import copy
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -275,8 +276,6 @@ class InMemoryDBClient:
         # Handle parentheses with OR conditions like (field = "val1" || field = "val2")
         if "(" in filter_str and "||" in filter_str:
             # Extract content within parentheses
-            import re
-
             match = re.search(r"\(([^)]+)\)", filter_str)
             if match:
                 inner = match.group(1)
