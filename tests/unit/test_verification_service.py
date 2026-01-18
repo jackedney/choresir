@@ -345,6 +345,102 @@ class TestVerificationWorkflow:
 
 
 @pytest.mark.unit
+class TestVerificationCacheInvalidation:
+    """Tests for cache invalidation during verification workflow."""
+
+    @patch("src.services.verification_service.analytics_service.invalidate_leaderboard_cache")
+    async def test_approve_verification_invalidates_cache(self, mock_invalidate_cache, patched_verification_db):
+        """Verify cache is invalidated when chore verification is approved."""
+        mock_invalidate_cache.return_value = None
+
+        # Create and claim chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Done",
+        )
+
+        # Approve verification
+        await verification_service.verify_chore(
+            chore_id=chore["id"],
+            verifier_user_id="user2",
+            decision=VerificationDecision.APPROVE,
+            reason="Looks good",
+        )
+
+        # Verify cache invalidation was called
+        mock_invalidate_cache.assert_called_once()
+
+    @patch("src.services.verification_service.analytics_service.invalidate_leaderboard_cache")
+    async def test_reject_verification_invalidates_cache(self, mock_invalidate_cache, patched_verification_db):
+        """Verify cache is invalidated when chore verification is rejected."""
+        mock_invalidate_cache.return_value = None
+
+        # Create and claim chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Done",
+        )
+
+        # Reject verification
+        await verification_service.verify_chore(
+            chore_id=chore["id"],
+            verifier_user_id="user2",
+            decision=VerificationDecision.REJECT,
+            reason="Not acceptable",
+        )
+
+        # Verify cache invalidation was called
+        mock_invalidate_cache.assert_called_once()
+
+    @patch("src.services.analytics_service.redis_client.keys")
+    async def test_verification_succeeds_if_cache_invalidation_fails(self, mock_redis_keys, patched_verification_db):
+        """Verify verification succeeds even if cache invalidation fails."""
+        # Mock Redis to fail - this tests the internal exception handling in invalidate_leaderboard_cache
+        mock_redis_keys.side_effect = Exception("Redis connection error")
+
+        # Create and claim chore
+        chore = await chore_service.create_chore(
+            title="Test Chore",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to="user1",
+        )
+        await verification_service.request_verification(
+            chore_id=chore["id"],
+            claimer_user_id="user1",
+            notes="Done",
+        )
+
+        # Approve verification - should succeed despite cache failure
+        result = await verification_service.verify_chore(
+            chore_id=chore["id"],
+            verifier_user_id="user2",
+            decision=VerificationDecision.APPROVE,
+            reason="Looks good",
+        )
+
+        # Verify chore was still completed successfully
+        assert result["current_state"] == ChoreState.COMPLETED
+
+        # Verify Redis was accessed (cache invalidation was attempted)
+        mock_redis_keys.assert_called_once()
+
+
+@pytest.mark.unit
 class TestVerifyChorePagination:
     """Tests for verify_chore pagination edge cases."""
 

@@ -11,6 +11,7 @@ restartPolicyMaxRetries = 10
 [env]
 # Required environment variables (set in Railway dashboard):
 # POCKETBASE_URL - Internal service URL (e.g., http://pocketbase.railway.internal:8090)
+# REDIS_URL - Redis connection URL (e.g., redis://default:password@redis.railway.internal:6379)
 # OPENROUTER_API_KEY - API key for OpenRouter
 # WHATSAPP_VERIFY_TOKEN - WhatsApp webhook verification token
 # WHATSAPP_APP_SECRET - WhatsApp app secret for signature validation

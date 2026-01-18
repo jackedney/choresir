@@ -224,13 +224,17 @@ class InMemoryDBClient:
         records = await self.list_records(collection, filter_query=filter_query)
         return records[0] if records else None
 
-    def _parse_filter(self, filter_str: str, record: dict[str, Any]) -> bool:
+    def _parse_filter(self, filter_str: str, record: dict[str, Any]) -> bool:  # noqa: C901, PLR0911, PLR0912, PLR0915
         """Evaluate filter expression against a record.
 
         Supports:
         - field = "value" (exact match)
-        - field ~ "substring" (case-insensitive contains, matching PocketBase)
         - field != "value" (not equal)
+        - field ~ "substring" (case-insensitive contains, matching PocketBase)
+        - field >= "value" (greater than or equal)
+        - field > "value" (greater than)
+        - field <= "value" (less than or equal)
+        - field < "value" (less than)
         - Multiple conditions with && (AND)
 
         Args:
@@ -251,8 +255,26 @@ class InMemoryDBClient:
             conditions = [c.strip() for c in filter_str.split("&&")]
             return all(self._parse_filter(cond, record) for cond in conditions)
 
-        # Parse single condition
-        # Try != operator first (before =)
+        # Parse single condition - try comparison operators (longer first)
+        if ">=" in filter_str:
+            parts = filter_str.split(">=", 1)
+            if len(parts) != 2:
+                raise ValueError(f"Invalid filter syntax: {filter_str}")
+            field = parts[0].strip()
+            value = parts[1].strip().strip("'\"")
+            record_value = str(record.get(field, ""))
+            return record_value >= value
+
+        if "<=" in filter_str:
+            parts = filter_str.split("<=", 1)
+            if len(parts) != 2:
+                raise ValueError(f"Invalid filter syntax: {filter_str}")
+            field = parts[0].strip()
+            value = parts[1].strip().strip("'\"")
+            record_value = str(record.get(field, ""))
+            return record_value <= value
+
+        # Try != operator (before =)
         if "!=" in filter_str:
             parts = filter_str.split("!=", 1)
             if len(parts) != 2:
@@ -260,6 +282,26 @@ class InMemoryDBClient:
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             return str(record.get(field, "")) != value
+
+        # Try > operator
+        if ">" in filter_str:
+            parts = filter_str.split(">", 1)
+            if len(parts) != 2:
+                raise ValueError(f"Invalid filter syntax: {filter_str}")
+            field = parts[0].strip()
+            value = parts[1].strip().strip("'\"")
+            record_value = str(record.get(field, ""))
+            return record_value > value
+
+        # Try < operator
+        if "<" in filter_str:
+            parts = filter_str.split("<", 1)
+            if len(parts) != 2:
+                raise ValueError(f"Invalid filter syntax: {filter_str}")
+            field = parts[0].strip()
+            value = parts[1].strip().strip("'\"")
+            record_value = str(record.get(field, ""))
+            return record_value < value
 
         # Try ~ operator (case-insensitive contains, matching PocketBase behavior)
         if "~" in filter_str:

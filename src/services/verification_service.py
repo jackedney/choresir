@@ -8,7 +8,7 @@ from typing import Any
 from src.core import db_client
 from src.core.logging import span
 from src.domain.chore import ChoreState
-from src.services import chore_service, conflict_service, notification_service
+from src.services import analytics_service, chore_service, conflict_service, notification_service
 
 
 logger = logging.getLogger(__name__)
@@ -169,6 +169,8 @@ async def verify_chore(
                 chore_id,
                 claimer_user_id,
             )
+            # Invalidate leaderboard cache since completion counts changed
+            await analytics_service.invalidate_leaderboard_cache()
         else:  # REJECT
             updated_chore = await chore_service.move_to_conflict(chore_id=chore_id)
             logger.info(
@@ -179,6 +181,8 @@ async def verify_chore(
             )
             # Initiate voting process
             await conflict_service.initiate_vote(chore_id=chore_id)
+            # Invalidate leaderboard cache in case rejection affects counts
+            await analytics_service.invalidate_leaderboard_cache()
 
         return updated_chore
 
