@@ -2,6 +2,7 @@
 
 import asyncio
 import copy
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -44,8 +45,12 @@ class InMemoryDBClient:
                 self._collections[collection] = {}
 
             # Generate ID and timestamps
-            record_id = str(self._id_counter)
-            self._id_counter += 1
+            # Use provided ID if available, otherwise generate one
+            if "id" in data:
+                record_id = str(data["id"])
+            else:
+                record_id = str(self._id_counter)
+                self._id_counter += 1
 
             now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
@@ -57,8 +62,11 @@ class InMemoryDBClient:
                 **data,
             }
 
-            # Store record
-            self._collections[collection][record_id] = record
+            # Ensure the final ID is used (in case data overwrites it)
+            final_id = record["id"]
+
+            # Store record using the final ID
+            self._collections[collection][str(final_id)] = record
 
             return copy.deepcopy(record)
         except Exception as e:
@@ -174,7 +182,7 @@ class InMemoryDBClient:
             collection: Name of the collection
             page: Page number (1-indexed)
             per_page: Number of records per page
-            filter_query: Filter expression (supports =, ~, !=)
+            filter_query: Filter expression (supports =, ~, !=, <, >, <=, >=, &&, ||)
             sort: Sort field (prefix with - for descending)
 
         Returns:
@@ -200,9 +208,10 @@ class InMemoryDBClient:
                 records = self._apply_sort(records, sort)
 
             # Apply pagination
-            start_idx = (page - 1) * per_page
-            end_idx = start_idx + per_page
-            paginated_records = records[start_idx:end_idx]
+            # Calculate start and end indices for the requested page
+            start_index = (page - 1) * per_page
+            end_index = start_index + per_page
+            paginated_records = records[start_index:end_index]
 
             # Return deep copies to prevent external modifications
             return [copy.deepcopy(r) for r in paginated_records]
@@ -236,6 +245,7 @@ class InMemoryDBClient:
         - field <= "value" (less than or equal)
         - field < "value" (less than)
         - Multiple conditions with && (AND)
+        - Multiple conditions with || (OR) - supports parentheses
 
         Args:
             filter_str: Filter expression
@@ -250,16 +260,38 @@ class InMemoryDBClient:
         if not filter_str:
             return True
 
-        # Handle AND conditions
+        # Handle AND conditions first (before handling OR/parentheses)
+        # This ensures expressions like "A && B && (C || D)" work correctly
         if "&&" in filter_str:
+            # Check if && is outside of parentheses
+            # Simple check: if there are parentheses, make sure we handle them recursively
             conditions = [c.strip() for c in filter_str.split("&&")]
             return all(self._parse_filter(cond, record) for cond in conditions)
+
+        # Handle OR conditions (check for || outside of parentheses)
+        if "||" in filter_str and "(" not in filter_str:
+            conditions = [c.strip() for c in filter_str.split("||")]
+            return any(self._parse_filter(cond, record) for cond in conditions)
+
+        # Handle parentheses with OR conditions like (field = "val1" || field = "val2")
+        if "(" in filter_str and "||" in filter_str:
+            # Extract content within parentheses
+            match = re.search(r"\(([^)]+)\)", filter_str)
+            if match:
+                inner = match.group(1)
+                # Evaluate the OR clause inside parentheses
+                or_conditions = [c.strip() for c in inner.split("||")]
+                return any(self._parse_filter(cond, record) for cond in or_conditions)
+
+        # Remove parentheses if present (for simple single conditions in parens)
+        if filter_str.startswith("(") and filter_str.endswith(")"):
+            filter_str = filter_str[1:-1].strip()
 
         # Parse single condition - try comparison operators (longer first)
         if ">=" in filter_str:
             parts = filter_str.split(">=", 1)
             if len(parts) != 2:
-                raise ValueError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             record_value = str(record.get(field, ""))
@@ -268,7 +300,7 @@ class InMemoryDBClient:
         if "<=" in filter_str:
             parts = filter_str.split("<=", 1)
             if len(parts) != 2:
-                raise ValueError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             record_value = str(record.get(field, ""))
@@ -287,7 +319,7 @@ class InMemoryDBClient:
         if ">" in filter_str:
             parts = filter_str.split(">", 1)
             if len(parts) != 2:
-                raise ValueError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             record_value = str(record.get(field, ""))
@@ -297,7 +329,7 @@ class InMemoryDBClient:
         if "<" in filter_str:
             parts = filter_str.split("<", 1)
             if len(parts) != 2:
-                raise ValueError(f"Invalid filter syntax: {filter_str}")
+                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
             field = parts[0].strip()
             value = parts[1].strip().strip("'\"")
             record_value = str(record.get(field, ""))
