@@ -43,8 +43,12 @@ class InMemoryDBClient:
                 self._collections[collection] = {}
 
             # Generate ID and timestamps
-            record_id = str(self._id_counter)
-            self._id_counter += 1
+            # Use provided ID if available, otherwise generate one
+            if "id" in data:
+                record_id = str(data["id"])
+            else:
+                record_id = str(self._id_counter)
+                self._id_counter += 1
 
             now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
@@ -56,8 +60,11 @@ class InMemoryDBClient:
                 **data,
             }
 
-            # Store record
-            self._collections[collection][record_id] = record
+            # Ensure the final ID is used (in case data overwrites it)
+            final_id = record["id"]
+
+            # Store record using the final ID
+            self._collections[collection][str(final_id)] = record
 
             return copy.deepcopy(record)
         except Exception as e:
@@ -171,9 +178,9 @@ class InMemoryDBClient:
 
         Args:
             collection: Name of the collection
-            page: Page number (1-indexed, not currently used in implementation)
-            per_page: Number of records per page (not currently used in implementation)
-            filter_query: Filter expression (supports =, ~, !=)
+            page: Page number (1-indexed)
+            per_page: Number of records per page
+            filter_query: Filter expression (supports =, ~, !=, <, >, <=, >=, &&, ||)
             sort: Sort field (prefix with - for descending)
 
         Returns:
@@ -198,6 +205,12 @@ class InMemoryDBClient:
             if sort:
                 records = self._apply_sort(records, sort)
 
+            # Apply pagination
+            # Calculate start and end indices for the requested page
+            start_index = (page - 1) * per_page
+            end_index = start_index + per_page
+            records = records[start_index:end_index]
+
             # Return deep copies to prevent external modifications
             return [copy.deepcopy(r) for r in records]
         except DatabaseError:
@@ -218,14 +231,19 @@ class InMemoryDBClient:
         records = await self.list_records(collection, filter_query=filter_query)
         return records[0] if records else None
 
-    def _parse_filter(self, filter_str: str, record: dict[str, Any]) -> bool:
+    def _parse_filter(self, filter_str: str, record: dict[str, Any]) -> bool:  # noqa: C901, PLR0911, PLR0912, PLR0915
         """Evaluate filter expression against a record.
 
         Supports:
         - field = "value" (exact match)
         - field ~ "substring" (case-insensitive contains, matching PocketBase)
         - field != "value" (not equal)
+        - field < "value" (less than)
+        - field <= "value" (less than or equal)
+        - field > "value" (greater than)
+        - field >= "value" (greater than or equal)
         - Multiple conditions with && (AND)
+        - Multiple conditions with || (OR) - supports parentheses
 
         Args:
             filter_str: Filter expression
@@ -240,13 +258,74 @@ class InMemoryDBClient:
         if not filter_str:
             return True
 
-        # Handle AND conditions
+        # Handle AND conditions first (before handling OR/parentheses)
+        # This ensures expressions like "A && B && (C || D)" work correctly
         if "&&" in filter_str:
+            # Check if && is outside of parentheses
+            # Simple check: if there are parentheses, make sure we handle them recursively
             conditions = [c.strip() for c in filter_str.split("&&")]
             return all(self._parse_filter(cond, record) for cond in conditions)
 
+        # Handle OR conditions (check for || outside of parentheses)
+        if "||" in filter_str and "(" not in filter_str:
+            conditions = [c.strip() for c in filter_str.split("||")]
+            return any(self._parse_filter(cond, record) for cond in conditions)
+
+        # Handle parentheses with OR conditions like (field = "val1" || field = "val2")
+        if "(" in filter_str and "||" in filter_str:
+            # Extract content within parentheses
+            import re
+
+            match = re.search(r"\(([^)]+)\)", filter_str)
+            if match:
+                inner = match.group(1)
+                # Evaluate the OR clause inside parentheses
+                or_conditions = [c.strip() for c in inner.split("||")]
+                return any(self._parse_filter(cond, record) for cond in or_conditions)
+
+        # Remove parentheses if present (for simple single conditions in parens)
+        if filter_str.startswith("(") and filter_str.endswith(")"):
+            filter_str = filter_str[1:-1].strip()
+
         # Parse single condition
-        # Try != operator first (before =)
+        # Try comparison operators (check these before = to avoid matching = in >=, <=)
+        if ">=" in filter_str:
+            parts = filter_str.split(">=", 1)
+            if len(parts) != 2:
+                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+            field = parts[0].strip()
+            value = parts[1].strip().strip("'\"")
+            record_value = str(record.get(field, ""))
+            return record_value >= value
+
+        if "<=" in filter_str:
+            parts = filter_str.split("<=", 1)
+            if len(parts) != 2:
+                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+            field = parts[0].strip()
+            value = parts[1].strip().strip("'\"")
+            record_value = str(record.get(field, ""))
+            return record_value <= value
+
+        if ">" in filter_str:
+            parts = filter_str.split(">", 1)
+            if len(parts) != 2:
+                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+            field = parts[0].strip()
+            value = parts[1].strip().strip("'\"")
+            record_value = str(record.get(field, ""))
+            return record_value > value
+
+        if "<" in filter_str:
+            parts = filter_str.split("<", 1)
+            if len(parts) != 2:
+                raise DatabaseError(f"Invalid filter syntax: {filter_str}")
+            field = parts[0].strip()
+            value = parts[1].strip().strip("'\"")
+            record_value = str(record.get(field, ""))
+            return record_value < value
+
+        # Try != operator (before =)
         if "!=" in filter_str:
             parts = filter_str.split("!=", 1)
             if len(parts) != 2:
