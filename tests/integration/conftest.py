@@ -14,7 +14,6 @@ from pocketbase import PocketBase
 
 from src.core import config as config_module, db_client as db_module
 from src.core.config import Settings
-from src.core.db_client import DatabaseError, RecordNotFoundError
 from src.core.schema import COLLECTIONS, sync_schema
 from src.services import user_service as user_service_module
 from tests.conftest import MockDBClient
@@ -35,7 +34,7 @@ def _make_mock_create_record(pb: PocketBase):
             record = pb.collection(collection).create(data)
             return record.__dict__
         except Exception as e:
-            raise DatabaseError(f"Failed to create record in {collection}: {e}") from e
+            raise RuntimeError(f"Failed to create record in {collection}: {e}") from e
 
     return mock_create_record
 
@@ -49,8 +48,8 @@ def _make_mock_get_record(pb: PocketBase):
             return record.__dict__
         except Exception as e:
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
-            raise DatabaseError(f"Failed to get record from {collection}: {e}") from e
+                raise KeyError(f"Record not found in {collection}: {record_id}") from e
+            raise RuntimeError(f"Failed to get record from {collection}: {e}") from e
 
     return mock_get_record
 
@@ -64,8 +63,8 @@ def _make_mock_update_record(pb: PocketBase):
             return record.__dict__
         except Exception as e:
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
-            raise DatabaseError(f"Failed to update record in {collection}: {e}") from e
+                raise KeyError(f"Record not found in {collection}: {record_id}") from e
+            raise RuntimeError(f"Failed to update record in {collection}: {e}") from e
 
     return mock_update_record
 
@@ -78,8 +77,8 @@ def _make_mock_delete_record(pb: PocketBase):
             pb.collection(collection).delete(record_id)
         except Exception as e:
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise RecordNotFoundError(f"Record not found in {collection}: {record_id}") from e
-            raise DatabaseError(f"Failed to delete record from {collection}: {e}") from e
+                raise KeyError(f"Record not found in {collection}: {record_id}") from e
+            raise RuntimeError(f"Failed to delete record from {collection}: {e}") from e
 
     return mock_delete_record
 
@@ -103,7 +102,7 @@ def _make_mock_list_records(pb: PocketBase):
             )
             return [item.__dict__ for item in result.items]
         except Exception as e:
-            raise DatabaseError(f"Failed to list records from {collection}: {e}") from e
+            raise RuntimeError(f"Failed to list records from {collection}: {e}") from e
 
     return mock_list_records
 
@@ -118,7 +117,7 @@ def _make_mock_get_first_record(pb: PocketBase):
         except Exception as e:
             if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
                 return None
-            raise DatabaseError(f"Failed to get first record from {collection}: {e}") from e
+            raise RuntimeError(f"Failed to get first record from {collection}: {e}") from e
 
     return mock_get_first_record
 

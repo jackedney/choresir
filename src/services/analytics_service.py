@@ -51,7 +51,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
                         "completion_count": count,
                     }
                 )
-            except db_client.RecordNotFoundError:
+            except KeyError:
                 logger.warning("User %s not found for leaderboard", user_id)
                 continue
 

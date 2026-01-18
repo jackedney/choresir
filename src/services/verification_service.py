@@ -125,7 +125,7 @@ async def verify_chore(
 
         if not claim_logs:
             msg = f"No claim log found for chore {chore_id}"
-            raise db_client.RecordNotFoundError(msg)
+            raise KeyError(msg)
 
         claimer_user_id = claim_logs[0]["user_id"]
 

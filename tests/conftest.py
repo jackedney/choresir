@@ -18,7 +18,6 @@ from pocketbase import PocketBase
 from pocketbase.client import ClientResponseError
 
 from src.core.config import Settings
-from src.core.db_client import DatabaseError, RecordNotFoundError
 from src.core.schema import COLLECTIONS, sync_schema
 from src.main import app
 
@@ -50,7 +49,7 @@ class MockDBClient:
             return record.__dict__
         except ClientResponseError as e:
             msg = f"Failed to create record in {collection}: {e}"
-            raise DatabaseError(msg) from e
+            raise RuntimeError(msg) from e
 
     async def get_record(self, *, collection: str, record_id: str) -> dict[str, Any]:
         """Get a record by ID from the specified collection."""
@@ -60,9 +59,9 @@ class MockDBClient:
         except ClientResponseError as e:
             if e.status == HTTP_NOT_FOUND:
                 msg = f"Record {record_id} not found in {collection}"
-                raise RecordNotFoundError(msg) from e
+                raise KeyError(msg) from e
             msg = f"Failed to get record from {collection}: {e}"
-            raise DatabaseError(msg) from e
+            raise RuntimeError(msg) from e
 
     async def update_record(self, *, collection: str, record_id: str, data: dict[str, Any]) -> dict[str, Any]:
         """Update a record in the specified collection."""
@@ -72,9 +71,9 @@ class MockDBClient:
         except ClientResponseError as e:
             if e.status == HTTP_NOT_FOUND:
                 msg = f"Record {record_id} not found in {collection}"
-                raise RecordNotFoundError(msg) from e
+                raise KeyError(msg) from e
             msg = f"Failed to update record in {collection}: {e}"
-            raise DatabaseError(msg) from e
+            raise RuntimeError(msg) from e
 
     async def delete_record(self, *, collection: str, record_id: str) -> None:
         """Delete a record from the specified collection."""
@@ -83,9 +82,9 @@ class MockDBClient:
         except ClientResponseError as e:
             if e.status == HTTP_NOT_FOUND:
                 msg = f"Record {record_id} not found in {collection}"
-                raise RecordNotFoundError(msg) from e
+                raise KeyError(msg) from e
             msg = f"Failed to delete record from {collection}: {e}"
-            raise DatabaseError(msg) from e
+            raise RuntimeError(msg) from e
 
     async def list_records(
         self,
@@ -106,7 +105,7 @@ class MockDBClient:
             return [item.__dict__ for item in result.items]
         except ClientResponseError as e:
             msg = f"Failed to list records from {collection}: {e}"
-            raise DatabaseError(msg) from e
+            raise RuntimeError(msg) from e
 
     async def get_first_record(self, *, collection: str, filter_query: str) -> dict[str, Any] | None:
         """Get the first record matching the filter query, or None if not found."""
@@ -117,7 +116,7 @@ class MockDBClient:
             if e.status == HTTP_NOT_FOUND:
                 return None
             msg = f"Failed to get first record from {collection}: {e}"
-            raise DatabaseError(msg) from e
+            raise RuntimeError(msg) from e
 
 
 @pytest.fixture(scope="session")
