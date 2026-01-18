@@ -435,9 +435,8 @@ class TestHandleButtonPayload:
 
         user_record = {"id": "user123", "name": "Alice"}
 
-        # Simulate RecordNotFoundError
-        mock_db.RecordNotFoundError = Exception
-        mock_db.get_record = AsyncMock(side_effect=mock_db.RecordNotFoundError("Record not found"))
+        # Simulate KeyError
+        mock_db.get_record = AsyncMock(side_effect=KeyError("Record not found"))
 
         mock_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
 
@@ -481,11 +480,11 @@ class TestHandleButtonPayload:
 
         user_record = {"id": "user123", "name": "Alice"}
 
-        # Create a custom RecordNotFoundError class that won't catch AttributeError
-        class RecordNotFoundError(Exception):
+        # Create a custom KeyError class that won't catch AttributeError
+        class KeyError(Exception):
             pass
 
-        mock_db.RecordNotFoundError = RecordNotFoundError
+        mock_db.KeyError = KeyError
 
         # Simulate unexpected AttributeError
         mock_db.get_record = AsyncMock(side_effect=AttributeError("'NoneType' object has no attribute 'get'"))

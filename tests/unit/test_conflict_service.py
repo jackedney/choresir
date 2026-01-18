@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from src.core.db_client import RecordNotFoundError
+# KeyError replaced with KeyError
 from src.domain.chore import ChoreState
 from src.domain.user import UserRole, UserStatus
 from src.services import chore_service, conflict_service, verification_service
@@ -146,7 +146,7 @@ class TestInitiateVote:
 
     async def test_initiate_vote_chore_not_found(self, patched_conflict_db):
         """Test initiating vote on non-existent chore raises error."""
-        with pytest.raises(RecordNotFoundError):
+        with pytest.raises(KeyError):
             await conflict_service.initiate_vote(chore_id="nonexistent_id")
 
 
@@ -238,7 +238,7 @@ class TestCastVote:
         # Try to cast second vote - should fail because either:
         # 1. Already voted check catches it, or
         # 2. No pending vote record found
-        with pytest.raises((ValueError, RecordNotFoundError)):
+        with pytest.raises((ValueError, KeyError)):
             await conflict_service.cast_vote(
                 chore_id=chore_id,
                 voter_user_id=voter_id,
@@ -266,7 +266,7 @@ class TestCastVote:
         # Manually move to conflict to avoid initiating votes
         conflict_chore = await chore_service.move_to_conflict(chore_id=chore["id"])
 
-        with pytest.raises(RecordNotFoundError, match="No pending vote found"):
+        with pytest.raises(KeyError, match="No pending vote found"):
             await conflict_service.cast_vote(
                 chore_id=conflict_chore["id"],
                 voter_user_id="random_voter",

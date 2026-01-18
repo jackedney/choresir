@@ -447,6 +447,30 @@ Task 8 → Task 30
 
 ---
 
+## Post-MVP Features
+
+### Intelligent Error Notifications ✅
+**Completed:** 2026-01-18
+
+Intelligent error classification and notification system for API failures:
+- **Error Classification:** Automatically categorizes errors (quota exceeded, rate limits, auth failures, network issues)
+- **User-Friendly Messages:** Provides helpful, actionable messages to users without exposing technical details
+- **Admin Notifications:** Critical errors (quota exceeded, auth failures) trigger WhatsApp notifications to admins
+- **Rate Limiting:** Prevents admin notification spam with configurable cooldown periods (default: 60 minutes per error category)
+- **Graceful Degradation:** System continues functioning even if notification delivery fails
+
+**Implementation:**
+- `src/core/errors.py` - Error classification utilities
+- `src/core/admin_notifier.py` - Admin notification system with rate limiting
+- `src/agents/choresir_agent.py` - Integration with agent error handling
+- Comprehensive test coverage in `tests/unit/` and `tests/integration/`
+
+**Configuration:**
+- `ENABLE_ADMIN_NOTIFICATIONS` - Enable/disable admin notifications (default: true)
+- `ADMIN_NOTIFICATION_COOLDOWN_MINUTES` - Cooldown between notifications (default: 60)
+
+---
+
 ## Notes
 
 - **Granularity:** Each task is a complete, testable unit representing a logical module or feature

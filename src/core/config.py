@@ -81,6 +81,14 @@ class Settings(BaseSettings):
         default=None, description="Content SID for conflict notification template"
     )
 
+    # Admin Notification Configuration
+    enable_admin_notifications: bool = Field(
+        default=True, description="Enable/disable admin notifications for critical errors"
+    )
+    admin_notification_cooldown_minutes: int = Field(
+        default=60, description="Cooldown period between notifications for the same error category (in minutes)"
+    )
+
 
 # Application Constants
 class Constants:

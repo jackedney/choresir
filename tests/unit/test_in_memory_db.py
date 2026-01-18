@@ -2,7 +2,8 @@
 
 import pytest
 
-from src.core.db_client import DatabaseError, RecordNotFoundError
+
+# Custom exceptions replaced with standard Python exceptions
 
 
 @pytest.mark.unit
@@ -29,7 +30,7 @@ class TestInMemoryDBClient:
 
     async def test_create_record_invalid_data(self, in_memory_db):
         """Test creating a record with invalid data raises error."""
-        with pytest.raises(DatabaseError, match="Data must be a dictionary"):
+        with pytest.raises(RuntimeError, match="Data must be a dictionary"):
             await in_memory_db.create_record("users", "invalid")
 
     async def test_get_record(self, in_memory_db):
@@ -42,12 +43,12 @@ class TestInMemoryDBClient:
 
     async def test_get_record_not_found(self, in_memory_db):
         """Test getting a non-existent record raises error."""
-        with pytest.raises(RecordNotFoundError, match="Record not found"):
+        with pytest.raises(KeyError, match="Record not found"):
             await in_memory_db.get_record("users", "nonexistent")
 
     async def test_get_record_invalid_id(self, in_memory_db):
         """Test getting a record with invalid ID type raises error."""
-        with pytest.raises(DatabaseError, match="Record ID must be a string"):
+        with pytest.raises(RuntimeError, match="Record ID must be a string"):
             await in_memory_db.get_record("users", 123)
 
     async def test_update_record(self, in_memory_db):
@@ -61,13 +62,13 @@ class TestInMemoryDBClient:
 
     async def test_update_record_not_found(self, in_memory_db):
         """Test updating a non-existent record raises error."""
-        with pytest.raises(RecordNotFoundError, match="Record not found"):
+        with pytest.raises(KeyError, match="Record not found"):
             await in_memory_db.update_record("users", "nonexistent", {"name": "Test"})
 
     async def test_update_record_invalid_data(self, in_memory_db):
         """Test updating a record with invalid data raises error."""
         created = await in_memory_db.create_record("users", {"name": "Test"})
-        with pytest.raises(DatabaseError, match="Data must be a dictionary"):
+        with pytest.raises(RuntimeError, match="Data must be a dictionary"):
             await in_memory_db.update_record("users", created["id"], "invalid")
 
     async def test_delete_record(self, in_memory_db):
@@ -77,12 +78,12 @@ class TestInMemoryDBClient:
 
         assert result is True
 
-        with pytest.raises(RecordNotFoundError):
+        with pytest.raises(KeyError):
             await in_memory_db.get_record("users", created["id"])
 
     async def test_delete_record_not_found(self, in_memory_db):
         """Test deleting a non-existent record raises error."""
-        with pytest.raises(RecordNotFoundError, match="Record not found"):
+        with pytest.raises(KeyError, match="Record not found"):
             await in_memory_db.delete_record("users", "nonexistent")
 
     async def test_list_records_empty_collection(self, in_memory_db):
@@ -152,7 +153,7 @@ class TestInMemoryDBClient:
         """Test that invalid filter syntax raises error."""
         await in_memory_db.create_record("users", {"name": "Test"})
 
-        with pytest.raises(DatabaseError, match="Invalid filter syntax"):
+        with pytest.raises(RuntimeError, match="Invalid filter syntax"):
             await in_memory_db.list_records("users", filter_query="invalid filter")
 
     async def test_list_records_with_ascending_sort(self, in_memory_db):
