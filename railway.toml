@@ -13,10 +13,10 @@ restartPolicyMaxRetries = 10
 # POCKETBASE_URL - Internal service URL (e.g., http://pocketbase.railway.internal:8090)
 # REDIS_URL - Redis connection URL (e.g., redis://default:password@redis.railway.internal:6379)
 # OPENROUTER_API_KEY - API key for OpenRouter
-# WHATSAPP_VERIFY_TOKEN - WhatsApp webhook verification token
-# WHATSAPP_APP_SECRET - WhatsApp app secret for signature validation
-# WHATSAPP_ACCESS_TOKEN - WhatsApp Cloud API access token
-# WHATSAPP_PHONE_NUMBER_ID - WhatsApp business phone number ID
+# WHATSAPP_VERIFY_TOKEN - Twilio webhook verification token
+# WHATSAPP_APP_SECRET - Twilio app secret for signature validation
+# WHATSAPP_ACCESS_TOKEN - Twilio API access token
+# WHATSAPP_PHONE_NUMBER_ID - Twilio WhatsApp sender phone number ID
 # LOGFIRE_TOKEN - Pydantic Logfire token
 # HOUSE_CODE - House join code
 # HOUSE_PASSWORD - House join password
