@@ -122,7 +122,7 @@ async def verify_chore(
             page_logs = await db_client.list_records(
                 collection="logs",
                 filter_query="",
-                sort="-created",
+                sort="-timestamp",
                 per_page=LOGS_PAGE_SIZE,
                 page=page,
             )

@@ -110,7 +110,7 @@ async def list_records(
     page: int = 1,
     per_page: int = 50,
     filter_query: str = "",
-    sort: str = "-created",
+    sort: str = "",
 ) -> list[dict[str, Any]]:
     """List records from the specified collection with filtering and pagination."""
     try:

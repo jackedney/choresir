@@ -92,7 +92,7 @@ def _make_mock_list_records(pb: PocketBase):
         page: int = 1,
         per_page: int = 50,
         filter_query: str = "",
-        sort: str = "-created",
+        sort: str = "",
     ) -> list[dict]:
         try:
             # Only include filter and sort in query_params if they're not empty
