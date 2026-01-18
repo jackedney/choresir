@@ -1,16 +1,20 @@
 """Analytics service for household chore statistics."""
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from src.core import db_client
 from src.core.logging import span
+from src.core.redis_client import redis_client
 from src.domain.chore import ChoreState
 from src.domain.user import UserStatus
 
 
 logger = logging.getLogger(__name__)
+
+_CACHE_TTL_SECONDS = 300  # 5 minutes
 
 
 async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
@@ -23,9 +27,22 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
         List of dicts with user info and completion counts, sorted descending
         Format: [{"user_id": str, "user_name": str, "completion_count": int}, ...]
     """
+    # Check Redis cache
+    cache_key = f"leaderboard:{period_days}"
+    cached_value = await redis_client.get(cache_key)
+    if cached_value:
+        try:
+            leaderboard = json.loads(cached_value)
+            logger.debug("Returning cached leaderboard for %d days from Redis", period_days)
+            return leaderboard
+        except json.JSONDecodeError as e:
+            logger.warning("Failed to deserialize cached leaderboard: %s", e)
+            # Continue to regenerate cache
+
     with span("analytics_service.get_leaderboard"):
         # Calculate cutoff date
-        cutoff_date = datetime.now(UTC) - timedelta(days=period_days)
+        now = datetime.now(UTC)
+        cutoff_date = now - timedelta(days=period_days)
 
         # Get all completion logs within period
         completion_logs = await db_client.list_records(
@@ -39,11 +56,16 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
             user_id = log["user_id"]
             user_completion_counts[user_id] = user_completion_counts.get(user_id, 0) + 1
 
-        # Get user details and build leaderboard
+        # Get all users in one batch to avoid N+1 queries
+        # Assuming household size is small enough to fit in one page (default 500 here to be safe)
+        all_users = await db_client.list_records(collection="users", per_page=500)
+        users_map = {u["id"]: u for u in all_users}
+
+        # Build leaderboard
         leaderboard = []
         for user_id, count in user_completion_counts.items():
-            try:
-                user = await db_client.get_record(collection="users", record_id=user_id)
+            if user_id in users_map:
+                user = users_map[user_id]
                 leaderboard.append(
                     {
                         "user_id": user_id,
@@ -51,7 +73,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
                         "completion_count": count,
                     }
                 )
-            except db_client.RecordNotFoundError:
+            else:
                 logger.warning("User %s not found for leaderboard", user_id)
                 continue
 
@@ -59,6 +81,14 @@ async def get_leaderboard(*, period_days: int = 30) -> list[dict[str, Any]]:
         leaderboard.sort(key=lambda x: x["completion_count"], reverse=True)
 
         logger.info("Generated leaderboard for %d days: %d users", period_days, len(leaderboard))
+
+        # Update Redis cache
+        try:
+            cache_value = json.dumps(leaderboard)
+            await redis_client.set(cache_key, cache_value, _CACHE_TTL_SECONDS)
+        except (TypeError, ValueError) as e:
+            logger.warning("Failed to serialize leaderboard for caching: %s", e)
+            # Continue without caching - function still returns correct data
 
         return leaderboard
 

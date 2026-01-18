@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Pydantic Logfire Configuration (optional)
     logfire_token: str | None = Field(default=None, description="Pydantic Logfire token for observability")
 
+    # Redis Configuration (optional)
+    redis_url: str | None = Field(default=None, description="Redis connection URL (e.g., redis://localhost:6379)")
+
     # House Onboarding Configuration
     house_code: str | None = Field(default=None, description="House code for member onboarding")
     house_password: str | None = Field(default=None, description="House password for member onboarding")
