@@ -236,6 +236,8 @@ class InMemoryDBClient:
         - field <= "value" (less than or equal)
         - field < "value" (less than)
         - Multiple conditions with && (AND)
+        - Multiple conditions with || (OR)
+        - Parentheses for grouping: (condition1 || condition2)
 
         Args:
             filter_str: Filter expression
@@ -250,10 +252,65 @@ class InMemoryDBClient:
         if not filter_str:
             return True
 
-        # Handle AND conditions
+        # Handle parentheses - extract and evaluate grouped conditions
+        if "(" in filter_str and ")" in filter_str:
+            # Simple parenthesis handling - extract the content and evaluate
+            import re
+
+            match = re.search(r"\((.*?)\)", filter_str)
+            if match:
+                grouped_expr = match.group(1)
+                grouped_result = self._parse_filter(grouped_expr, record)
+
+                # Check if there are remaining conditions outside the parentheses
+                before = filter_str[: match.start()].strip()
+                after = filter_str[match.end() :].strip()
+
+                # If there are AND/OR operations before or after, handle them
+                if before or after:
+                    # Remove empty operators
+                    if before.endswith("&&") or before.endswith("||"):
+                        operator = "&&" if before.endswith("&&") else "||"
+                        before = before[:-2].strip()
+                    elif after.startswith("&&") or after.startswith("||"):
+                        operator = "&&" if after.startswith("&&") else "||"
+                        after = after[2:].strip()
+                    else:
+                        # No explicit operator, return just the grouped result
+                        return grouped_result
+
+                    # Evaluate remaining conditions
+                    if before and after:
+                        # Both before and after
+                        if operator == "&&":
+                            return (
+                                self._parse_filter(before, record)
+                                and grouped_result
+                                and self._parse_filter(after, record)
+                            )
+                        return self._parse_filter(before, record) or grouped_result or self._parse_filter(after, record)
+                    if before:
+                        if operator == "&&":
+                            return self._parse_filter(before, record) and grouped_result
+                        return self._parse_filter(before, record) or grouped_result
+                    if after:
+                        if operator == "&&":
+                            return grouped_result and self._parse_filter(after, record)
+                        return grouped_result or self._parse_filter(after, record)
+
+                # Otherwise return the grouped result
+                return grouped_result
+
+        # Handle AND conditions (higher precedence than OR)
         if "&&" in filter_str:
+            # Split by && but not within parentheses
             conditions = [c.strip() for c in filter_str.split("&&")]
             return all(self._parse_filter(cond, record) for cond in conditions)
+
+        # Handle OR conditions
+        if "||" in filter_str:
+            conditions = [c.strip() for c in filter_str.split("||")]
+            return any(self._parse_filter(cond, record) for cond in conditions)
 
         # Parse single condition - try comparison operators (longer first)
         if ">=" in filter_str:

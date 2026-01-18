@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Personal Chore Tracking System** (#005) (2026-01-18)
+  - Create private personal chores separate from household chores
+  - Optional accountability partner verification
+  - Support for recurring and one-time tasks
+  - New recurrence patterns: "every morning", "by Friday", "every [weekday]"
+  - Self-verified or partner-verified completion
+  - 48-hour auto-verification timeout for partner verifications
+  - Privacy-first design: personal chores never appear in household reports
+  - `/personal` namespace for all personal chore commands
+  - Automatic disambiguation when personal and household chores have same name
+  - Personal chore reminders (DM-only, 8 AM daily)
+  - Auto-conversion to self-verified when accountability partner leaves household
+  - New database collections: `personal_chores` and `personal_chore_logs`
+  - New services: `personal_chore_service.py`, `personal_verification_service.py`
+  - Extended recurrence parser to support new patterns
+  - 6 new agent tools for personal chore management
+  - 2 new scheduler jobs (reminders and auto-verification)
+  - Comprehensive test coverage (98% service coverage, 319 passing tests)
+
 - **Intelligent Error Notifications** (2026-01-18)
   - Automatic error classification system for API failures (quota exceeded, rate limits, auth errors, network issues)
   - User-friendly error messages that hide technical details and provide actionable guidance

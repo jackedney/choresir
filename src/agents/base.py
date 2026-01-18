@@ -16,3 +16,4 @@ class Deps:
     user_name: str
     user_role: str
     current_time: datetime
+    pending_disambiguation: dict[str, str] | None = None

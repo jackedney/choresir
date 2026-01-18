@@ -14,7 +14,16 @@ logger = logging.getLogger(__name__)
 
 
 # Central list of all collections in the schema
-COLLECTIONS = ["users", "chores", "logs", "processed_messages", "pantry_items", "shopping_list"]
+COLLECTIONS = [
+    "users",
+    "chores",
+    "logs",
+    "processed_messages",
+    "pantry_items",
+    "shopping_list",
+    "personal_chores",
+    "personal_chore_logs",
+]
 
 
 def _get_collection_schema(
@@ -194,6 +203,81 @@ def _get_collection_schema(
                 {"name": "added_at", "type": "date", "required": True},
                 {"name": "quantity", "type": "number", "required": False},
                 {"name": "notes", "type": "text", "required": False},
+            ],
+        },
+        "personal_chores": {
+            "name": "personal_chores",
+            "type": "base",
+            "system": False,
+            "listRule": "",
+            "viewRule": "",
+            "createRule": "",
+            "updateRule": "",
+            "deleteRule": None,
+            "fields": [
+                {"name": "owner_phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
+                {"name": "title", "type": "text", "required": True},
+                {"name": "recurrence", "type": "text", "required": False},  # CRON or INTERVAL format
+                {"name": "due_date", "type": "date", "required": False},  # For one-time tasks
+                {
+                    "name": "accountability_partner_phone",
+                    "type": "text",
+                    "required": False,
+                    "pattern": r"^\+[1-9]\d{1,14}$",
+                },
+                {
+                    "name": "status",
+                    "type": "select",
+                    "required": True,
+                    "values": ["ACTIVE", "ARCHIVED"],
+                    "maxSelect": 1,
+                },
+                {"name": "created_at", "type": "date", "required": True},
+            ],
+            "indexes": [
+                "CREATE INDEX idx_personal_owner ON personal_chores (owner_phone)",
+                "CREATE INDEX idx_personal_status ON personal_chores (status)",
+            ],
+        },
+        "personal_chore_logs": {
+            "name": "personal_chore_logs",
+            "type": "base",
+            "system": False,
+            "listRule": "",
+            "viewRule": "",
+            "createRule": "",
+            "updateRule": None,  # Logs are immutable
+            "deleteRule": None,
+            "fields": [
+                {
+                    "name": "personal_chore_id",
+                    "type": "relation",
+                    "required": True,
+                    "collectionId": ids.get("personal_chores", "personal_chores"),
+                    "maxSelect": 1,
+                },
+                {"name": "owner_phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
+                {"name": "completed_at", "type": "date", "required": True},
+                {
+                    "name": "verification_status",
+                    "type": "select",
+                    "required": True,
+                    "values": ["SELF_VERIFIED", "PENDING", "VERIFIED", "REJECTED"],
+                    "maxSelect": 1,
+                },
+                {
+                    "name": "accountability_partner_phone",
+                    "type": "text",
+                    "required": False,
+                    "pattern": r"^\+[1-9]\d{1,14}$",
+                },
+                {"name": "partner_feedback", "type": "text", "required": False},
+                {"name": "notes", "type": "text", "required": False},
+            ],
+            "indexes": [
+                "CREATE INDEX idx_pcl_chore ON personal_chore_logs (personal_chore_id)",
+                "CREATE INDEX idx_pcl_owner ON personal_chore_logs (owner_phone)",
+                "CREATE INDEX idx_pcl_verification ON personal_chore_logs (verification_status)",
             ],
         },
     }

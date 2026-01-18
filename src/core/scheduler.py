@@ -10,6 +10,7 @@ from src.core import db_client
 from src.core.config import constants
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
+from src.services import personal_chore_service, personal_verification_service
 from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
 
 
@@ -339,6 +340,110 @@ async def send_weekly_leaderboard() -> None:
         logfire.error(f"Error in weekly leaderboard job: {e}")
 
 
+async def send_personal_chore_reminders() -> None:
+    """Send reminders for personal chores due today.
+
+    Runs daily at 8 AM. Sends DM reminders to users with personal chores
+    that have recurring patterns triggering today.
+    """
+    logfire.info("Running personal chore reminders job")
+
+    try:
+        today = datetime.now(UTC).date()
+
+        # Get all active users
+        active_users = await db_client.list_records(
+            collection="users",
+            filter_query=f'status = "{UserStatus.ACTIVE}"',
+        )
+
+        if not active_users:
+            logfire.info("No active users for personal chore reminders")
+            return
+
+        sent_count = 0
+
+        for user in active_users:
+            try:
+                # Get user's active personal chores
+                personal_chores = await personal_chore_service.get_personal_chores(
+                    owner_phone=user["phone"],
+                    status="ACTIVE",
+                )
+
+                # Filter chores that are due today (have recurrence pattern)
+                due_today = []
+                for chore in personal_chores:
+                    recurrence = chore.get("recurrence", "")
+                    due_date_str = chore.get("due_date", "")
+
+                    # For recurring chores, check if they're due based on last completion
+                    # For one-time chores, check if due_date is today
+                    if due_date_str:
+                        try:
+                            due_date = datetime.fromisoformat(due_date_str).date()
+                            if due_date == today:
+                                due_today.append(chore)
+                        except (ValueError, AttributeError):
+                            continue
+                    elif recurrence:
+                        # For recurring chores, we'll remind daily at 8 AM
+                        # (This is a simple implementation; could be enhanced with cron parsing)
+                        due_today.append(chore)
+
+                if not due_today:
+                    continue
+
+                # Build reminder message
+                chore_list = "\n".join([f"• {chore['title']}" for chore in due_today])
+
+                message = (
+                    f"🔔 Personal Chore Reminder\n\n"
+                    f"You have {len(due_today)} personal task(s) today:\n\n"
+                    f"{chore_list}\n\n"
+                    f"Reply 'done [task]' when complete."
+                )
+
+                # Send DM
+                result = await send_text_message(
+                    to_phone=user["phone"],
+                    text=message,
+                )
+
+                if result.success:
+                    sent_count += 1
+                    logfire.debug(f"Sent personal chore reminder to {user['name']}")
+                else:
+                    logfire.warn(f"Failed to send personal chore reminder to {user['name']}: {result.error}")
+
+            except Exception as e:
+                logfire.error(f"Error sending reminder to user {user['id']}: {e}")
+                continue
+
+        logfire.info(f"Completed personal chore reminders: sent to {sent_count}/{len(active_users)} users")
+
+    except Exception as e:
+        logfire.error(f"Error in personal chore reminders job: {e}")
+
+
+async def auto_verify_personal_chores() -> None:
+    """Auto-verify personal chore logs pending for > 48 hours.
+
+    Runs every hour. Finds logs in PENDING state older than 48 hours
+    and auto-verifies them (partner didn't respond in time).
+    """
+    logfire.info("Running personal chore auto-verification job")
+
+    try:
+        # Call the auto-verification service
+        count = await personal_verification_service.auto_verify_expired_logs()
+
+        logfire.info(f"Completed auto-verification job: {count} logs auto-verified")
+
+    except Exception as e:
+        logfire.error(f"Error in auto-verification job: {e}")
+
+
 def start_scheduler() -> None:
     """Start the scheduler and register all jobs.
 
@@ -381,6 +486,26 @@ def start_scheduler() -> None:
     logfire.info(
         f"Scheduled weekly leaderboard job: day {constants.WEEKLY_REPORT_DAY} at {constants.WEEKLY_REPORT_HOUR}:00"
     )
+
+    # Schedule personal chore reminders (daily at 8am)
+    scheduler.add_job(
+        send_personal_chore_reminders,
+        trigger=CronTrigger(hour=8, minute=0),
+        id="personal_chore_reminders",
+        name="Send Personal Chore Reminders",
+        replace_existing=True,
+    )
+    logfire.info("Scheduled personal chore reminders job: daily at 8:00")
+
+    # Schedule auto-verification (hourly)
+    scheduler.add_job(
+        auto_verify_personal_chores,
+        trigger=CronTrigger(hour="*", minute=0),  # Every hour at minute 0
+        id="auto_verify_personal",
+        name="Auto-Verify Personal Chores",
+        replace_existing=True,
+    )
+    logfire.info("Scheduled auto-verification job: hourly")
 
     # Start the scheduler
     scheduler.start()
