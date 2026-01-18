@@ -13,6 +13,9 @@ from src.services import chore_service, conflict_service, notification_service
 
 logger = logging.getLogger(__name__)
 
+# Constants
+LOGS_PAGE_SIZE = 500
+
 
 class VerificationDecision(StrEnum):
     """Verification decision enum."""
@@ -112,12 +115,23 @@ async def verify_chore(
     with span("verification_service.verify_chore"):
         # Guard: Get the original claim log to find the claimer
         # Get all logs (PocketBase filter seems to have issues)
-        all_logs = await db_client.list_records(
-            collection="logs",
-            filter_query="",  # No filter - get all logs
-            sort="",  # No sort either
-            per_page=100,
-        )
+        # Fetch all pages to avoid missing data
+        all_logs = []
+        page = 1
+        while True:
+            page_logs = await db_client.list_records(
+                collection="logs",
+                filter_query="",
+                sort="-created",
+                per_page=LOGS_PAGE_SIZE,
+                page=page,
+            )
+            if not page_logs:
+                break
+            all_logs.extend(page_logs)
+            if len(page_logs) < LOGS_PAGE_SIZE:
+                break
+            page += 1
         # Filter manually for claimed_completion logs for this chore
         claim_logs = [
             log for log in all_logs if log.get("action") == "claimed_completion" and log.get("chore_id") == chore_id
@@ -193,13 +207,13 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
                     collection="logs",
                     filter_query="",
                     sort="-created",
-                    per_page=500,
+                    per_page=LOGS_PAGE_SIZE,
                     page=page,
                 )
                 if not page_logs:
                     break
                 all_logs.extend(page_logs)
-                if len(page_logs) < 500:
+                if len(page_logs) < LOGS_PAGE_SIZE:
                     break
                 page += 1
 
