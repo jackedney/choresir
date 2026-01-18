@@ -3,7 +3,8 @@
 import pytest
 
 from src.core.config import settings
-from src.core.db_client import RecordNotFoundError
+
+# KeyError replaced with KeyError
 from src.domain.user import UserRole, UserStatus
 from src.services import user_service
 
@@ -154,7 +155,7 @@ class TestApproveMember:
 
     async def test_approve_member_user_not_found(self, patched_user_db, admin_user):
         """Test approving non-existent user raises error."""
-        with pytest.raises(RecordNotFoundError, match="not found"):
+        with pytest.raises(KeyError, match="not found"):
             await user_service.approve_member(admin_user_id=admin_user["id"], target_phone="+9999999999")
 
     async def test_approve_member_already_active_fails(self, patched_user_db, admin_user):
@@ -233,7 +234,7 @@ class TestBanUser:
 
     async def test_ban_user_not_found(self, patched_user_db, admin_user):
         """Test banning non-existent user raises error."""
-        with pytest.raises(RecordNotFoundError):
+        with pytest.raises(KeyError):
             await user_service.ban_user(admin_user_id=admin_user["id"], target_user_id="nonexistent_id")
 
 
@@ -298,6 +299,6 @@ class TestGetUserById:
         assert result["name"] == test_user["name"]
 
     async def test_get_user_by_id_not_found(self, patched_user_db):
-        """Test retrieving non-existent user raises RecordNotFoundError."""
-        with pytest.raises(RecordNotFoundError):
+        """Test retrieving non-existent user raises KeyError."""
+        with pytest.raises(KeyError):
             await user_service.get_user_by_id(user_id="nonexistent_id")

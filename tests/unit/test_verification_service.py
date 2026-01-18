@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.core.db_client import RecordNotFoundError
+# KeyError replaced with KeyError
 from src.domain.chore import ChoreState
 from src.services import chore_service, verification_service
 from src.services.verification_service import VerificationDecision
@@ -69,7 +69,7 @@ class TestRequestVerification:
 
     async def test_request_verification_chore_not_found(self, patched_verification_db):
         """Test requesting verification for non-existent chore raises error."""
-        with pytest.raises(RecordNotFoundError):
+        with pytest.raises(KeyError):
             await verification_service.request_verification(
                 chore_id="nonexistent_id",
                 claimer_user_id="user1",
@@ -181,7 +181,7 @@ class TestVerifyChore:
         # Manually transition to pending (bypassing normal claim flow)
         await chore_service.mark_pending_verification(chore_id=chore["id"])
 
-        with pytest.raises(RecordNotFoundError, match="No claim log found"):
+        with pytest.raises(KeyError, match="No claim log found"):
             await verification_service.verify_chore(
                 chore_id=chore["id"],
                 verifier_user_id="user2",

@@ -99,7 +99,7 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
         )
         if not target_user:
             msg = f"User with phone {target_phone} not found"
-            raise db_client.RecordNotFoundError(msg)
+            raise KeyError(msg)
 
         # Guard: Check user is pending
         if target_user["status"] != UserStatus.PENDING:

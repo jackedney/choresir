@@ -239,7 +239,7 @@ async def _handle_button_payload(
         )
         return (False, "Self-verification attempted")
 
-    except db_client.RecordNotFoundError as e:
+    except KeyError as e:
         logfire.error(f"Record not found for button payload: {e}")
         await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
