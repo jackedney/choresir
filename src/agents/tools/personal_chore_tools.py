@@ -165,10 +165,10 @@ async def tool_log_personal_chore(ctx: RunContext[Deps], params: LogPersonalChor
             )
 
             # Build response based on verification status
-            if log["verification_status"] == "SELF_VERIFIED":
+            if log.verification_status == "SELF_VERIFIED":
                 return f"✅ Logged '{matched_chore['title']}'. Nice work!"
             # Pending partner verification
-            partner_phone = log["accountability_partner_phone"]
+            partner_phone = log.accountability_partner_phone
             partner_user = await user_service.get_user_by_phone(phone=partner_phone)
             partner_name = partner_user["name"] if partner_user else "your partner"
 
@@ -204,12 +204,12 @@ async def tool_verify_personal_chore(ctx: RunContext[Deps], params: VerifyPerson
 
             # Get chore details for response
             chore = await personal_chore_service.get_personal_chore_by_id(
-                chore_id=updated_log["personal_chore_id"],
-                owner_phone=updated_log["owner_phone"],
+                chore_id=updated_log.personal_chore_id,
+                owner_phone=updated_log.owner_phone,
             )
 
             # Get owner name
-            owner = await user_service.get_user_by_phone(phone=updated_log["owner_phone"])
+            owner = await user_service.get_user_by_phone(phone=updated_log.owner_phone)
             owner_name = owner["name"] if owner else "the user"
 
             if params.approved:
@@ -249,10 +249,10 @@ async def tool_get_personal_stats(ctx: RunContext[Deps], params: GetPersonalStat
 
             return (
                 f"📊 Your Personal Stats ({period_label})\n\n"
-                f"Active Chores: {stats['total_chores']}\n"
-                f"Completions: {stats['completions_this_period']}\n"
-                f"Pending Verification: {stats['pending_verifications']}\n"
-                f"Completion Rate: {stats['completion_rate']}%"
+                f"Active Chores: {stats.total_chores}\n"
+                f"Completions: {stats.completions_this_period}\n"
+                f"Pending Verification: {stats.pending_verifications}\n"
+                f"Completion Rate: {stats.completion_rate}%"
             )
 
     except Exception as e:

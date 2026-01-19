@@ -233,9 +233,6 @@ def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBas
 @pytest.fixture
 def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypatch):
     """Patch the db_client module to use the test PocketBase instance."""
-    # Clear the LRU cache to prevent stale connections
-    db_module._get_authenticated_client.cache_clear()
-
     # Patch all the db_client functions using helper factories
     mock_list_records = _make_mock_list_records(initialized_db)
     monkeypatch.setattr(db_module, "create_record", _make_mock_create_record(initialized_db))

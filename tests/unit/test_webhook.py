@@ -11,6 +11,7 @@ from src.interface.webhook import (
     receive_webhook,
     verify_twilio_signature,
 )
+from src.interface.webhook_security import WebhookSecurityResult
 from src.services.verification_service import VerificationDecision
 
 
@@ -81,8 +82,6 @@ class TestReceiveWebhook:
     @patch("src.interface.webhook.process_webhook_message")
     async def test_receive_webhook_valid_signature(self, mock_process, mock_verify, mock_security):
         """Test webhook receives and validates valid requests."""
-        from src.interface.webhook_security import WebhookSecurityResult
-
         mock_verify.return_value = True
         mock_security.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 

@@ -183,12 +183,14 @@ class JobTracker:
         timestamp = datetime.now(UTC).isoformat()
         self._dead_letter_queue.append((job_name, error, context))
 
-        logfire.error(
+        logger.error(
             "Job added to dead letter queue",
-            job_name=job_name,
-            error=error,
-            context=context,
-            timestamp=timestamp,
+            extra={
+                "job_name": job_name,
+                "error": error,
+                "context": context,
+                "timestamp": timestamp,
+            },
         )
 
         # Store in Redis if available

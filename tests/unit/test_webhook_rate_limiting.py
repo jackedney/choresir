@@ -3,18 +3,15 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException, Request
 
-from src.core.rate_limiter import RateLimitExceeded
+from src.interface import whatsapp_parser
+from src.interface.webhook import _handle_user_status, receive_webhook
 
 
 @pytest.mark.asyncio
 async def test_webhook_rate_limit_enforced():
     """Test that webhook endpoint enforces rate limits."""
-    from fastapi import BackgroundTasks, Request
-
-    from src.interface.webhook import receive_webhook
-
     mock_request = MagicMock(spec=Request)
     mock_request.form = AsyncMock(
         return_value={
@@ -29,7 +26,16 @@ async def test_webhook_rate_limit_enforced():
     mock_bg_tasks = MagicMock(spec=BackgroundTasks)
 
     with patch("src.interface.webhook.rate_limiter") as mock_limiter:
-        mock_limiter.check_webhook_rate_limit = AsyncMock(side_effect=RateLimitExceeded(retry_after=30, limit=60))
+        mock_limiter.check_webhook_rate_limit = AsyncMock(
+            side_effect=HTTPException(
+                status_code=429,
+                detail="Too many requests",
+                headers={
+                    "Retry-After": "30",
+                    "X-RateLimit-Limit": "60",
+                },
+            )
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             await receive_webhook(mock_request, mock_bg_tasks)
@@ -47,10 +53,6 @@ async def test_webhook_rate_limit_enforced():
 @pytest.mark.asyncio
 async def test_webhook_rate_limit_passes_when_under_limit():
     """Test that webhook processes normally when under rate limit."""
-    from fastapi import BackgroundTasks, Request
-
-    from src.interface.webhook import receive_webhook
-
     mock_request = MagicMock(spec=Request)
     mock_request.form = AsyncMock(
         return_value={
@@ -94,9 +96,6 @@ async def test_webhook_rate_limit_passes_when_under_limit():
 @pytest.mark.asyncio
 async def test_agent_rate_limit_enforced_per_user():
     """Test that agent calls enforce per-user rate limits."""
-    from src.interface import whatsapp_parser
-    from src.interface.webhook import _handle_user_status
-
     mock_message = MagicMock(spec=whatsapp_parser.ParsedMessage)
     mock_message.from_phone = "+1234567890"
     mock_message.text = "test message"
@@ -113,14 +112,23 @@ async def test_agent_rate_limit_enforced_per_user():
         patch("src.interface.webhook.rate_limiter") as mock_limiter,
         patch("src.interface.webhook.whatsapp_sender") as mock_sender,
     ):
-        mock_limiter.check_agent_rate_limit = AsyncMock(side_effect=RateLimitExceeded(retry_after=1800, limit=50))
+        mock_limiter.check_agent_rate_limit = AsyncMock(
+            side_effect=HTTPException(
+                status_code=429,
+                detail="Too many requests",
+                headers={
+                    "Retry-After": "1800",
+                    "X-RateLimit-Limit": "50",
+                },
+            )
+        )
 
         mock_result = MagicMock()
         mock_result.success = True
         mock_result.error = None
         mock_sender.send_text_message = AsyncMock(return_value=mock_result)
 
-        success, error = await _handle_user_status(
+        success, _error = await _handle_user_status(
             user_record=mock_user_record,
             message=mock_message,
             db=mock_db,
@@ -140,9 +148,6 @@ async def test_agent_rate_limit_enforced_per_user():
 @pytest.mark.asyncio
 async def test_agent_rate_limit_allows_processing_when_under_limit():
     """Test that agent processes normally when under rate limit."""
-    from src.interface import whatsapp_parser
-    from src.interface.webhook import _handle_user_status
-
     mock_message = MagicMock(spec=whatsapp_parser.ParsedMessage)
     mock_message.from_phone = "+1234567890"
     mock_message.text = "test message"
@@ -169,7 +174,7 @@ async def test_agent_rate_limit_allows_processing_when_under_limit():
         mock_result.error = None
         mock_sender.send_text_message = AsyncMock(return_value=mock_result)
 
-        success, error = await _handle_user_status(
+        success, _error = await _handle_user_status(
             user_record=mock_user_record,
             message=mock_message,
             db=mock_db,

@@ -3,8 +3,9 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import HTTPException
 
-from src.core.rate_limiter import RateLimiter, RateLimitExceeded
+from src.core.rate_limiter import RateLimiter
 
 
 @pytest.fixture
@@ -61,7 +62,7 @@ async def test_check_rate_limit_exceeds_limit(rate_limiter):
         mock_redis.is_available = True
         mock_redis.increment = AsyncMock(return_value=11)
 
-        with pytest.raises(RateLimitExceeded) as exc_info:
+        with pytest.raises(HTTPException) as exc_info:
             await rate_limiter.check_rate_limit(
                 scope="test",
                 identifier="user1",
@@ -69,8 +70,14 @@ async def test_check_rate_limit_exceeds_limit(rate_limiter):
                 window_seconds=60,
             )
 
-        assert exc_info.value.limit == 10
-        assert 0 < exc_info.value.retry_after <= 60
+        exc = exc_info.value
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 429
+        assert exc.detail == "Too many requests"
+        assert exc.headers is not None
+        assert exc.headers.get("X-RateLimit-Limit") == "10"
+        retry_after = int(exc.headers.get("Retry-After", "0"))
+        assert 0 < retry_after <= 60
 
 
 @pytest.mark.asyncio
@@ -172,10 +179,18 @@ async def test_rate_limit_sliding_window_key_format(rate_limiter):
 
 
 def test_rate_limit_exceeded_exception():
-    """Test RateLimitExceeded exception attributes."""
-    exc = RateLimitExceeded(retry_after=30, limit=50)
+    """Test HTTPException with rate limit headers."""
+    exc = HTTPException(
+        status_code=429,
+        detail="Too many requests",
+        headers={
+            "Retry-After": "30",
+            "X-RateLimit-Limit": "50",
+        },
+    )
 
-    assert exc.retry_after == 30
-    assert exc.limit == 50
-    assert "50" in str(exc)
-    assert "30" in str(exc)
+    assert exc.status_code == 429
+    assert exc.detail == "Too many requests"
+    assert exc.headers is not None
+    assert exc.headers.get("Retry-After") == "30"
+    assert exc.headers.get("X-RateLimit-Limit") == "50"

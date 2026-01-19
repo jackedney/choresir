@@ -3,26 +3,13 @@
 import logging
 from datetime import UTC, datetime
 
+from fastapi import HTTPException
+
 from src.core.config import Constants
 from src.core.redis_client import redis_client
 
 
 logger = logging.getLogger(__name__)
-
-
-class RateLimitExceeded(Exception):  # noqa: N818
-    """Exception raised when rate limit is exceeded."""
-
-    def __init__(self, retry_after: int, limit: int) -> None:
-        """Initialize rate limit exception.
-
-        Args:
-            retry_after: Seconds until rate limit resets
-            limit: The rate limit that was exceeded
-        """
-        self.retry_after = retry_after
-        self.limit = limit
-        super().__init__(f"Rate limit of {limit} exceeded. Retry after {retry_after} seconds.")
 
 
 class RateLimiter:
@@ -85,7 +72,14 @@ class RateLimiter:
                         "retry_after": retry_after,
                     },
                 )
-                raise RateLimitExceeded(retry_after=retry_after, limit=limit)
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too many requests",
+                    headers={
+                        "Retry-After": str(retry_after),
+                        "X-RateLimit-Limit": str(limit),
+                    },
+                )
 
             logger.debug(
                 "rate_limit_check_passed",
@@ -97,7 +91,7 @@ class RateLimiter:
                 },
             )
 
-        except RateLimitExceeded:
+        except HTTPException:
             raise
         except Exception as e:
             logger.error("rate_limit_check_error", extra={"error": str(e)})

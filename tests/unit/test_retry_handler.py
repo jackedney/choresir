@@ -1,5 +1,6 @@
 """Unit tests for the agent retry handler."""
 
+import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -154,8 +155,6 @@ class TestCircuitBreaker:
         assert circuit_breaker.state == CircuitBreakerState.OPEN
 
         # Wait for cooldown
-        import time
-
         time.sleep(0.15)
 
         # Should now be HALF_OPEN

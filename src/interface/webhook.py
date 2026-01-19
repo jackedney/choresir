@@ -4,7 +4,6 @@ import logging
 from datetime import datetime
 from typing import Any
 
-import logfire
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pocketbase import PocketBase
 from twilio.request_validator import RequestValidator
@@ -14,7 +13,7 @@ from src.agents.base import Deps
 from src.core import admin_notifier, db_client
 from src.core.config import Constants, settings
 from src.core.errors import classify_agent_error, classify_error_with_response
-from src.core.rate_limiter import RateLimitExceeded, rate_limiter
+from src.core.rate_limiter import rate_limiter
 from src.domain.user import UserStatus
 from src.interface import webhook_security, whatsapp_parser, whatsapp_sender
 
@@ -64,18 +63,8 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
     Raises:
         HTTPException: If signature validation or security checks fail
     """
-    # Check global webhook rate limit
-    try:
-        await rate_limiter.check_webhook_rate_limit()
-    except RateLimitExceeded as e:
-        raise HTTPException(
-            status_code=429,
-            detail="Too many requests",
-            headers={
-                "Retry-After": str(e.retry_after),
-                "X-RateLimit-Limit": str(e.limit),
-            },
-        ) from e
+    # Check global webhook rate limit (raises HTTPException directly)
+    await rate_limiter.check_webhook_rate_limit()
 
     # Get form data (not JSON)
     form_data = await request.form()
@@ -107,11 +96,14 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
     )
 
     if not security_result.is_valid:
-        logfire.warning(
-            f"Webhook security check failed: {security_result.error_message}",
-            message_id=message.message_id,
-            phone=message.from_phone,
-            reason=security_result.error_message,
+        logger.warning(
+            "Webhook security check failed: %s",
+            security_result.error_message,
+            extra={
+                "message_id": message.message_id,
+                "phone": message.from_phone,
+                "reason": security_result.error_message,
+            },
         )
         raise HTTPException(
             status_code=security_result.http_status_code or 400,
@@ -179,10 +171,13 @@ async def _handle_user_status(
         # Check per-user agent call rate limit
         try:
             await rate_limiter.check_agent_rate_limit(message.from_phone)
-        except RateLimitExceeded as e:
+        except HTTPException as e:
+            # Extract rate limit info from headers
+            retry_after = e.headers.get("Retry-After", "3600") if e.headers else "3600"
+            limit = e.headers.get("X-RateLimit-Limit", "unknown") if e.headers else "unknown"
             response = (
-                f"You've reached your hourly limit of {e.limit} messages. "
-                f"Please try again in {e.retry_after // 60} minutes."
+                f"You've reached your hourly limit of {limit} messages. "
+                f"Please try again in {int(retry_after) // 60} minutes."
             )
             result = await whatsapp_sender.send_text_message(
                 to_phone=message.from_phone,

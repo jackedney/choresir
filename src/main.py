@@ -7,10 +7,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from twilio.rest import Client
 
 from src.core.config import settings
+from src.core.db_client import get_client
 from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
+from src.core.redis_client import redis_client
 from src.core.scheduler import start_scheduler, stop_scheduler
+from src.core.scheduler_tracker import job_tracker
 from src.core.schema import sync_schema
 from src.interface.webhook import router as webhook_router
 
@@ -25,8 +29,6 @@ async def check_pocketbase_connectivity() -> None:
         ConnectionError: If unable to connect or authenticate
     """
     try:
-        from src.core.db_client import get_client
-
         client = get_client()
         # Verify we have an authenticated connection
         if not client.auth_store.token:
@@ -46,8 +48,6 @@ async def check_redis_connectivity() -> None:
     Raises:
         ConnectionError: Only if Redis is configured but connectivity test fails critically
     """
-    from src.core.redis_client import redis_client
-
     if not redis_client.is_available:
         logger.info("startup_validation", extra={"service": "redis", "status": "disabled"})
         return
@@ -69,8 +69,6 @@ async def check_twilio_auth() -> None:
         ConnectionError: If credentials are invalid or API call fails
     """
     try:
-        from twilio.rest import Client
-
         account_sid = settings.require_credential("twilio_account_sid", "Twilio Account SID")
         auth_token = settings.require_credential("twilio_auth_token", "Twilio Auth Token")
 
@@ -180,8 +178,6 @@ async def health_check() -> JSONResponse:
 @app.get("/health/scheduler")
 async def scheduler_health_check() -> JSONResponse:
     """Scheduler health check endpoint with job statuses."""
-    from src.core.scheduler_tracker import job_tracker
-
     # Get status for all tracked jobs
     job_names = [
         "overdue_reminders",

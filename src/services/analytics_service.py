@@ -317,7 +317,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
             raise
 
         # Initialize result dictionary (will be converted to model at the end)
-        result_data = {
+        result_data: dict[str, str | int | None] = {
             "user_id": user_id,
             "user_name": user_name,
             "completions": 0,
@@ -541,7 +541,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
             },
         )
 
-        return UserStatistics(**result_data)
+        return UserStatistics.model_validate(result_data)
 
 
 async def get_household_summary(*, period_days: int = 7) -> HouseholdSummary:

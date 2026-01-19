@@ -285,7 +285,7 @@ class TestGetLeaderboardBulkFetch:
 
         # Verify missing user is skipped and logged, but doesn't break the function
         # Result should only include existing users
-        user_ids = [entry["user_id"] for entry in result]
+        user_ids = [entry.user_id for entry in result]
         assert "nonexistent_user" not in user_ids
 
     async def test_leaderboard_empty(self, patched_analytics_db, mock_redis, sample_users):

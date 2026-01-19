@@ -51,7 +51,7 @@ async def test_check_pocketbase_connectivity_success() -> None:
     mock_client = Mock()
     mock_client.auth_store.token = "test_token"
 
-    with patch("src.core.db_client.get_client", return_value=mock_client):
+    with patch("src.main.get_client", return_value=mock_client):
         await check_pocketbase_connectivity()
 
 
@@ -62,8 +62,8 @@ async def test_check_pocketbase_connectivity_no_token() -> None:
     mock_client.auth_store.token = None
 
     with (
-        patch("src.core.db_client.get_client", return_value=mock_client),
-        pytest.raises(ConnectionError, match="No token present"),
+        patch("src.main.get_client", return_value=mock_client),
+        pytest.raises(ConnectionError, match="PocketBase connectivity check failed"),
     ):
         await check_pocketbase_connectivity()
 
@@ -74,7 +74,7 @@ async def test_check_redis_connectivity_disabled() -> None:
     mock_redis = Mock()
     mock_redis.is_available = False
 
-    with patch("src.core.redis_client.redis_client", mock_redis):
+    with patch("src.main.redis_client", mock_redis):
         await check_redis_connectivity()
 
 
@@ -85,7 +85,7 @@ async def test_check_redis_connectivity_success() -> None:
     mock_redis.is_available = True
     mock_redis.ping = AsyncMock(return_value=True)
 
-    with patch("src.core.redis_client.redis_client", mock_redis):
+    with patch("src.main.redis_client", mock_redis):
         await check_redis_connectivity()
         mock_redis.ping.assert_called_once()
 
@@ -96,11 +96,14 @@ async def test_check_twilio_auth_success() -> None:
     mock_account = Mock()
     mock_account.status = "active"
 
+    mock_account_resource = Mock()
+    mock_account_resource.fetch.return_value = mock_account
+
     mock_client = Mock()
-    mock_client.api.accounts.return_value.fetch.return_value = mock_account
+    mock_client.api.accounts.return_value = mock_account_resource
 
     with (
-        patch("twilio.rest.Client", return_value=mock_client),
+        patch("src.main.Client", return_value=mock_client),
         patch("src.main.settings") as mock_settings,
     ):
         mock_settings.require_credential.return_value = "test_value"
@@ -113,11 +116,14 @@ async def test_check_twilio_auth_inactive_account() -> None:
     mock_account = Mock()
     mock_account.status = "suspended"
 
+    mock_account_resource = Mock()
+    mock_account_resource.fetch.return_value = mock_account
+
     mock_client = Mock()
-    mock_client.api.accounts.return_value.fetch.return_value = mock_account
+    mock_client.api.accounts.return_value = mock_account_resource
 
     with (
-        patch("twilio.rest.Client", return_value=mock_client),
+        patch("src.main.Client", return_value=mock_client),
         patch("src.main.settings") as mock_settings,
     ):
         mock_settings.require_credential.return_value = "test_value"

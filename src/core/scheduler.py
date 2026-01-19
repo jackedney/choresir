@@ -14,6 +14,7 @@ from src.core.recurrence_parser import parse_recurrence_to_cron
 from src.core.scheduler_tracker import retry_job_with_backoff
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
+from src.models.service_models import LeaderboardEntry, OverdueChore
 from src.services import personal_chore_service, personal_verification_service
 from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
 
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
 
-async def _send_reminder_to_user(*, user_id: str, chores: list[dict]) -> bool:
+async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) -> bool:
     """Send overdue reminder to a single user.
 
     Args:
@@ -43,7 +44,7 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[dict]) -> bool:
             return False
 
         # Build reminder message
-        chore_list = "\n".join([f"• {chore['title']} (due: {chore['deadline'][:10]})" for chore in chores])
+        chore_list = "\n".join([f"• {chore.title} (due: {chore.deadline[:10]})" for chore in chores])
 
         message = (
             f"🔔 Overdue Chore Reminder\n\n"
@@ -90,9 +91,9 @@ async def send_overdue_reminders() -> None:
             return
 
         # Group chores by assigned user
-        chores_by_user: dict[str, list[dict]] = {}
+        chores_by_user: dict[str, list[OverdueChore]] = {}
         for chore in overdue_chores:
-            user_id = chore.get("assigned_to")
+            user_id = chore.assigned_to
             if not user_id:
                 continue  # Skip unassigned chores
 
@@ -128,15 +129,15 @@ async def send_daily_report() -> None:
         message = (
             f"📊 Daily Household Report\n\n"
             f"Today's Summary:\n"
-            f"✅ Completions: {summary['completions_this_period']}\n"
-            f"⏰ Overdue: {summary['overdue_chores']}\n"
-            f"⏳ Pending Verification: {summary['pending_verifications']}\n"
-            f"⚠️ Conflicts: {summary['current_conflicts']}\n\n"
-            f"Active Members: {summary['active_members']}"
+            f"✅ Completions: {summary.completions_this_period}\n"
+            f"⏰ Overdue: {summary.overdue_chores}\n"
+            f"⏳ Pending Verification: {summary.pending_verifications}\n"
+            f"⚠️ Conflicts: {summary.current_conflicts}\n\n"
+            f"Active Members: {summary.active_members}"
         )
 
         # Add context if there are items needing attention
-        if summary["overdue_chores"] > 0 or summary["pending_verifications"] > 0:
+        if summary.overdue_chores > 0 or summary.pending_verifications > 0:
             message += "\n\nRemember to complete overdue chores and verify pending tasks!"
 
         # Get all active users
@@ -214,7 +215,7 @@ def _get_dynamic_title(rank: int, total_users: int, completions: int) -> str:
     return ""
 
 
-def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> str:
+def _format_weekly_leaderboard(leaderboard: list[LeaderboardEntry], overdue: list[OverdueChore]) -> str:
     """Format weekly leaderboard for WhatsApp display.
 
     Args:
@@ -229,14 +230,14 @@ def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> 
     if not leaderboard:
         lines.append("No completions this week.")
     else:
-        total_completions = sum(entry["completion_count"] for entry in leaderboard)
+        total_completions = sum(entry.completion_count for entry in leaderboard)
         total_users = len(leaderboard)
 
         # Show all users (max 10 for readability)
         for rank, entry in enumerate(leaderboard[:10], start=1):
             emoji = _get_rank_emoji(rank)
-            name = entry["user_name"]
-            count = entry["completion_count"]
+            name = entry.user_name
+            count = entry.completion_count
             title = _get_dynamic_title(rank, total_users, count)
 
             if title:
@@ -256,7 +257,7 @@ def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> 
         valid_overdue = []
         for chore in overdue:
             try:
-                deadline = datetime.fromisoformat(chore["deadline"])
+                deadline = datetime.fromisoformat(chore.deadline)
                 # If deadline is naive (no timezone), assume UTC
                 if deadline.tzinfo is None:
                     deadline = deadline.replace(tzinfo=UTC)
@@ -264,9 +265,9 @@ def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> 
             except (ValueError, TypeError) as e:
                 logfire.warning(
                     "Failed to parse deadline for chore",
-                    chore_id=chore.get("id"),
-                    chore_title=chore.get("title"),
-                    deadline=chore.get("deadline"),
+                    chore_id=chore.id,
+                    chore_title=chore.title,
+                    deadline=chore.deadline,
                     error=str(e),
                 )
                 continue
@@ -276,9 +277,7 @@ def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> 
             most_overdue_chore, most_overdue_deadline = valid_overdue[0]
             overdue_days = (now - most_overdue_deadline).days
             day_word = "day" if overdue_days == 1 else "days"
-            lines.append(
-                f'*Most Neglected Chore:* "{most_overdue_chore["title"]}" (Overdue by {overdue_days} {day_word})'
-            )
+            lines.append(f'*Most Neglected Chore:* "{most_overdue_chore.title}" (Overdue by {overdue_days} {day_word})')
 
     return "\n".join(lines)
 
