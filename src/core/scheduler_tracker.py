@@ -239,12 +239,12 @@ async def retry_job_with_backoff(
     last_error = None
     for attempt in range(max_retries):
         try:
-            logger.info(f"Executing {job_name} (attempt {attempt + 1}/{max_retries})")
+            logger.info("Executing %s (attempt %d/%d)", job_name, attempt + 1, max_retries)
             await job_func()
 
             # Success - record and return
             await job_tracker.record_job_success(job_name)
-            logger.info(f"{job_name} completed successfully")
+            logger.info("%s completed successfully", job_name)
             return
 
         except Exception as e:
@@ -260,7 +260,7 @@ async def retry_job_with_backoff(
             # If this is not the last attempt, wait before retrying
             if attempt < max_retries - 1:
                 delay = base_delay**attempt
-                logger.info(f"Retrying {job_name} in {delay}s")
+                logger.info("Retrying %s in %ds", job_name, delay)
                 await asyncio.sleep(delay)
 
     # All retries exhausted - record failure

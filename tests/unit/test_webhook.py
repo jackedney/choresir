@@ -508,8 +508,9 @@ class TestHandleButtonPayload:
         # Verify detailed logging with exception type and stack trace
         mock_logger.error.assert_called()
         log_call = mock_logger.error.call_args
-        assert "AttributeError" in log_call[0][0]  # Exception type in message
+        # With lazy formatting, exception type is in args[1], not the format string
         assert "Unexpected button handler error" in log_call[0][0]
+        assert log_call[0][1] == "AttributeError"  # Exception type in first arg
         assert log_call[1]["exc_info"] is True  # Stack trace included
 
         # Verify user-friendly error message was sent

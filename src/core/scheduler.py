@@ -59,7 +59,7 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) ->
         )
 
         if result.success:
-            logger.info(f"Sent overdue reminder to {user['name']} ({len(chores)} chores)")
+            logger.info("Sent overdue reminder to %s (%d chores)", user["name"], len(chores))
             return True
 
         logger.warning(f"Failed to send reminder to {user['name']}: {result.error}")
@@ -106,7 +106,7 @@ async def send_overdue_reminders() -> None:
             if await _send_reminder_to_user(user_id=user_id, chores=chores):
                 sent_count += 1
 
-        logger.info(f"Completed overdue reminders job: {sent_count}/{len(chores_by_user)} users notified")
+        logger.info("Completed overdue reminders job: %d/%d users notified", sent_count, len(chores_by_user))
 
     except Exception as e:
         logger.error(f"Error in overdue reminders job: {e}")
@@ -168,7 +168,7 @@ async def send_daily_report() -> None:
                 logger.error(f"Error sending daily report to user {user['id']}: {e}")
                 continue
 
-        logger.info(f"Completed daily report job: sent to {sent_count}/{len(active_users)} users")
+        logger.info("Completed daily report job: sent to %d/%d users", sent_count, len(active_users))
 
     except Exception as e:
         logger.error(f"Error in daily report job: {e}")
@@ -331,7 +331,7 @@ async def send_weekly_leaderboard() -> None:
                 logger.error(f"Error sending weekly leaderboard to user {user['id']}: {e}")
                 continue
 
-        logger.info(f"Completed weekly leaderboard job: sent to {sent_count}/{len(active_users)} users")
+        logger.info("Completed weekly leaderboard job: sent to %d/%d users", sent_count, len(active_users))
 
     except Exception as e:
         logger.error(f"Error in weekly leaderboard job: {e}")
@@ -557,7 +557,7 @@ async def send_personal_chore_reminders() -> None:
                 logger.error(f"Error sending reminder to user {user['id']}: {e}")
                 continue
 
-        logger.info(f"Completed personal chore reminders: sent to {sent_count}/{len(active_users)} users")
+        logger.info("Completed personal chore reminders: sent to %d/%d users", sent_count, len(active_users))
 
     except Exception as e:
         logger.error(f"Error in personal chore reminders job: {e}")
