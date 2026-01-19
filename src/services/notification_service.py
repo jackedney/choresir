@@ -1,13 +1,15 @@
 """Notification service for sending WhatsApp messages to household members."""
 
 import logging
-from typing import Any
+
+from pydantic import ValidationError
 
 from src.core import db_client
-from src.core.config import settings
+from src.core.config import Constants, settings
 from src.core.logging import span
 from src.domain.user import UserStatus
 from src.interface import whatsapp_sender, whatsapp_templates
+from src.models.service_models import NotificationResult
 
 
 logger = logging.getLogger(__name__)
@@ -18,7 +20,7 @@ async def send_verification_request(
     log_id: str,
     chore_id: str,
     claimer_user_id: str,
-) -> list[dict[str, Any]]:
+) -> list[NotificationResult]:
     """Send verification request to all household members except claimer.
 
     Sends interactive message with Approve/Reject buttons.
@@ -29,7 +31,7 @@ async def send_verification_request(
         claimer_user_id: User who claimed completion (excluded from notifications)
 
     Returns:
-        List of send results with user_id, phone, success, error
+        List of NotificationResult objects with send status
     """
     with span("notification_service.send_verification_request"):
         logger.info(
@@ -61,7 +63,7 @@ async def send_verification_request(
         all_users = await db_client.list_records(
             collection="users",
             filter_query=f'status="{UserStatus.ACTIVE}"',
-            per_page=100,
+            per_page=Constants.DEFAULT_PER_PAGE_LIMIT,
         )
 
         # Filter out the claimer
@@ -84,14 +86,17 @@ async def send_verification_request(
                 log_id=log_id,
             )
 
-            results.append(
-                {
-                    "user_id": user_id,
-                    "phone": phone,
-                    "success": send_result.success,
-                    "error": send_result.error,
-                }
-            )
+            try:
+                notification_result = NotificationResult(
+                    user_id=user_id,
+                    phone=phone,
+                    success=send_result.success,
+                    error=send_result.error,
+                )
+                results.append(notification_result)
+            except ValidationError as e:
+                logger.error("Failed to create NotificationResult for user %s: %s", user_id, e)
+                continue
 
             if send_result.success:
                 logger.info("Verification request sent to user=%s phone=%s", user_id, phone)
@@ -107,8 +112,8 @@ async def send_verification_request(
         logger.info(
             "Sent %d verification requests (%d successful, %d failed)",
             len(results),
-            sum(1 for r in results if r["success"]),
-            sum(1 for r in results if not r["success"]),
+            sum(1 for r in results if r.success),
+            sum(1 for r in results if not r.success),
         )
         return results
 

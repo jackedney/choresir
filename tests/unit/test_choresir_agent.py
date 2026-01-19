@@ -31,14 +31,32 @@ class TestChoresirAgentErrorHandling:
         """Create mock member list."""
         return "- Test User (+1234567890)\n- Admin User (+9876543210) (admin)"
 
+    def _mock_agent_with_error(self, exception):
+        """Helper to mock agent and retry handler with an error."""
+        mock_agent = AsyncMock()
+        mock_agent.run.side_effect = exception
+
+        mock_retry_handler = AsyncMock()
+        mock_retry_handler.execute_with_retry.side_effect = exception
+
+        return mock_agent, mock_retry_handler
+
     @pytest.mark.asyncio
     async def test_quota_exceeded_error_returns_user_friendly_message(self, mock_deps, mock_member_list):
         """Test that quota exceeded errors return appropriate user message."""
-        with patch("src.agents.choresir_agent.get_agent") as mock_get_agent:
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+        ):
             # Mock agent to raise quota exceeded error
             mock_agent = AsyncMock()
             mock_agent.run.side_effect = Exception("OpenRouter API error: quota exceeded")
             mock_get_agent.return_value = mock_agent
+
+            # Mock retry handler to pass through the error
+            mock_retry_handler = AsyncMock()
+            mock_retry_handler.execute_with_retry.side_effect = Exception("OpenRouter API error: quota exceeded")
+            mock_get_retry_handler.return_value = mock_retry_handler
 
             # Run agent
             result = await run_agent(
@@ -57,11 +75,14 @@ class TestChoresirAgentErrorHandling:
     @pytest.mark.asyncio
     async def test_rate_limit_error_returns_user_friendly_message(self, mock_deps, mock_member_list):
         """Test that rate limit errors return appropriate user message."""
-        with patch("src.agents.choresir_agent.get_agent") as mock_get_agent:
-            # Mock agent to raise rate limit error
-            mock_agent = AsyncMock()
-            mock_agent.run.side_effect = Exception("Rate limit exceeded. Try again in 60s")
+        exception = Exception("Rate limit exceeded. Try again in 60s")
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+        ):
+            mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
             mock_get_agent.return_value = mock_agent
+            mock_get_retry_handler.return_value = mock_retry_handler
 
             # Run agent
             result = await run_agent(
@@ -79,11 +100,14 @@ class TestChoresirAgentErrorHandling:
     @pytest.mark.asyncio
     async def test_authentication_error_returns_user_friendly_message(self, mock_deps, mock_member_list):
         """Test that authentication errors return appropriate user message."""
-        with patch("src.agents.choresir_agent.get_agent") as mock_get_agent:
-            # Mock agent to raise authentication error
-            mock_agent = AsyncMock()
-            mock_agent.run.side_effect = Exception("Invalid API key provided")
+        exception = Exception("Invalid API key provided")
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+        ):
+            mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
             mock_get_agent.return_value = mock_agent
+            mock_get_retry_handler.return_value = mock_retry_handler
 
             # Run agent
             result = await run_agent(
@@ -101,11 +125,14 @@ class TestChoresirAgentErrorHandling:
     @pytest.mark.asyncio
     async def test_network_error_returns_user_friendly_message(self, mock_deps, mock_member_list):
         """Test that network errors return appropriate user message."""
-        with patch("src.agents.choresir_agent.get_agent") as mock_get_agent:
-            # Mock agent to raise network error
-            mock_agent = AsyncMock()
-            mock_agent.run.side_effect = ConnectionError("Connection failed")
+        exception = ConnectionError("Connection failed")
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+        ):
+            mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
             mock_get_agent.return_value = mock_agent
+            mock_get_retry_handler.return_value = mock_retry_handler
 
             # Run agent
             result = await run_agent(
@@ -123,11 +150,14 @@ class TestChoresirAgentErrorHandling:
     @pytest.mark.asyncio
     async def test_unknown_error_returns_generic_message(self, mock_deps, mock_member_list):
         """Test that unknown errors return generic user message."""
-        with patch("src.agents.choresir_agent.get_agent") as mock_get_agent:
-            # Mock agent to raise unknown error
-            mock_agent = AsyncMock()
-            mock_agent.run.side_effect = ValueError("Something went wrong")
+        exception = ValueError("Something went wrong")
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+        ):
+            mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
             mock_get_agent.return_value = mock_agent
+            mock_get_retry_handler.return_value = mock_retry_handler
 
             # Run agent
             result = await run_agent(
@@ -145,14 +175,15 @@ class TestChoresirAgentErrorHandling:
     @pytest.mark.asyncio
     async def test_error_logging_includes_category(self, mock_deps, mock_member_list):
         """Test that error logging includes the error category."""
+        exception = Exception("quota exceeded")
         with (
             patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
             patch("src.agents.choresir_agent.logfire") as mock_logfire,
         ):
-            # Mock agent to raise quota exceeded error
-            mock_agent = AsyncMock()
-            mock_agent.run.side_effect = Exception("quota exceeded")
+            mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
             mock_get_agent.return_value = mock_agent
+            mock_get_retry_handler.return_value = mock_retry_handler
 
             # Run agent
             await run_agent(
@@ -180,12 +211,12 @@ class TestChoresirAgentErrorHandling:
         for exception, expected_category in test_cases:
             with (
                 patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+                patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
                 patch("src.agents.choresir_agent.logfire") as mock_logfire,
             ):
-                # Mock agent to raise the exception
-                mock_agent = AsyncMock()
-                mock_agent.run.side_effect = exception
+                mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
                 mock_get_agent.return_value = mock_agent
+                mock_get_retry_handler.return_value = mock_retry_handler
 
                 # Run agent
                 await run_agent(
@@ -211,10 +242,13 @@ class TestChoresirAgentErrorHandling:
         ]
 
         for exception in error_exceptions:
-            with patch("src.agents.choresir_agent.get_agent") as mock_get_agent:
-                mock_agent = AsyncMock()
-                mock_agent.run.side_effect = exception
+            with (
+                patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+                patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+            ):
+                mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
                 mock_get_agent.return_value = mock_agent
+                mock_get_retry_handler.return_value = mock_retry_handler
 
                 result = await run_agent(
                     user_message="Test",

@@ -1,5 +1,7 @@
 """Pantry and shopping list management tools for the choresir agent."""
 
+import logging
+
 import logfire
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
@@ -7,6 +9,9 @@ from pydantic_ai import Agent, RunContext
 from src.agents.base import Deps
 from src.domain.pantry import PantryItemStatus
 from src.services import pantry_service
+
+
+logger = logging.getLogger(__name__)
 
 
 class AddToShoppingList(BaseModel):
@@ -86,7 +91,7 @@ async def tool_add_to_shopping_list(ctx: RunContext[Deps], params: AddToShopping
             return f"Added '{params.item_name}'{qty_msg} to the shopping list{notes_msg}."
 
     except Exception as e:
-        logfire.error("Failed to add to shopping list", error=str(e))
+        logger.error("Failed to add to shopping list", extra={"error": str(e)})
         return f"Error: Unable to add item to shopping list. {e!s}"
 
 
@@ -131,7 +136,7 @@ async def tool_get_shopping_list(_ctx: RunContext[Deps]) -> str:
             return "\n".join(lines)
 
     except Exception as e:
-        logfire.error("Failed to get shopping list", error=str(e))
+        logger.error("Failed to get shopping list", extra={"error": str(e)})
         return f"Error: Unable to retrieve shopping list. {e!s}"
 
 
@@ -169,7 +174,7 @@ async def tool_checkout_shopping_list(ctx: RunContext[Deps]) -> str:
             return f"Checked out {count} item(s): {items_str}. Pantry updated."
 
     except Exception as e:
-        logfire.error("Failed to checkout shopping list", error=str(e))
+        logger.error("Failed to checkout shopping list", extra={"error": str(e)})
         return f"Error: Unable to checkout shopping list. {e!s}"
 
 
@@ -198,7 +203,7 @@ async def tool_remove_from_shopping_list(_ctx: RunContext[Deps], params: RemoveF
             return f"'{params.item_name}' was not found on the shopping list."
 
     except Exception as e:
-        logfire.error("Failed to remove from shopping list", error=str(e))
+        logger.error("Failed to remove from shopping list", extra={"error": str(e)})
         return f"Error: Unable to remove item from shopping list. {e!s}"
 
 
@@ -238,7 +243,7 @@ async def tool_mark_item_out(ctx: RunContext[Deps], params: MarkItemStatus) -> s
             return status_msg
 
     except Exception as e:
-        logfire.error("Failed to mark item status", error=str(e))
+        logger.error("Failed to mark item status", extra={"error": str(e)})
         return f"Error: Unable to update item status. {e!s}"
 
 
@@ -283,7 +288,7 @@ async def tool_get_pantry_status(_ctx: RunContext[Deps]) -> str:
             return "\n".join(lines)
 
     except Exception as e:
-        logfire.error("Failed to get pantry status", error=str(e))
+        logger.error("Failed to get pantry status", extra={"error": str(e)})
         return f"Error: Unable to retrieve pantry status. {e!s}"
 
 

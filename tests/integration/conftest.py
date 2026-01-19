@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pocketbase import PocketBase
 
+from src.agents.retry_handler import reset_retry_handler
 from src.core import admin_notifier as admin_notifier_module, config as config_module, db_client as db_module
 from src.core.config import Settings
 from src.core.schema import COLLECTIONS, sync_schema
@@ -233,9 +234,6 @@ def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBas
 @pytest.fixture
 def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypatch):
     """Patch the db_client module to use the test PocketBase instance."""
-    # Clear the LRU cache to prevent stale connections
-    db_module._get_authenticated_client.cache_clear()
-
     # Patch all the db_client functions using helper factories
     mock_list_records = _make_mock_list_records(initialized_db)
     monkeypatch.setattr(db_module, "create_record", _make_mock_create_record(initialized_db))
@@ -384,3 +382,12 @@ async def sample_chores(db_client: MockDBClient, sample_users: dict[str, dict]) 
         created_chores.append(chore)
 
     return created_chores
+
+
+@pytest.fixture(autouse=True)
+def reset_agent_retry_handler():
+    """Reset the global retry handler before each test to ensure clean state."""
+    reset_retry_handler()
+    yield
+    # Clean up after test as well
+    reset_retry_handler()

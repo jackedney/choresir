@@ -58,11 +58,14 @@ def parse_twilio_webhook(params: dict[str, str]) -> ParsedMessage | None:
     # 5. Default -> text (regular text message)
     message_type = "button_reply" if button_payload else "text"
 
+    # Use current timestamp as Twilio doesn't provide message timestamp in webhook
+    timestamp = str(int(datetime.now().timestamp()))
+
     return ParsedMessage(
         message_id=message_sid,
         from_phone=from_phone,
         text=body,
-        timestamp=str(int(datetime.now().timestamp())),
+        timestamp=timestamp,
         message_type=message_type,
         button_payload=button_payload,
     )

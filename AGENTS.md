@@ -83,6 +83,41 @@ Specific rules for building Pydantic AI agents in `src/agents/`.
 *   **Explicit Arguments:** All tools must take a single Pydantic Model as an argument (or named args typed with Pydantic primitives) to ensure schema generation works perfectly with the LLM.
 *   **Error Handling:** Tools must return descriptive error strings (e.g., "Error: Chore not found") rather than raising exceptions.
 
-## 6. Testing Strategy
+## 6. Logging & Observability
+
+### A. Standard Logging Pattern
+*   **Library:** Use Python's standard `logging` module in all files.
+*   **Pattern:** Always include at module level:
+    ```python
+    import logging
+    logger = logging.getLogger(__name__)
+    ```
+*   **Logfire Integration:** Logfire automatically captures all standard logging calls via `logfire.instrument_logging()` configured in `src/core/logging.py`.
+
+### B. Structured Logging
+*   **Context Fields:** Use `extra` parameter for structured data:
+    ```python
+    logger.info("User action", extra={"user_id": "123", "action": "claim_chore"})
+    ```
+*   **Utilities:** Use helpers from `src/core/logging.py` for common patterns:
+    ```python
+    from src.core.logging import log_with_user_context
+    log_with_user_context(logger, "info", "Action performed", user_id="123", action="claim")
+    ```
+
+### C. Log Levels
+*   **DEBUG:** Fine-grained diagnostic info (cache hits, internal state)
+*   **INFO:** General operational events (user actions, job execution)
+*   **WARNING:** Recoverable issues (failed retries, degraded performance)
+*   **ERROR:** Failures requiring attention (DB errors, API failures)
+*   **CRITICAL:** System-threatening failures (startup failures, data corruption)
+
+### D. Best Practices
+*   **Never use direct logfire calls:** Use standard logging instead of `logfire.info()`, `logfire.error()`, etc.
+*   **Consistent context:** Include relevant context fields (user_id, request_id, operation_type) for filtering and debugging.
+*   **No sensitive data:** Never log passwords, tokens, or personal information.
+*   **Actionable messages:** Log messages should be clear and actionable.
+
+## 7. Testing Strategy
 *   **Integration:** Use `pytest` with an ephemeral PocketBase instance (via `TestClient` fixture).
 *   **No Mocks:** Do not mock the database logic. Test against the real (temporary) binary.

@@ -107,6 +107,11 @@ class Constants:
     MAX_REQUESTS_PER_MINUTE: int = 60
     MAX_AGENT_CALLS_PER_USER_PER_HOUR: int = 50
 
+    # Webhook Security
+    WEBHOOK_MAX_AGE_SECONDS: int = 300  # 5 minutes
+    WEBHOOK_NONCE_TTL_SECONDS: int = 600  # 10 minutes (2x max age for safety)
+    WEBHOOK_RATE_LIMIT_PER_PHONE: int = 20  # Max webhooks per phone per minute
+
     # Scheduler Configuration
     DAILY_REMINDER_HOUR: int = 8  # 8am
     DAILY_REPORT_HOUR: int = 21  # 9pm
@@ -115,6 +120,28 @@ class Constants:
 
     # WhatsApp Message Window
     WHATSAPP_MESSAGE_WINDOW_HOURS: int = 24
+
+    # Cache TTLs
+    CACHE_TTL_LEADERBOARD_SECONDS: int = 60  # 1 minute for leaderboard cache
+
+    # Webhook Payload Format
+    WEBHOOK_BUTTON_PAYLOAD_PARTS: int = 3  # Expected parts in button payload (e.g., "VERIFY:APPROVE:log_id")
+
+    # Leaderboard & Gamification
+    LEADERBOARD_RANK_FIRST: int = 1
+    LEADERBOARD_RANK_SECOND: int = 2
+    LEADERBOARD_RANK_THIRD: int = 3
+    LEADERBOARD_COMPLETIONS_CARRYING_TEAM: int = 5  # Threshold for "Carrying the team!" title
+    LEADERBOARD_COMPLETIONS_NEEDS_IMPROVEMENT: int = 2  # Threshold for "Room for improvement" title
+
+    # Auto-verification
+    AUTO_VERIFY_PENDING_HOURS: int = 48  # Hours before auto-verifying personal chore logs
+
+    # Rate Limiting Windows
+    RATE_LIMIT_WINDOW_SECONDS: int = 60  # Window for webhook rate limiting (1 minute)
+
+    # Pagination Defaults
+    DEFAULT_PER_PAGE_LIMIT: int = 100  # Default pagination limit for list queries
 
     # Paths
     PROJECT_ROOT: Path = Path(__file__).parent.parent.parent

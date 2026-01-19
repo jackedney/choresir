@@ -1,9 +1,9 @@
 """WhatsApp webhook endpoints with signature verification."""
 
+import logging
 from datetime import datetime
 from typing import Any
 
-import logfire
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pocketbase import PocketBase
 from twilio.request_validator import RequestValidator
@@ -11,16 +11,15 @@ from twilio.request_validator import RequestValidator
 from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
-from src.core.config import settings
-from src.core.errors import classify_agent_error
+from src.core.config import Constants, settings
+from src.core.errors import classify_agent_error, classify_error_with_response
+from src.core.rate_limiter import rate_limiter
 from src.domain.user import UserStatus
-from src.interface import whatsapp_parser, whatsapp_sender
+from src.interface import webhook_security, whatsapp_parser, whatsapp_sender
 
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
-
-# Button payload format constants
-BUTTON_PAYLOAD_PARTS_COUNT = 3
+logger = logging.getLogger(__name__)
 
 # Error messages
 ERROR_MSG_BUTTON_PROCESSING_FAILED = (
@@ -50,8 +49,9 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
 
     This endpoint:
     1. Validates the X-Twilio-Signature header
-    2. Returns 200 OK immediately
-    3. Dispatches message processing to background tasks
+    2. Performs security checks (timestamp, nonce, rate limit)
+    3. Returns 200 OK immediately
+    4. Dispatches message processing to background tasks
 
     Args:
         request: FastAPI request object containing headers and form data
@@ -61,8 +61,11 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
         Success status dictionary
 
     Raises:
-        HTTPException: If signature validation fails
+        HTTPException: If signature validation or security checks fail
     """
+    # Check global webhook rate limit (raises HTTPException directly)
+    await rate_limiter.check_webhook_rate_limit()
+
     # Get form data (not JSON)
     form_data = await request.form()
     params = {k: str(v) for k, v in form_data.items()}
@@ -78,6 +81,34 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
     # Verify signature
     if not verify_twilio_signature(url, params, signature):
         raise HTTPException(status_code=401, detail="Invalid signature")
+
+    # Parse message for security validation
+    message = whatsapp_parser.parse_twilio_webhook(params)
+    if not message:
+        logger.warning("Failed to parse webhook for security validation")
+        raise HTTPException(status_code=400, detail="Invalid webhook format")
+
+    # Perform security checks (replay attack protection)
+    security_result = await webhook_security.verify_webhook_security(
+        message_id=message.message_id,
+        timestamp_str=message.timestamp,
+        phone_number=message.from_phone,
+    )
+
+    if not security_result.is_valid:
+        logger.warning(
+            "Webhook security check failed: %s",
+            security_result.error_message,
+            extra={
+                "message_id": message.message_id,
+                "phone": message.from_phone,
+                "reason": security_result.error_message,
+            },
+        )
+        raise HTTPException(
+            status_code=security_result.http_status_code or 400,
+            detail=security_result.error_message,
+        )
 
     # Dispatch to background task
     background_tasks.add_task(process_webhook_message, params)
@@ -123,19 +154,37 @@ async def _handle_user_status(
     status = user_record["status"]
 
     if status == UserStatus.PENDING:
-        logfire.info(f"Pending user {message.from_phone} sent message")
+        logger.info("Pending user %s sent message", message.from_phone)
         response = await choresir_agent.handle_pending_user(user_name=user_record["name"])
         result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
         return (result.success, result.error)
 
     if status == UserStatus.BANNED:
-        logfire.info(f"Banned user {message.from_phone} sent message")
+        logger.info("Banned user %s sent message", message.from_phone)
         response = await choresir_agent.handle_banned_user(user_name=user_record["name"])
         result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
         return (result.success, result.error)
 
     if status == UserStatus.ACTIVE:
-        logfire.info(f"Processing active user {message.from_phone} message with agent")
+        logger.info("Processing active user %s message with agent", message.from_phone)
+
+        # Check per-user agent call rate limit
+        try:
+            await rate_limiter.check_agent_rate_limit(message.from_phone)
+        except HTTPException as e:
+            # Extract rate limit info from headers
+            retry_after = e.headers.get("Retry-After", "3600") if e.headers else "3600"
+            limit = e.headers.get("X-RateLimit-Limit", "unknown") if e.headers else "unknown"
+            response = (
+                f"You've reached your hourly limit of {limit} messages. "
+                f"Please try again in {int(retry_after) // 60} minutes."
+            )
+            result = await whatsapp_sender.send_text_message(
+                to_phone=message.from_phone,
+                text=response,
+            )
+            return (result.success, result.error)
+
         member_list = await choresir_agent.get_member_list(_db=db)
         agent_response = await choresir_agent.run_agent(
             user_message=message.text or "",
@@ -147,12 +196,12 @@ async def _handle_user_status(
             text=agent_response,
         )
         if not result.success:
-            logfire.error(f"Failed to send response to {message.from_phone}: {result.error}")
+            logger.error("Failed to send response to %s: %s", message.from_phone, result.error)
         else:
-            logfire.info(f"Successfully processed message for {message.from_phone}")
+            logger.info("Successfully processed message for %s", message.from_phone)
         return (result.success, result.error)
 
-    logfire.info(f"User {message.from_phone} has unknown status: {status}")
+    logger.info("User %s has unknown status: %s", message.from_phone, status)
     return (False, f"Unknown user status: {status}")
 
 
@@ -178,7 +227,7 @@ async def _handle_button_payload(
 
     payload = message.button_payload
     if not payload:
-        logfire.error("Button payload is missing")
+        logger.error("Button payload is missing")
         result = await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text=ERROR_MSG_BUTTON_PROCESSING_FAILED,
@@ -187,8 +236,8 @@ async def _handle_button_payload(
 
     # Parse payload: VERIFY:APPROVE:log_id or VERIFY:REJECT:log_id
     parts = payload.split(":")
-    if len(parts) != BUTTON_PAYLOAD_PARTS_COUNT or parts[0] != "VERIFY":
-        logfire.error(f"Invalid button payload format: {payload}")
+    if len(parts) != Constants.WEBHOOK_BUTTON_PAYLOAD_PARTS or parts[0] != "VERIFY":
+        logger.error("Invalid button payload format: %s", payload)
         result = await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text=ERROR_MSG_BUTTON_PROCESSING_FAILED,
@@ -199,7 +248,7 @@ async def _handle_button_payload(
 
     # Validate decision type
     if decision_str not in ("APPROVE", "REJECT"):
-        logfire.error(f"Invalid decision in payload: {decision_str}")
+        logger.error("Invalid decision in payload: %s", decision_str)
         result = await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="Sorry, I couldn't process that button click. Please try typing your response instead.",
@@ -241,7 +290,7 @@ async def _handle_button_payload(
         return (False, "Self-verification attempted")
 
     except KeyError as e:
-        logfire.error(f"Record not found for button payload: {e}")
+        logger.error("Record not found for button payload: %s", e)
         await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="This verification request may have expired or been processed already.",
@@ -250,8 +299,10 @@ async def _handle_button_payload(
 
     except Exception as e:
         # Log with more detail for unexpected exceptions
-        logfire.error(
-            f"Unexpected button handler error ({type(e).__name__}): {e}",
+        logger.error(
+            "Unexpected button handler error (%s): %s",
+            type(e).__name__,
+            e,
             exc_info=True,  # Include stack trace
         )
         await whatsapp_sender.send_text_message(
@@ -261,172 +312,209 @@ async def _handle_button_payload(
         return (False, f"Unexpected error: {type(e).__name__}: {e!s}")
 
 
-async def process_webhook_message(params: dict[str, str]) -> None:  # noqa: PLR0912, PLR0915
-    """Process Twilio webhook message in background.
+async def _check_duplicate_message(message_id: str) -> bool:
+    """Check if message has already been processed.
 
-    This function:
-    1. Parses the webhook params to extract message and user info
-    2. Looks up the user in the database
-    3. Handles different user states (unknown, pending, banned, active)
-    4. For active users, runs the agent and sends response via WhatsApp
-    5. Handles errors gracefully and sends error messages to the user
+    Args:
+        message_id: WhatsApp message ID
+
+    Returns:
+        True if message is a duplicate, False otherwise
+    """
+    existing_log = await db_client.get_first_record(
+        collection="processed_messages",
+        filter_query=f'message_id = "{message_id}"',
+    )
+    if existing_log:
+        logger.info("Message %s already processed, skipping", message_id)
+        return True
+    return False
+
+
+async def _log_message_start(message: whatsapp_parser.ParsedMessage, message_type: str) -> None:
+    """Log the start of message processing.
+
+    Args:
+        message: Parsed message
+        message_type: Type description for logging
+    """
+    await db_client.create_record(
+        collection="processed_messages",
+        data={
+            "message_id": message.message_id,
+            "from_phone": message.from_phone,
+            "processed_at": datetime.now().isoformat(),
+            "success": False,
+            "error_message": f"{message_type} processing started",
+        },
+    )
+
+
+async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None:
+    """Handle button reply messages.
+
+    Args:
+        message: Parsed message with button payload
+    """
+    if await _check_duplicate_message(message.message_id):
+        return
+
+    logger.info("Processing button click from %s: %s", message.from_phone, message.button_payload)
+    await _log_message_start(message, "Button")
+
+    user_record = await db_client.get_first_record(
+        collection="users",
+        filter_query=f'phone = "{message.from_phone}"',
+    )
+    if not user_record:
+        logger.warning("Unknown user clicked button: %s", message.from_phone)
+        await whatsapp_sender.send_text_message(
+            to_phone=message.from_phone,
+            text="Sorry, I don't recognize your number. Please contact your household admin.",
+        )
+        return
+
+    success, error = await _handle_button_payload(message=message, user_record=user_record)
+    await _update_message_status(message_id=message.message_id, success=success, error=error)
+
+
+async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
+    """Handle text messages through the agent.
+
+    Args:
+        message: Parsed message with text content
+    """
+    if await _check_duplicate_message(message.message_id):
+        return
+
+    logger.info("Processing message from %s: %s", message.from_phone, message.text)
+    await _log_message_start(message, "Processing")
+
+    db = db_client.get_client()
+    deps = await choresir_agent.build_deps(db=db, user_phone=message.from_phone)
+
+    if deps is None:
+        logger.info("Unknown user %s, processing unknown user message", message.from_phone)
+        response = await choresir_agent.handle_unknown_user(
+            user_phone=message.from_phone, message_text=message.text or ""
+        )
+        result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
+        await _update_message_status(message_id=message.message_id, success=result.success, error=result.error)
+        return
+
+    user_record = await db_client.get_first_record(
+        collection="users",
+        filter_query=f'phone = "{message.from_phone}"',
+    )
+    if not user_record:
+        logger.error("User record not found after build_deps succeeded for %s", message.from_phone)
+        await _update_message_status(
+            message_id=message.message_id,
+            success=False,
+            error="User record not found after build_deps succeeded",
+        )
+        return
+
+    success, error = await _handle_user_status(user_record=user_record, message=message, db=db, deps=deps)
+    await _update_message_status(message_id=message.message_id, success=success, error=error)
+
+
+async def _route_webhook_message(message: whatsapp_parser.ParsedMessage) -> None:
+    """Route message to appropriate handler based on type.
+
+    Args:
+        message: Parsed message
+    """
+    if message.message_type == "button_reply" and message.button_payload:
+        await _handle_button_message(message)
+    elif message.text:
+        await _handle_text_message(message)
+    else:
+        logger.info("No text message found, skipping")
+
+
+async def _handle_webhook_error(e: Exception, params: dict[str, str]) -> None:
+    """Handle errors during webhook processing.
+
+    Args:
+        e: Exception that occurred
+        params: Original webhook parameters
+    """
+    logger.error("Error processing webhook message: %s", e)
+
+    error_category, _ = classify_agent_error(e)
+    error_response = classify_error_with_response(e)
+
+    logger.error(
+        "Error code: %s",
+        error_response.code,
+        extra={
+            "error_code": error_response.code,
+            "severity": error_response.severity.value,
+            "error_message": error_response.message,
+        },
+    )
+
+    if admin_notifier.should_notify_admins(error_category):
+        try:
+            parsed_message = whatsapp_parser.parse_twilio_webhook(params)
+            user_context = "Unknown user"
+            if parsed_message and parsed_message.from_phone:
+                user_context = parsed_message.from_phone
+
+            timestamp = datetime.now().isoformat()
+            error_preview = str(e)[:100]
+            notification_msg = (
+                f"⚠️ Webhook error: {error_response.code}\n"
+                f"Category: {error_category.value}\n"
+                f"Severity: {error_response.severity.value}\n"
+                f"User: {user_context}\nTime: {timestamp}\nError: {error_preview}"
+            )
+            await admin_notifier.notify_admins(
+                message=notification_msg,
+                severity="critical",
+            )
+        except Exception as notify_error:
+            logger.error("Failed to notify admins of critical error: %s", notify_error)
+
+    try:
+        parsed_message = whatsapp_parser.parse_twilio_webhook(params)
+        if parsed_message and parsed_message.from_phone:
+            try:
+                existing_record = await db_client.get_first_record(
+                    collection="processed_messages",
+                    filter_query=f'message_id = "{parsed_message.message_id}"',
+                )
+                if existing_record:
+                    await db_client.update_record(
+                        collection="processed_messages",
+                        record_id=existing_record["id"],
+                        data={
+                            "success": False,
+                            "error_message": str(e),
+                        },
+                    )
+            except Exception as update_error:
+                logger.error("Failed to update processed message record: %s", update_error)
+
+            user_message = f"{error_response.message}\n\n{error_response.suggestion}"
+            await whatsapp_sender.send_text_message(
+                to_phone=parsed_message.from_phone,
+                text=user_message,
+            )
+    except Exception as send_error:
+        logger.error("Failed to send error message to user: %s", send_error)
+
+
+async def process_webhook_message(params: dict[str, str]) -> None:
+    """Process Twilio webhook message in background.
 
     Args:
         params: Form parameters from Twilio webhook
     """
     try:
         message = whatsapp_parser.parse_twilio_webhook(params)
-
-        # Handle button clicks separately (bypass agent)
-        if message and message.message_type == "button_reply" and message.button_payload:
-            # Still need to check duplicates and get user
-            existing_log = await db_client.get_first_record(
-                collection="processed_messages",
-                filter_query=f'message_id = "{message.message_id}"',
-            )
-            if existing_log:
-                logfire.info(f"Button click {message.message_id} already processed, skipping")
-                return
-
-            logfire.info(f"Processing button click from {message.from_phone}: {message.button_payload}")
-
-            # Log processing start
-            await db_client.create_record(
-                collection="processed_messages",
-                data={
-                    "message_id": message.message_id,
-                    "from_phone": message.from_phone,
-                    "processed_at": datetime.now().isoformat(),
-                    "success": False,
-                    "error_message": "Button processing started",
-                },
-            )
-
-            # Get user record
-            user_record = await db_client.get_first_record(
-                collection="users",
-                filter_query=f'phone = "{message.from_phone}"',
-            )
-            if not user_record:
-                logfire.warning(f"Unknown user clicked button: {message.from_phone}")
-                await whatsapp_sender.send_text_message(
-                    to_phone=message.from_phone,
-                    text="Sorry, I don't recognize your number. Please contact your household admin.",
-                )
-                return
-
-            success, error = await _handle_button_payload(message=message, user_record=user_record)
-            await _update_message_status(message_id=message.message_id, success=success, error=error)
-            return
-
-        # Existing text message flow (unchanged)
-        if not message or not message.text:
-            logfire.info("No text message found, skipping")
-            return
-
-        # Check for duplicate message processing
-        existing_log = await db_client.get_first_record(
-            collection="processed_messages",
-            filter_query=f'message_id = "{message.message_id}"',
-        )
-        if existing_log:
-            logfire.info(f"Message {message.message_id} already processed, skipping")
-            return
-
-        logfire.info(f"Processing message from {message.from_phone}: {message.text}")
-
-        # Log message processing start
-        await db_client.create_record(
-            collection="processed_messages",
-            data={
-                "message_id": message.message_id,
-                "from_phone": message.from_phone,
-                "processed_at": datetime.now().isoformat(),
-                "success": False,
-                "error_message": "Processing in progress",
-            },
-        )
-
-        db = db_client.get_client()
-        deps = await choresir_agent.build_deps(db=db, user_phone=message.from_phone)
-
-        if deps is None:
-            logfire.info(f"Unknown user {message.from_phone}, processing unknown user message")
-            response = await choresir_agent.handle_unknown_user(
-                user_phone=message.from_phone, message_text=message.text or ""
-            )
-            result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
-            await _update_message_status(message_id=message.message_id, success=result.success, error=result.error)
-            return
-
-        user_record = await db_client.get_first_record(
-            collection="users",
-            filter_query=f'phone = "{message.from_phone}"',
-        )
-        if not user_record:
-            logfire.error(f"User record not found after build_deps succeeded for {message.from_phone}")
-            await _update_message_status(
-                message_id=message.message_id,
-                success=False,
-                error="User record not found after build_deps succeeded",
-            )
-            return
-
-        success, error = await _handle_user_status(user_record=user_record, message=message, db=db, deps=deps)
-        await _update_message_status(message_id=message.message_id, success=success, error=error)
-
+        if message:
+            await _route_webhook_message(message)
     except Exception as e:
-        logfire.error(f"Error processing webhook message: {e}")
-
-        # Classify the error to determine if admins should be notified
-        error_category, user_message = classify_agent_error(e)
-
-        # Notify admins for critical errors
-        if admin_notifier.should_notify_admins(error_category):
-            try:
-                parsed_message = whatsapp_parser.parse_twilio_webhook(params)
-                user_context = "Unknown user"
-                if parsed_message and parsed_message.from_phone:
-                    user_context = parsed_message.from_phone
-
-                timestamp = datetime.now().isoformat()
-                error_preview = str(e)[:100]
-                notification_msg = (
-                    f"⚠️ Webhook error: {error_category.value}\n"
-                    f"User: {user_context}\nTime: {timestamp}\nError: {error_preview}"
-                )
-                await admin_notifier.notify_admins(
-                    message=notification_msg,
-                    severity="critical",
-                )
-            except Exception as notify_error:
-                logfire.error(f"Failed to notify admins of critical error: {notify_error}")
-
-        try:
-            parsed_message = whatsapp_parser.parse_twilio_webhook(params)
-            if parsed_message and parsed_message.from_phone:
-                # Try to update the processed message record
-                try:
-                    existing_record = await db_client.get_first_record(
-                        collection="processed_messages",
-                        filter_query=f'message_id = "{parsed_message.message_id}"',
-                    )
-                    if existing_record:
-                        await db_client.update_record(
-                            collection="processed_messages",
-                            record_id=existing_record["id"],
-                            data={
-                                "success": False,
-                                "error_message": str(e),
-                            },
-                        )
-                except Exception as update_error:
-                    # If we can't update the record, just log and continue
-                    logfire.error(f"Failed to update processed message record: {update_error}")
-
-                await whatsapp_sender.send_text_message(
-                    to_phone=parsed_message.from_phone,
-                    text=user_message,
-                )
-        except Exception as send_error:
-            logfire.error(f"Failed to send error message to user: {send_error}")
+        await _handle_webhook_error(e, params)
