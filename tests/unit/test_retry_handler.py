@@ -190,11 +190,11 @@ class TestCircuitBreaker:
         mock_func2 = AsyncMock(side_effect=Exception("Rate limit"))
 
         # First call - will fail all 3 attempts, circuit breaker records 1 failure
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             await handler.execute_with_retry(mock_func1)
 
         # Second call - will fail and open circuit after hitting threshold
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             await handler.execute_with_retry(mock_func2)
 
         # Circuit should now be open, next call should fail immediately

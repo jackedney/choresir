@@ -192,7 +192,7 @@ class TestNotifyAdmins:
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
             patch("src.core.admin_notifier.logger") as mock_logger,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
+            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.return_value = mock_admin_users
 
@@ -218,7 +218,7 @@ class TestNotifyAdmins:
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
             patch("src.core.admin_notifier.logger") as mock_logger,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
+            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.return_value = []
 
@@ -237,7 +237,7 @@ class TestNotifyAdmins:
         with (
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.logger") as mock_logger,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
+            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.side_effect = Exception("Database connection failed")
 
@@ -290,7 +290,7 @@ class TestNotifyAdmins:
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
             patch("src.core.admin_notifier.logger") as mock_logger,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
+            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.return_value = mock_admin_users
 
@@ -309,6 +309,6 @@ class TestNotifyAdmins:
                 None,
             )
             assert summary_call is not None
-            assert summary_call.kwargs["success_count"] == 1
-            assert summary_call.kwargs["failure_count"] == 1
-            assert summary_call.kwargs["total_admins"] == 2
+            assert summary_call.kwargs["extra"]["success_count"] == 1
+            assert summary_call.kwargs["extra"]["failure_count"] == 1
+            assert summary_call.kwargs["extra"]["total_admins"] == 2

@@ -36,7 +36,7 @@ def with_retry(
 
     def decorator(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., Coroutine[Any, Any, T]]:
         @wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> T:
+        async def wrapper(*args: Any, **kwargs: Any) -> T:  # noqa: ANN401
             last_exception = None
             for attempt in range(max_retries):
                 try:

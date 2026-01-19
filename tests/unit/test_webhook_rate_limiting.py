@@ -34,11 +34,14 @@ async def test_webhook_rate_limit_enforced():
         with pytest.raises(HTTPException) as exc_info:
             await receive_webhook(mock_request, mock_bg_tasks)
 
-        assert exc_info.value.status_code == 429
-        assert exc_info.value.detail == "Too many requests"
-        assert "Retry-After" in exc_info.value.headers
-        assert exc_info.value.headers["Retry-After"] == "30"
-        assert exc_info.value.headers["X-RateLimit-Limit"] == "60"
+        exc = exc_info.value
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 429
+        assert exc.detail == "Too many requests"
+        assert exc.headers is not None
+        assert "Retry-After" in exc.headers
+        assert exc.headers["Retry-After"] == "30"
+        assert exc.headers["X-RateLimit-Limit"] == "60"
 
 
 @pytest.mark.asyncio

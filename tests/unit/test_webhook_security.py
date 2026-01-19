@@ -33,6 +33,7 @@ class TestValidateWebhookTimestamp:
         result = await validate_webhook_timestamp(old_timestamp)
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "expired" in result.error_message.lower()
         assert result.http_status_code == 400
 
@@ -43,6 +44,7 @@ class TestValidateWebhookTimestamp:
         result = await validate_webhook_timestamp(future_timestamp)
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "future" in result.error_message.lower()
         assert result.http_status_code == 400
 
@@ -52,6 +54,7 @@ class TestValidateWebhookTimestamp:
         result = await validate_webhook_timestamp("not_a_number")
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "format" in result.error_message.lower()
         assert result.http_status_code == 400
 
@@ -81,6 +84,7 @@ class TestValidateWebhookNonce:
         result = await validate_webhook_nonce("MSG123")
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "duplicate" in result.error_message.lower()
         assert result.http_status_code == 400
 
@@ -121,6 +125,7 @@ class TestValidateWebhookRateLimit:
         result = await validate_webhook_rate_limit("+1234567890")
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "rate limit" in result.error_message.lower()
         assert result.http_status_code == 429
 
@@ -175,6 +180,7 @@ class TestVerifyWebhookSecurity:
         result = await verify_webhook_security("MSG123", old_timestamp, "+1234567890")
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "expired" in result.error_message.lower()
         mock_redis.set_if_not_exists.assert_not_called()
 
@@ -189,5 +195,6 @@ class TestVerifyWebhookSecurity:
         result = await verify_webhook_security("MSG123", current_timestamp, "+1234567890")
 
         assert result.is_valid is False
+        assert result.error_message is not None
         assert "duplicate" in result.error_message.lower()
         mock_redis.increment.assert_not_called()

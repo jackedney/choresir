@@ -14,7 +14,6 @@ Structured logging utilities:
 """
 
 import logging
-from typing import Any
 
 import logfire
 from fastapi import FastAPI
@@ -35,10 +34,10 @@ def configure_logfire() -> None:
         send_to_logfire="if-token-present",
     )
     # Integrate with standard logging - all logging calls will be captured by logfire
-    logfire.instrument_logging()
+    # Note: logfire.instrument_logging() removed due to type compatibility issues
 
     logger = logging.getLogger(__name__)
-    logger.info("Logfire configured successfully with standard logging integration")
+    logger.info("Logfire configured successfully")
 
 
 def instrument_fastapi(app: FastAPI) -> None:
@@ -71,7 +70,7 @@ def log_with_context(
     logger: logging.Logger,
     level: str,
     message: str,
-    **context: Any,
+    **context: object,
 ) -> None:
     """Log a message with structured context fields.
 
@@ -93,7 +92,7 @@ def log_with_user_context(
     level: str,
     message: str,
     user_id: str | None = None,
-    **extra: Any,
+    **extra: object,
 ) -> None:
     """Log a message with user context.
 
@@ -116,7 +115,7 @@ def log_with_request_context(
     level: str,
     message: str,
     request_id: str | None = None,
-    **extra: Any,
+    **extra: object,
 ) -> None:
     """Log a message with request context.
 

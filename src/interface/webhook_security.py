@@ -31,7 +31,7 @@ async def validate_webhook_timestamp(timestamp_str: str) -> WebhookSecurityResul
     try:
         webhook_timestamp = int(timestamp_str)
     except (ValueError, TypeError):
-        logger.warning(f"Invalid timestamp format: {timestamp_str}")
+        logger.warning("Invalid timestamp format: %s", timestamp_str)
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Invalid timestamp format",
@@ -42,7 +42,7 @@ async def validate_webhook_timestamp(timestamp_str: str) -> WebhookSecurityResul
     age_seconds = current_timestamp - webhook_timestamp
 
     if age_seconds < 0:
-        logger.warning(f"Webhook timestamp in future: {timestamp_str}")
+        logger.warning("Webhook timestamp in future: %s", timestamp_str)
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Timestamp is in the future",
@@ -51,7 +51,9 @@ async def validate_webhook_timestamp(timestamp_str: str) -> WebhookSecurityResul
 
     if age_seconds > constants.WEBHOOK_MAX_AGE_SECONDS:
         logger.warning(
-            f"Webhook expired (age: {age_seconds}s, max: {constants.WEBHOOK_MAX_AGE_SECONDS}s)",
+            "Webhook expired (age: %ds, max: %ds)",
+            age_seconds,
+            constants.WEBHOOK_MAX_AGE_SECONDS,
             extra={"webhook_age_seconds": age_seconds, "max_age_seconds": constants.WEBHOOK_MAX_AGE_SECONDS},
         )
         return WebhookSecurityResult(
@@ -86,7 +88,8 @@ async def validate_webhook_nonce(message_id: str) -> WebhookSecurityResult:
 
     if not was_set:
         logger.warning(
-            f"Duplicate webhook detected: {message_id}",
+            "Duplicate webhook detected: %s",
+            message_id,
             extra={"message_id": message_id},
         )
         return WebhookSecurityResult(
@@ -124,7 +127,9 @@ async def validate_webhook_rate_limit(phone_number: str) -> WebhookSecurityResul
 
     if count > constants.WEBHOOK_RATE_LIMIT_PER_PHONE:
         logger.warning(
-            f"Rate limit exceeded for {phone_number}: {count} requests/min",
+            "Rate limit exceeded for %s: %d requests/min",
+            phone_number,
+            count,
             extra={
                 "phone_number": phone_number,
                 "request_count": count,

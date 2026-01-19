@@ -154,7 +154,7 @@ def classify_agent_error(exception: Exception) -> tuple[ErrorCategory, str]:
     )
 
 
-def classify_error_with_response(exception: Exception) -> ErrorResponse:
+def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa: C901, PLR0911
     """Classify an error and return a structured response with recovery suggestions.
 
     Args:

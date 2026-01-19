@@ -56,10 +56,10 @@ async def tool_request_join(ctx: RunContext[Deps], params: RequestJoin) -> str:
             )
 
     except ValueError as e:
-        logger.warning("Join request failed", error=str(e))
+        logger.warning("Join request failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logger.error("Unexpected error in tool_request_join", error=str(e))
+        logger.error("Unexpected error in tool_request_join", extra={"error": str(e)})
         return "Error: Unable to process join request. Please try again."
 
 
@@ -87,13 +87,13 @@ async def tool_approve_member(ctx: RunContext[Deps], params: ApproveMember) -> s
             return f"User {params.target_phone} has been approved and is now active."
 
     except PermissionError as e:
-        logger.warning("Unauthorized approval attempt", user_id=ctx.deps.user_id, error=str(e))
+        logger.warning("Unauthorized approval attempt", extra={"user_id": ctx.deps.user_id, "error": str(e)})
         return "Error: Only admins can approve members."
     except ValueError as e:
-        logger.warning("Approval failed", error=str(e))
+        logger.warning("Approval failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logger.error("Unexpected error in tool_approve_member", error=str(e))
+        logger.error("Unexpected error in tool_approve_member", extra={"error": str(e)})
         return "Error: Unable to approve member. Please try again."
 
 

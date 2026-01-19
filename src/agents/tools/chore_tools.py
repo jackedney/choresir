@@ -103,10 +103,10 @@ async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
             return f"Created chore '{params.title}' - {params.recurrence}, {assignee_msg}."
 
     except ValueError as e:
-        logger.warning("Chore creation failed", error=str(e))
+        logger.warning("Chore creation failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logger.error("Unexpected error in tool_define_chore", error=str(e))
+        logger.error("Unexpected error in tool_define_chore", extra={"error": str(e)})
         return "Error: Unable to create chore. Please try again."
 
 
@@ -178,10 +178,10 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
             )
 
     except ValueError as e:
-        logger.warning("Chore logging failed", error=str(e))
+        logger.warning("Chore logging failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logger.error("Unexpected error in tool_log_chore", error=str(e))
+        logger.error("Unexpected error in tool_log_chore", extra={"error": str(e)})
         return "Error: Unable to log chore. Please try again."
 
 

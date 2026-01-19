@@ -75,7 +75,7 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
                 "Retry-After": str(e.retry_after),
                 "X-RateLimit-Limit": str(e.limit),
             },
-        )
+        ) from e
 
     # Get form data (not JSON)
     form_data = await request.form()

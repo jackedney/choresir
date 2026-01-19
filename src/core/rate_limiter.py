@@ -1,14 +1,16 @@
 """Rate limiting middleware using Redis sliding window algorithm."""
 
+import logging
 from datetime import UTC, datetime
-
-import logfire
 
 from src.core.config import Constants
 from src.core.redis_client import redis_client
 
 
-class RateLimitExceeded(Exception):
+logger = logging.getLogger(__name__)
+
+
+class RateLimitExceeded(Exception):  # noqa: N818
     """Exception raised when rate limit is exceeded."""
 
     def __init__(self, retry_after: int, limit: int) -> None:
@@ -50,7 +52,7 @@ class RateLimiter:
             RateLimitExceeded: If rate limit is exceeded
         """
         if not redis_client.is_available:
-            logfire.debug("rate_limit_check_skipped", reason="redis_unavailable")
+            logger.debug("rate_limit_check_skipped", extra={"reason": "redis_unavailable"})
             return
 
         # Generate key for current window
@@ -63,7 +65,7 @@ class RateLimiter:
             count = await redis_client.increment(key)
 
             if count is None:
-                logfire.warning("rate_limit_check_failed", reason="redis_increment_failed")
+                logger.warning("rate_limit_check_failed", extra={"reason": "redis_increment_failed"})
                 return
 
             # Set expiry on first increment
@@ -73,28 +75,32 @@ class RateLimiter:
             # Check if limit exceeded
             if count > limit:
                 retry_after = window_seconds - (int(now.timestamp()) % window_seconds)
-                logfire.warning(
+                logger.warning(
                     "rate_limit_exceeded",
-                    scope=scope,
-                    identifier=identifier,
-                    count=count,
-                    limit=limit,
-                    retry_after=retry_after,
+                    extra={
+                        "scope": scope,
+                        "identifier": identifier,
+                        "count": count,
+                        "limit": limit,
+                        "retry_after": retry_after,
+                    },
                 )
                 raise RateLimitExceeded(retry_after=retry_after, limit=limit)
 
-            logfire.debug(
+            logger.debug(
                 "rate_limit_check_passed",
-                scope=scope,
-                identifier=identifier,
-                count=count,
-                limit=limit,
+                extra={
+                    "scope": scope,
+                    "identifier": identifier,
+                    "count": count,
+                    "limit": limit,
+                },
             )
 
         except RateLimitExceeded:
             raise
         except Exception as e:
-            logfire.error("rate_limit_check_error", error=str(e))
+            logger.error("rate_limit_check_error", extra={"error": str(e)})
             # Fail open - don't block requests if rate limiting fails
             return
 

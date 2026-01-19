@@ -3,10 +3,15 @@
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import TypeVar
 
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
+
+
+T = TypeVar("T")
 
 
 logger = logging.getLogger(__name__)
@@ -104,77 +109,51 @@ class AgentRetryHandler:
         error_str = str(exception).lower()
         exception_type = type(exception).__name__
 
-        # Non-retryable: Authentication and authorization errors
-        if any(
-            phrase in error_str
-            for phrase in [
-                "authentication failed",
-                "invalid api key",
-                "unauthorized",
-                "invalid token",
-                "401",
-                "403",
-            ]
-        ) or exception_type in ["AuthenticationError", "PermissionError"]:
-            return ErrorRetryability.NON_RETRYABLE
-
-        # Non-retryable: Validation errors and bad requests
-        if any(
-            phrase in error_str
-            for phrase in [
-                "validation error",
-                "invalid input",
-                "bad request",
-                "400",
-            ]
-        ) or exception_type in ["ValueError", "ValidationError", "KeyError"]:
-            return ErrorRetryability.NON_RETRYABLE
-
-        # Non-retryable: Resource not found
-        if "404" in error_str or "not found" in error_str:
-            return ErrorRetryability.NON_RETRYABLE
-
-        # Retryable: Rate limits
-        if any(
-            phrase in error_str
-            for phrase in [
-                "rate limit",
-                "too many requests",
-                "rate_limit_exceeded",
-                "throttled",
-                "429",
-            ]
-        ):
-            return ErrorRetryability.RETRYABLE
-
-        # Retryable: Temporary service issues
-        if any(
-            phrase in error_str
-            for phrase in [
-                "quota exceeded",
-                "insufficient credits",
-                "service unavailable",
-                "503",
-                "502",
-                "504",
-            ]
-        ):
-            return ErrorRetryability.RETRYABLE
-
-        # Retryable: Network and timeout errors
-        if any(
-            phrase in error_str
-            for phrase in [
-                "timeout",
-                "connection",
-                "network",
-                "unreachable",
-            ]
-        ) or exception_type in ["ConnectionError", "TimeoutError"]:
-            return ErrorRetryability.RETRYABLE
-
-        # Retryable: Pydantic AI retry exceptions
+        # Pydantic AI retry exceptions are always retryable
         if isinstance(exception, ModelRetry | UnexpectedModelBehavior):
+            return ErrorRetryability.RETRYABLE
+
+        # Check for non-retryable errors first
+        non_retryable_phrases = [
+            "authentication failed",
+            "invalid api key",
+            "unauthorized",
+            "invalid token",
+            "401",
+            "403",
+            "validation error",
+            "invalid input",
+            "bad request",
+            "400",
+            "404",
+            "not found",
+        ]
+        non_retryable_types = ["AuthenticationError", "PermissionError", "ValueError", "ValidationError", "KeyError"]
+
+        if any(phrase in error_str for phrase in non_retryable_phrases) or exception_type in non_retryable_types:
+            return ErrorRetryability.NON_RETRYABLE
+
+        # Check for retryable errors
+        retryable_phrases = [
+            "rate limit",
+            "too many requests",
+            "rate_limit_exceeded",
+            "throttled",
+            "429",
+            "quota exceeded",
+            "insufficient credits",
+            "service unavailable",
+            "503",
+            "502",
+            "504",
+            "timeout",
+            "connection",
+            "network",
+            "unreachable",
+        ]
+        retryable_types = ["ConnectionError", "TimeoutError"]
+
+        if any(phrase in error_str for phrase in retryable_phrases) or exception_type in retryable_types:
             return ErrorRetryability.RETRYABLE
 
         # Default to non-retryable for unknown errors to avoid infinite loops
@@ -194,10 +173,10 @@ class AgentRetryHandler:
 
     async def execute_with_retry(
         self,
-        func: object,
+        func: Callable[..., Awaitable[T]],
         *args: object,
         **kwargs: object,
-    ) -> object:
+    ) -> T:
         """Execute a function with intelligent retry logic.
 
         Args:
@@ -283,7 +262,7 @@ class AgentRetryHandler:
         if last_exception:
             raise last_exception
         # This line is unreachable but ensures the function always returns or raises
-        return None  # type: ignore[unreachable]
+        raise RuntimeError("Unreachable code reached in execute_with_retry")  # type: ignore[unreachable]
 
 
 # Global retry handler instance

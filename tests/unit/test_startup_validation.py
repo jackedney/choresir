@@ -61,9 +61,11 @@ async def test_check_pocketbase_connectivity_no_token() -> None:
     mock_client = Mock()
     mock_client.auth_store.token = None
 
-    with patch("src.core.db_client.get_client", return_value=mock_client):
-        with pytest.raises(ConnectionError, match="No token present"):
-            await check_pocketbase_connectivity()
+    with (
+        patch("src.core.db_client.get_client", return_value=mock_client),
+        pytest.raises(ConnectionError, match="No token present"),
+    ):
+        await check_pocketbase_connectivity()
 
 
 @pytest.mark.asyncio
@@ -139,7 +141,9 @@ async def test_validate_startup_configuration_missing_credential() -> None:
         mock_settings.require_credential.side_effect = mock_require_credential
         await validate_startup_configuration()
 
-    assert exc_info.value.code == 1
+    exc = exc_info.value
+    assert isinstance(exc, SystemExit)
+    assert exc.code == 1
 
 
 @pytest.mark.asyncio
@@ -157,4 +161,6 @@ async def test_validate_startup_configuration_service_unreachable() -> None:
         mock_settings.require_credential.return_value = "test_value"
         await validate_startup_configuration()
 
-    assert exc_info.value.code == 1
+    exc = exc_info.value
+    assert isinstance(exc, SystemExit)
+    assert exc.code == 1

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
+from src.models.service_models import CompletionRate, LeaderboardEntry, OverdueChore, UserStatistics
 from src.services import analytics_service
 
 
@@ -33,7 +34,7 @@ class GetAnalytics(BaseModel):
     period_days: int = Field(default=30, description="Number of days to look back (default: 30)")
 
 
-def _format_leaderboard(leaderboard: list[dict], period_days: int) -> str:
+def _format_leaderboard(leaderboard: list[LeaderboardEntry], period_days: int) -> str:
     """
     Format leaderboard for WhatsApp display.
 
@@ -52,14 +53,14 @@ def _format_leaderboard(leaderboard: list[dict], period_days: int) -> str:
     lines = [f"🏆 Top {top_n} ({period_days} days):"]
 
     for i, entry in enumerate(leaderboard[:top_n], 1):
-        name = entry["user_name"]
-        count = entry["completion_count"]
+        name = entry.user_name
+        count = entry.completion_count
         lines.append(f"{i}. {name} ({count})")
 
     return "\n".join(lines)
 
 
-def _format_completion_rate(stats: dict) -> str:
+def _format_completion_rate(stats: CompletionRate) -> str:
     """
     Format completion rate for WhatsApp display.
 
@@ -69,21 +70,21 @@ def _format_completion_rate(stats: dict) -> str:
     Returns:
         Formatted completion rate message
     """
-    total = stats["total_completions"]
-    period = stats["period_days"]
+    total = stats.total_completions
+    period = stats.period_days
 
     if total == 0:
         return f"No completions in the last {period} days."
 
-    on_time_pct = stats["on_time_percentage"]
-    overdue_pct = stats["overdue_percentage"]
+    on_time_pct = stats.on_time_percentage
+    overdue_pct = stats.overdue_percentage
 
     return (
         f"📊 Completion Rate ({period} days):\nTotal: {total} chores\nOn-time: {on_time_pct}%\nOverdue: {overdue_pct}%"
     )
 
 
-def _format_overdue_chores(chores: list[dict]) -> str:
+def _format_overdue_chores(chores: list[OverdueChore]) -> str:
     """
     Format overdue chores for WhatsApp display.
 
@@ -100,8 +101,8 @@ def _format_overdue_chores(chores: list[dict]) -> str:
     lines = [f"⚠️ {len(chores)} overdue chore(s):"]
 
     for chore in chores[:5]:  # Limit to 5 for WhatsApp readability
-        title = chore["title"]
-        deadline = datetime.fromisoformat(chore["deadline"])
+        title = chore.title
+        deadline = datetime.fromisoformat(chore.deadline)
         # If deadline is naive (no timezone), assume UTC
         if deadline.tzinfo is None:
             deadline = deadline.replace(tzinfo=UTC)
@@ -153,7 +154,7 @@ async def tool_get_analytics(_ctx: RunContext[Deps], params: GetAnalytics) -> st
             return f"Error: Unknown metric '{params.metric}'."
 
     except Exception as e:
-        logger.error("Unexpected error in tool_get_analytics", error=str(e))
+        logger.error("Unexpected error in tool_get_analytics", extra={"error": str(e)})
         return "Error: Unable to retrieve analytics. Please try again."
 
 
@@ -166,7 +167,7 @@ class GetStats(BaseModel):
     )
 
 
-def _format_user_stats(stats: dict, period_days: int) -> str:
+def _format_user_stats(stats: UserStatistics, period_days: int) -> str:
     """Format user statistics for WhatsApp display.
 
     Args:
@@ -176,10 +177,10 @@ def _format_user_stats(stats: dict, period_days: int) -> str:
     Returns:
         Formatted stats message
     """
-    rank_str = f"#{stats['rank']}" if stats["rank"] is not None else "Not ranked yet"
-    completions = stats["completions"]
-    pending = stats["claims_pending"]
-    overdue = stats["overdue_chores"]
+    rank_str = f"#{stats.rank}" if stats.rank is not None else "Not ranked yet"
+    completions = stats.completions
+    pending = stats.claims_pending
+    overdue = stats.overdue_chores
 
     # Build dynamic title based on performance
     if completions >= TITLE_THRESHOLD_MACHINE:
@@ -210,7 +211,7 @@ def _format_user_stats(stats: dict, period_days: int) -> str:
     ]
 
     # Add encouragement/warning based on status
-    if overdue > 0:
+    if overdue and overdue > 0:
         lines.append("")
         lines.append(f"⚠️ You have {overdue} overdue chore(s)!")
     elif completions == 0:
@@ -244,7 +245,7 @@ async def tool_get_stats(ctx: RunContext[Deps], params: GetStats) -> str:
             return _format_user_stats(stats, params.period_days)
 
     except Exception as e:
-        logger.error("Unexpected error in tool_get_stats", error=str(e))
+        logger.error("Unexpected error in tool_get_stats", extra={"error": str(e)})
         return "Error: Unable to retrieve your stats. Please try again."
 
 

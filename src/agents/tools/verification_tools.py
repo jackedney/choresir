@@ -111,13 +111,13 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
             return f"Chore '{chore['title']}' rejected. Moving to conflict resolution (voting will be implemented)."
 
     except PermissionError:
-        logger.warning("Self-verification attempt", user_id=ctx.deps.user_id, log_id=params.log_id)
+        logger.warning("Self-verification attempt", extra={"user_id": ctx.deps.user_id, "log_id": params.log_id})
         return "Error: You cannot verify your own chore claim."
     except ValueError as e:
-        logger.warning("Verification failed", error=str(e))
+        logger.warning("Verification failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logger.error("Unexpected error in tool_verify_chore", error=str(e))
+        logger.error("Unexpected error in tool_verify_chore", extra={"error": str(e)})
         return "Error: Unable to verify chore. Please try again."
 
 
@@ -157,7 +157,7 @@ async def tool_get_status(ctx: RunContext[Deps], params: GetStatus) -> str:
             return _format_chore_status(chores, target_user_name)
 
     except Exception as e:
-        logger.error("Unexpected error in tool_get_status", error=str(e))
+        logger.error("Unexpected error in tool_get_status", extra={"error": str(e)})
         return "Error: Unable to retrieve status. Please try again."
 
 

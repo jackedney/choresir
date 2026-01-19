@@ -93,7 +93,10 @@ async def notify_admins(message: str, severity: str = "warning") -> None:
     """
     # Check if admin notifications are enabled
     if not settings.enable_admin_notifications:
-        logger.debug("Admin notifications disabled, skipping notification", message=message, severity=severity)
+        logger.debug(
+            "Admin notifications disabled, skipping notification",
+            extra={"message": message, "severity": severity},
+        )
         return
 
     with logfire.span("admin_notifier.notify_admins", severity=severity):
@@ -122,9 +125,7 @@ async def notify_admins(message: str, severity: str = "warning") -> None:
             for admin in admins:
                 logger.info(
                     "Sending admin notification",
-                    admin_id=admin.id,
-                    admin_name=admin.name,
-                    severity=severity,
+                    extra={"admin_id": admin.id, "admin_name": admin.name, "severity": severity},
                 )
 
                 result = await send_text_message(
@@ -136,23 +137,19 @@ async def notify_admins(message: str, severity: str = "warning") -> None:
                     success_count += 1
                     logger.info(
                         "Admin notification sent successfully",
-                        admin_id=admin.id,
-                        message_id=result.message_id,
+                        extra={"admin_id": admin.id, "message_id": result.message_id},
                     )
                 else:
                     failure_count += 1
                     logger.error(
                         "Failed to send admin notification",
-                        admin_id=admin.id,
-                        error=result.error,
+                        extra={"admin_id": admin.id, "error": result.error},
                     )
 
             logger.info(
                 "Admin notification batch complete",
-                total_admins=len(admins),
-                success_count=success_count,
-                failure_count=failure_count,
+                extra={"total_admins": len(admins), "success_count": success_count, "failure_count": failure_count},
             )
 
         except Exception as e:
-            logger.error("Failed to notify admins", error=str(e))
+            logger.error("Failed to notify admins", extra={"error": str(e)})

@@ -126,10 +126,10 @@ async def tool_create_personal_chore(ctx: RunContext[Deps], params: CreatePerson
             return f"✅ Created personal chore '{params.title}' {recurrence_msg}.{partner_msg}"
 
     except ValueError as e:
-        logger.warning("Personal chore creation failed", error=str(e))
+        logger.warning("Personal chore creation failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logger.error("Unexpected error in tool_create_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_create_personal_chore", extra={"error": str(e)})
         return "Error: Unable to create personal chore. Please try again."
 
 
@@ -175,10 +175,10 @@ async def tool_log_personal_chore(ctx: RunContext[Deps], params: LogPersonalChor
             return f"✅ Logged '{matched_chore['title']}'. Awaiting verification from {partner_name}."
 
     except ValueError as e:
-        logger.warning("Personal chore logging failed", error=str(e))
+        logger.warning("Personal chore logging failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logger.error("Unexpected error in tool_log_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_log_personal_chore", extra={"error": str(e)})
         return "Error: Unable to log personal chore. Please try again."
 
 
@@ -217,13 +217,13 @@ async def tool_verify_personal_chore(ctx: RunContext[Deps], params: VerifyPerson
             return f"❌ Rejected {owner_name}'s '{chore['title']}'."
 
     except PermissionError as e:
-        logger.warning("Verification permission denied", error=str(e))
+        logger.warning("Verification permission denied", extra={"error": str(e)})
         return f"Error: {e!s}"
     except ValueError as e:
-        logger.warning("Verification failed", error=str(e))
+        logger.warning("Verification failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logger.error("Unexpected error in tool_verify_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_verify_personal_chore", extra={"error": str(e)})
         return "Error: Unable to verify personal chore. Please try again."
 
 
@@ -256,7 +256,7 @@ async def tool_get_personal_stats(ctx: RunContext[Deps], params: GetPersonalStat
             )
 
     except Exception as e:
-        logger.error("Unexpected error in tool_get_personal_stats", error=str(e))
+        logger.error("Unexpected error in tool_get_personal_stats", extra={"error": str(e)})
         return "Error: Unable to retrieve personal stats. Please try again."
 
 
@@ -293,7 +293,7 @@ async def tool_list_personal_chores(ctx: RunContext[Deps], params: ListPersonalC
             return "\n".join(lines)
 
     except Exception as e:
-        logger.error("Unexpected error in tool_list_personal_chores", error=str(e))
+        logger.error("Unexpected error in tool_list_personal_chores", extra={"error": str(e)})
         return "Error: Unable to list personal chores. Please try again."
 
 
@@ -330,7 +330,7 @@ async def tool_remove_personal_chore(ctx: RunContext[Deps], params: RemovePerson
             return f"✅ Removed personal chore '{matched_chore['title']}'."
 
     except Exception as e:
-        logger.error("Unexpected error in tool_remove_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_remove_personal_chore", extra={"error": str(e)})
         return "Error: Unable to remove personal chore. Please try again."
 
 

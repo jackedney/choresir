@@ -78,7 +78,7 @@ class JobTracker:
             self._memory_storage[job_name]["success_count"] = self._memory_storage[job_name].get("success_count", 0) + 1
             self._memory_storage[job_name].pop("current_run", None)
 
-    async def record_job_failure(self, job_name: str, error: str) -> None:
+    async def record_job_failure(self, job_name: str, error: str) -> int | None:
         """Record failed job execution.
 
         Args:
