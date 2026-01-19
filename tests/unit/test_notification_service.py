@@ -86,13 +86,13 @@ class TestSendVerificationRequest:
 
         # Should send to user2 and user3 only (not user1/claimer)
         assert len(results) == 2
-        phones = {r["phone"] for r in results}
+        phones = {r.phone for r in results}
         assert "+11111111111" not in phones  # user1 (claimer) excluded
         assert "+12222222222" in phones  # user2 included
         assert "+13333333333" in phones  # user3 included
 
         # All should be successful
-        assert all(r["success"] for r in results)
+        assert all(r.success for r in results)
 
         # Template message should be called twice (once for each non-claimer)
         assert mock_whatsapp_templates.call_count == 2
@@ -263,8 +263,8 @@ class TestSendVerificationRequest:
         # Should only send to user2 (active, not claimer)
         # user3 is pending, user4 is banned, user1 is claimer
         assert len(results) == 1
-        assert results[0]["phone"] == "+12222222222"
-        assert results[0]["user_id"] == created_users[1]["id"]
+        assert results[0].phone == "+12222222222"
+        assert results[0].user_id == created_users[1]["id"]
 
     @pytest.mark.asyncio
     async def test_handles_send_failures(
@@ -307,15 +307,15 @@ class TestSendVerificationRequest:
         assert len(results) == 2
 
         # Find the failed one
-        failed_results = [r for r in results if not r["success"]]
+        failed_results = [r for r in results if not r.success]
         assert len(failed_results) == 1
-        assert failed_results[0]["phone"] == "+12222222222"
-        assert failed_results[0]["error"] == "Rate limit exceeded"
+        assert failed_results[0].phone == "+12222222222"
+        assert failed_results[0].error == "Rate limit exceeded"
 
         # Find the successful one
-        success_results = [r for r in results if r["success"]]
+        success_results = [r for r in results if r.success]
         assert len(success_results) == 1
-        assert success_results[0]["phone"] == "+13333333333"
+        assert success_results[0].phone == "+13333333333"
 
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_no_other_users(

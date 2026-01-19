@@ -167,6 +167,7 @@ class TestNotifyAdmins:
         with (
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
+            patch("src.core.admin_notifier.logger") as mock_logger,
             patch("src.core.admin_notifier.logfire") as mock_logfire,
         ):
             mock_list_records.return_value = mock_admin_users
@@ -181,7 +182,7 @@ class TestNotifyAdmins:
             assert span_args.kwargs["severity"] == "warning"
 
             # Verify success logging
-            info_calls = [call for call in mock_logfire.info.call_args_list]
+            info_calls = [call for call in mock_logger.info.call_args_list]
             assert len(info_calls) >= 2  # At least one per admin
 
     @pytest.mark.asyncio
@@ -190,7 +191,8 @@ class TestNotifyAdmins:
         with (
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
+            patch("src.core.admin_notifier.logger") as mock_logger,
+            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.return_value = mock_admin_users
 
@@ -206,7 +208,7 @@ class TestNotifyAdmins:
             assert mock_send.call_count == 2
 
             # Verify failure was logged
-            error_calls = [call for call in mock_logfire.error.call_args_list]
+            error_calls = [call for call in mock_logger.error.call_args_list]
             assert any("Failed to send admin notification" in str(call) for call in error_calls)
 
     @pytest.mark.asyncio
@@ -215,7 +217,8 @@ class TestNotifyAdmins:
         with (
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
+            patch("src.core.admin_notifier.logger") as mock_logger,
+            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.return_value = []
 
@@ -225,7 +228,7 @@ class TestNotifyAdmins:
             mock_send.assert_not_called()
 
             # Verify warning logged
-            warn_calls = [call for call in mock_logfire.warn.call_args_list]
+            warn_calls = [call for call in mock_logger.warning.call_args_list]
             assert any("No active admin users" in str(call) for call in warn_calls)
 
     @pytest.mark.asyncio
@@ -233,7 +236,8 @@ class TestNotifyAdmins:
         """Test that database errors are caught and logged."""
         with (
             patch("src.core.admin_notifier.list_records") as mock_list_records,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
+            patch("src.core.admin_notifier.logger") as mock_logger,
+            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.side_effect = Exception("Database connection failed")
 
@@ -241,7 +245,7 @@ class TestNotifyAdmins:
             await notify_admins("Test notification")
 
             # Verify error was logged
-            error_calls = [call for call in mock_logfire.error.call_args_list]
+            error_calls = [call for call in mock_logger.error.call_args_list]
             assert any("Failed to notify admins" in str(call) for call in error_calls)
 
     @pytest.mark.asyncio
@@ -285,7 +289,8 @@ class TestNotifyAdmins:
         with (
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
+            patch("src.core.admin_notifier.logger") as mock_logger,
+            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.return_value = mock_admin_users
 
@@ -298,12 +303,12 @@ class TestNotifyAdmins:
             await notify_admins("Test notification")
 
             # Verify final summary log
-            info_calls = [call for call in mock_logfire.info.call_args_list]
+            info_calls = [call for call in mock_logger.info.call_args_list]
             summary_call = next(
                 (call for call in info_calls if "notification batch complete" in str(call)),
                 None,
             )
             assert summary_call is not None
-            assert summary_call.kwargs["success_count"] == 1
-            assert summary_call.kwargs["failure_count"] == 1
-            assert summary_call.kwargs["total_admins"] == 2
+            assert summary_call.kwargs["extra"]["success_count"] == 1
+            assert summary_call.kwargs["extra"]["failure_count"] == 1
+            assert summary_call.kwargs["extra"]["total_admins"] == 2

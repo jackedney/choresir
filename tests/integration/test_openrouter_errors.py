@@ -4,6 +4,7 @@ This module tests the full flow from OpenRouter API errors through error
 classification, user notifications, and admin alerts.
 """
 
+import logging
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -288,7 +289,7 @@ class TestAdminNotificationRateLimiting:
 class TestAdminNotificationFailures:
     """Test graceful handling of admin notification failures."""
 
-    async def test_notification_failure_logged_not_raised(self, mock_db_module, db_client, sample_users: dict):
+    async def test_notification_failure_logged_not_raised(self, mock_db_module, db_client, sample_users: dict, caplog):
         """Test that WhatsApp send failures don't break user flow.
 
         Flow:
@@ -297,6 +298,9 @@ class TestAdminNotificationFailures:
         3. Failure is logged
         4. User still receives error message
         """
+        # Set caplog to capture ERROR level logs
+        caplog.set_level(logging.ERROR)
+
         # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
         _admin = sample_users["alice"]
 
@@ -312,7 +316,6 @@ class TestAdminNotificationFailures:
         with (
             patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
             patch("src.core.admin_notifier.send_text_message") as mock_send_message,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
         ):
             # Configure agent to raise quota error
             mock_agent_instance = MagicMock()
@@ -335,9 +338,8 @@ class TestAdminNotificationFailures:
             # User still receives error message
             assert "quota" in response.lower()
 
-            # Verify failure was logged
-            error_calls = [call for call in mock_logfire.error.call_args_list]
-            assert any("Failed to send admin notification" in str(call) for call in error_calls)
+            # Verify failure was logged using caplog
+            assert any("Failed to send admin notification" in record.message for record in caplog.records)
 
     async def test_database_error_during_admin_lookup(self, mock_db_module, db_client, sample_users: dict):
         """Test graceful handling when admin user lookup fails.

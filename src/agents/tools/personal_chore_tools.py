@@ -1,5 +1,7 @@
 """Agent tools for personal chore management."""
 
+import logging
+
 import logfire
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
@@ -8,6 +10,9 @@ from src.agents.base import Deps
 from src.core import db_client
 from src.domain.user import UserStatus
 from src.services import personal_chore_service, personal_verification_service, user_service
+
+
+logger = logging.getLogger(__name__)
 
 
 class CreatePersonalChore(BaseModel):
@@ -121,10 +126,10 @@ async def tool_create_personal_chore(ctx: RunContext[Deps], params: CreatePerson
             return f"✅ Created personal chore '{params.title}' {recurrence_msg}.{partner_msg}"
 
     except ValueError as e:
-        logfire.warning("Personal chore creation failed", error=str(e))
+        logger.warning("Personal chore creation failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logfire.error("Unexpected error in tool_create_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_create_personal_chore", extra={"error": str(e)})
         return "Error: Unable to create personal chore. Please try again."
 
 
@@ -160,20 +165,20 @@ async def tool_log_personal_chore(ctx: RunContext[Deps], params: LogPersonalChor
             )
 
             # Build response based on verification status
-            if log["verification_status"] == "SELF_VERIFIED":
+            if log.verification_status == "SELF_VERIFIED":
                 return f"✅ Logged '{matched_chore['title']}'. Nice work!"
             # Pending partner verification
-            partner_phone = log["accountability_partner_phone"]
+            partner_phone = log.accountability_partner_phone
             partner_user = await user_service.get_user_by_phone(phone=partner_phone)
             partner_name = partner_user["name"] if partner_user else "your partner"
 
             return f"✅ Logged '{matched_chore['title']}'. Awaiting verification from {partner_name}."
 
     except ValueError as e:
-        logfire.warning("Personal chore logging failed", error=str(e))
+        logger.warning("Personal chore logging failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logfire.error("Unexpected error in tool_log_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_log_personal_chore", extra={"error": str(e)})
         return "Error: Unable to log personal chore. Please try again."
 
 
@@ -199,12 +204,12 @@ async def tool_verify_personal_chore(ctx: RunContext[Deps], params: VerifyPerson
 
             # Get chore details for response
             chore = await personal_chore_service.get_personal_chore_by_id(
-                chore_id=updated_log["personal_chore_id"],
-                owner_phone=updated_log["owner_phone"],
+                chore_id=updated_log.personal_chore_id,
+                owner_phone=updated_log.owner_phone,
             )
 
             # Get owner name
-            owner = await user_service.get_user_by_phone(phone=updated_log["owner_phone"])
+            owner = await user_service.get_user_by_phone(phone=updated_log.owner_phone)
             owner_name = owner["name"] if owner else "the user"
 
             if params.approved:
@@ -212,13 +217,13 @@ async def tool_verify_personal_chore(ctx: RunContext[Deps], params: VerifyPerson
             return f"❌ Rejected {owner_name}'s '{chore['title']}'."
 
     except PermissionError as e:
-        logfire.warning("Verification permission denied", error=str(e))
+        logger.warning("Verification permission denied", extra={"error": str(e)})
         return f"Error: {e!s}"
     except ValueError as e:
-        logfire.warning("Verification failed", error=str(e))
+        logger.warning("Verification failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logfire.error("Unexpected error in tool_verify_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_verify_personal_chore", extra={"error": str(e)})
         return "Error: Unable to verify personal chore. Please try again."
 
 
@@ -244,14 +249,14 @@ async def tool_get_personal_stats(ctx: RunContext[Deps], params: GetPersonalStat
 
             return (
                 f"📊 Your Personal Stats ({period_label})\n\n"
-                f"Active Chores: {stats['total_chores']}\n"
-                f"Completions: {stats['completions_this_period']}\n"
-                f"Pending Verification: {stats['pending_verifications']}\n"
-                f"Completion Rate: {stats['completion_rate']}%"
+                f"Active Chores: {stats.total_chores}\n"
+                f"Completions: {stats.completions_this_period}\n"
+                f"Pending Verification: {stats.pending_verifications}\n"
+                f"Completion Rate: {stats.completion_rate}%"
             )
 
     except Exception as e:
-        logfire.error("Unexpected error in tool_get_personal_stats", error=str(e))
+        logger.error("Unexpected error in tool_get_personal_stats", extra={"error": str(e)})
         return "Error: Unable to retrieve personal stats. Please try again."
 
 
@@ -288,7 +293,7 @@ async def tool_list_personal_chores(ctx: RunContext[Deps], params: ListPersonalC
             return "\n".join(lines)
 
     except Exception as e:
-        logfire.error("Unexpected error in tool_list_personal_chores", error=str(e))
+        logger.error("Unexpected error in tool_list_personal_chores", extra={"error": str(e)})
         return "Error: Unable to list personal chores. Please try again."
 
 
@@ -325,7 +330,7 @@ async def tool_remove_personal_chore(ctx: RunContext[Deps], params: RemovePerson
             return f"✅ Removed personal chore '{matched_chore['title']}'."
 
     except Exception as e:
-        logfire.error("Unexpected error in tool_remove_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_remove_personal_chore", extra={"error": str(e)})
         return "Error: Unable to remove personal chore. Please try again."
 
 
