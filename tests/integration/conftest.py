@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pocketbase import PocketBase
 
+from src.agents.retry_handler import reset_retry_handler
 from src.core import admin_notifier as admin_notifier_module, config as config_module, db_client as db_module
 from src.core.config import Settings
 from src.core.schema import COLLECTIONS, sync_schema
@@ -381,3 +382,12 @@ async def sample_chores(db_client: MockDBClient, sample_users: dict[str, dict]) 
         created_chores.append(chore)
 
     return created_chores
+
+
+@pytest.fixture(autouse=True)
+def reset_agent_retry_handler():
+    """Reset the global retry handler before each test to ensure clean state."""
+    reset_retry_handler()
+    yield
+    # Clean up after test as well
+    reset_retry_handler()

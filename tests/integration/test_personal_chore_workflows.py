@@ -158,7 +158,7 @@ async def test_auto_verify_after_48_hours(mock_db_module, db_client, sample_user
     }
     log = await db_client.create_record(collection="personal_chore_logs", data=log_data)
 
-    assert log.verification_status == "PENDING"
+    assert log["verification_status"] == "PENDING"
 
     # Step 3: Run auto-verify job
     count = await personal_verification_service.auto_verify_expired_logs()
@@ -171,7 +171,7 @@ async def test_auto_verify_after_48_hours(mock_db_module, db_client, sample_user
         record_id=log["id"],
     )
 
-    assert updated_log.verification_status == "VERIFIED"
+    assert updated_log["verification_status"] == "VERIFIED"
     assert "48 hours" in updated_log["partner_feedback"]
 
 

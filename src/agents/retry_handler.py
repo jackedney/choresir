@@ -262,7 +262,7 @@ class AgentRetryHandler:
         if last_exception:
             raise last_exception
         # This line is unreachable but ensures the function always returns or raises
-        raise RuntimeError("Unreachable code reached in execute_with_retry")  # type: ignore[unreachable]
+        raise RuntimeError("Unreachable code reached in execute_with_retry")
 
 
 # Global retry handler instance
@@ -275,3 +275,12 @@ def get_retry_handler() -> AgentRetryHandler:
     if _retry_handler is None:
         _retry_handler = AgentRetryHandler()
     return _retry_handler
+
+
+def reset_retry_handler() -> None:
+    """Reset the global retry handler instance.
+
+    Primarily used for testing to ensure clean state between tests.
+    """
+    global _retry_handler  # noqa: PLW0603
+    _retry_handler = None
