@@ -1,51 +1,17 @@
 """Chore service for CRUD operations and state machine."""
 
 import logging
-import re
 from datetime import datetime
 from typing import Any
 
-from croniter import croniter
-
 from src.core import db_client
 from src.core.logging import span
+from src.core.recurrence_parser import parse_recurrence_to_cron
 from src.domain.chore import ChoreState
 from src.services import chore_state_machine
 
 
 logger = logging.getLogger(__name__)
-
-
-def _parse_recurrence_to_cron(recurrence: str) -> str:
-    """Parse recurrence string to CRON expression.
-
-    Supports:
-    - Direct CRON expressions (e.g., "0 20 * * *")
-    - Interval format (e.g., "every 3 days")
-
-    Args:
-        recurrence: Recurrence string
-
-    Returns:
-        CRON expression
-
-    Raises:
-        ValueError: If recurrence format is invalid
-    """
-    # Check if already a valid CRON expression
-    if croniter.is_valid(recurrence):
-        return recurrence
-
-    # Parse "every X days" format
-    match = re.match(r"^every\s+(\d+)\s+days?$", recurrence.lower())
-    if match:
-        days = int(match.group(1))
-        # Encode interval in CRON string: INTERVAL:N:cron_expression
-        # This allows us to add N days programmatically instead of using invalid CRON syntax
-        return f"INTERVAL:{days}:0 0 * * *"
-
-    msg = f"Invalid recurrence format: {recurrence}. Use CRON expression or 'every X days'"
-    raise ValueError(msg)
 
 
 async def create_chore(
@@ -72,7 +38,7 @@ async def create_chore(
     """
     with span("chore_service.create_chore"):
         # Parse and validate recurrence
-        schedule_cron = _parse_recurrence_to_cron(recurrence)
+        schedule_cron = parse_recurrence_to_cron(recurrence)
 
         # Calculate initial deadline
         deadline = chore_state_machine._calculate_next_deadline(schedule_cron=schedule_cron)

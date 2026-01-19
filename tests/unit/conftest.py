@@ -13,12 +13,16 @@ def in_memory_db():
 
 @pytest.fixture
 def patched_db(monkeypatch, in_memory_db):
-    """Patches src.core.database.get_db_client to return InMemoryDBClient."""
+    """Patches src.core.db_client functions to use InMemoryDBClient."""
 
-    def mock_get_db():
-        return in_memory_db
+    # Patch all db_client functions
+    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
+    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
+    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
+    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
+    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
+    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
 
-    monkeypatch.setattr("src.core.database.get_db_client", mock_get_db)
     return in_memory_db
 
 
