@@ -6,7 +6,7 @@ from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
 from src.domain.chore import ChoreState
-from src.services import chore_service, user_service, verification_service
+from src.services import chore_service, personal_chore_service, user_service, verification_service
 
 
 class DefineChore(BaseModel):
@@ -110,6 +110,7 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     Log a chore completion and request verification.
 
     Supports fuzzy matching for chore titles and Robin Hood swaps.
+    Checks for name collisions with personal chores.
 
     Args:
         ctx: Agent runtime context with dependencies
@@ -120,21 +121,42 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     """
     try:
         with logfire.span("tool_log_chore", title=params.chore_title_fuzzy, is_swap=params.is_swap):
-            # Get all chores to fuzzy match
+            # Get all household chores to fuzzy match
             all_chores = await chore_service.get_chores()
 
-            # Fuzzy match the chore
-            matched_chore = _fuzzy_match_chore(all_chores, params.chore_title_fuzzy)
-            if not matched_chore:
-                return f"Error: No chore found matching '{params.chore_title_fuzzy}'."
+            # Fuzzy match the household chore
+            household_match = _fuzzy_match_chore(all_chores, params.chore_title_fuzzy)
 
-            chore_id = matched_chore["id"]
-            chore_title = matched_chore["title"]
+            # Get user's personal chores to check for collision
+            personal_chores = await personal_chore_service.get_personal_chores(
+                owner_phone=ctx.deps.user_phone,
+                status="ACTIVE",
+            )
+            personal_match = personal_chore_service.fuzzy_match_personal_chore(
+                personal_chores, params.chore_title_fuzzy
+            )
+
+            # Check for collision
+            if household_match and personal_match:
+                # Cannot disambiguate - require more specific input
+                return (
+                    f"I found both a household chore '{household_match['title']}' and "
+                    f"your personal chore '{personal_match['title']}'. "
+                    f"Please be more specific: use '/personal done {params.chore_title_fuzzy}' "
+                    f"for personal chores or provide the full household chore name."
+                )
+
+            # No collision - proceed with household chore logging
+            if not household_match:
+                return f"Error: No household chore found matching '{params.chore_title_fuzzy}'."
+
+            chore_id = household_match["id"]
+            chore_title = household_match["title"]
 
             # Check if chore is in TODO state
-            if matched_chore["current_state"] != ChoreState.TODO:
+            if household_match["current_state"] != ChoreState.TODO:
                 return (
-                    f"Error: Chore '{chore_title}' is in state '{matched_chore['current_state']}' "
+                    f"Error: Chore '{chore_title}' is in state '{household_match['current_state']}' "
                     f"and cannot be logged right now."
                 )
 

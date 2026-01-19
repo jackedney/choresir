@@ -65,11 +65,19 @@ def _register_all_tools(agent_instance: Agent[Deps, str]) -> None:
     """Register all tool modules with the agent."""
     # Import tools and explicitly register them
     # This avoids decorator execution at import time
-    from src.agents.tools import analytics_tools, chore_tools, onboarding_tools, pantry_tools, verification_tools
+    from src.agents.tools import (
+        analytics_tools,
+        chore_tools,
+        onboarding_tools,
+        pantry_tools,
+        personal_chore_tools,
+        verification_tools,
+    )
 
     # Each module registers its tools via register_tools(agent)
     analytics_tools.register_tools(agent_instance)
     chore_tools.register_tools(agent_instance)
     onboarding_tools.register_tools(agent_instance)
     pantry_tools.register_tools(agent_instance)
+    personal_chore_tools.register_tools(agent_instance)
     verification_tools.register_tools(agent_instance)

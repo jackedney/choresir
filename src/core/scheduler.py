@@ -1,15 +1,18 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import logfire
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from croniter import croniter
 
 from src.core import db_client
 from src.core.config import constants
+from src.core.recurrence_parser import parse_recurrence_to_cron
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
+from src.services import personal_chore_service, personal_verification_service
 from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
 
 
@@ -339,6 +342,250 @@ async def send_weekly_leaderboard() -> None:
         logfire.error(f"Error in weekly leaderboard job: {e}")
 
 
+async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | None:
+    """Get the last completion date for a personal chore.
+
+    Args:
+        chore_id: Personal chore ID
+        owner_phone: Owner's phone number
+
+    Returns:
+        Date of last completion, or None if never completed
+    """
+    try:
+        # Query for most recent completion log
+        logs = await db_client.list_records(
+            collection="personal_chore_logs",
+            filter_query=f"personal_chore_id = '{chore_id}' && owner_phone = '{owner_phone}'",
+            sort="-completed_at",
+            per_page=1,
+        )
+
+        if logs:
+            completed_at_str = logs[0].get("completed_at", "")
+            if completed_at_str:
+                return datetime.fromisoformat(completed_at_str).date()
+
+        return None
+    except Exception as e:
+        logfire.warn(f"Error fetching last completion for chore {chore_id}: {e}")
+        return None
+
+
+def _is_recurring_chore_due_today(recurrence: str, last_completion: date | None, today: date) -> bool:
+    """Check if a recurring chore is due today based on its recurrence pattern.
+
+    Args:
+        recurrence: Recurrence pattern (cron expression, "every X days", etc.)
+        last_completion: Date of last completion, or None if never completed
+        today: Today's date
+
+    Returns:
+        True if the chore is due today based on its recurrence pattern
+    """
+    try:
+        # Parse recurrence to cron expression
+        cron_expr = parse_recurrence_to_cron(recurrence)
+
+        # Handle special INTERVAL format (e.g., "INTERVAL:3:0 0 * * *")
+        if cron_expr.startswith("INTERVAL:"):
+            return _check_interval_due_today(cron_expr, last_completion, today)
+
+        # For standard cron expressions
+        if croniter.is_valid(cron_expr):
+            return _check_cron_due_today(cron_expr, last_completion, today)
+
+        # If we can't parse it, default to not due (to avoid spam)
+        logfire.warn(f"Could not parse recurrence pattern: {recurrence}")
+        return False
+
+    except Exception as e:
+        logfire.warn(f"Error checking recurrence pattern '{recurrence}': {e}")
+        return False
+
+
+def _check_interval_due_today(cron_expr: str, last_completion: date | None, today: date) -> bool:
+    """Check if an interval-based chore is due today."""
+    parts = cron_expr.split(":")
+    interval_days = int(parts[1])
+    base_cron = parts[2]
+
+    # If never completed, check if today matches the base cron schedule
+    if last_completion is None:
+        if croniter.is_valid(base_cron):
+            cron = croniter(base_cron, datetime.combine(today, datetime.min.time()))
+            next_occurrence = cron.get_current(datetime)
+            return next_occurrence.date() == today
+        return True
+
+    # Check if enough days have passed since last completion
+    days_since_completion = (today - last_completion).days
+    if days_since_completion < interval_days:
+        return False
+
+    # Verify today matches the base cron schedule
+    if croniter.is_valid(base_cron):
+        cron = croniter(base_cron, datetime.combine(today, datetime.min.time()))
+        next_occurrence = cron.get_current(datetime)
+        return next_occurrence.date() == today
+    return True
+
+
+def _check_cron_due_today(cron_expr: str, last_completion: date | None, today: date) -> bool:
+    """Check if a cron-based chore is due today."""
+    today_dt = datetime.combine(today, datetime.min.time())
+    cron = croniter(cron_expr, today_dt)
+
+    # If never completed, check if today matches the schedule
+    if last_completion is None:
+        current_occurrence = cron.get_current(datetime)
+        return current_occurrence.date() == today
+
+    # Get the next scheduled occurrence after last completion
+    last_completion_dt = datetime.combine(last_completion, datetime.min.time())
+    cron_from_last = croniter(cron_expr, last_completion_dt)
+    next_occurrence = cron_from_last.get_next(datetime)
+    next_occurrence_date = next_occurrence.date()
+
+    # Due if next occurrence is today or earlier
+    return next_occurrence_date <= today
+
+
+async def _is_chore_due_today(chore: dict, today: date) -> bool:
+    """Check if a personal chore is due today.
+
+    Args:
+        chore: Personal chore dictionary
+        today: Today's date
+
+    Returns:
+        True if the chore is due today
+    """
+    due_date_str = chore.get("due_date", "")
+    recurrence = chore.get("recurrence", "")
+
+    # For one-time chores, check if due_date is today
+    if due_date_str:
+        try:
+            due_date = datetime.fromisoformat(due_date_str).date()
+            return due_date == today
+        except (ValueError, AttributeError):
+            return False
+
+    # For recurring chores, check against recurrence pattern and last completion
+    if recurrence:
+        chore_id = chore.get("id", "")
+        owner_phone = chore.get("owner_phone", "")
+
+        if not chore_id or not owner_phone:
+            logfire.warn(f"Missing chore_id or owner_phone for chore: {chore}")
+            return False
+
+        last_completion = await _get_last_completion_date(chore_id, owner_phone)
+        return _is_recurring_chore_due_today(recurrence, last_completion, today)
+
+    # No due_date and no recurrence - not due
+    return False
+
+
+def _build_reminder_message(chores: list[dict]) -> str:
+    """Build reminder message for personal chores."""
+    chore_list = "\n".join([f"• {chore['title']}" for chore in chores])
+    return (
+        f"🔔 Personal Chore Reminder\n\n"
+        f"You have {len(chores)} personal task(s) today:\n\n"
+        f"{chore_list}\n\n"
+        f"Reply 'done [task]' when complete."
+    )
+
+
+async def _send_personal_chore_reminder_to_user(user: dict, today: date) -> bool:
+    """Send personal chore reminder to a single user. Returns True if sent successfully."""
+    # Get user's active personal chores
+    personal_chores = await personal_chore_service.get_personal_chores(
+        owner_phone=user["phone"],
+        status="ACTIVE",
+    )
+
+    # Filter chores that are due today (check each chore asynchronously)
+    due_today = []
+    for chore in personal_chores:
+        if await _is_chore_due_today(chore, today):
+            due_today.append(chore)
+
+    if not due_today:
+        return False
+
+    # Send DM
+    message = _build_reminder_message(due_today)
+    result = await send_text_message(
+        to_phone=user["phone"],
+        text=message,
+    )
+
+    if result.success:
+        logfire.debug(f"Sent personal chore reminder to {user['name']}")
+        return True
+
+    logfire.warn(f"Failed to send personal chore reminder to {user['name']}: {result.error}")
+    return False
+
+
+async def send_personal_chore_reminders() -> None:
+    """Send reminders for personal chores due today.
+
+    Runs daily at 8 AM. Sends DM reminders to users with personal chores
+    that have recurring patterns triggering today.
+    """
+    logfire.info("Running personal chore reminders job")
+
+    try:
+        today = datetime.now(UTC).date()
+
+        # Get all active users
+        active_users = await db_client.list_records(
+            collection="users",
+            filter_query=f'status = "{UserStatus.ACTIVE}"',
+        )
+
+        if not active_users:
+            logfire.info("No active users for personal chore reminders")
+            return
+
+        # Send reminders to all users
+        sent_count = 0
+        for user in active_users:
+            try:
+                if await _send_personal_chore_reminder_to_user(user, today):
+                    sent_count += 1
+            except Exception as e:
+                logfire.error(f"Error sending reminder to user {user['id']}: {e}")
+                continue
+
+        logfire.info(f"Completed personal chore reminders: sent to {sent_count}/{len(active_users)} users")
+
+    except Exception as e:
+        logfire.error(f"Error in personal chore reminders job: {e}")
+
+
+async def auto_verify_personal_chores() -> None:
+    """Auto-verify personal chore logs pending for > 48 hours.
+
+    Runs every hour. Finds logs in PENDING state older than 48 hours
+    and auto-verifies them (partner didn't respond in time).
+    """
+    logfire.info("Running personal chore auto-verification job")
+
+    try:
+        # Call the auto-verification service
+        count = await personal_verification_service.auto_verify_expired_logs()
+
+        logfire.info(f"Completed auto-verification job: {count} logs auto-verified")
+
+    except Exception as e:
+        logfire.error(f"Error in auto-verification job: {e}")
+
+
 def start_scheduler() -> None:
     """Start the scheduler and register all jobs.
 
@@ -381,6 +628,26 @@ def start_scheduler() -> None:
     logfire.info(
         f"Scheduled weekly leaderboard job: day {constants.WEEKLY_REPORT_DAY} at {constants.WEEKLY_REPORT_HOUR}:00"
     )
+
+    # Schedule personal chore reminders (daily at 8am)
+    scheduler.add_job(
+        send_personal_chore_reminders,
+        trigger=CronTrigger(hour=8, minute=0),
+        id="personal_chore_reminders",
+        name="Send Personal Chore Reminders",
+        replace_existing=True,
+    )
+    logfire.info("Scheduled personal chore reminders job: daily at 8:00")
+
+    # Schedule auto-verification (hourly)
+    scheduler.add_job(
+        auto_verify_personal_chores,
+        trigger=CronTrigger(hour="*", minute=0),  # Every hour at minute 0
+        id="auto_verify_personal",
+        name="Auto-Verify Personal Chores",
+        replace_existing=True,
+    )
+    logfire.info("Scheduled auto-verification job: hourly")
 
     # Start the scheduler
     scheduler.start()

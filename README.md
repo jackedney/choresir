@@ -43,6 +43,7 @@
 
 ## ✨ Features
 
+### Household Management
 | Feature | Description |
 |---------|-------------|
 | 🛡️ **Gatekeeper Onboarding** | "Join HOUSE123" + Admin Approval prevents strangers from spamming |
@@ -52,6 +53,29 @@
 | ⚖️ **Conflict Resolution** | A "Jury System" for disputes. If User A claims "Done" and User B rejects it, the bot triggers a vote |
 | 📊 **Weekly Leaderboard** | Gamified chore completion tracking with weekly stats and analytics |
 | 🛒 **Smart Pantry** | Inventory tracking and smart shopping list generation |
+
+### Personal Chore Tracking 🆕
+Track your personal tasks privately within the same WhatsApp interface:
+- **🔒 Private by Default**: Only you can see your personal chores
+- **🤝 Optional Accountability**: Assign household members to verify your completions
+- **📅 Flexible Scheduling**: One-time tasks or recurring habits (supports "every morning", "by Friday", "every Monday", etc.)
+- **🏠 Separate from Household**: Personal chores don't affect the household leaderboard
+
+**Commands:**
+```
+/personal add <task> [recurrence] [accountability:@user]  # Create personal chore
+/personal done <task>                                      # Log completion
+/personal list                                             # View your chores
+/personal stats                                            # View your statistics
+/personal remove <task>                                    # Delete a chore
+```
+
+**Examples:**
+```
+/personal add gym every 2 days accountability:@Bob
+/personal add finish report by Friday
+/personal add meditate every morning
+```
 
 ## 🛠️ Tech Stack
 

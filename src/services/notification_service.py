@@ -161,3 +161,97 @@ async def _send_verification_message(
         to_phone=to_phone,
         text=text,
     )
+
+
+async def send_personal_verification_request(
+    *,
+    log_id: str,
+    chore_title: str,
+    owner_name: str,
+    partner_phone: str,
+) -> None:
+    """Send accountability partner notification for personal chore verification.
+
+    Args:
+        log_id: Personal chore log ID
+        chore_title: Personal chore title
+        owner_name: Owner's display name
+        partner_phone: Accountability partner's phone number
+
+    Raises:
+        Exception: If notification fails (logged but not raised)
+    """
+    try:
+        # Build notification message
+        message = (
+            f"💪 Verification Request\n\n"
+            f"{owner_name} claims they completed their personal chore: '{chore_title}'\n\n"
+            f"Verify? Reply:\n"
+            f"'/personal verify {log_id} approve' to approve\n"
+            f"'/personal verify {log_id} reject' to reject"
+        )
+
+        # Send DM to accountability partner
+        result = await whatsapp_sender.send_text_message(
+            to_phone=partner_phone,
+            text=message,
+        )
+
+        if result.success:
+            logger.info("Sent personal verification request to %s for chore '%s'", partner_phone, chore_title)
+        else:
+            logger.error("Failed to send personal verification request: %s", result.error)
+
+    except Exception:
+        logger.exception("Error sending personal verification request for chore '%s'", chore_title)
+        # Don't raise - notification failure shouldn't fail the claim
+
+
+async def send_personal_verification_result(
+    *,
+    chore_title: str,
+    owner_phone: str,
+    verifier_name: str,
+    approved: bool,
+    feedback: str = "",
+) -> None:
+    """Notify user when their personal chore is verified/rejected.
+
+    Args:
+        chore_title: Personal chore title
+        owner_phone: Owner's phone number
+        verifier_name: Verifier's display name
+        approved: True if approved, False if rejected
+        feedback: Optional feedback from verifier
+
+    Raises:
+        Exception: If notification fails (logged but not raised)
+    """
+    try:
+        # Build notification message
+        if approved:
+            emoji = "✅"
+            status = "approved"
+            message = f"{emoji} Personal Chore Verified\n\n{verifier_name} verified your '{chore_title}'! Keep it up!"
+        else:
+            emoji = "❌"
+            status = "rejected"
+            message = f"{emoji} Personal Chore Rejected\n\n{verifier_name} rejected your '{chore_title}'."
+
+        if feedback:
+            message += f"\n\nFeedback: {feedback}"
+
+        # Send DM to owner
+        result = await whatsapp_sender.send_text_message(
+            to_phone=owner_phone,
+            text=message,
+        )
+
+        if result.success:
+            logger.info("Sent personal verification result to %s: %s", owner_phone, status)
+        else:
+            logger.error("Failed to send personal verification result: %s", result.error)
+
+    except Exception:
+        logger.exception("Error sending personal verification result for chore '%s'", chore_title)
+        # Don't raise - notification failure shouldn't fail the verification
