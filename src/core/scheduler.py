@@ -3,7 +3,6 @@
 import logging
 from datetime import UTC, date, datetime
 
-import logfire
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from croniter import croniter
@@ -263,12 +262,14 @@ def _format_weekly_leaderboard(leaderboard: list[LeaderboardEntry], overdue: lis
                     deadline = deadline.replace(tzinfo=UTC)
                 valid_overdue.append((chore, deadline))
             except (ValueError, TypeError) as e:
-                logfire.warning(
+                logger.warning(
                     "Failed to parse deadline for chore",
-                    chore_id=chore.id,
-                    chore_title=chore.title,
-                    deadline=chore.deadline,
-                    error=str(e),
+                    extra={
+                        "chore_id": chore.id,
+                        "chore_title": chore.title,
+                        "deadline": chore.deadline,
+                        "error": str(e),
+                    },
                 )
                 continue
 

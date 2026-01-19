@@ -6,8 +6,6 @@ from collections import deque
 from datetime import UTC, datetime
 from typing import Any
 
-import logfire
-
 from src.core.admin_notifier import notify_admins
 from src.core.redis_client import redis_client
 
@@ -251,9 +249,12 @@ async def retry_job_with_backoff(
 
         except Exception as e:
             last_error = str(e)
-            logfire.error(
-                f"{job_name} failed on attempt {attempt + 1}/{max_retries}",
-                error=last_error,
+            logger.error(
+                "%s failed on attempt %d/%d: %s",
+                job_name,
+                attempt + 1,
+                max_retries,
+                last_error,
             )
 
             # If this is not the last attempt, wait before retrying
@@ -267,10 +268,12 @@ async def retry_job_with_backoff(
     consecutive_failures = await job_tracker.record_job_failure(job_name, error_msg)
 
     # Notify admins on failure
-    logfire.error(
+    logger.error(
         f"{job_name} failed after all retry attempts",
-        error=error_msg,
-        consecutive_failures=consecutive_failures,
+        extra={
+            "error": error_msg,
+            "consecutive_failures": consecutive_failures,
+        },
     )
 
     await notify_admins(
