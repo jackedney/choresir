@@ -50,7 +50,7 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         # Guard: Check if user already exists
         existing_user = await db_client.get_first_record(
             collection="users",
-            filter_query=f'phone = "{phone}"',
+            filter_query=f'phone = "{db_client.sanitize_param(phone)}"',
         )
         if existing_user:
             msg = f"User with phone {phone} already exists"
@@ -104,7 +104,7 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
         # Guard: Find target user
         target_user = await db_client.get_first_record(
             collection="users",
-            filter_query=f'phone = "{target_phone}"',
+            filter_query=f'phone = "{db_client.sanitize_param(target_phone)}"',
         )
         if not target_user:
             msg = f"User with phone {target_phone} not found"
@@ -181,7 +181,7 @@ async def get_user_by_phone(*, phone: str) -> dict[str, Any] | None:
     """
     return await db_client.get_first_record(
         collection="users",
-        filter_query=f'phone = "{phone}"',
+        filter_query=f'phone = "{db_client.sanitize_param(phone)}"',
     )
 
 

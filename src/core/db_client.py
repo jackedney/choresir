@@ -1,5 +1,6 @@
 """PocketBase client wrapper with CRUD operations."""
 
+import json
 import logging
 import time
 from datetime import datetime, timedelta
@@ -278,3 +279,24 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         msg = f"Failed to get first record from {collection}: {e}"
         logger.error(msg)
         raise RuntimeError(msg) from e
+
+
+def sanitize_param(value: Any) -> str:
+    """Sanitize a parameter for use in a PocketBase filter string.
+
+    This function escapes quotes and backslashes to prevent injection.
+    It uses JSON serialization logic to ensure string safety, then strips
+    the surrounding quotes so the result can be embedded in a double-quoted
+    filter string.
+
+    Example:
+        sanitize_param('foo"bar') -> 'foo\\"bar'
+        f'name = "{sanitize_param(param)}"' -> 'name = "foo\\"bar"'
+
+    Args:
+        value: The value to sanitize (will be converted to string)
+
+    Returns:
+        Sanitized string safe for inclusion in double quotes
+    """
+    return json.dumps(str(value))[1:-1]

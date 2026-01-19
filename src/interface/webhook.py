@@ -126,7 +126,7 @@ async def _update_message_status(*, message_id: str, success: bool, error: str |
     """
     msg_record = await db_client.get_first_record(
         collection="processed_messages",
-        filter_query=f'message_id = "{message_id}"',
+        filter_query=f'message_id = "{db_client.sanitize_param(message_id)}"',
     )
     if msg_record:
         await db_client.update_record(
@@ -323,7 +323,7 @@ async def _check_duplicate_message(message_id: str) -> bool:
     """
     existing_log = await db_client.get_first_record(
         collection="processed_messages",
-        filter_query=f'message_id = "{message_id}"',
+        filter_query=f'message_id = "{db_client.sanitize_param(message_id)}"',
     )
     if existing_log:
         logger.info("Message %s already processed, skipping", message_id)
@@ -364,7 +364,7 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
 
     user_record = await db_client.get_first_record(
         collection="users",
-        filter_query=f'phone = "{message.from_phone}"',
+        filter_query=f'phone = "{db_client.sanitize_param(message.from_phone)}"',
     )
     if not user_record:
         logger.warning("Unknown user clicked button: %s", message.from_phone)
@@ -404,7 +404,7 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
 
     user_record = await db_client.get_first_record(
         collection="users",
-        filter_query=f'phone = "{message.from_phone}"',
+        filter_query=f'phone = "{db_client.sanitize_param(message.from_phone)}"',
     )
     if not user_record:
         logger.error("User record not found after build_deps succeeded for %s", message.from_phone)
@@ -483,7 +483,7 @@ async def _handle_webhook_error(e: Exception, params: dict[str, str]) -> None:
             try:
                 existing_record = await db_client.get_first_record(
                     collection="processed_messages",
-                    filter_query=f'message_id = "{parsed_message.message_id}"',
+                    filter_query=f'message_id = "{db_client.sanitize_param(parsed_message.message_id)}"',
                 )
                 if existing_record:
                     await db_client.update_record(
