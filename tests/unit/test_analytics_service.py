@@ -123,12 +123,12 @@ class TestGetLeaderboardCaching:
 
         # Verify result
         assert len(result) == 3
-        assert result[0]["user_name"] == "Alice"
-        assert result[0]["completion_count"] == 5
-        assert result[1]["user_name"] == "Bob"
-        assert result[1]["completion_count"] == 3
-        assert result[2]["user_name"] == "Charlie"
-        assert result[2]["completion_count"] == 1
+        assert result[0].user_name == "Alice"
+        assert result[0].completion_count == 5
+        assert result[1].user_name == "Bob"
+        assert result[1].completion_count == 3
+        assert result[2].user_name == "Charlie"
+        assert result[2].completion_count == 1
 
         # Verify cache was checked
         mock_redis.get.assert_called_once_with("choresir:leaderboard:30")
@@ -139,7 +139,7 @@ class TestGetLeaderboardCaching:
         assert call_args[0][0] == "choresir:leaderboard:30"  # cache key
         cached_data = json.loads(call_args[0][1])
         assert len(cached_data) == 3
-        assert call_args[0][2] == 300  # TTL in seconds
+        assert call_args[0][2] == 60  # TTL in seconds (reduced from 300)
 
     async def test_leaderboard_cache_hit(self, patched_analytics_db, mock_redis, sample_users):
         """Second call within TTL returns cached data without DB query."""
@@ -152,9 +152,14 @@ class TestGetLeaderboardCaching:
 
         result = await analytics_service.get_leaderboard(period_days=30)
 
-        # Verify cached data was returned
-        assert result == cached_leaderboard
+        # Verify cached data was returned as models
         assert len(result) == 2
+        assert result[0].user_id == "user1"
+        assert result[0].user_name == "Alice"
+        assert result[0].completion_count == 10
+        assert result[1].user_id == "user2"
+        assert result[1].user_name == "Bob"
+        assert result[1].completion_count == 5
 
         # Verify cache was checked
         mock_redis.get.assert_called_once_with("choresir:leaderboard:30")
@@ -189,7 +194,7 @@ class TestGetLeaderboardCaching:
 
         # Verify DB was queried and result is correct
         assert len(result) == 3
-        assert result[0]["user_name"] == "Alice"
+        assert result[0].user_name == "Alice"
 
         # Verify cache was regenerated
         mock_redis.set.assert_called_once()
@@ -210,8 +215,8 @@ class TestGetLeaderboardRedisUnavailability:
 
         # Verify function still works and returns correct data
         assert len(result) == 3
-        assert result[0]["user_name"] == "Alice"
-        assert result[0]["completion_count"] == 5
+        assert result[0].user_name == "Alice"
+        assert result[0].completion_count == 5
 
         # Cache update should not be attempted since Redis is down
         # (the exception will be caught during set operation too)
@@ -229,7 +234,7 @@ class TestGetLeaderboardRedisUnavailability:
 
         # Verify function still returns correct data
         assert len(result) == 3
-        assert result[0]["user_name"] == "Alice"
+        assert result[0].user_name == "Alice"
 
 
 @pytest.mark.unit
@@ -322,8 +327,8 @@ class TestGetLeaderboardEdgeCases:
         result = await analytics_service.get_leaderboard(period_days=30)
 
         assert len(result) == 1
-        assert result[0]["user_name"] == "Alice"
-        assert result[0]["completion_count"] == 1
+        assert result[0].user_name == "Alice"
+        assert result[0].completion_count == 1
 
     async def test_leaderboard_tied_users(self, patched_analytics_db, mock_redis, sample_users):
         """Users with same completion count are handled correctly."""
@@ -359,8 +364,8 @@ class TestGetLeaderboardEdgeCases:
 
         # Both users should be in result with same count
         assert len(result) == 2
-        assert result[0]["completion_count"] == 3
-        assert result[1]["completion_count"] == 3
+        assert result[0].completion_count == 3
+        assert result[1].completion_count == 3
 
     async def test_leaderboard_period_filtering(self, patched_analytics_db, mock_redis, sample_users):
         """Leaderboard correctly filters by period_days."""
@@ -394,8 +399,8 @@ class TestGetLeaderboardEdgeCases:
 
         # Only recent completion should be counted
         assert len(result) == 1
-        assert result[0]["user_name"] == "Bob"
-        assert result[0]["completion_count"] == 1
+        assert result[0].user_name == "Bob"
+        assert result[0].completion_count == 1
 
     async def test_leaderboard_multiple_completions_same_user(self, patched_analytics_db, mock_redis, sample_users):
         """Multiple completions by same user are counted correctly."""
@@ -418,8 +423,8 @@ class TestGetLeaderboardEdgeCases:
         result = await analytics_service.get_leaderboard(period_days=30)
 
         assert len(result) == 1
-        assert result[0]["user_name"] == "Alice"
-        assert result[0]["completion_count"] == 10
+        assert result[0].user_name == "Alice"
+        assert result[0].completion_count == 10
 
 
 @pytest.mark.unit
@@ -434,10 +439,10 @@ class TestGetUserStatistics:
 
         result = await analytics_service.get_user_statistics(user_id=sample_users[0]["id"], period_days=30)
 
-        assert result["user_id"] == sample_users[0]["id"]
-        assert result["user_name"] == "Alice"
-        assert result["completions"] == 5
-        assert result["rank"] == 1  # Alice is first with 5 completions
+        assert result.user_id == sample_users[0]["id"]
+        assert result.user_name == "Alice"
+        assert result.completions == 5
+        assert result.rank == 1  # Alice is first with 5 completions
 
     async def test_get_user_statistics_no_completions(self, patched_analytics_db, mock_redis, sample_users):
         """User with no completions has None rank and 0 completions."""
@@ -455,10 +460,10 @@ class TestGetUserStatistics:
 
         result = await analytics_service.get_user_statistics(user_id=new_user["id"], period_days=30)
 
-        assert result["user_id"] == new_user["id"]
-        assert result["user_name"] == "NewUser"
-        assert result["completions"] == 0
-        assert result["rank"] is None
+        assert result.user_id == new_user["id"]
+        assert result.user_name == "NewUser"
+        assert result.completions == 0
+        assert result.rank is None
 
 
 @pytest.mark.unit
@@ -475,11 +480,14 @@ class TestGetLeaderboardIntegration:
 
         # Verify complete result
         assert len(result) == 3
-        assert all(key in result[0] for key in ["user_id", "user_name", "completion_count"])
+        # Verify result is a LeaderboardEntry model with expected fields
+        assert hasattr(result[0], "user_id")
+        assert hasattr(result[0], "user_name")
+        assert hasattr(result[0], "completion_count")
 
         # Verify ordering (descending by count)
-        assert result[0]["completion_count"] >= result[1]["completion_count"]
-        assert result[1]["completion_count"] >= result[2]["completion_count"]
+        assert result[0].completion_count >= result[1].completion_count
+        assert result[1].completion_count >= result[2].completion_count
 
         # Verify cache operations
         mock_redis.get.assert_called_once()
@@ -494,8 +502,11 @@ class TestGetLeaderboardIntegration:
 
         result = await analytics_service.get_leaderboard(period_days=30)
 
-        # Verify cached data was returned
-        assert result == cached_data
+        # Verify cached data was returned as models
+        assert len(result) == 1
+        assert result[0].user_id == "u1"
+        assert result[0].user_name == "User1"
+        assert result[0].completion_count == 100
 
         # Verify no cache update
         mock_redis.set.assert_not_called()
@@ -506,20 +517,20 @@ class TestInvalidateLeaderboardCache:
     """Tests for invalidate_leaderboard_cache function."""
 
     async def test_invalidate_cache_deletes_all_keys(self, mock_redis):
-        """Verify all leaderboard cache keys are deleted."""
+        """Verify all leaderboard cache keys are deleted with retry logic."""
         # Mock Redis keys() to return multiple leaderboard keys
         mock_redis.keys = AsyncMock(
             return_value=["choresir:leaderboard:7", "choresir:leaderboard:30", "choresir:leaderboard:90"]
         )
-        mock_redis.delete = AsyncMock()
+        mock_redis.delete_with_retry = AsyncMock(return_value=True)
 
         await analytics_service.invalidate_leaderboard_cache()
 
         # Verify pattern was used to find keys
         mock_redis.keys.assert_called_once_with("choresir:leaderboard:*")
 
-        # Verify all keys were deleted in one call
-        mock_redis.delete.assert_called_once_with(
+        # Verify all keys were deleted with retry in one call
+        mock_redis.delete_with_retry.assert_called_once_with(
             "choresir:leaderboard:7", "choresir:leaderboard:30", "choresir:leaderboard:90"
         )
 
@@ -527,15 +538,15 @@ class TestInvalidateLeaderboardCache:
         """No-op when no leaderboard cache keys exist."""
         # Mock Redis keys() to return empty list
         mock_redis.keys = AsyncMock(return_value=[])
-        mock_redis.delete = AsyncMock()
+        mock_redis.delete_with_retry = AsyncMock()
 
         await analytics_service.invalidate_leaderboard_cache()
 
         # Verify keys() was called
         mock_redis.keys.assert_called_once_with("choresir:leaderboard:*")
 
-        # Verify delete was NOT called (no keys to delete)
-        mock_redis.delete.assert_not_called()
+        # Verify delete_with_retry was NOT called (no keys to delete)
+        mock_redis.delete_with_retry.assert_not_called()
 
     async def test_invalidate_cache_redis_unavailable(self, mock_redis):
         """Gracefully handles Redis connection errors."""
@@ -548,26 +559,26 @@ class TestInvalidateLeaderboardCache:
         # Function should complete without error
 
     async def test_invalidate_cache_delete_fails(self, mock_redis):
-        """Gracefully handles Redis delete errors."""
-        # Mock Redis keys() to return keys, but delete() fails
+        """Gracefully handles Redis delete errors (queues for retry)."""
+        # Mock Redis keys() to return keys, but delete_with_retry() fails
         mock_redis.keys = AsyncMock(return_value=["choresir:leaderboard:7", "choresir:leaderboard:30"])
-        mock_redis.delete = AsyncMock(side_effect=ConnectionError("Redis delete failed"))
+        mock_redis.delete_with_retry = AsyncMock(return_value=False)  # Returns False on failure
 
         # Should not raise exception
         await analytics_service.invalidate_leaderboard_cache()
 
         # Keys should have been found
         mock_redis.keys.assert_called_once()
-        # Delete should have been attempted
-        mock_redis.delete.assert_called_once()
+        # Delete with retry should have been attempted
+        mock_redis.delete_with_retry.assert_called_once()
 
     async def test_invalidate_cache_single_key(self, mock_redis):
         """Works correctly with a single cache key."""
         # Mock Redis keys() to return single key
         mock_redis.keys = AsyncMock(return_value=["choresir:leaderboard:30"])
-        mock_redis.delete = AsyncMock()
+        mock_redis.delete_with_retry = AsyncMock(return_value=True)
 
         await analytics_service.invalidate_leaderboard_cache()
 
-        # Verify single key was deleted
-        mock_redis.delete.assert_called_once_with("choresir:leaderboard:30")
+        # Verify single key was deleted with retry
+        mock_redis.delete_with_retry.assert_called_once_with("choresir:leaderboard:30")

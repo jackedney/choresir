@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.core.errors import ErrorCategory, classify_agent_error
+from src.core.errors import ErrorCategory, ErrorCode, ErrorSeverity, classify_agent_error, classify_error_with_response
 
 
 @pytest.mark.unit
@@ -247,3 +247,161 @@ class TestClassifyAgentError:
         messages = [quota_msg, rate_msg, auth_msg, network_msg, unknown_msg]
         # All messages should be unique
         assert len(messages) == len(set(messages))
+
+
+@pytest.mark.unit
+class TestClassifyErrorWithResponse:
+    """Tests for classify_error_with_response function."""
+
+    def test_chore_already_claimed_error(self):
+        """Test classification of chore already claimed error."""
+        exception = Exception("Cannot claim chore, it's already claimed")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_CHORE_ALREADY_CLAIMED
+        assert "already been claimed" in response.message
+        assert "/list chores" in response.suggestion
+        assert response.severity == ErrorSeverity.LOW
+
+    def test_invalid_chore_id_error(self):
+        """Test classification of invalid chore ID error."""
+        exception = Exception("Chore not found")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_INVALID_CHORE_ID
+        assert "couldn't find" in response.message
+        assert "/list chores" in response.suggestion
+        assert response.severity == ErrorSeverity.LOW
+
+    def test_permission_denied_error(self):
+        """Test classification of permission denied error."""
+        exception = PermissionError("User does not have permission")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_PERMISSION_DENIED
+        assert "permission" in response.message.lower()
+        assert "admin" in response.suggestion.lower()
+        assert response.severity == ErrorSeverity.MEDIUM
+
+    def test_user_not_found_error(self):
+        """Test classification of user not found error."""
+        exception = KeyError("User not found in database")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_USER_NOT_FOUND
+        assert "not found" in response.message.lower()
+        assert "/help" in response.suggestion
+        assert response.severity == ErrorSeverity.MEDIUM
+
+    def test_invalid_state_transition_error(self):
+        """Test classification of invalid state transition error."""
+        exception = ValueError("Cannot transition from CLAIMED to AVAILABLE")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_INVALID_STATE_TRANSITION
+        assert "cannot be performed" in response.message.lower()
+        assert "/list chores" in response.suggestion
+        assert response.severity == ErrorSeverity.LOW
+
+    def test_invalid_recurrence_pattern_error(self):
+        """Test classification of invalid recurrence pattern error."""
+        exception = Exception("Invalid recurrence pattern format")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_INVALID_RECURRENCE_PATTERN
+        assert "recurrence" in response.message.lower()
+        assert "daily" in response.suggestion
+        assert response.severity == ErrorSeverity.LOW
+
+    def test_quota_exceeded_error(self):
+        """Test classification of quota exceeded error."""
+        exception = Exception("Quota exceeded for this service")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_SERVICE_QUOTA_EXCEEDED
+        assert "quota" in response.message.lower()
+        assert "try again later" in response.suggestion.lower()
+        assert response.severity == ErrorSeverity.HIGH
+
+    def test_rate_limit_error(self):
+        """Test classification of rate limit error."""
+        exception = Exception("Rate limit exceeded")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_RATE_LIMIT_EXCEEDED
+        assert "too many requests" in response.message.lower()
+        assert "wait" in response.suggestion.lower()
+        assert response.severity == ErrorSeverity.MEDIUM
+
+    def test_authentication_error(self):
+        """Test classification of authentication error."""
+        exception = Exception("Invalid API key")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_AUTHENTICATION_FAILED
+        assert "authentication" in response.message.lower()
+        assert "support" in response.suggestion.lower()
+        assert response.severity == ErrorSeverity.CRITICAL
+
+    def test_network_error(self):
+        """Test classification of network error."""
+        exception = ConnectionError("Connection failed")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_NETWORK_ERROR
+        assert "network" in response.message.lower()
+        assert "connection" in response.suggestion.lower()
+        assert response.severity == ErrorSeverity.MEDIUM
+
+    def test_unknown_error(self):
+        """Test classification of unknown error."""
+        exception = Exception("Something completely unexpected")
+        response = classify_error_with_response(exception)
+
+        assert response.code == ErrorCode.ERR_UNKNOWN
+        assert "unexpected" in response.message.lower()
+        assert "try again" in response.suggestion.lower()
+        assert response.severity == ErrorSeverity.MEDIUM
+
+    def test_response_has_all_required_fields(self):
+        """Test that ErrorResponse has all required fields."""
+        exception = Exception("Test error")
+        response = classify_error_with_response(exception)
+
+        assert hasattr(response, "code")
+        assert hasattr(response, "message")
+        assert hasattr(response, "suggestion")
+        assert hasattr(response, "severity")
+        assert isinstance(response.code, str)
+        assert isinstance(response.message, str)
+        assert isinstance(response.suggestion, str)
+        assert isinstance(response.severity, ErrorSeverity)
+
+    def test_chore_specific_errors_have_low_severity(self):
+        """Test that chore-specific errors have appropriate low severity."""
+        chore_claimed = Exception("Already claimed")
+        invalid_chore = Exception("Chore not found")
+        invalid_state = ValueError("Cannot transition")
+
+        assert classify_error_with_response(chore_claimed).severity == ErrorSeverity.LOW
+        assert classify_error_with_response(invalid_chore).severity == ErrorSeverity.LOW
+        assert classify_error_with_response(invalid_state).severity == ErrorSeverity.LOW
+
+    def test_all_suggestions_are_actionable(self):
+        """Test that all suggestions provide actionable guidance."""
+        exceptions = [
+            Exception("Already claimed"),
+            Exception("Chore not found"),
+            PermissionError("No permission"),
+            KeyError("User not found"),
+            ValueError("Cannot transition"),
+            Exception("Invalid pattern"),
+        ]
+
+        for exc in exceptions:
+            response = classify_error_with_response(exc)
+            # Suggestions should be non-empty and provide guidance
+            assert len(response.suggestion) > 0
+            assert any(
+                keyword in response.suggestion.lower() for keyword in ["try", "use", "contact", "check", "make sure"]
+            )

@@ -1,5 +1,7 @@
 """Agent tools for personal chore management."""
 
+import logging
+
 import logfire
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
@@ -8,6 +10,9 @@ from src.agents.base import Deps
 from src.core import db_client
 from src.domain.user import UserStatus
 from src.services import personal_chore_service, personal_verification_service, user_service
+
+
+logger = logging.getLogger(__name__)
 
 
 class CreatePersonalChore(BaseModel):
@@ -121,10 +126,10 @@ async def tool_create_personal_chore(ctx: RunContext[Deps], params: CreatePerson
             return f"✅ Created personal chore '{params.title}' {recurrence_msg}.{partner_msg}"
 
     except ValueError as e:
-        logfire.warning("Personal chore creation failed", error=str(e))
+        logger.warning("Personal chore creation failed", error=str(e))
         return f"Error: {e!s}"
     except Exception as e:
-        logfire.error("Unexpected error in tool_create_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_create_personal_chore", error=str(e))
         return "Error: Unable to create personal chore. Please try again."
 
 
@@ -170,10 +175,10 @@ async def tool_log_personal_chore(ctx: RunContext[Deps], params: LogPersonalChor
             return f"✅ Logged '{matched_chore['title']}'. Awaiting verification from {partner_name}."
 
     except ValueError as e:
-        logfire.warning("Personal chore logging failed", error=str(e))
+        logger.warning("Personal chore logging failed", error=str(e))
         return f"Error: {e!s}"
     except Exception as e:
-        logfire.error("Unexpected error in tool_log_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_log_personal_chore", error=str(e))
         return "Error: Unable to log personal chore. Please try again."
 
 
@@ -212,13 +217,13 @@ async def tool_verify_personal_chore(ctx: RunContext[Deps], params: VerifyPerson
             return f"❌ Rejected {owner_name}'s '{chore['title']}'."
 
     except PermissionError as e:
-        logfire.warning("Verification permission denied", error=str(e))
+        logger.warning("Verification permission denied", error=str(e))
         return f"Error: {e!s}"
     except ValueError as e:
-        logfire.warning("Verification failed", error=str(e))
+        logger.warning("Verification failed", error=str(e))
         return f"Error: {e!s}"
     except Exception as e:
-        logfire.error("Unexpected error in tool_verify_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_verify_personal_chore", error=str(e))
         return "Error: Unable to verify personal chore. Please try again."
 
 
@@ -251,7 +256,7 @@ async def tool_get_personal_stats(ctx: RunContext[Deps], params: GetPersonalStat
             )
 
     except Exception as e:
-        logfire.error("Unexpected error in tool_get_personal_stats", error=str(e))
+        logger.error("Unexpected error in tool_get_personal_stats", error=str(e))
         return "Error: Unable to retrieve personal stats. Please try again."
 
 
@@ -288,7 +293,7 @@ async def tool_list_personal_chores(ctx: RunContext[Deps], params: ListPersonalC
             return "\n".join(lines)
 
     except Exception as e:
-        logfire.error("Unexpected error in tool_list_personal_chores", error=str(e))
+        logger.error("Unexpected error in tool_list_personal_chores", error=str(e))
         return "Error: Unable to list personal chores. Please try again."
 
 
@@ -325,7 +330,7 @@ async def tool_remove_personal_chore(ctx: RunContext[Deps], params: RemovePerson
             return f"✅ Removed personal chore '{matched_chore['title']}'."
 
     except Exception as e:
-        logfire.error("Unexpected error in tool_remove_personal_chore", error=str(e))
+        logger.error("Unexpected error in tool_remove_personal_chore", error=str(e))
         return "Error: Unable to remove personal chore. Please try again."
 
 

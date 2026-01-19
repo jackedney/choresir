@@ -1,5 +1,6 @@
 """Verification tools for the choresir agent."""
 
+import logging
 from datetime import datetime, timedelta
 from typing import Literal
 
@@ -12,6 +13,9 @@ from src.core import db_client
 from src.domain.chore import ChoreState
 from src.services import chore_service, user_service, verification_service
 from src.services.verification_service import VerificationDecision
+
+
+logger = logging.getLogger(__name__)
 
 
 class VerifyChore(BaseModel):
@@ -107,13 +111,13 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
             return f"Chore '{chore['title']}' rejected. Moving to conflict resolution (voting will be implemented)."
 
     except PermissionError:
-        logfire.warning("Self-verification attempt", user_id=ctx.deps.user_id, log_id=params.log_id)
+        logger.warning("Self-verification attempt", user_id=ctx.deps.user_id, log_id=params.log_id)
         return "Error: You cannot verify your own chore claim."
     except ValueError as e:
-        logfire.warning("Verification failed", error=str(e))
+        logger.warning("Verification failed", error=str(e))
         return f"Error: {e!s}"
     except Exception as e:
-        logfire.error("Unexpected error in tool_verify_chore", error=str(e))
+        logger.error("Unexpected error in tool_verify_chore", error=str(e))
         return "Error: Unable to verify chore. Please try again."
 
 
@@ -153,7 +157,7 @@ async def tool_get_status(ctx: RunContext[Deps], params: GetStatus) -> str:
             return _format_chore_status(chores, target_user_name)
 
     except Exception as e:
-        logfire.error("Unexpected error in tool_get_status", error=str(e))
+        logger.error("Unexpected error in tool_get_status", error=str(e))
         return "Error: Unable to retrieve status. Please try again."
 
 

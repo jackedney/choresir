@@ -1,5 +1,6 @@
 """Analytics tools for the choresir agent."""
 
+import logging
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -10,6 +11,8 @@ from pydantic_ai import Agent, RunContext
 from src.agents.base import Deps
 from src.services import analytics_service
 
+
+logger = logging.getLogger(__name__)
 
 # Title threshold constants for user stats
 TITLE_THRESHOLD_MACHINE = 10
@@ -150,7 +153,7 @@ async def tool_get_analytics(_ctx: RunContext[Deps], params: GetAnalytics) -> st
             return f"Error: Unknown metric '{params.metric}'."
 
     except Exception as e:
-        logfire.error("Unexpected error in tool_get_analytics", error=str(e))
+        logger.error("Unexpected error in tool_get_analytics", error=str(e))
         return "Error: Unable to retrieve analytics. Please try again."
 
 
@@ -241,7 +244,7 @@ async def tool_get_stats(ctx: RunContext[Deps], params: GetStats) -> str:
             return _format_user_stats(stats, params.period_days)
 
     except Exception as e:
-        logfire.error("Unexpected error in tool_get_stats", error=str(e))
+        logger.error("Unexpected error in tool_get_stats", error=str(e))
         return "Error: Unable to retrieve your stats. Please try again."
 
 

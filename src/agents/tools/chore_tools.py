@@ -1,5 +1,7 @@
 """Chore management tools for the choresir agent."""
 
+import logging
+
 import logfire
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
@@ -7,6 +9,9 @@ from pydantic_ai import Agent, RunContext
 from src.agents.base import Deps
 from src.domain.chore import ChoreState
 from src.services import chore_service, personal_chore_service, user_service, verification_service
+
+
+logger = logging.getLogger(__name__)
 
 
 class DefineChore(BaseModel):
@@ -98,10 +103,10 @@ async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
             return f"Created chore '{params.title}' - {params.recurrence}, {assignee_msg}."
 
     except ValueError as e:
-        logfire.warning("Chore creation failed", error=str(e))
+        logger.warning("Chore creation failed", error=str(e))
         return f"Error: {e!s}"
     except Exception as e:
-        logfire.error("Unexpected error in tool_define_chore", error=str(e))
+        logger.error("Unexpected error in tool_define_chore", error=str(e))
         return "Error: Unable to create chore. Please try again."
 
 
@@ -173,10 +178,10 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
             )
 
     except ValueError as e:
-        logfire.warning("Chore logging failed", error=str(e))
+        logger.warning("Chore logging failed", error=str(e))
         return f"Error: {e!s}"
     except Exception as e:
-        logfire.error("Unexpected error in tool_log_chore", error=str(e))
+        logger.error("Unexpected error in tool_log_chore", error=str(e))
         return "Error: Unable to log chore. Please try again."
 
 

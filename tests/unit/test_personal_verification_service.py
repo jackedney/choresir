@@ -25,11 +25,11 @@ class TestLogPersonalChore:
             notes="Good workout",
         )
 
-        assert log["verification_status"] == "SELF_VERIFIED"
-        assert log["accountability_partner_phone"] == ""
-        assert log["notes"] == "Good workout"
-        assert log["personal_chore_id"] == chore["id"]
-        assert log["owner_phone"] == "+15551234567"
+        assert log.verification_status == "SELF_VERIFIED"
+        assert log.accountability_partner_phone == ""
+        assert log.notes == "Good workout"
+        assert log.personal_chore_id == chore["id"]
+        assert log.owner_phone == "+15551234567"
 
     async def test_pending_with_active_partner(self, patched_db):
         """Test logging a chore with active accountability partner."""
@@ -56,8 +56,8 @@ class TestLogPersonalChore:
             owner_phone="+15551234567",
         )
 
-        assert log["verification_status"] == "PENDING"
-        assert log["accountability_partner_phone"] == "+15559999999"
+        assert log.verification_status == "PENDING"
+        assert log.accountability_partner_phone == "+15559999999"
 
     async def test_auto_convert_inactive_partner(self, patched_db):
         """Test auto-converting to self-verified when partner is inactive."""
@@ -84,8 +84,8 @@ class TestLogPersonalChore:
             owner_phone="+15551234567",
         )
 
-        assert log["verification_status"] == "SELF_VERIFIED"
-        assert log["accountability_partner_phone"] == ""
+        assert log.verification_status == "SELF_VERIFIED"
+        assert log.accountability_partner_phone == ""
 
     async def test_auto_convert_missing_partner(self, patched_db):
         """Test auto-converting to self-verified when partner doesn't exist."""
@@ -102,8 +102,8 @@ class TestLogPersonalChore:
             owner_phone="+15551234567",
         )
 
-        assert log["verification_status"] == "SELF_VERIFIED"
-        assert log["accountability_partner_phone"] == ""
+        assert log.verification_status == "SELF_VERIFIED"
+        assert log.accountability_partner_phone == ""
 
     async def test_log_wrong_owner(self, patched_db):
         """Test logging a chore with wrong owner raises PermissionError."""
@@ -158,14 +158,14 @@ class TestVerifyPersonalChore:
 
         # Approve verification
         updated_log = await personal_verification_service.verify_personal_chore(
-            log_id=log["id"],
+            log_id=log.id,
             verifier_phone="+15559999999",
             approved=True,
             feedback="Good job!",
         )
 
-        assert updated_log["verification_status"] == "VERIFIED"
-        assert updated_log["partner_feedback"] == "Good job!"
+        assert updated_log.verification_status == "VERIFIED"
+        assert updated_log.partner_feedback == "Good job!"
 
     async def test_reject_pending_log(self, patched_db):
         """Test rejecting a pending verification."""
@@ -195,14 +195,14 @@ class TestVerifyPersonalChore:
 
         # Reject verification
         updated_log = await personal_verification_service.verify_personal_chore(
-            log_id=log["id"],
+            log_id=log.id,
             verifier_phone="+15559999999",
             approved=False,
             feedback="Try harder next time",
         )
 
-        assert updated_log["verification_status"] == "REJECTED"
-        assert updated_log["partner_feedback"] == "Try harder next time"
+        assert updated_log.verification_status == "REJECTED"
+        assert updated_log.partner_feedback == "Try harder next time"
 
     async def test_verify_wrong_partner(self, patched_db):
         """Test verifying with wrong partner raises PermissionError."""
@@ -233,7 +233,7 @@ class TestVerifyPersonalChore:
         # Try to verify with wrong partner
         with pytest.raises(PermissionError, match="Only accountability partner"):
             await personal_verification_service.verify_personal_chore(
-                log_id=log["id"],
+                log_id=log.id,
                 verifier_phone="+15558888888",  # Wrong partner
                 approved=True,
             )
@@ -266,7 +266,7 @@ class TestVerifyPersonalChore:
 
         # Verify it first
         await personal_verification_service.verify_personal_chore(
-            log_id=log["id"],
+            log_id=log.id,
             verifier_phone="+15559999999",
             approved=True,
         )
@@ -274,7 +274,7 @@ class TestVerifyPersonalChore:
         # Try to verify already verified log
         with pytest.raises(ValueError, match="Cannot verify log in state"):
             await personal_verification_service.verify_personal_chore(
-                log_id=log["id"],
+                log_id=log.id,
                 verifier_phone="+15559999999",
                 approved=True,
             )
@@ -335,9 +335,9 @@ class TestGetPendingPartnerVerifications:
         )
 
         assert len(pending) == 2
-        assert all(log["verification_status"] == "PENDING" for log in pending)
-        assert any(log["chore_title"] == "Gym" for log in pending)
-        assert any(log["chore_title"] == "Meditation" for log in pending)
+        assert all(log.verification_status == "PENDING" for log in pending)
+        assert any(log.chore_title == "Gym" for log in pending)
+        assert any(log.chore_title == "Meditation" for log in pending)
 
     async def test_get_pending_verifications_filters_verified(self, patched_db):
         """Test that verified logs are not included in pending verifications."""
@@ -367,7 +367,7 @@ class TestGetPendingPartnerVerifications:
 
         # Verify it
         await personal_verification_service.verify_personal_chore(
-            log_id=log["id"],
+            log_id=log.id,
             verifier_phone="+15559999999",
             approved=True,
         )
@@ -495,10 +495,10 @@ class TestGetPersonalStats:
             period_days=30,
         )
 
-        assert stats["total_chores"] == 2
-        assert stats["completions_this_period"] == 1
-        assert stats["pending_verifications"] == 0
-        assert stats["period_days"] == 30
+        assert stats.total_chores == 2
+        assert stats.completions_this_period == 1
+        assert stats.pending_verifications == 0
+        assert stats.period_days == 30
 
     async def test_get_stats_with_pending(self, patched_db):
         """Test stats include pending verifications."""
@@ -531,9 +531,9 @@ class TestGetPersonalStats:
             owner_phone="+15551234567",
         )
 
-        assert stats["total_chores"] == 1
-        assert stats["completions_this_period"] == 0  # Pending not counted
-        assert stats["pending_verifications"] == 1
+        assert stats.total_chores == 1
+        assert stats.completions_this_period == 0  # Pending not counted
+        assert stats.pending_verifications == 1
 
     async def test_get_stats_completion_rate(self, patched_db):
         """Test completion rate calculation."""
@@ -573,7 +573,7 @@ class TestGetPersonalStats:
         )
 
         # 2 completions / 3 total chores = 66.7%
-        assert stats["completion_rate"] == 66.7
+        assert stats.completion_rate == 66.7
 
     async def test_get_stats_no_chores(self, patched_db):
         """Test stats with no chores."""
@@ -581,10 +581,10 @@ class TestGetPersonalStats:
             owner_phone="+15551234567",
         )
 
-        assert stats["total_chores"] == 0
-        assert stats["completions_this_period"] == 0
-        assert stats["pending_verifications"] == 0
-        assert stats["completion_rate"] == 0
+        assert stats.total_chores == 0
+        assert stats.completions_this_period == 0
+        assert stats.pending_verifications == 0
+        assert stats.completion_rate == 0
 
     async def test_get_stats_filters_by_period(self, patched_db):
         """Test stats filter completions by period."""
@@ -623,7 +623,7 @@ class TestGetPersonalStats:
         )
 
         # Should only count recent completion
-        assert stats["completions_this_period"] == 1
+        assert stats.completions_this_period == 1
 
     async def test_get_stats_excludes_rejected(self, patched_db):
         """Test stats exclude rejected verifications."""
@@ -653,7 +653,7 @@ class TestGetPersonalStats:
 
         # Reject it
         await personal_verification_service.verify_personal_chore(
-            log_id=log["id"],
+            log_id=log.id,
             verifier_phone="+15559999999",
             approved=False,
         )
@@ -664,5 +664,5 @@ class TestGetPersonalStats:
         )
 
         # Rejected should not count as completion
-        assert stats["completions_this_period"] == 0
-        assert stats["pending_verifications"] == 0
+        assert stats.completions_this_period == 0
+        assert stats.pending_verifications == 0

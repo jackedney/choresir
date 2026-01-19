@@ -4,12 +4,17 @@ This module is separated to avoid circular imports between the agent
 and tools that need to register themselves with the agent.
 """
 
+import logging
+
 import logfire
 from pydantic_ai import Agent
 from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterProvider
 
 from src.agents.base import Deps
 from src.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class _LogfireState:
@@ -44,11 +49,14 @@ def _create_agent() -> Agent[Deps, str]:
         provider=provider,
     )
 
-    # Create the agent
+    # Create the agent with retry support
+    # Note: Retries are now handled by our custom retry handler
+    # which provides intelligent error classification, exponential backoff,
+    # and circuit breaker pattern
     return Agent(
         model=model,
         deps_type=Deps,
-        retries=2,
+        retries=0,  # Disable native retries, use our custom handler
     )
 
 
