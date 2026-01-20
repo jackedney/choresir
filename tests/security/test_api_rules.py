@@ -9,8 +9,7 @@ async def test_anonymous_users_access_denied(pocketbase_server, initialized_db):
         # Try to list users anonymously
         response = await client.get("/api/collections/users/records")
 
-        # Currently this will fail (it will return 200 OK because rules are public)
-        # We verify that it SHOULD be 403
+        # Verify that anonymous access is denied
         assert response.status_code == 403, (
             f"Anonymous access to users collection should be denied. Got {response.status_code}"
         )
