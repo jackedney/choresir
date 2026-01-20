@@ -353,7 +353,7 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
         logs = await db_client.list_records(
             collection="personal_chore_logs",
             filter_query=(
-                f"personal_chore_id = '{sanitize_param(chore_id)}' && owner_phone = '{sanitize_param(owner_phone)}'"
+                f"personal_chore_id = \"{sanitize_param(chore_id)}\" && owner_phone = \"{sanitize_param(owner_phone)}\""
             ),
             sort="-completed_at",
             per_page=1,
