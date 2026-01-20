@@ -2,10 +2,13 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any
+
+from pydantic import ValidationError
 
 from src.core import db_client
+from src.core.config import Constants
 from src.core.logging import span
+from src.models.service_models import PersonalChoreLog, PersonalChoreStatistics
 from src.services import notification_service, personal_chore_service, user_service
 
 
@@ -17,7 +20,7 @@ async def log_personal_chore(
     chore_id: str,
     owner_phone: str,
     notes: str = "",
-) -> dict[str, Any]:
+) -> PersonalChoreLog:
     """Log completion of a personal chore.
 
     If chore has accountability partner, creates PENDING log.
@@ -29,7 +32,7 @@ async def log_personal_chore(
         notes: Optional notes about completion
 
     Returns:
-        Created log record
+        Created PersonalChoreLog object
 
     Raises:
         KeyError: If chore not found
@@ -105,7 +108,7 @@ async def log_personal_chore(
                     chore_id,
                 )
 
-        return log_record
+        return PersonalChoreLog(**log_record)
 
 
 async def verify_personal_chore(
@@ -114,7 +117,7 @@ async def verify_personal_chore(
     verifier_phone: str,
     approved: bool,
     feedback: str = "",
-) -> dict[str, Any]:
+) -> PersonalChoreLog:
     """Verify or reject a personal chore completion.
 
     Args:
@@ -124,7 +127,7 @@ async def verify_personal_chore(
         feedback: Optional feedback message
 
     Returns:
-        Updated log record
+        Updated PersonalChoreLog object
 
     Raises:
         KeyError: If log not found
@@ -181,20 +184,20 @@ async def verify_personal_chore(
                 log_id,
             )
 
-        return updated_log
+        return PersonalChoreLog(**updated_log)
 
 
 async def get_pending_partner_verifications(
     *,
     partner_phone: str,
-) -> list[dict[str, Any]]:
+) -> list[PersonalChoreLog]:
     """Get all pending verifications for an accountability partner.
 
     Args:
         partner_phone: Accountability partner phone
 
     Returns:
-        List of pending log records with chore details
+        List of PersonalChoreLog objects with enriched chore details
     """
     with span("personal_verification_service.get_pending_partner_verifications"):
         filter_query = f'accountability_partner_phone = "{partner_phone}" && verification_status = "PENDING"'
@@ -205,7 +208,7 @@ async def get_pending_partner_verifications(
             sort="-completed_at",
         )
 
-        # Enrich with chore details
+        # Enrich with chore details and convert to models
         enriched_logs = []
         for log in logs:
             try:
@@ -213,14 +216,15 @@ async def get_pending_partner_verifications(
                     collection="personal_chores",
                     record_id=log["personal_chore_id"],
                 )
-                # Create enriched view (not a database record)
-                # Note: chore_title and owner_phone are added for display only
-                enriched_view = dict(log)  # Shallow copy to avoid mutating DB record
+                # Create enriched view with chore details
+                enriched_view = dict(log)  # Shallow copy
                 enriched_view["chore_title"] = chore["title"]
-                enriched_view["owner_phone"] = chore["owner_phone"]
-                enriched_logs.append(enriched_view)
-            except KeyError:
-                logger.warning("Chore %s not found for log %s", log["personal_chore_id"], log["id"])
+                enriched_view["owner_phone_display"] = chore["owner_phone"]
+
+                enriched_log = PersonalChoreLog(**enriched_view)
+                enriched_logs.append(enriched_log)
+            except (KeyError, ValidationError) as e:
+                logger.warning("Failed to process log %s: %s", log.get("id"), e)
                 continue
 
         return enriched_logs
@@ -235,7 +239,7 @@ async def auto_verify_expired_logs() -> int:
         Number of logs auto-verified
     """
     with span("personal_verification_service.auto_verify_expired_logs"):
-        cutoff_time = datetime.now() - timedelta(hours=48)
+        cutoff_time = datetime.now() - timedelta(hours=Constants.AUTO_VERIFY_PENDING_HOURS)
         filter_query = f'verification_status = "PENDING" && completed_at < "{cutoff_time.isoformat()}"'
 
         expired_logs = await db_client.list_records(
@@ -291,7 +295,7 @@ async def get_personal_stats(
     *,
     owner_phone: str,
     period_days: int = 30,
-) -> dict[str, Any]:
+) -> PersonalChoreStatistics:
     """Get personal chore statistics for a user.
 
     Args:
@@ -299,11 +303,7 @@ async def get_personal_stats(
         period_days: Number of days to include (default: 30)
 
     Returns:
-        Dictionary with stats:
-        - total_chores: Total active personal chores
-        - completions_this_period: Completed in period
-        - pending_verifications: Currently pending verification
-        - completion_rate: Percentage completed vs total
+        PersonalChoreStatistics object with user's personal chore metrics
     """
     with span("personal_verification_service.get_personal_stats"):
         # Get all active chores
@@ -338,10 +338,10 @@ async def get_personal_stats(
         completions_count = len(completions)
         completion_rate = (completions_count / total_chores * 100) if total_chores > 0 else 0
 
-        return {
-            "total_chores": total_chores,
-            "completions_this_period": completions_count,
-            "pending_verifications": len(pending),
-            "completion_rate": round(completion_rate, 1),
-            "period_days": period_days,
-        }
+        return PersonalChoreStatistics(
+            total_chores=total_chores,
+            completions_this_period=completions_count,
+            pending_verifications=len(pending),
+            completion_rate=round(completion_rate, 1),
+            period_days=period_days,
+        )

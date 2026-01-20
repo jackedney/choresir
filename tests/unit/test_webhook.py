@@ -11,6 +11,7 @@ from src.interface.webhook import (
     receive_webhook,
     verify_twilio_signature,
 )
+from src.interface.webhook_security import WebhookSecurityResult
 from src.services.verification_service import VerificationDecision
 
 
@@ -76,11 +77,13 @@ class TestReceiveWebhook:
     """Test webhook endpoint."""
 
     @pytest.mark.asyncio
+    @patch("src.interface.webhook.webhook_security.verify_webhook_security")
     @patch("src.interface.webhook.verify_twilio_signature")
     @patch("src.interface.webhook.process_webhook_message")
-    async def test_receive_webhook_valid_signature(self, mock_process, mock_verify):
+    async def test_receive_webhook_valid_signature(self, mock_process, mock_verify, mock_security):
         """Test webhook receives and validates valid requests."""
         mock_verify.return_value = True
+        mock_security.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
         # Create mock request with form data
         mock_request = MagicMock()
@@ -103,6 +106,9 @@ class TestReceiveWebhook:
 
         # Should verify signature
         mock_verify.assert_called_once()
+
+        # Should verify security
+        mock_security.assert_called_once()
 
         # Should queue background task
         mock_background_tasks.add_task.assert_called_once()
@@ -158,10 +164,12 @@ class TestReceiveWebhook:
         mock_background_tasks.add_task.assert_not_called()
 
     @pytest.mark.asyncio
+    @patch("src.interface.webhook.webhook_security.verify_webhook_security")
     @patch("src.interface.webhook.verify_twilio_signature")
-    async def test_receive_webhook_form_data_conversion(self, mock_verify):
+    async def test_receive_webhook_form_data_conversion(self, mock_verify, mock_security):
         """Test that form data is correctly converted to dict."""
         mock_verify.return_value = True
+        mock_security.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
         mock_request = MagicMock()
         mock_form = MagicMock()
@@ -170,6 +178,7 @@ class TestReceiveWebhook:
             ("MessageSid", "SM123"),
             ("From", "whatsapp:+1234567890"),
             ("NumMedia", 0),  # Integer value
+            ("Body", "test message"),  # Required for webhook parsing
         ]
         mock_request.form = AsyncMock(return_value=mock_form)
         mock_request.headers.get.return_value = "valid_sig"
@@ -471,8 +480,8 @@ class TestHandleButtonPayload:
     @pytest.mark.asyncio
     @patch("src.interface.webhook.whatsapp_sender")
     @patch("src.interface.webhook.db_client")
-    @patch("src.interface.webhook.logfire")
-    async def test_unexpected_exception_logging(self, mock_logfire, mock_db, mock_sender):
+    @patch("src.interface.webhook.logger")
+    async def test_unexpected_exception_logging(self, mock_logger, mock_db, mock_sender):
         """Test that unexpected exceptions are logged with detailed information."""
         mock_message = MagicMock()
         mock_message.from_phone = "+1234567890"
@@ -500,10 +509,11 @@ class TestHandleButtonPayload:
         assert "AttributeError" in error
 
         # Verify detailed logging with exception type and stack trace
-        mock_logfire.error.assert_called()
-        log_call = mock_logfire.error.call_args
-        assert "AttributeError" in log_call[0][0]  # Exception type in message
+        mock_logger.error.assert_called()
+        log_call = mock_logger.error.call_args
+        # With lazy formatting, exception type is in args[1], not the format string
         assert "Unexpected button handler error" in log_call[0][0]
+        assert log_call[0][1] == "AttributeError"  # Exception type in first arg
         assert log_call[1]["exc_info"] is True  # Stack trace included
 
         # Verify user-friendly error message was sent

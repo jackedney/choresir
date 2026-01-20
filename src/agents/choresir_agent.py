@@ -10,6 +10,7 @@ from pocketbase import PocketBase
 
 from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
+from src.agents.retry_handler import get_retry_handler
 from src.core import admin_notifier, db_client
 from src.core.config import settings
 from src.core.errors import classify_agent_error
@@ -19,6 +20,8 @@ from src.services import session_service, user_service
 
 logger = logging.getLogger(__name__)
 
+
+logger = logging.getLogger(__name__)
 
 # System prompt template
 SYSTEM_PROMPT_TEMPLATE = """You are choresir, a household chore management assistant. Your role is strictly functional.
@@ -136,16 +139,21 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
     try:
         # Get agent instance (lazy initialization)
         agent = get_agent()
+        retry_handler = get_retry_handler()
 
-        # Run the agent with Logfire tracing
-        with logfire.span("choresir_agent_run", user_id=deps.user_id):
-            result = await agent.run(
-                user_message,
-                deps=deps,
-                message_history=[],
-                instructions=instructions,
-            )
-            return result.output
+        # Define the agent execution function for retry wrapper
+        async def execute_agent() -> str:
+            with logfire.span("choresir_agent_run", user_id=deps.user_id):
+                result = await agent.run(
+                    user_message,
+                    deps=deps,
+                    message_history=[],
+                    instructions=instructions,
+                )
+                return result.output
+
+        # Run the agent with intelligent retry logic
+        return await retry_handler.execute_with_retry(execute_agent)
     except Exception as e:
         # Classify the error and get user-friendly message
         error_category, user_message = classify_agent_error(e)
@@ -169,7 +177,7 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
                     severity="critical",
                 )
             except Exception as notify_error:
-                logfire.error(f"Failed to notify admins of quota exceeded error: {notify_error}")
+                logger.error(f"Failed to notify admins of quota exceeded error: {notify_error}")
 
         return user_message
 
@@ -272,14 +280,14 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
             )
         except ValueError as e:
             # Invalid credentials
-            logfire.warning(f"Join request failed for {user_phone}: {e}")
+            logger.warning(f"Join request failed for {user_phone}: {e}")
             return (
                 f"Sorry, I couldn't process your join request: {e}\n\n"
                 "Please check your house code and password and try again."
             )
         except Exception as e:
             # Unexpected error
-            logfire.error(f"Unexpected error processing join request for {user_phone}: {e}")
+            logger.error(f"Unexpected error processing join request for {user_phone}: {e}")
             return "Sorry, an error occurred while processing your join request. Please try again later."
 
     # No join request detected, return onboarding prompt

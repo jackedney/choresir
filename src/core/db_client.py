@@ -1,11 +1,12 @@
 """PocketBase client wrapper with CRUD operations."""
 
-import functools
 import logging
+import time
+from datetime import datetime, timedelta
 from typing import Any, TypeVar
 
 from pocketbase import PocketBase
-from pocketbase.client import ClientResponseError
+from pocketbase.errors import ClientResponseError
 
 from src.core.config import settings
 
@@ -14,35 +15,166 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-@functools.lru_cache(maxsize=1)
-def _get_authenticated_client() -> PocketBase:
-    """Internal function to create and authenticate client."""
-    client = PocketBase(settings.pocketbase_url)
-    client.admins.auth_with_password(
-        settings.pocketbase_admin_email,
-        settings.pocketbase_admin_password,
-    )
-    return client
+class PocketBaseConnectionPool:
+    """Connection pool manager for PocketBase with health checks and automatic reconnection."""
+
+    def __init__(
+        self,
+        url: str,
+        admin_email: str,
+        admin_password: str,
+        max_retries: int = 3,
+        connection_lifetime_seconds: int = 3600,  # 1 hour
+    ) -> None:
+        """Initialize the connection pool.
+
+        Args:
+            url: PocketBase server URL
+            admin_email: Admin email for authentication
+            admin_password: Admin password for authentication
+            max_retries: Maximum number of retry attempts
+            connection_lifetime_seconds: Maximum connection lifetime before forced reconnection
+        """
+        self._url = url
+        self._admin_email = admin_email
+        self._admin_password = admin_password
+        self._max_retries = max_retries
+        self._connection_lifetime = timedelta(seconds=connection_lifetime_seconds)
+
+        self._client: PocketBase | None = None
+        self._created_at: datetime | None = None
+
+    def _create_client(self) -> PocketBase:
+        """Create and authenticate a new PocketBase client."""
+        logger.info("Creating new PocketBase client connection", extra={"url": self._url})
+        client = PocketBase(self._url)
+        client.admins.auth_with_password(self._admin_email, self._admin_password)
+        self._created_at = datetime.now()
+        logger.info("PocketBase client authenticated successfully")
+        return client
+
+    def _is_connection_expired(self) -> bool:
+        """Check if the current connection has exceeded its lifetime."""
+        if self._created_at is None:
+            return True
+        return datetime.now() - self._created_at > self._connection_lifetime
+
+    def _health_check(self, client: PocketBase) -> bool:
+        """Perform a health check on the client connection.
+
+        Args:
+            client: PocketBase client to check
+
+        Returns:
+            True if connection is healthy, False otherwise
+        """
+        try:
+            # Verify token is present
+            if not client.auth_store.token:
+                logger.warning("PocketBase token missing")
+                return False
+
+            # Simple API call to verify connectivity
+            # Using admins.auth_refresh as a lightweight health check
+            client.admins.auth_refresh()
+            return True
+        except Exception as e:
+            logger.warning("PocketBase health check failed", extra={"error": str(e)})
+            return False
+
+    def _get_client_with_retry(self) -> PocketBase:
+        """Get a client with exponential backoff retry logic.
+
+        Returns:
+            Authenticated PocketBase client
+
+        Raises:
+            ConnectionError: If unable to establish connection after retries
+        """
+        backoff_delays = [1, 2, 4]  # Exponential backoff: 1s, 2s, 4s
+
+        for attempt in range(self._max_retries):
+            try:
+                client = self._create_client()
+                self._client = client
+                logger.info(
+                    "PocketBase connection established",
+                    extra={"attempt": attempt + 1, "max_retries": self._max_retries},
+                )
+                return client
+            except Exception as e:
+                logger.error(
+                    "PocketBase connection attempt failed",
+                    extra={"attempt": attempt + 1, "max_retries": self._max_retries, "error": str(e)},
+                )
+
+                if attempt < self._max_retries - 1:
+                    delay = backoff_delays[attempt]
+                    logger.info("Retrying connection", extra={"delay_seconds": delay})
+                    time.sleep(delay)
+                else:
+                    msg = f"Failed to connect to PocketBase after {self._max_retries} attempts: {e}"
+                    logger.error("PocketBase connection exhausted all retries")
+                    raise ConnectionError(msg) from e
+
+        # This should never be reached, but satisfies type checker
+        msg = "Unexpected error in connection retry logic"
+        raise ConnectionError(msg)
+
+    def get_client(self) -> PocketBase:
+        """Get a healthy PocketBase client instance.
+
+        Returns:
+            Authenticated and healthy PocketBase client
+
+        Raises:
+            ConnectionError: If unable to establish or restore connection
+        """
+        # Force reconnection if lifetime exceeded
+        if self._is_connection_expired():
+            logger.info("PocketBase connection lifetime exceeded, forcing reconnection")
+            self._client = None
+
+        # Create new client if none exists
+        if self._client is None:
+            logger.info("No existing PocketBase client, creating new connection")
+            return self._get_client_with_retry()
+
+        # Health check existing client
+        if not self._health_check(self._client):
+            logger.warning("PocketBase health check failed, reconnecting")
+            self._client = None
+            return self._get_client_with_retry()
+
+        return self._client
+
+
+# Global connection pool instance
+_connection_pool: PocketBaseConnectionPool | None = None
 
 
 def get_client() -> PocketBase:
     """Get PocketBase client instance with admin authentication.
 
-    Uses a singleton pattern to reuse the authenticated client.
-    Automatically re-authenticates if the token is invalid.
+    Returns a healthy client from the connection pool with automatic
+    reconnection, health checks, and retry logic.
+
+    Returns:
+        Authenticated PocketBase client
+
+    Raises:
+        ConnectionError: If unable to establish connection
     """
-    try:
-        client = _get_authenticated_client()
-        # Check if token is present
-        if not client.auth_store.token:
-            # Clear cache and re-authenticate to get fresh client
-            _get_authenticated_client.cache_clear()
-            client = _get_authenticated_client()
-        return client
-    except Exception as e:
-        msg = f"Failed to connect to PocketBase: {e}"
-        logger.error(msg)
-        raise ConnectionError(msg) from e
+    global _connection_pool  # noqa: PLW0603
+
+    if _connection_pool is None:
+        _connection_pool = PocketBaseConnectionPool(
+            url=settings.pocketbase_url,
+            admin_email=settings.pocketbase_admin_email,
+            admin_password=settings.pocketbase_admin_password,
+        )
+
+    return _connection_pool.get_client()
 
 
 async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, Any]:

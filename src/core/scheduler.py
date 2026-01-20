@@ -1,35 +1,30 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
+import logging
 from datetime import UTC, date, datetime
 
-import logfire
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from croniter import croniter
 
 from src.core import db_client
-from src.core.config import constants
+from src.core.config import Constants, constants
 from src.core.recurrence_parser import parse_recurrence_to_cron
+from src.core.scheduler_tracker import retry_job_with_backoff
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
+from src.models.service_models import LeaderboardEntry, OverdueChore
 from src.services import personal_chore_service, personal_verification_service
 from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
 
 
-# Rank position constants
-RANK_FIRST = 1
-RANK_SECOND = 2
-RANK_THIRD = 3
-
-# Completion threshold constants for dynamic titles
-COMPLETIONS_CARRYING_TEAM = 5
-COMPLETIONS_NEEDS_IMPROVEMENT = 2
+logger = logging.getLogger(__name__)
 
 # Global scheduler instance
 scheduler = AsyncIOScheduler()
 
 
-async def _send_reminder_to_user(*, user_id: str, chores: list[dict]) -> bool:
+async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) -> bool:
     """Send overdue reminder to a single user.
 
     Args:
@@ -48,7 +43,7 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[dict]) -> bool:
             return False
 
         # Build reminder message
-        chore_list = "\n".join([f"• {chore['title']} (due: {chore['deadline'][:10]})" for chore in chores])
+        chore_list = "\n".join([f"• {chore.title} (due: {chore.deadline[:10]})" for chore in chores])
 
         message = (
             f"🔔 Overdue Chore Reminder\n\n"
@@ -64,17 +59,17 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[dict]) -> bool:
         )
 
         if result.success:
-            logfire.info(f"Sent overdue reminder to {user['name']} ({len(chores)} chores)")
+            logger.info("Sent overdue reminder to %s (%d chores)", user["name"], len(chores))
             return True
 
-        logfire.warn(f"Failed to send reminder to {user['name']}: {result.error}")
+        logger.warning(f"Failed to send reminder to {user['name']}: {result.error}")
         return False
 
     except KeyError:
-        logfire.warn(f"User {user_id} not found for overdue reminders")
+        logger.warning(f"User {user_id} not found for overdue reminders")
         return False
     except Exception as e:
-        logfire.error(f"Error sending reminder to user {user_id}: {e}")
+        logger.error(f"Error sending reminder to user {user_id}: {e}")
         return False
 
 
@@ -84,20 +79,20 @@ async def send_overdue_reminders() -> None:
     Runs daily at 8am. Checks for overdue chores and sends WhatsApp
     messages to assigned users.
     """
-    logfire.info("Running overdue chore reminders job")
+    logger.info("Running overdue chore reminders job")
 
     try:
         # Get all overdue chores
         overdue_chores = await get_overdue_chores()
 
         if not overdue_chores:
-            logfire.info("No overdue chores found")
+            logger.info("No overdue chores found")
             return
 
         # Group chores by assigned user
-        chores_by_user: dict[str, list[dict]] = {}
+        chores_by_user: dict[str, list[OverdueChore]] = {}
         for chore in overdue_chores:
-            user_id = chore.get("assigned_to")
+            user_id = chore.assigned_to
             if not user_id:
                 continue  # Skip unassigned chores
 
@@ -111,10 +106,10 @@ async def send_overdue_reminders() -> None:
             if await _send_reminder_to_user(user_id=user_id, chores=chores):
                 sent_count += 1
 
-        logfire.info(f"Completed overdue reminders job: {sent_count}/{len(chores_by_user)} users notified")
+        logger.info("Completed overdue reminders job: %d/%d users notified", sent_count, len(chores_by_user))
 
     except Exception as e:
-        logfire.error(f"Error in overdue reminders job: {e}")
+        logger.error(f"Error in overdue reminders job: {e}")
 
 
 async def send_daily_report() -> None:
@@ -123,7 +118,7 @@ async def send_daily_report() -> None:
     Runs daily at 9pm. Sends a summary of the day's completions,
     current conflicts, and pending verifications.
     """
-    logfire.info("Running daily report job")
+    logger.info("Running daily report job")
 
     try:
         # Get household summary for today (last 1 day)
@@ -133,15 +128,15 @@ async def send_daily_report() -> None:
         message = (
             f"📊 Daily Household Report\n\n"
             f"Today's Summary:\n"
-            f"✅ Completions: {summary['completions_this_period']}\n"
-            f"⏰ Overdue: {summary['overdue_chores']}\n"
-            f"⏳ Pending Verification: {summary['pending_verifications']}\n"
-            f"⚠️ Conflicts: {summary['current_conflicts']}\n\n"
-            f"Active Members: {summary['active_members']}"
+            f"✅ Completions: {summary.completions_this_period}\n"
+            f"⏰ Overdue: {summary.overdue_chores}\n"
+            f"⏳ Pending Verification: {summary.pending_verifications}\n"
+            f"⚠️ Conflicts: {summary.current_conflicts}\n\n"
+            f"Active Members: {summary.active_members}"
         )
 
         # Add context if there are items needing attention
-        if summary["overdue_chores"] > 0 or summary["pending_verifications"] > 0:
+        if summary.overdue_chores > 0 or summary.pending_verifications > 0:
             message += "\n\nRemember to complete overdue chores and verify pending tasks!"
 
         # Get all active users
@@ -151,7 +146,7 @@ async def send_daily_report() -> None:
         )
 
         if not active_users:
-            logfire.info("No active users to send daily report")
+            logger.info("No active users to send daily report")
             return
 
         # Send report to each active user
@@ -165,18 +160,18 @@ async def send_daily_report() -> None:
 
                 if result.success:
                     sent_count += 1
-                    logfire.debug(f"Sent daily report to {user['name']}")
+                    logger.debug(f"Sent daily report to {user['name']}")
                 else:
-                    logfire.warn(f"Failed to send daily report to {user['name']}: {result.error}")
+                    logger.warning(f"Failed to send daily report to {user['name']}: {result.error}")
 
             except Exception as e:
-                logfire.error(f"Error sending daily report to user {user['id']}: {e}")
+                logger.error(f"Error sending daily report to user {user['id']}: {e}")
                 continue
 
-        logfire.info(f"Completed daily report job: sent to {sent_count}/{len(active_users)} users")
+        logger.info("Completed daily report job: sent to %d/%d users", sent_count, len(active_users))
 
     except Exception as e:
-        logfire.error(f"Error in daily report job: {e}")
+        logger.error(f"Error in daily report job: {e}")
 
 
 def _get_rank_emoji(rank: int) -> str:
@@ -188,11 +183,11 @@ def _get_rank_emoji(rank: int) -> str:
     Returns:
         Rank emoji string
     """
-    if rank == RANK_FIRST:
+    if rank == Constants.LEADERBOARD_RANK_FIRST:
         return "🥇"
-    if rank == RANK_SECOND:
+    if rank == Constants.LEADERBOARD_RANK_SECOND:
         return "🥈"
-    if rank == RANK_THIRD:
+    if rank == Constants.LEADERBOARD_RANK_THIRD:
         return "🥉"
     return f"{rank}."
 
@@ -208,18 +203,18 @@ def _get_dynamic_title(rank: int, total_users: int, completions: int) -> str:
     Returns:
         Dynamic title string
     """
-    if rank == RANK_FIRST and completions >= COMPLETIONS_CARRYING_TEAM:
+    if rank == Constants.LEADERBOARD_RANK_FIRST and completions >= Constants.LEADERBOARD_COMPLETIONS_CARRYING_TEAM:
         return '"Carrying the team!"'
-    if rank == RANK_FIRST:
+    if rank == Constants.LEADERBOARD_RANK_FIRST:
         return '"MVP!"'
     if rank == total_users and completions == 0:
         return '"The Observer"'
-    if rank == total_users and completions <= COMPLETIONS_NEEDS_IMPROVEMENT:
+    if rank == total_users and completions <= Constants.LEADERBOARD_COMPLETIONS_NEEDS_IMPROVEMENT:
         return '"Room for improvement"'
     return ""
 
 
-def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> str:
+def _format_weekly_leaderboard(leaderboard: list[LeaderboardEntry], overdue: list[OverdueChore]) -> str:
     """Format weekly leaderboard for WhatsApp display.
 
     Args:
@@ -234,14 +229,14 @@ def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> 
     if not leaderboard:
         lines.append("No completions this week.")
     else:
-        total_completions = sum(entry["completion_count"] for entry in leaderboard)
+        total_completions = sum(entry.completion_count for entry in leaderboard)
         total_users = len(leaderboard)
 
         # Show all users (max 10 for readability)
         for rank, entry in enumerate(leaderboard[:10], start=1):
             emoji = _get_rank_emoji(rank)
-            name = entry["user_name"]
-            count = entry["completion_count"]
+            name = entry.user_name
+            count = entry.completion_count
             title = _get_dynamic_title(rank, total_users, count)
 
             if title:
@@ -261,18 +256,20 @@ def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> 
         valid_overdue = []
         for chore in overdue:
             try:
-                deadline = datetime.fromisoformat(chore["deadline"])
+                deadline = datetime.fromisoformat(chore.deadline)
                 # If deadline is naive (no timezone), assume UTC
                 if deadline.tzinfo is None:
                     deadline = deadline.replace(tzinfo=UTC)
                 valid_overdue.append((chore, deadline))
             except (ValueError, TypeError) as e:
-                logfire.warn(
+                logger.warning(
                     "Failed to parse deadline for chore",
-                    chore_id=chore.get("id"),
-                    chore_title=chore.get("title"),
-                    deadline=chore.get("deadline"),
-                    error=str(e),
+                    extra={
+                        "chore_id": chore.id,
+                        "chore_title": chore.title,
+                        "deadline": chore.deadline,
+                        "error": str(e),
+                    },
                 )
                 continue
 
@@ -281,9 +278,7 @@ def _format_weekly_leaderboard(leaderboard: list[dict], overdue: list[dict]) -> 
             most_overdue_chore, most_overdue_deadline = valid_overdue[0]
             overdue_days = (now - most_overdue_deadline).days
             day_word = "day" if overdue_days == 1 else "days"
-            lines.append(
-                f'*Most Neglected Chore:* "{most_overdue_chore["title"]}" (Overdue by {overdue_days} {day_word})'
-            )
+            lines.append(f'*Most Neglected Chore:* "{most_overdue_chore.title}" (Overdue by {overdue_days} {day_word})')
 
     return "\n".join(lines)
 
@@ -294,7 +289,7 @@ async def send_weekly_leaderboard() -> None:
     Runs every Sunday at 8pm. Sends a gamified summary of the week's
     chore completions with rankings, dynamic titles, and household stats.
     """
-    logfire.info("Running weekly leaderboard job")
+    logger.info("Running weekly leaderboard job")
 
     try:
         # Get weekly leaderboard (last 7 days)
@@ -314,7 +309,7 @@ async def send_weekly_leaderboard() -> None:
         )
 
         if not active_users:
-            logfire.info("No active users to send weekly leaderboard")
+            logger.info("No active users to send weekly leaderboard")
             return
 
         # Send report to each active user
@@ -328,18 +323,18 @@ async def send_weekly_leaderboard() -> None:
 
                 if result.success:
                     sent_count += 1
-                    logfire.debug(f"Sent weekly leaderboard to {user['name']}")
+                    logger.debug(f"Sent weekly leaderboard to {user['name']}")
                 else:
-                    logfire.warn(f"Failed to send weekly leaderboard to {user['name']}: {result.error}")
+                    logger.warning(f"Failed to send weekly leaderboard to {user['name']}: {result.error}")
 
             except Exception as e:
-                logfire.error(f"Error sending weekly leaderboard to user {user['id']}: {e}")
+                logger.error(f"Error sending weekly leaderboard to user {user['id']}: {e}")
                 continue
 
-        logfire.info(f"Completed weekly leaderboard job: sent to {sent_count}/{len(active_users)} users")
+        logger.info("Completed weekly leaderboard job: sent to %d/%d users", sent_count, len(active_users))
 
     except Exception as e:
-        logfire.error(f"Error in weekly leaderboard job: {e}")
+        logger.error(f"Error in weekly leaderboard job: {e}")
 
 
 async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | None:
@@ -368,7 +363,7 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
 
         return None
     except Exception as e:
-        logfire.warn(f"Error fetching last completion for chore {chore_id}: {e}")
+        logger.warning(f"Error fetching last completion for chore {chore_id}: {e}")
         return None
 
 
@@ -396,11 +391,11 @@ def _is_recurring_chore_due_today(recurrence: str, last_completion: date | None,
             return _check_cron_due_today(cron_expr, last_completion, today)
 
         # If we can't parse it, default to not due (to avoid spam)
-        logfire.warn(f"Could not parse recurrence pattern: {recurrence}")
+        logger.warning(f"Could not parse recurrence pattern: {recurrence}")
         return False
 
     except Exception as e:
-        logfire.warn(f"Error checking recurrence pattern '{recurrence}': {e}")
+        logger.warning(f"Error checking recurrence pattern '{recurrence}': {e}")
         return False
 
 
@@ -478,7 +473,7 @@ async def _is_chore_due_today(chore: dict, today: date) -> bool:
         owner_phone = chore.get("owner_phone", "")
 
         if not chore_id or not owner_phone:
-            logfire.warn(f"Missing chore_id or owner_phone for chore: {chore}")
+            logger.warning(f"Missing chore_id or owner_phone for chore: {chore}")
             return False
 
         last_completion = await _get_last_completion_date(chore_id, owner_phone)
@@ -524,10 +519,10 @@ async def _send_personal_chore_reminder_to_user(user: dict, today: date) -> bool
     )
 
     if result.success:
-        logfire.debug(f"Sent personal chore reminder to {user['name']}")
+        logger.debug(f"Sent personal chore reminder to {user['name']}")
         return True
 
-    logfire.warn(f"Failed to send personal chore reminder to {user['name']}: {result.error}")
+    logger.warning(f"Failed to send personal chore reminder to {user['name']}: {result.error}")
     return False
 
 
@@ -537,7 +532,7 @@ async def send_personal_chore_reminders() -> None:
     Runs daily at 8 AM. Sends DM reminders to users with personal chores
     that have recurring patterns triggering today.
     """
-    logfire.info("Running personal chore reminders job")
+    logger.info("Running personal chore reminders job")
 
     try:
         today = datetime.now(UTC).date()
@@ -549,7 +544,7 @@ async def send_personal_chore_reminders() -> None:
         )
 
         if not active_users:
-            logfire.info("No active users for personal chore reminders")
+            logger.info("No active users for personal chore reminders")
             return
 
         # Send reminders to all users
@@ -559,13 +554,13 @@ async def send_personal_chore_reminders() -> None:
                 if await _send_personal_chore_reminder_to_user(user, today):
                     sent_count += 1
             except Exception as e:
-                logfire.error(f"Error sending reminder to user {user['id']}: {e}")
+                logger.error(f"Error sending reminder to user {user['id']}: {e}")
                 continue
 
-        logfire.info(f"Completed personal chore reminders: sent to {sent_count}/{len(active_users)} users")
+        logger.info("Completed personal chore reminders: sent to %d/%d users", sent_count, len(active_users))
 
     except Exception as e:
-        logfire.error(f"Error in personal chore reminders job: {e}")
+        logger.error(f"Error in personal chore reminders job: {e}")
 
 
 async def auto_verify_personal_chores() -> None:
@@ -574,16 +569,16 @@ async def auto_verify_personal_chores() -> None:
     Runs every hour. Finds logs in PENDING state older than 48 hours
     and auto-verifies them (partner didn't respond in time).
     """
-    logfire.info("Running personal chore auto-verification job")
+    logger.info("Running personal chore auto-verification job")
 
     try:
         # Call the auto-verification service
         count = await personal_verification_service.auto_verify_expired_logs()
 
-        logfire.info(f"Completed auto-verification job: {count} logs auto-verified")
+        logger.info(f"Completed auto-verification job: {count} logs auto-verified")
 
     except Exception as e:
-        logfire.error(f"Error in auto-verification job: {e}")
+        logger.error(f"Error in auto-verification job: {e}")
 
 
 def start_scheduler() -> None:
@@ -591,31 +586,31 @@ def start_scheduler() -> None:
 
     This should be called during FastAPI app startup.
     """
-    logfire.info("Starting scheduler")
+    logger.info("Starting scheduler")
 
-    # Schedule overdue reminders job (daily at 8am)
+    # Schedule overdue reminders job (daily at 8am) with retry
     scheduler.add_job(
-        send_overdue_reminders,
+        lambda: retry_job_with_backoff(send_overdue_reminders, "overdue_reminders"),
         trigger=CronTrigger(hour=constants.DAILY_REMINDER_HOUR, minute=0),
         id="overdue_reminders",
         name="Send Overdue Chore Reminders",
         replace_existing=True,
     )
-    logfire.info(f"Scheduled overdue reminders job: daily at {constants.DAILY_REMINDER_HOUR}:00")
+    logger.info(f"Scheduled overdue reminders job: daily at {constants.DAILY_REMINDER_HOUR}:00")
 
-    # Schedule daily report job (daily at 9pm)
+    # Schedule daily report job (daily at 9pm) with retry
     scheduler.add_job(
-        send_daily_report,
+        lambda: retry_job_with_backoff(send_daily_report, "daily_report"),
         trigger=CronTrigger(hour=constants.DAILY_REPORT_HOUR, minute=0),
         id="daily_report",
         name="Send Daily Household Report",
         replace_existing=True,
     )
-    logfire.info(f"Scheduled daily report job: daily at {constants.DAILY_REPORT_HOUR}:00")
+    logger.info(f"Scheduled daily report job: daily at {constants.DAILY_REPORT_HOUR}:00")
 
-    # Schedule weekly leaderboard job (Sunday at 8pm)
+    # Schedule weekly leaderboard job (Sunday at 8pm) with retry
     scheduler.add_job(
-        send_weekly_leaderboard,
+        lambda: retry_job_with_backoff(send_weekly_leaderboard, "weekly_leaderboard"),
         trigger=CronTrigger(
             day_of_week=constants.WEEKLY_REPORT_DAY,
             hour=constants.WEEKLY_REPORT_HOUR,
@@ -625,33 +620,33 @@ def start_scheduler() -> None:
         name="Send Weekly Leaderboard Report",
         replace_existing=True,
     )
-    logfire.info(
+    logger.info(
         f"Scheduled weekly leaderboard job: day {constants.WEEKLY_REPORT_DAY} at {constants.WEEKLY_REPORT_HOUR}:00"
     )
 
-    # Schedule personal chore reminders (daily at 8am)
+    # Schedule personal chore reminders (daily at 8am) with retry
     scheduler.add_job(
-        send_personal_chore_reminders,
+        lambda: retry_job_with_backoff(send_personal_chore_reminders, "personal_chore_reminders"),
         trigger=CronTrigger(hour=8, minute=0),
         id="personal_chore_reminders",
         name="Send Personal Chore Reminders",
         replace_existing=True,
     )
-    logfire.info("Scheduled personal chore reminders job: daily at 8:00")
+    logger.info("Scheduled personal chore reminders job: daily at 8:00")
 
-    # Schedule auto-verification (hourly)
+    # Schedule auto-verification (hourly) with retry
     scheduler.add_job(
-        auto_verify_personal_chores,
+        lambda: retry_job_with_backoff(auto_verify_personal_chores, "auto_verify_personal"),
         trigger=CronTrigger(hour="*", minute=0),  # Every hour at minute 0
         id="auto_verify_personal",
         name="Auto-Verify Personal Chores",
         replace_existing=True,
     )
-    logfire.info("Scheduled auto-verification job: hourly")
+    logger.info("Scheduled auto-verification job: hourly")
 
     # Start the scheduler
     scheduler.start()
-    logfire.info("Scheduler started successfully")
+    logger.info("Scheduler started successfully")
 
 
 def stop_scheduler() -> None:
@@ -659,6 +654,6 @@ def stop_scheduler() -> None:
 
     This should be called during FastAPI app shutdown.
     """
-    logfire.info("Stopping scheduler")
+    logger.info("Stopping scheduler")
     scheduler.shutdown(wait=True)
-    logfire.info("Scheduler stopped")
+    logger.info("Scheduler stopped")
