@@ -162,6 +162,55 @@ tasks:
         pkill -f "ngrok http" 2>/dev/null || true
         echo "All services stopped"
 
+  down:
+    desc: Tear down all development services and clean up
+    cmds:
+      - |
+        echo "Stopping all services..."
+
+        # Stop services using PID files
+        if [ -f .pocketbase.pid ]; then
+          kill $(cat .pocketbase.pid) 2>/dev/null || true
+          rm .pocketbase.pid
+          echo "✓ PocketBase stopped (via PID file)"
+        fi
+
+        if [ -f .fastapi.pid ]; then
+          kill $(cat .fastapi.pid) 2>/dev/null || true
+          rm .fastapi.pid
+          echo "✓ FastAPI stopped (via PID file)"
+        fi
+
+        # Kill any remaining processes by port
+        POCKETBASE_PID=$(lsof -ti :8090) || true
+        if [ -n "$POCKETBASE_PID" ]; then
+          kill $POCKETBASE_PID 2>/dev/null || true
+          echo "✓ PocketBase stopped (port 8090)"
+        fi
+
+        FASTAPI_PID=$(lsof -ti :8000) || true
+        if [ -n "$FASTAPI_PID" ]; then
+          kill $FASTAPI_PID 2>/dev/null || true
+          echo "✓ FastAPI stopped (port 8000)"
+        fi
+
+        # Kill ngrok
+        pkill -f "ngrok http" 2>/dev/null && echo "✓ ngrok stopped" || true
+
+        # Clean up log files
+        if [ -f pocketbase.log ]; then
+          rm pocketbase.log
+          echo "✓ Removed pocketbase.log"
+        fi
+
+        if [ -f fastapi.log ]; then
+          rm fastapi.log
+          echo "✓ Removed fastapi.log"
+        fi
+
+        echo ""
+        echo "All services stopped and cleaned up!"
+
   setup-ngrok:
     desc: Configure ngrok static domain
     cmds:

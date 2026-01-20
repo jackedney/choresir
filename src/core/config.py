@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     redis_url: str | None = Field(default=None, description="Redis connection URL (e.g., redis://localhost:6379)")
 
     # House Onboarding Configuration
+    house_name: str | None = Field(default=None, description="House name for member onboarding")
     house_code: str | None = Field(default=None, description="House code for member onboarding")
     house_password: str | None = Field(default=None, description="House password for member onboarding")
 

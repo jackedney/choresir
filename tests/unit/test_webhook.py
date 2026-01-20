@@ -164,10 +164,12 @@ class TestReceiveWebhook:
         mock_background_tasks.add_task.assert_not_called()
 
     @pytest.mark.asyncio
+    @patch("src.interface.webhook.webhook_security.verify_webhook_security")
     @patch("src.interface.webhook.verify_twilio_signature")
-    async def test_receive_webhook_form_data_conversion(self, mock_verify):
+    async def test_receive_webhook_form_data_conversion(self, mock_verify, mock_security):
         """Test that form data is correctly converted to dict."""
         mock_verify.return_value = True
+        mock_security.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
         mock_request = MagicMock()
         mock_form = MagicMock()
@@ -176,6 +178,7 @@ class TestReceiveWebhook:
             ("MessageSid", "SM123"),
             ("From", "whatsapp:+1234567890"),
             ("NumMedia", 0),  # Integer value
+            ("Body", "test message"),  # Required for webhook parsing
         ]
         mock_request.form = AsyncMock(return_value=mock_form)
         mock_request.headers.get.return_value = "valid_sig"

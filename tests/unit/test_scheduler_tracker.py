@@ -1,15 +1,23 @@
 """Tests for scheduler job tracking and retry functionality."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 
 from src.core.scheduler_tracker import JobTracker, retry_job_with_backoff
 
 
+@pytest.fixture(autouse=True)
+def mock_redis_unavailable():
+    """Mock redis_client to be unavailable, forcing in-memory storage for all tests."""
+    with patch("src.core.scheduler_tracker.redis_client") as mock_redis:
+        type(mock_redis).is_available = PropertyMock(return_value=False)
+        yield mock_redis
+
+
 @pytest.fixture
 def job_tracker() -> JobTracker:
-    """Create a job tracker instance for testing."""
+    """Create a job tracker instance for testing with in-memory storage."""
     return JobTracker()
 
 

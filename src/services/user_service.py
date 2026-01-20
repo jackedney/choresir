@@ -7,7 +7,7 @@ from typing import Any
 from src.core import db_client
 from src.core.config import settings
 from src.core.logging import span
-from src.domain.user import UserRole, UserStatus
+from src.domain.user import User, UserRole, UserStatus
 
 
 logger = logging.getLogger(__name__)
@@ -56,6 +56,14 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
             msg = f"User with phone {phone} already exists"
             logger.warning(msg)
             raise ValueError(msg)
+
+        # Validate name using User model validator
+        try:
+            User(id="temp", phone=phone, name=name)
+        except Exception as e:
+            msg = str(e)
+            logger.warning("Invalid name for join request %s: %s", phone, msg)
+            raise ValueError(msg) from e
 
         # Create pending user
         # Generate email from phone for PocketBase auth collection requirement

@@ -95,6 +95,32 @@ class TestRequestJoin:
         with pytest.raises(ValueError, match="already exists"):
             await user_service.request_join(**sample_join_request)
 
+    async def test_request_join_invalid_name_emoji(self, patched_user_db, patched_settings, sample_join_request):
+        """Test join request fails with emoji in name."""
+        sample_join_request["name"] = "Test🎉User"
+        with pytest.raises(ValueError, match="can only contain"):
+            await user_service.request_join(**sample_join_request)
+
+    async def test_request_join_invalid_name_special_chars(
+        self, patched_user_db, patched_settings, sample_join_request
+    ):
+        """Test join request fails with special characters in name."""
+        sample_join_request["name"] = "user@test"
+        with pytest.raises(ValueError, match="can only contain"):
+            await user_service.request_join(**sample_join_request)
+
+    async def test_request_join_invalid_name_too_long(self, patched_user_db, patched_settings, sample_join_request):
+        """Test join request fails with name too long."""
+        sample_join_request["name"] = "a" * 51
+        with pytest.raises(ValueError, match="too long"):
+            await user_service.request_join(**sample_join_request)
+
+    async def test_request_join_invalid_name_empty(self, patched_user_db, patched_settings, sample_join_request):
+        """Test join request fails with empty name."""
+        sample_join_request["name"] = "   "
+        with pytest.raises(ValueError, match="cannot be empty"):
+            await user_service.request_join(**sample_join_request)
+
 
 @pytest.mark.unit
 class TestApproveMember:
