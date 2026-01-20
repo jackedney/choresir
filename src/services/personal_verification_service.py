@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from src.core import db_client
 from src.core.config import Constants
+from src.core.db_client import sanitize_param
 from src.core.logging import span
 from src.models.service_models import PersonalChoreLog, PersonalChoreStatistics
 from src.services import notification_service, personal_chore_service, user_service
@@ -200,7 +201,9 @@ async def get_pending_partner_verifications(
         List of PersonalChoreLog objects with enriched chore details
     """
     with span("personal_verification_service.get_pending_partner_verifications"):
-        filter_query = f'accountability_partner_phone = "{partner_phone}" && verification_status = "PENDING"'
+        filter_query = (
+            f'accountability_partner_phone = "{sanitize_param(partner_phone)}" && verification_status = "PENDING"'
+        )
 
         logs = await db_client.list_records(
             collection="personal_chore_logs",
