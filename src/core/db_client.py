@@ -33,8 +33,8 @@ def get_client() -> PocketBase:
     """
     try:
         client = _get_authenticated_client()
-        # Check if token is present and valid
-        if not client.auth_store.token or not client.auth_store.is_valid:
+        # Check if token is present
+        if not client.auth_store.token:
             # Clear cache and re-authenticate to get fresh client
             _get_authenticated_client.cache_clear()
             client = _get_authenticated_client()

@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures for integration tests."""
 
 import asyncio
+import contextlib
 import logging
 import shutil
 import subprocess
@@ -12,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pocketbase import PocketBase
 
+from src.agents import choresir_agent as choresir_agent_module
 from src.core import admin_notifier as admin_notifier_module, config as config_module, db_client as db_module
 from src.core.config import Settings
 from src.core.schema import COLLECTIONS, sync_schema
@@ -140,8 +142,21 @@ def pocketbase_server() -> Generator[str]:
 
     assert pb_binary is not None  # For type checker (pytest.skip already handles None case)
 
+    # Disable automigrate and set migrationsDir to the ephemeral data dir to prevent
+    # stray migration files (e.g., in system temp) from causing failures.
+    # This project uses a code-first schema approach (src/core/schema.py) instead
+    # of PocketBase migrations.
     process = subprocess.Popen(
-        [pb_binary, "serve", "--dir", pb_data_dir, "--http", "127.0.0.1:8091"],
+        [
+            pb_binary,
+            "serve",
+            "--dir",
+            pb_data_dir,
+            "--http",
+            "127.0.0.1:8091",
+            "--automigrate=false",
+            f"--migrationsDir={pb_data_dir}/migrations",
+        ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -159,9 +174,18 @@ def pocketbase_server() -> Generator[str]:
         except Exception:
             time.sleep(0.5)
     else:
+        # Capture output for debugging
+        stdout, stderr = b"", b""
+        with contextlib.suppress(Exception):
+            stdout, stderr = process.communicate(timeout=1)
         process.kill()
         shutil.rmtree(pb_data_dir, ignore_errors=True)
-        pytest.fail("PocketBase failed to start within 10 seconds")
+        error_msg = "PocketBase failed to start within 10 seconds"
+        if stdout:
+            error_msg += f"\nStdout: {stdout.decode()[:500]}"
+        if stderr:
+            error_msg += f"\nStderr: {stderr.decode()[:500]}"
+        pytest.fail(error_msg)
 
     # Give PocketBase a moment to fully initialize
     time.sleep(1)
@@ -212,6 +236,7 @@ def test_settings(pocketbase_server: str) -> Settings:
         twilio_auth_token="test_auth_token",
         twilio_whatsapp_number="whatsapp:+14155238886",
         logfire_token="test_logfire",
+        house_name="TestHouse",
         house_code="TEST123",
         house_password="testpass",
         model_id="anthropic/claude-3.5-sonnet",
@@ -259,6 +284,7 @@ def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypa
     monkeypatch.setattr(db_module, "settings", test_settings)
     monkeypatch.setattr(user_service_module, "settings", test_settings)
     monkeypatch.setattr(admin_notifier_module, "settings", test_settings)
+    monkeypatch.setattr(choresir_agent_module, "settings", test_settings)
 
     yield
 

@@ -1,6 +1,8 @@
 """Main Pydantic AI agent for choresir household management."""
 
+import logging
 import re
+import secrets
 from datetime import datetime
 
 import logfire
@@ -9,9 +11,13 @@ from pocketbase import PocketBase
 from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
+from src.core.config import settings
 from src.core.errors import classify_agent_error
-from src.domain.user import UserStatus
-from src.services import user_service
+from src.domain.user import User, UserStatus
+from src.services import session_service, user_service
+
+
+logger = logging.getLogger(__name__)
 
 
 # System prompt template
@@ -312,3 +318,180 @@ async def handle_banned_user(*, user_name: str) -> str:
         Rejection message
     """
     return f"Hi {user_name}. Your access to this household has been revoked."
+
+
+async def handle_house_join(phone: str, house_name: str) -> str:
+    """
+    Handle /house join {house_name} command.
+
+    Steps:
+    1. Check if user is already a member
+    2. Validate house_name matches configured house (case-insensitive)
+    3. Create join session with step="awaiting_password"
+    4. Return password prompt message
+
+    Args:
+        phone: User's phone number in E.164 format
+        house_name: House name provided by user
+
+    Returns:
+        Response message for user
+    """
+    # Guard: Validate house name is configured
+    if not settings.house_name:
+        logger.error("House name not configured in settings")
+        return "Sorry, house joining is not available at this time. Please contact an administrator."
+
+    # Guard: Check if user is already a member
+    existing_user = await user_service.get_user_by_phone(phone=phone)
+    if existing_user and existing_user.get("status") == UserStatus.ACTIVE:
+        return "You're already a member of this household!"
+
+    # Guard: Validate house name matches configured value (case-insensitive)
+    if house_name.lower() != settings.house_name.lower():
+        return "Invalid house name. Please check and try again."
+
+    # Create join session with initial state
+    await session_service.create_session(
+        phone=phone,
+        house_name=house_name,
+        step="awaiting_password",
+    )
+
+    # Return password prompt
+    return "Please provide the house password:"
+
+
+async def handle_join_password_step(phone: str, password: str) -> str:
+    """
+    Handle password submission during join flow.
+
+    Steps:
+    1. Get session for phone (returns None if expired)
+    2. Check rate limiting (5 second delay)
+    3. Validate password with constant-time comparison
+    4. On failure: increment attempts, return error
+    5. On success: update session to "awaiting_name", return name prompt
+
+    Args:
+        phone: User's phone number in E.164 format
+        password: Password submitted by user
+
+    Returns:
+        Response message for user
+    """
+    # Get session (returns None if expired)
+    session = await session_service.get_session(phone=phone)
+    if not session:
+        return "Your session has expired. Please restart by typing '/house join {house_name}'."
+
+    # Check rate limiting
+    if session_service.is_rate_limited(session=session):
+        return "Please wait a few seconds before trying again."
+
+    # Validate password is configured
+    if not settings.house_password:
+        logger.error("House password not configured in settings")
+        return "Sorry, house joining is not available at this time. Please contact an administrator."
+
+    # Validate password with constant-time comparison (prevents timing attacks)
+    is_valid = secrets.compare_digest(
+        password.encode("utf-8"),
+        settings.house_password.encode("utf-8"),
+    )
+
+    if not is_valid:
+        # Increment attempt counter and update last_attempt_at
+        await session_service.increment_password_attempts(phone=phone)
+        return f"Invalid password. Please try again or type '/house join {session['house_name']}' to restart."
+
+    # Success! Update session to next step
+    await session_service.update_session(
+        phone=phone,
+        updates={"step": "awaiting_name"},
+    )
+
+    # Return name prompt with security reminder
+    return (
+        "⚠️ For security, please delete your previous message containing the password\n\n"
+        "What name would you like to use?"
+    )
+
+
+async def handle_join_name_step(phone: str, name: str) -> str:
+    """
+    Handle name submission during join flow.
+
+    Steps:
+    1. Get session for phone (must be in "awaiting_name" step)
+    2. Validate name using User model validator
+    3. Create join request via user_service
+    4. Delete session (flow complete)
+    5. Return welcome message
+
+    Args:
+        phone: User's phone number in E.164 format
+        name: Name submitted by user
+
+    Returns:
+        Response message for user
+    """
+    # Get session (returns None if expired)
+    session = await session_service.get_session(phone=phone)
+    if not session:
+        house_name = settings.house_name or "the house"
+        return f"Your join session has expired. Please restart with '/house join {house_name}'."
+
+    # Verify session is in the correct step
+    if session.get("step") != "awaiting_name":
+        logger.warning(
+            "Session for %s is in wrong step: %s (expected awaiting_name)",
+            phone,
+            session.get("step"),
+        )
+        house_name = session.get("house_name", settings.house_name or "the house")
+        return f"Something went wrong. Please restart with '/house join {house_name}'."
+
+    # Strip whitespace from name (normalize user input)
+    name = name.strip()
+
+    # Validate name using User model validator
+    try:
+        # Use the User model validator to validate the name
+        # We create a temporary User instance just for validation
+        User(id="temp", phone=phone, name=name)
+    except ValueError as e:
+        # Name validation failed - keep session alive for retry
+        logger.info("Invalid name submitted by %s: %s", phone, str(e))
+        return (
+            "That name isn't usable. Please provide a different name (letters, spaces, hyphens, and apostrophes only)."
+        )
+
+    # Create join request
+    try:
+        house_code = session.get("house_name", "")
+        if not settings.house_password:
+            logger.error("House password not configured in settings")
+            await session_service.delete_session(phone=phone)
+            return "Sorry, house joining is not available at this time. Please contact an administrator."
+
+        await user_service.request_join(
+            phone=phone,
+            name=name,
+            house_code=house_code,
+            password=settings.house_password,
+        )
+    except Exception as e:
+        # Join request failed - delete session anyway (flow is complete)
+        logger.error("Failed to create join request for %s: %s", phone, str(e))
+        await session_service.delete_session(phone=phone)
+        return (
+            "Sorry, something went wrong while processing your request. "
+            "Please try again later or contact an administrator."
+        )
+
+    # Success! Delete session (flow complete)
+    await session_service.delete_session(phone=phone)
+
+    # Return welcome message
+    return f"Welcome {name}! Your membership request has been submitted. An admin will review shortly."
