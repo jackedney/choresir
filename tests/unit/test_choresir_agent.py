@@ -10,6 +10,15 @@ from src.agents.choresir_agent import run_agent
 from src.core.errors import ErrorCategory
 
 
+@pytest.fixture(autouse=True)
+def mock_admin_notifier():
+    """Mock admin notifier to avoid WhatsApp API calls with retry delays."""
+    with patch("src.agents.choresir_agent.admin_notifier") as mock_notifier:
+        mock_notifier.should_notify_admins.return_value = False
+        mock_notifier.notify_admins = AsyncMock()
+        yield mock_notifier
+
+
 @pytest.mark.unit
 class TestChoresirAgentErrorHandling:
     """Tests for choresir agent error handling with error classification."""

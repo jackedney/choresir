@@ -1,5 +1,6 @@
 """PocketBase client wrapper with CRUD operations."""
 
+import json
 import logging
 import time
 from datetime import datetime, timedelta
@@ -13,6 +14,29 @@ from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
+
+
+def sanitize_param(value: str | int | float | bool | None) -> str:
+    """Sanitize a value for use in PocketBase filter queries.
+
+    Uses json.dumps to properly escape quotes and backslashes, preventing
+    filter injection attacks. The result is safe to embed in filter strings.
+
+    Args:
+        value: The value to sanitize (will be converted to string)
+
+    Returns:
+        A properly escaped string value (without surrounding quotes)
+
+    Example:
+        >>> phone = 'foo" || true || "'
+        >>> filter_query = f'phone = "{sanitize_param(phone)}"'
+        # Results in: phone = "foo\" || true || \""
+        # Which safely treats the injection attempt as a literal string
+    """
+    # json.dumps handles all escaping: quotes become \", backslashes become \\
+    # We strip the surrounding quotes since the caller adds them
+    return json.dumps(str(value))[1:-1]
 
 
 class PocketBaseConnectionPool:

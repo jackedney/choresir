@@ -1,7 +1,6 @@
 """Integration tests for handle_join_password_step function."""
 
-import asyncio
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -210,8 +209,13 @@ async def test_password_step_multiple_failed_attempts(mock_db_module, db_client)
         assert session1 is not None
         assert session1["password_attempts_count"] == 1
 
-        # Wait to avoid rate limiting
-        await asyncio.sleep(6)
+        # Clear rate limiting by setting last_attempt_at to the past
+        past_time = (datetime.now(UTC) - timedelta(seconds=10)).isoformat()
+        await db_client.update_record(
+            collection="join_sessions",
+            record_id=session1["id"],
+            data={"last_attempt_at": past_time},
+        )
 
         # Second failed attempt
         response2 = await handle_join_password_step(phone, "wrong2")
@@ -221,8 +225,13 @@ async def test_password_step_multiple_failed_attempts(mock_db_module, db_client)
         assert session2 is not None
         assert session2["password_attempts_count"] == 2
 
-        # Wait to avoid rate limiting
-        await asyncio.sleep(6)
+        # Clear rate limiting by setting last_attempt_at to the past
+        past_time = (datetime.now(UTC) - timedelta(seconds=10)).isoformat()
+        await db_client.update_record(
+            collection="join_sessions",
+            record_id=session2["id"],
+            data={"last_attempt_at": past_time},
+        )
 
         # Third failed attempt
         response3 = await handle_join_password_step(phone, "wrong3")
@@ -257,8 +266,15 @@ async def test_password_step_success_after_failed_attempts(mock_db_module, db_cl
         response1 = await handle_join_password_step(phone, "wrong")
         assert "invalid password" in response1.lower()
 
-        # Wait to avoid rate limiting
-        await asyncio.sleep(6)
+        # Clear rate limiting by setting last_attempt_at to the past
+        session1 = await session_service.get_session(phone=phone)
+        assert session1 is not None
+        past_time = (datetime.now(UTC) - timedelta(seconds=10)).isoformat()
+        await db_client.update_record(
+            collection="join_sessions",
+            record_id=session1["id"],
+            data={"last_attempt_at": past_time},
+        )
 
         # Successful attempt
         response2 = await handle_join_password_step(phone, "correct_password")

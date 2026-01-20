@@ -15,6 +15,13 @@ def mock_redis_unavailable():
         yield mock_redis
 
 
+@pytest.fixture(autouse=True)
+def mock_asyncio_sleep():
+    """Mock asyncio.sleep to avoid actual delays in retry tests."""
+    with patch("src.core.scheduler_tracker.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        yield mock_sleep
+
+
 @pytest.fixture
 def job_tracker() -> JobTracker:
     """Create a job tracker instance for testing with in-memory storage."""

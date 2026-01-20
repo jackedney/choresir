@@ -11,33 +11,15 @@ from src.services import chore_service, conflict_service, verification_service
 from src.services.conflict_service import VoteChoice, VoteResult
 
 
-@pytest.fixture
-def patched_conflict_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
-
-    # Ensure DB is empty (handle potential state leakage)
-    in_memory_db._collections = {}
-
-    # Patch all db_client functions
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
-
-    return in_memory_db
-
-
 @pytest.mark.unit
 class TestInitiateVote:
     """Tests for initiate_vote function."""
 
     @pytest.fixture
-    async def conflict_chore_with_logs(self, patched_conflict_db):
+    async def conflict_chore_with_logs(self, patched_db):
         """Create a chore in CONFLICT state with claim and rejection logs."""
         # Create users
-        await patched_conflict_db.create_record(
+        await patched_db.create_record(
             "users",
             {
                 "phone": "+1111111111",
@@ -49,7 +31,7 @@ class TestInitiateVote:
                 "passwordConfirm": "pass",
             },
         )
-        await patched_conflict_db.create_record(
+        await patched_db.create_record(
             "users",
             {
                 "phone": "+2222222222",
@@ -62,7 +44,7 @@ class TestInitiateVote:
             },
         )
 
-        voter1 = await patched_conflict_db.create_record(
+        voter1 = await patched_db.create_record(
             "users",
             {
                 "phone": "+3333333333",
@@ -74,7 +56,7 @@ class TestInitiateVote:
                 "passwordConfirm": "pass",
             },
         )
-        voter2 = await patched_conflict_db.create_record(
+        voter2 = await patched_db.create_record(
             "users",
             {
                 "phone": "+4444444444",
@@ -103,7 +85,7 @@ class TestInitiateVote:
         )
 
         # Manually create rejection log to avoid triggering initiate_vote via verify_chore
-        await patched_conflict_db.create_record(
+        await patched_db.create_record(
             "logs",
             {
                 "chore_id": chore["id"],
@@ -119,7 +101,7 @@ class TestInitiateVote:
 
         return {"chore": conflict_chore, "voters": [voter1, voter2]}
 
-    async def test_initiate_vote_success(self, patched_conflict_db, conflict_chore_with_logs):
+    async def test_initiate_vote_success(self, patched_db, conflict_chore_with_logs):
         """Test initiating a vote creates vote placeholders."""
         chore_id = conflict_chore_with_logs["chore"]["id"]
 
@@ -131,7 +113,7 @@ class TestInitiateVote:
         assert all(vote["action"] == "vote_pending" for vote in vote_records)
         assert all(vote["chore_id"] == chore_id for vote in vote_records)
 
-    async def test_initiate_vote_not_in_conflict_fails(self, patched_conflict_db):
+    async def test_initiate_vote_not_in_conflict_fails(self, patched_db):
         """Test initiating vote on non-conflict chore fails."""
         # Create chore in TODO state
         chore = await chore_service.create_chore(
@@ -144,7 +126,7 @@ class TestInitiateVote:
         with pytest.raises(ValueError, match="Cannot initiate vote"):
             await conflict_service.initiate_vote(chore_id=chore["id"])
 
-    async def test_initiate_vote_chore_not_found(self, patched_conflict_db):
+    async def test_initiate_vote_chore_not_found(self, patched_db):
         """Test initiating vote on non-existent chore raises error."""
         with pytest.raises(KeyError):
             await conflict_service.initiate_vote(chore_id="nonexistent_id")
@@ -155,10 +137,10 @@ class TestCastVote:
     """Tests for cast_vote function."""
 
     @pytest.fixture
-    async def conflict_with_initiated_vote(self, patched_conflict_db):
+    async def conflict_with_initiated_vote(self, patched_db):
         """Create a conflict with votes initiated."""
         # Create voters
-        voter1 = await patched_conflict_db.create_record(
+        voter1 = await patched_db.create_record(
             "users",
             {
                 "phone": "+1111111111",
@@ -195,7 +177,7 @@ class TestCastVote:
 
         return {"chore": conflict_chore, "voter": voter1}
 
-    async def test_cast_vote_yes(self, patched_conflict_db, conflict_with_initiated_vote):
+    async def test_cast_vote_yes(self, patched_db, conflict_with_initiated_vote):
         """Test casting a YES vote."""
         chore_id = conflict_with_initiated_vote["chore"]["id"]
         voter_id = conflict_with_initiated_vote["voter"]["id"]
@@ -210,7 +192,7 @@ class TestCastVote:
         assert result["chore_id"] == chore_id
         assert result["user_id"] == voter_id
 
-    async def test_cast_vote_no(self, patched_conflict_db, conflict_with_initiated_vote):
+    async def test_cast_vote_no(self, patched_db, conflict_with_initiated_vote):
         """Test casting a NO vote."""
         chore_id = conflict_with_initiated_vote["chore"]["id"]
         voter_id = conflict_with_initiated_vote["voter"]["id"]
@@ -223,7 +205,7 @@ class TestCastVote:
 
         assert result["action"] == "vote_no"
 
-    async def test_cast_vote_duplicate_fails(self, patched_conflict_db, conflict_with_initiated_vote):
+    async def test_cast_vote_duplicate_fails(self, patched_db, conflict_with_initiated_vote):
         """Test casting vote twice fails."""
         chore_id = conflict_with_initiated_vote["chore"]["id"]
         voter_id = conflict_with_initiated_vote["voter"]["id"]
@@ -245,7 +227,7 @@ class TestCastVote:
                 choice=VoteChoice.NO,
             )
 
-    async def test_cast_vote_no_pending_record_fails(self, patched_conflict_db):
+    async def test_cast_vote_no_pending_record_fails(self, patched_db):
         """Test casting vote without pending vote record fails."""
         # Create conflict chore but don't initiate voting (requires manual steps)
         # Note: verify_chore initiates voting, so we must manually move to conflict
@@ -279,14 +261,14 @@ class TestTallyVotes:
     """Tests for tally_votes function."""
 
     @pytest.fixture
-    async def setup_vote_scenario(self, patched_conflict_db):
+    async def setup_vote_scenario(self, patched_db):
         """Helper to create a conflict with votes."""
 
         async def _create_scenario(num_yes, num_no):
             # Create voters
             voters = []
             for i in range(num_yes + num_no):
-                voter = await patched_conflict_db.create_record(
+                voter = await patched_db.create_record(
                     "users",
                     {
                         "phone": f"+{str(i).zfill(10)}",
@@ -341,7 +323,7 @@ class TestTallyVotes:
 
         return _create_scenario
 
-    async def test_tally_votes_approved(self, patched_conflict_db, setup_vote_scenario):
+    async def test_tally_votes_approved(self, patched_db, setup_vote_scenario):
         """Test tally when YES votes win."""
         chore = await setup_vote_scenario(3, 1)  # 3 YES, 1 NO
 
@@ -350,7 +332,7 @@ class TestTallyVotes:
         assert result == VoteResult.APPROVED
         assert updated_chore["current_state"] == ChoreState.COMPLETED
 
-    async def test_tally_votes_rejected(self, patched_conflict_db, setup_vote_scenario):
+    async def test_tally_votes_rejected(self, patched_db, setup_vote_scenario):
         """Test tally when NO votes win."""
         chore = await setup_vote_scenario(1, 3)  # 1 YES, 3 NO
 
@@ -359,7 +341,7 @@ class TestTallyVotes:
         assert result == VoteResult.REJECTED
         assert updated_chore["current_state"] == ChoreState.TODO
 
-    async def test_tally_votes_deadlock(self, patched_conflict_db, setup_vote_scenario):
+    async def test_tally_votes_deadlock(self, patched_db, setup_vote_scenario):
         """Test tally when votes are tied (deadlock)."""
         chore = await setup_vote_scenario(2, 2)  # 2 YES, 2 NO (tie)
 
@@ -368,7 +350,7 @@ class TestTallyVotes:
         assert result == VoteResult.DEADLOCK
         assert updated_chore["current_state"] == ChoreState.DEADLOCK
 
-    async def test_tally_votes_pending_votes_fails(self, patched_conflict_db, setup_vote_scenario):
+    async def test_tally_votes_pending_votes_fails(self, patched_db, setup_vote_scenario):
         """Test tally fails if not all votes are cast."""
         # Create scenario with 2 voters but don't cast votes
         chore = await chore_service.create_chore(
@@ -380,7 +362,7 @@ class TestTallyVotes:
 
         # Create voters
         for i in range(2):
-            await patched_conflict_db.create_record(
+            await patched_db.create_record(
                 "users",
                 {
                     "phone": f"+{str(i).zfill(10)}",
@@ -416,7 +398,7 @@ class TestTallyVotes:
 class TestGetVoteStatus:
     """Tests for get_vote_status function."""
 
-    async def test_get_vote_status_complete(self, patched_conflict_db):
+    async def test_get_vote_status_complete(self, patched_db):
         """Test getting vote status when all votes are cast."""
         # Create simple scenario
         chore = await chore_service.create_chore(
@@ -429,7 +411,7 @@ class TestGetVoteStatus:
         # Create 2 voters
         voters = []
         for i in range(2):
-            voter = await patched_conflict_db.create_record(
+            voter = await patched_db.create_record(
                 "users",
                 {
                     "phone": f"+{str(i).zfill(10)}",
@@ -477,7 +459,7 @@ class TestGetVoteStatus:
         assert status["total_votes"] == 2
         assert status["all_votes_cast"] is True
 
-    async def test_get_vote_status_pending(self, patched_conflict_db):
+    async def test_get_vote_status_pending(self, patched_db):
         """Test getting vote status when votes are still pending."""
         chore = await chore_service.create_chore(
             title="Test",
@@ -488,7 +470,7 @@ class TestGetVoteStatus:
 
         # Create 2 voters
         for i in range(2):
-            await patched_conflict_db.create_record(
+            await patched_db.create_record(
                 "users",
                 {
                     "phone": f"+{str(i).zfill(10)}",

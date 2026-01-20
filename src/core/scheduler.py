@@ -9,6 +9,7 @@ from croniter import croniter
 
 from src.core import db_client
 from src.core.config import Constants, constants
+from src.core.db_client import sanitize_param
 from src.core.recurrence_parser import parse_recurrence_to_cron
 from src.core.scheduler_tracker import retry_job_with_backoff
 from src.domain.user import UserStatus
@@ -351,7 +352,9 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
         # Query for most recent completion log
         logs = await db_client.list_records(
             collection="personal_chore_logs",
-            filter_query=f"personal_chore_id = '{chore_id}' && owner_phone = '{owner_phone}'",
+            filter_query=(
+                f"personal_chore_id = \"{sanitize_param(chore_id)}\" && owner_phone = \"{sanitize_param(owner_phone)}\""
+            ),
             sort="-completed_at",
             per_page=1,
         )

@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from src.core import db_client
+from src.core.db_client import sanitize_param
 from src.core.logging import span
 from src.core.recurrence_parser import parse_recurrence_for_personal_chore
 
@@ -80,7 +81,7 @@ async def get_personal_chores(
         List of personal chore records
     """
     with span("personal_chore_service.get_personal_chores"):
-        filter_query = f'owner_phone = "{owner_phone}" && status = "{status}"'
+        filter_query = f'owner_phone = "{sanitize_param(owner_phone)}" && status = "{sanitize_param(status)}"'
 
         return await db_client.list_records(
             collection="personal_chores",

@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from src.core import db_client
+from src.core.db_client import sanitize_param
 from src.core.logging import span
 
 
@@ -41,7 +42,7 @@ async def create_session(
         # Delete any existing session for this phone (latest command wins)
         existing_session = await db_client.get_first_record(
             collection="join_sessions",
-            filter_query=f'phone = "{phone}"',
+            filter_query=f'phone = "{sanitize_param(phone)}"',
         )
         if existing_session:
             await db_client.delete_record(
@@ -87,7 +88,7 @@ async def get_session(*, phone: str) -> dict[str, Any] | None:
     with span("session_service.get_session"):
         session = await db_client.get_first_record(
             collection="join_sessions",
-            filter_query=f'phone = "{phone}"',
+            filter_query=f'phone = "{sanitize_param(phone)}"',
         )
 
         if not session:
@@ -121,7 +122,7 @@ async def update_session(*, phone: str, updates: dict[str, Any]) -> bool:
     with span("session_service.update_session"):
         session = await db_client.get_first_record(
             collection="join_sessions",
-            filter_query=f'phone = "{phone}"',
+            filter_query=f'phone = "{sanitize_param(phone)}"',
         )
 
         if not session:
@@ -153,7 +154,7 @@ async def delete_session(*, phone: str) -> bool:
     with span("session_service.delete_session"):
         session = await db_client.get_first_record(
             collection="join_sessions",
-            filter_query=f'phone = "{phone}"',
+            filter_query=f'phone = "{sanitize_param(phone)}"',
         )
 
         if not session:
@@ -202,7 +203,7 @@ async def increment_password_attempts(*, phone: str) -> None:
     with span("session_service.increment_password_attempts"):
         session = await db_client.get_first_record(
             collection="join_sessions",
-            filter_query=f'phone = "{phone}"',
+            filter_query=f'phone = "{sanitize_param(phone)}"',
         )
 
         if not session:

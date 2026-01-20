@@ -1,6 +1,6 @@
 """Tests for WhatsApp message sender with mocked Twilio client."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from twilio.base.exceptions import TwilioRestException
@@ -11,6 +11,13 @@ from src.interface.whatsapp_sender import (
     get_twilio_client,
     send_text_message,
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_asyncio_sleep():
+    """Mock asyncio.sleep to avoid actual delays in retry tests."""
+    with patch("src.interface.whatsapp_sender.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        yield mock_sleep
 
 
 class TestRateLimiter:

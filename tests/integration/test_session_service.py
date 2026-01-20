@@ -1,6 +1,6 @@
 """Integration tests for session service."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -328,14 +328,14 @@ async def test_is_expired_function(mock_db_module, db_client) -> None:
     assert session_service.is_expired(session) is False
 
     # Set expires_at to past time
-    past_time = datetime.now() - timedelta(minutes=1)
+    past_time = datetime.now(UTC) - timedelta(minutes=1)
     session["expires_at"] = past_time.isoformat()
 
     # Expired session should be expired
     assert session_service.is_expired(session) is True
 
     # Set expires_at to future time
-    future_time = datetime.now() + timedelta(minutes=10)
+    future_time = datetime.now(UTC) + timedelta(minutes=10)
     session["expires_at"] = future_time.isoformat()
 
     # Future session should not be expired

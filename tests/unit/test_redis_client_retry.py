@@ -1,11 +1,18 @@
 """Unit tests for Redis client retry and fallback functionality."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from src.core.redis_client import RedisClient
+
+
+@pytest.fixture(autouse=True)
+def mock_asyncio_sleep():
+    """Mock asyncio.sleep to avoid actual delays in retry tests."""
+    with patch("src.core.redis_client.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        yield mock_sleep
 
 
 @pytest.mark.unit
