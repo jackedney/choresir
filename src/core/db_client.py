@@ -281,7 +281,7 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         raise RuntimeError(msg) from e
 
 
-def sanitize_param(value: Any) -> str:
+def sanitize_param(value: object) -> str:
     """Sanitize a parameter for use in a PocketBase filter string.
 
     This function escapes quotes and backslashes to prevent injection.
