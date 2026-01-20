@@ -318,7 +318,7 @@ async def get_personal_stats(
         # Get completions in period
         cutoff_time = datetime.now() - timedelta(days=period_days)
         completions_filter = (
-            f'owner_phone = "{owner_phone}" '
+            f'owner_phone = "{sanitize_param(owner_phone)}" '
             f'&& completed_at >= "{cutoff_time.isoformat()}" '
             f'&& (verification_status = "SELF_VERIFIED" || verification_status = "VERIFIED")'
         )
@@ -329,7 +329,7 @@ async def get_personal_stats(
         )
 
         # Get pending verifications
-        pending_filter = f'owner_phone = "{owner_phone}" && verification_status = "PENDING"'
+        pending_filter = f'owner_phone = "{sanitize_param(owner_phone)}" && verification_status = "PENDING"'
 
         pending = await db_client.list_records(
             collection="personal_chore_logs",

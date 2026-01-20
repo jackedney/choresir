@@ -82,10 +82,10 @@ async def get_chores(
         filters = []
 
         if user_id:
-            filters.append(f'assigned_to = "{user_id}"')
+            filters.append(f'assigned_to = "{db_client.sanitize_param(user_id)}"')
 
         if state:
-            filters.append(f'current_state = "{state}"')
+            filters.append(f'current_state = "{db_client.sanitize_param(state)}"')
 
         if time_range_start:
             filters.append(f'deadline >= "{time_range_start.isoformat()}"')
