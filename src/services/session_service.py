@@ -1,7 +1,7 @@
 """Session service for managing join session state."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from src.core import db_client
@@ -51,7 +51,7 @@ async def create_session(
             logger.info("Deleted existing session for %s", phone)
 
         # Create new session
-        now = datetime.now()
+        now = datetime.now(UTC)
         expires_at = now + timedelta(minutes=SESSION_EXPIRY_MINUTES)
 
         session_data = {
@@ -183,7 +183,7 @@ def is_rate_limited(*, session: dict[str, Any]) -> bool:
 
     # Parse the last_attempt_at timestamp
     last_attempt = datetime.fromisoformat(last_attempt_at.replace("Z", "+00:00"))
-    now = datetime.now(last_attempt.tzinfo)
+    now = datetime.now(UTC)
 
     # Check if less than 5 seconds have elapsed
     elapsed = (now - last_attempt).total_seconds()
@@ -212,7 +212,7 @@ async def increment_password_attempts(*, phone: str) -> None:
         current_count = session.get("password_attempts_count", 0)
         updates = {
             "password_attempts_count": current_count + 1,
-            "last_attempt_at": datetime.now().isoformat(),
+            "last_attempt_at": datetime.now(UTC).isoformat(),
         }
 
         await db_client.update_record(
@@ -243,6 +243,6 @@ def is_expired(session: dict[str, Any]) -> bool:
 
     # Parse the expires_at timestamp
     expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-    now = datetime.now(expiry.tzinfo)
+    now = datetime.now(UTC)
 
     return now > expiry
