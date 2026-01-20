@@ -2,6 +2,7 @@
 
 import pytest
 
+from src.interface.whatsapp_sender import SendMessageResult
 from tests.unit.mocks import InMemoryDBClient
 
 
@@ -11,9 +12,28 @@ def in_memory_db():
     return InMemoryDBClient()
 
 
+async def _mock_send_text_message(**kwargs) -> SendMessageResult:
+    """Mock WhatsApp sender that returns success instantly."""
+    return SendMessageResult(success=True, message_id="mock_message_id")
+
+
+async def _mock_send_template_message(**kwargs) -> SendMessageResult:
+    """Mock WhatsApp template sender that returns success instantly."""
+    return SendMessageResult(success=True, message_id="mock_template_message_id")
+
+
+async def _mock_invalidate_cache() -> None:
+    """Mock cache invalidation that does nothing."""
+    pass
+
+
 @pytest.fixture
 def patched_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
+    """Patches src.core.db_client functions to use InMemoryDBClient.
+
+    Also patches external services (WhatsApp, analytics cache) to avoid
+    real HTTP calls and retry delays in unit tests.
+    """
 
     # Patch all db_client functions
     monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
@@ -22,6 +42,22 @@ def patched_db(monkeypatch, in_memory_db):
     monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
     monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
     monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
+
+    # Patch WhatsApp sender to avoid real HTTP calls and retry delays
+    monkeypatch.setattr(
+        "src.interface.whatsapp_sender.send_text_message",
+        _mock_send_text_message,
+    )
+    monkeypatch.setattr(
+        "src.interface.whatsapp_templates.send_template_message",
+        _mock_send_template_message,
+    )
+
+    # Patch analytics service cache invalidation
+    monkeypatch.setattr(
+        "src.services.analytics_service.invalidate_leaderboard_cache",
+        _mock_invalidate_cache,
+    )
 
     return in_memory_db
 

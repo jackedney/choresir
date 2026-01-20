@@ -14,6 +14,13 @@ from src.agents.retry_handler import (
 )
 
 
+@pytest.fixture(autouse=True)
+def mock_asyncio_sleep():
+    """Mock asyncio.sleep to avoid actual delays in retry tests."""
+    with patch("src.agents.retry_handler.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        yield mock_sleep
+
+
 @pytest.mark.unit
 class TestAgentRetryHandler:
     """Tests for intelligent retry logic with circuit breaker."""

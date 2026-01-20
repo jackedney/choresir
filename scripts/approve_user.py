@@ -11,6 +11,7 @@ import logging
 import sys
 
 from src.core import db_client
+from src.core.db_client import sanitize_param
 from src.domain.user import UserStatus
 
 
@@ -42,7 +43,7 @@ async def approve_user(phone: str, role: str = "member") -> None:
     # Find user by phone
     user = await db_client.get_first_record(
         collection="users",
-        filter_query=f'phone = "{phone}"',
+        filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
     if not user:
