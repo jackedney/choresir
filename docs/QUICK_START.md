@@ -9,9 +9,9 @@ Get the bot running locally and test your first message.
 
 Approval takes 1-2 days. Submit while doing other setup.
 
-See [WHATSAPP_TEMPLATES.md](./WHATSAPP_TEMPLATES.md) for details.
-
 Required templates: `chore_reminder`, `verification_request`, `conflict_notification`
+
+See the [Setup Guide](./SETUP.md#part-3-whatsapp-template-messages) for detailed template specifications.
 
 ## 2. Setup Local Environment
 
@@ -42,16 +42,14 @@ HOUSE_PASSWORD=SecretPass
 
 Optional:
 ```bash
-LOGFIRE_TOKEN=<your token>  # See LOGFIRE_SETUP.md
+LOGFIRE_TOKEN=<your token>  # Get from https://logfire.pydantic.dev
 ```
 
 ## 3. Setup ngrok
 
-See [NGROK_SETUP.md](./NGROK_SETUP.md) for details.
-
 ```bash
 brew install ngrok
-ngrok config add-authtoken YOUR_TOKEN
+ngrok config add-authtoken YOUR_TOKEN  # Get token from https://ngrok.com after signing up
 ```
 
 ## 4. Start Services
@@ -127,4 +125,4 @@ I watered the plants
 
 - Add more household members
 - Wait for template approval
-- Deploy to Railway (see [RAILWAY_DEPLOYMENT.md](./RAILWAY_DEPLOYMENT.md))
+- Deploy to production (see [Deployment Guide](./DEPLOYMENT.md))

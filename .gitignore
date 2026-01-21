@@ -44,8 +44,10 @@ env/
 
 # PocketBase
 pb_data/
+pb_data.backup*/
 pb_migrations/
 pocketbase
+*.db
 
 # Testing
 .pytest_cache/

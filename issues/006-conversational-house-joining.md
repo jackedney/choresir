@@ -573,7 +573,7 @@ async def test_concurrent_joins():
 
 ## Related Documentation
 
-- **ADR**: `docs/architecture/decisions/007-conversational-house-joining.md`
+- **ADR**: `docs/decisions/018-conversational-house-joining.md`
 - **Design Decisions**: See ADR for detailed rationale
 - **Related Issues**: None (this is a greenfield feature)
 

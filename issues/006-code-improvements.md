@@ -396,8 +396,8 @@ settings.require_credential("house_password", "House onboarding password")
 
 ## References
 - Coding standards: `AGENTS.md`
-- Architecture decisions: `adrs/`
-- Error handling documentation: `docs/ERROR_HANDLING.md`
+- Architecture decisions: `docs/decisions/`
+- Error handling: See inline code comments and existing patterns
 - Security best practices: OWASP Top 10
 
 ---

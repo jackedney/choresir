@@ -85,7 +85,7 @@ Templates must be created in Twilio Console using Content API:
 ### Mitigation
 - Text-based fallback ensures system works during template approval
 - Template variables allow personalization without re-approval
-- Clear documentation in `docs/WHATSAPP_TEMPLATES.md` for setup
+- Clear documentation in the [Setup Guide](../SETUP.md#part-3-whatsapp-template-messages) for setup
 
 ## Related Decisions
 - **ADR 003:** Establishes verification requirement (this ADR improves the UX)

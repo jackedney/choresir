@@ -132,8 +132,8 @@ We will use **Pydantic AI with OpenRouter** for conversational command processin
 
 ## Related ADRs
 
-- [ADR 001: WhatsApp Provider Selection](001-whatsapp-provider.md) - Defines the messaging platform where NLP processes user inputs
-- [ADR 005: Robin Hood Protocol](005-robin-hood-protocol.md) - Feature that requires NLP to interpret chore takeover commands
+- [ADR 001: Technology Stack](001-stack.md) - Defines the messaging platform (Twilio WhatsApp) where NLP processes user inputs
+- [ADR 014: Robin Hood Protocol](014-robin-hood-protocol.md) - Feature that requires NLP to interpret chore takeover commands
 
 ## References
 

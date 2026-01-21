@@ -2,7 +2,22 @@
 
 ## Status
 
-Proposed
+Partially Implemented
+
+## Implementation Status
+
+### Currently Implemented
+- **Basic swap logging**: The `is_swap` parameter exists in the `LogChore` tool
+- **Swap identification**: Code includes "Robin Hood swap" references for tracking takeover operations
+- **Weekly limits**: Enforced via `robin_hood_service.py` with 3 takeovers per week limit
+- **Point attribution logic**: On-time vs. overdue point distribution implemented in `analytics_service.py`
+- **Takeover tracking**: Data model tracks original assignee vs. actual completer
+
+### Not Yet Implemented
+- **WhatsApp interface**: No user-facing commands for initiating or managing takeovers
+- **Reciprocal exchange**: Optional swap mechanism is not implemented
+
+See [task 003-complete-robin-hood-protocol.md](../../.context/003-complete-robin-hood-protocol.md) for completion roadmap.
 
 ## Context
 
@@ -100,8 +115,8 @@ Allow unlimited takeovers.
 
 ## Related ADRs
 
-- [ADR 001: WhatsApp Provider Selection](001-whatsapp-provider.md) - Defines the primary user interface through which the Robin Hood Protocol is accessed
-- [ADR 003: Natural Language Processing Approach](003-nlp-approach.md) - Describes how takeover commands and requests will be interpreted
+- [ADR 001: Technology Stack](001-stack.md) - Defines the primary user interface (Twilio WhatsApp) through which the Robin Hood Protocol is accessed
+- [ADR 012: Natural Language Processing Approach](012-nlp-approach.md) - Describes how takeover commands and requests will be interpreted
 
 ## References
 

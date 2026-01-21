@@ -27,8 +27,8 @@
 <td width="50%">
 
 ### 👥 For Users & Architects
-- 📐 **[Architecture Decisions](./adrs/)** - The "Why" behind the system
-- 🤖 **[Agent Personas](./adrs/002-agents.md)** - Functional specifications
+- 📐 **[Architecture Decisions](./docs/decisions/)** - The "Why" behind the system
+- 🤖 **[Agent Personas](./docs/decisions/002-agents.md)** - Functional specifications
 
 </td>
 <td width="50%">
@@ -165,37 +165,7 @@ Track your personal tasks privately within the same WhatsApp interface:
 
 ### 📦 Setup by Component
 
-<table>
-<thead>
-<tr>
-<th width="40%">Component</th>
-<th width="40%">Guide</th>
-<th width="20%">Status</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>💬 <strong>WhatsApp Templates</strong></td>
-<td><a href="./docs/WHATSAPP_TEMPLATES.md">WHATSAPP_TEMPLATES.md</a></td>
-<td><img src="https://img.shields.io/badge/required-red?style=flat" alt="Required"></td>
-</tr>
-<tr>
-<td>🌐 <strong>ngrok (Local Testing)</strong></td>
-<td><a href="./docs/NGROK_SETUP.md">NGROK_SETUP.md</a></td>
-<td><img src="https://img.shields.io/badge/required-red?style=flat" alt="Required"></td>
-</tr>
-<tr>
-<td>📊 <strong>Logfire (Monitoring)</strong></td>
-<td><a href="./docs/LOGFIRE_SETUP.md">LOGFIRE_SETUP.md</a></td>
-<td><img src="https://img.shields.io/badge/recommended-orange?style=flat" alt="Recommended"></td>
-</tr>
-<tr>
-<td>🚂 <strong>Railway (Production)</strong></td>
-<td><a href="./docs/RAILWAY_DEPLOYMENT.md">RAILWAY_DEPLOYMENT.md</a></td>
-<td><img src="https://img.shields.io/badge/production-blue?style=flat" alt="Production"></td>
-</tr>
-</tbody>
-</table>
+Detailed setup instructions are available in the [Setup Guide](./docs/SETUP.md) and [Quick Start Guide](./docs/QUICK_START.md).
 
 ### 💻 Minimal Local Setup
 
@@ -243,7 +213,7 @@ ngrok http 8000                       # Terminal 3: Public Webhook
 
 **Platform:** Railway (recommended)
 **Cost:** ~$5-10/month
-**Guide:** [RAILWAY_DEPLOYMENT.md](./docs/RAILWAY_DEPLOYMENT.md)
+**Guide:** See [Deployment Guide](./docs/DEPLOYMENT.md)
 
 #### Quick Deploy Steps:
 1. ✅ Create Railway project
@@ -281,7 +251,7 @@ ngrok http 8000                       # Terminal 3: Public Webhook
 
 ### 🎯 Ready to transform your household management?
 
-**[Get Started Now](./docs/QUICK_START.md)** | **[Read the Docs](./adrs/)** | **[View Architecture](./AGENTS.md)**
+**[Get Started Now](./docs/QUICK_START.md)** | **[Architecture Decisions](./docs/decisions/)** | **[Developer Guide](./AGENTS.md)**
 
 ---
 

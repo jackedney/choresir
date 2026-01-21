@@ -17,6 +17,7 @@ import json
 import logging
 from datetime import UTC, datetime, timedelta
 
+from dateutil import parser as dateutil_parser
 from pydantic import ValidationError
 
 from src.core import db_client
@@ -75,8 +76,118 @@ async def invalidate_leaderboard_cache() -> None:
         logger.warning("Failed to invalidate leaderboard cache: %s", e)
 
 
+async def _fetch_chores_map(chore_ids: list[str]) -> dict[str, dict]:
+    """Fetch chores in chunks and return as a map."""
+    chores_map = {}
+    unique_chore_ids = list(set(chore_ids))
+    chunk_size = 50
+    for i in range(0, len(unique_chore_ids), chunk_size):
+        chunk = unique_chore_ids[i : i + chunk_size]
+        or_clause = " || ".join([f'id = "{cid}"' for cid in chunk])
+        chores = await db_client.list_records(
+            collection="chores",
+            filter_query=or_clause,
+        )
+        for chore in chores:
+            chores_map[chore["id"]] = chore
+    return chores_map
+
+
+async def _fetch_claim_logs_map(chore_ids: list[str]) -> dict[str, dict]:
+    """Fetch claim logs in chunks and return as a map."""
+    claim_logs_map = {}
+    unique_chore_ids = list(set(chore_ids))
+    chunk_size = 50
+    for i in range(0, len(unique_chore_ids), chunk_size):
+        chunk = unique_chore_ids[i : i + chunk_size]
+        or_clause = " || ".join([f'chore_id = "{cid}"' for cid in chunk])
+        claim_logs = await db_client.list_records(
+            collection="logs",
+            filter_query=f'action = "claimed_completion" && ({or_clause})',
+        )
+        for claim_log in claim_logs:
+            chore_id = claim_log["chore_id"]
+            # Keep only the most recent claim log per chore
+            if chore_id not in claim_logs_map or claim_log.get("timestamp", "") > claim_logs_map[chore_id].get(
+                "timestamp", ""
+            ):
+                claim_logs_map[chore_id] = claim_log
+    return claim_logs_map
+
+
+def _determine_user_to_award(
+    log: dict,
+    claim_log: dict | None,
+    chore: dict | None,
+) -> str:
+    """Determine which user should be awarded points based on Robin Hood Protocol."""
+    # Default: award points to the user who got approval
+    user_to_award = log["user_id"]
+
+    # Robin Hood Protocol: Check if this was a swap and apply point attribution rules
+    if not (claim_log and chore):
+        return user_to_award
+
+    original_assignee_id = claim_log.get("original_assignee_id")
+    actual_completer_id = claim_log.get("actual_completer_id")
+    is_swap = claim_log.get("is_swap", False)
+
+    # Only apply Robin Hood rules if this was actually a swap
+    if not (is_swap and original_assignee_id and actual_completer_id):
+        return user_to_award
+
+    # Check if completion was on-time or overdue
+    deadline = chore.get("deadline")
+    approval_timestamp = log.get("timestamp")
+
+    if not (deadline and approval_timestamp):
+        return user_to_award
+
+    try:
+        deadline_dt = dateutil_parser.isoparse(deadline)
+        approval_dt = dateutil_parser.isoparse(approval_timestamp)
+
+        # On-time: award to original assignee, Overdue: award to actual completer
+        user_to_award = original_assignee_id if approval_dt <= deadline_dt else actual_completer_id
+    except Exception as e:
+        logger.warning("Failed to parse timestamps for Robin Hood attribution: %s", e)
+
+    return user_to_award
+
+
+def _build_leaderboard_entries(
+    user_completion_counts: dict[str, int],
+    users_map: dict[str, dict],
+) -> list[LeaderboardEntry]:
+    """Build and sort leaderboard entries from user counts."""
+    leaderboard_data = []
+    for user_id, count in user_completion_counts.items():
+        if user_id not in users_map:
+            logger.warning("User %s not found for leaderboard", user_id)
+            continue
+
+        user = users_map[user_id]
+        try:
+            entry = LeaderboardEntry(
+                user_id=user_id,
+                user_name=user["name"],
+                completion_count=count,
+            )
+            leaderboard_data.append(entry)
+        except ValidationError as e:
+            logger.error("Failed to create LeaderboardEntry for user %s: %s", user_id, e)
+
+    # Sort by completion count descending
+    leaderboard_data.sort(key=lambda x: x.completion_count, reverse=True)
+    return leaderboard_data
+
+
 async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
     """Get leaderboard of completed chores per user.
+
+    Implements Robin Hood Protocol point attribution:
+    - On-time completion: Points to original assignee
+    - Overdue completion: Points to actual completer
 
     Args:
         period_days: Number of days to look back (default: 30)
@@ -96,10 +207,8 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
                 return leaderboard_entries
             except (json.JSONDecodeError, ValidationError) as e:
                 logger.warning("Failed to deserialize cached leaderboard: %s", e)
-                # Continue to regenerate cache
     except Exception as e:
         logger.warning("Failed to retrieve cached leaderboard from Redis: %s", e)
-        # Continue without cache - will fetch from DB
 
     with span("analytics_service.get_leaderboard"):
         # Calculate cutoff date
@@ -107,58 +216,49 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
         cutoff_date = now - timedelta(days=period_days)
 
         # Get all completion logs within period
-        # Count only approved verifications, not claims (claims can be rejected)
         completion_logs = await db_client.list_records(
             collection="logs",
             filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
         )
 
-        # Count completions per user
+        # Get chore IDs for Robin Hood Protocol data
+        # Extract chore IDs, filtering out None values
+        claim_log_ids: list[str] = [
+            chore_id for log in completion_logs if (chore_id := log.get("chore_id")) is not None
+        ]
+
+        # Fetch chores and claim logs
+        chores_map = await _fetch_chores_map(claim_log_ids) if claim_log_ids else {}
+        claim_logs_map = await _fetch_claim_logs_map(claim_log_ids) if claim_log_ids else {}
+
+        # Count completions per user with Robin Hood Protocol rules
         user_completion_counts: dict[str, int] = {}
         for log in completion_logs:
-            user_id = log["user_id"]
-            user_completion_counts[user_id] = user_completion_counts.get(user_id, 0) + 1
+            chore_id = log.get("chore_id")
+            if not isinstance(chore_id, str):
+                continue  # Skip logs without a valid chore_id
 
-        # Optimization: Fetch all users in a single query to avoid N+1 queries
-        # Previously, we called get_record() for each user (one query per user)
-        # Now we fetch all users once and build an in-memory map for O(1) lookups
-        # Per-page limit of 500 is sufficient for typical household sizes (2-20 members)
-        # If a household exceeds 500 users, only the first 500 will be included in leaderboard
-        # This is acceptable as such large households are extremely unlikely
+            claim_log = claim_logs_map.get(chore_id)
+            chore = chores_map.get(chore_id)
+
+            user_to_award = _determine_user_to_award(log, claim_log, chore)
+            user_completion_counts[user_to_award] = user_completion_counts.get(user_to_award, 0) + 1
+
+        # Fetch all users for leaderboard
         all_users = await db_client.list_records(collection="users", per_page=500)
         users_map = {u["id"]: u for u in all_users}
 
-        # Build leaderboard
-        leaderboard_data = []
-        for user_id, count in user_completion_counts.items():
-            if user_id in users_map:
-                user = users_map[user_id]
-                try:
-                    entry = LeaderboardEntry(
-                        user_id=user_id,
-                        user_name=user["name"],
-                        completion_count=count,
-                    )
-                    leaderboard_data.append(entry)
-                except ValidationError as e:
-                    logger.error("Failed to create LeaderboardEntry for user %s: %s", user_id, e)
-                    continue
-            else:
-                logger.warning("User %s not found for leaderboard", user_id)
-                continue
-
-        # Sort by completion count descending
-        leaderboard_data.sort(key=lambda x: x.completion_count, reverse=True)
+        # Build and sort leaderboard
+        leaderboard_data = _build_leaderboard_entries(user_completion_counts, users_map)
 
         logger.info("Generated leaderboard for %d days: %d users", period_days, len(leaderboard_data))
 
-        # Update Redis cache (serialize model objects)
+        # Update Redis cache
         try:
             cache_value = json.dumps([entry.model_dump() for entry in leaderboard_data])
             await redis_client.set(cache_key, cache_value, Constants.CACHE_TTL_LEADERBOARD_SECONDS)
         except Exception as e:
             logger.warning("Failed to cache leaderboard in Redis: %s", e)
-            # Continue without caching - function still returns correct data
 
         return leaderboard_data
 
