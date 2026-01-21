@@ -252,52 +252,76 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
     Returns:
         Join success message or onboarding prompt
     """
+    # Check for active join session first
+    session = await session_service.get_session(phone=user_phone)
+
+    # Check for /cancel command (before step handlers so it works during any step)
+    if re.match(r"^/cancel$", message_text, re.IGNORECASE):
+        if session:
+            await session_service.delete_session(phone=user_phone)
+            return "Join process cancelled. Send '/house join {house_name}' to start again."
+        return "Nothing to cancel."
+
+    if session:
+        step = session.get("step")
+        if step == "awaiting_password":
+            return await handle_join_password_step(user_phone, message_text)
+        if step == "awaiting_name":
+            return await handle_join_name_step(user_phone, message_text)
+
+    # Check for /house join {house_name} command
+    house_join_match = re.match(r"^/house\s+join\s+(.+)$", message_text, re.IGNORECASE)
+    if house_join_match:
+        house_name = house_join_match.group(1).strip()
+        return await handle_house_join(phone=user_phone, house_name=house_name)
+
+    # Try legacy join format or return onboarding prompt
+    return await _handle_legacy_join_or_onboard(user_phone, message_text)
+
+
+async def _handle_legacy_join_or_onboard(user_phone: str, message_text: str) -> str:
+    """Handle legacy join format (Code/Password/Name) or return onboarding prompt."""
     # Try to parse join request: Code: XXX, Password: YYY, Name: ZZZ
     # Pattern matches case-insensitive and handles various formatting
     # Supports quoted passwords for spaces/commas: Password: "my pass"
     pattern = r'code:\s*([A-Z0-9]+).*?password:\s*(?:"([^"]+)|([^\s,]+)).*?name:\s*(.+?)(?:\s*$|\.)'
     match = re.search(pattern, message_text, re.IGNORECASE | re.DOTALL)
 
-    if match:
-        house_code = match.group(1).strip()
-        # Password is in group 2 (quoted) or group 3 (unquoted)
-        password = (match.group(2) or match.group(3)).strip()
-        name = match.group(4).strip()
+    if not match:
+        # No join request detected, return onboarding prompt
+        house_name = settings.house_name or "the house"
+        return (
+            "Welcome! You're not yet a member of this household.\n\n"
+            "To join, type:\n"
+            f"/house join {house_name}\n\n"
+            "You'll then be asked for the password and your preferred name."
+        )
 
-        # Attempt to process the join request
-        try:
-            await user_service.request_join(
-                phone=user_phone,
-                name=name,
-                house_code=house_code,
-                password=password,
-            )
+    house_code = match.group(1).strip()
+    # Password is in group 2 (quoted) or group 3 (unquoted)
+    password = (match.group(2) or match.group(3)).strip()
+    name = match.group(4).strip()
 
-            return (
-                f"Welcome, {name}! "
-                f"Your membership request has been submitted. "
-                f"An admin will review your request shortly."
-            )
-        except ValueError as e:
-            # Invalid credentials
-            logger.warning(f"Join request failed for {user_phone}: {e}")
-            return (
-                f"Sorry, I couldn't process your join request: {e}\n\n"
-                "Please check your house code and password and try again."
-            )
-        except Exception as e:
-            # Unexpected error
-            logger.error(f"Unexpected error processing join request for {user_phone}: {e}")
-            return "Sorry, an error occurred while processing your join request. Please try again later."
-
-    # No join request detected, return onboarding prompt
-    house_name = settings.house_name or "the house"
-    return (
-        "Welcome! You're not yet a member of this household.\n\n"
-        f"To join, send the command:\n"
-        f"/house join {house_name}\n\n"
-        "I'll guide you through the rest step by step."
-    )
+    # Attempt to process the join request
+    try:
+        await user_service.request_join(
+            phone=user_phone,
+            name=name,
+            house_code=house_code,
+            password=password,
+        )
+        return (
+            f"Welcome, {name}! Your membership request has been submitted. An admin will review your request shortly."
+        )
+    except ValueError as e:
+        logger.warning(f"Join request failed for {user_phone}: {e}")
+        return (
+            f"Sorry, I couldn't process your join request: {e}\n\n"
+            "Please check your house code and password and try again."
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error processing join request for {user_phone}: {e}")
+        return "Sorry, an error occurred while processing your join request. Please try again later."
 
 
 async def handle_pending_user(*, user_name: str) -> str:
@@ -354,13 +378,14 @@ async def handle_house_join(phone: str, house_name: str) -> str:
         return "You're already a member of this household!"
 
     # Guard: Validate house name matches configured value (case-insensitive)
-    if house_name.lower() != settings.house_name.lower():
+    normalized_house_name = house_name.strip().lower()
+    if normalized_house_name != settings.house_name.lower():
         return "Invalid house name. Please check and try again."
 
     # Create join session with initial state
     await session_service.create_session(
         phone=phone,
-        house_name=house_name,
+        house_name=normalized_house_name,
         step="awaiting_password",
     )
 
@@ -475,16 +500,15 @@ async def handle_join_name_step(phone: str, name: str) -> str:
 
     # Create join request
     try:
-        house_code = session.get("house_name", "")
-        if not settings.house_password:
-            logger.error("House password not configured in settings")
+        if not settings.house_code or not settings.house_password:
+            logger.error("House credentials not configured in settings")
             await session_service.delete_session(phone=phone)
             return "Sorry, house joining is not available at this time. Please contact an administrator."
 
         await user_service.request_join(
             phone=phone,
             name=name,
-            house_code=house_code,
+            house_code=settings.house_code,
             password=settings.house_password,
         )
     except Exception as e:
