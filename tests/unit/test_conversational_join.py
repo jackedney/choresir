@@ -38,7 +38,7 @@ async def test_happy_path_join_flow() -> None:
         assert "password" in response1.lower()
         mock_session_service.create_session.assert_called_once_with(
             phone=phone,
-            house_name="testhouse",
+            house_name="TestHouse",
             step="awaiting_password",
         )
 
@@ -80,10 +80,12 @@ async def test_invalid_house_name_rejected() -> None:
     with (
         patch("src.agents.choresir_agent.settings") as mock_settings,
         patch("src.agents.choresir_agent.session_service") as mock_session_service,
+        patch("src.agents.choresir_agent.user_service") as mock_user_service,
     ):
         mock_settings.house_name = "TestHouse"
         mock_session_service.get_session = AsyncMock(return_value=None)
         mock_session_service.create_session = AsyncMock()
+        mock_user_service.get_user_by_phone = AsyncMock(return_value=None)
 
         response = await handle_unknown_user(user_phone=phone, message_text="/house join WrongHouse")
 
@@ -199,10 +201,12 @@ async def test_house_join_uppercase_command() -> None:
     with (
         patch("src.agents.choresir_agent.settings") as mock_settings,
         patch("src.agents.choresir_agent.session_service") as mock_session_service,
+        patch("src.agents.choresir_agent.user_service") as mock_user_service,
     ):
         mock_settings.house_name = "TestHouse"
         mock_session_service.get_session = AsyncMock(return_value=None)
         mock_session_service.create_session = AsyncMock()
+        mock_user_service.get_user_by_phone = AsyncMock(return_value=None)
 
         response = await handle_unknown_user(user_phone=phone, message_text="/HOUSE JOIN TestHouse")
 

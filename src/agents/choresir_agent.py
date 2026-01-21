@@ -383,9 +383,10 @@ async def handle_house_join(phone: str, house_name: str) -> str:
         return "Invalid house name. Please check and try again."
 
     # Create join session with initial state
+    # Store the original house_name (preserving case) for display purposes
     await session_service.create_session(
         phone=phone,
-        house_name=normalized_house_name,
+        house_name=house_name.strip(),
         step="awaiting_password",
     )
 
