@@ -9,11 +9,11 @@ Partially Implemented
 ### Currently Implemented
 - **Basic swap logging**: The `is_swap` parameter exists in the `LogChore` tool
 - **Swap identification**: Code includes "Robin Hood swap" references for tracking takeover operations
+- **Weekly limits**: Enforced via `robin_hood_service.py` with 3 takeovers per week limit
+- **Point attribution logic**: On-time vs. overdue point distribution implemented in `analytics_service.py`
+- **Takeover tracking**: Data model tracks original assignee vs. actual completer
 
 ### Not Yet Implemented
-- **Weekly limits**: No enforcement of the 3 takeovers per week limit
-- **Point attribution logic**: The on-time vs. overdue point distribution rules are not implemented
-- **Takeover tracking**: No data model tracking of original assignee vs. actual completer
 - **WhatsApp interface**: No user-facing commands for initiating or managing takeovers
 - **Reciprocal exchange**: Optional swap mechanism is not implemented
 
