@@ -148,12 +148,34 @@ We extended the existing `APScheduler` setup rather than creating a new scheduli
 1. **Overdue Reminders** - Daily at 8am
 2. **Daily Report** - Daily at 9pm
 3. **Weekly Leaderboard** - Sunday at 8pm
+4. **Personal Chore Reminders** - Daily at 8am
+5. **Auto-Verification** - Hourly (every hour at minute 0)
 
 **Error Handling:**
 - Each job wrapped in try/except
 - Individual user failures don't crash the job
 - Comprehensive logging with Logfire
 - Graceful degradation (continues on errors)
+
+**Job Details:**
+
+**Personal Chore Reminders (Daily at 8am):**
+- Sends reminders for personal chores due today based on recurrence patterns
+- Checks each user's active personal chores against their schedule
+- Supports both one-time (due_date) and recurring chores (cron patterns)
+- DM sent to user only if they have chores due today
+
+**Auto-Verification (Hourly):**
+- Auto-approves personal chore logs pending for more than 48 hours
+- Purpose: Prevents logs stuck in PENDING state when accountability partner is inactive
+- Runs every hour to check for expired verification requests
+- Timeout threshold: `Constants.AUTO_VERIFY_PENDING_HOURS` (48 hours)
+- Implementation:
+  - Queries `personal_chore_logs` collection for logs with `verification_status = "PENDING"`
+  - Filters logs where `completed_at < (now - 48 hours)`
+  - Updates status to `VERIFIED` with feedback: "Auto-verified (partner did not respond within 48 hours)"
+  - Sends notification to chore owner about auto-verification
+- Rationale: Balance accountability with user experience; partner has 2 days to respond
 
 ### 7. UX Decisions
 

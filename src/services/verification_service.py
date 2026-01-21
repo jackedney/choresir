@@ -29,15 +29,18 @@ async def request_verification(
     chore_id: str,
     claimer_user_id: str,
     notes: str = "",
+    is_swap: bool = False,
 ) -> dict[str, Any]:
     """Request verification for a chore claim.
 
     Transitions chore to PENDING_VERIFICATION state and creates log entry.
+    Supports Robin Hood Protocol swaps where one user takes over another's chore.
 
     Args:
         chore_id: Chore ID
         claimer_user_id: ID of user claiming completion
         notes: Optional notes about completion
+        is_swap: True if this is a Robin Hood swap (one user doing another's chore)
 
     Returns:
         Created log record
@@ -47,24 +50,32 @@ async def request_verification(
         db_client.RecordNotFoundError: If chore not found
     """
     with span("verification_service.request_verification"):
+        # Get chore details to determine original assignee
+        chore = await db_client.get_record(collection="chores", record_id=chore_id)
+        original_assignee_id = chore["assigned_to"]
+
         # Transition chore to pending verification
         await chore_service.mark_pending_verification(chore_id=chore_id)
 
-        # Create log entry
+        # Create log entry with Robin Hood tracking
         log_data = {
             "chore_id": chore_id,
             "user_id": claimer_user_id,
             "action": "claimed_completion",
             "notes": notes,
             "timestamp": datetime.now().isoformat(),
+            "is_swap": is_swap,
+            "original_assignee_id": original_assignee_id,
+            "actual_completer_id": claimer_user_id,
         }
 
         log_record = await db_client.create_record(collection="logs", data=log_data)
 
         logger.info(
-            "User %s requested verification for chore %s",
+            "User %s requested verification for chore %s (is_swap=%s)",
             claimer_user_id,
             chore_id,
+            is_swap,
         )
 
         # Send verification request notifications to household members

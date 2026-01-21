@@ -177,9 +177,9 @@ You have access to tools for:
 
 ## Related ADRs
 
-- [ADR 001: WhatsApp Provider Selection](001-whatsapp-provider.md) - Messaging platform for agent interactions
-- [ADR 003: Natural Language Processing Approach](003-nlp-approach.md) - LLM backend powering the agent
-- [ADR 005: Robin Hood Protocol](005-robin-hood-protocol.md) - Feature requiring agent interpretation of chore swaps
+- [ADR 001: Technology Stack](001-stack.md) - Core technology choices including WhatsApp provider (Twilio)
+- [ADR 012: Natural Language Processing Approach](012-nlp-approach.md) - LLM backend powering the agent
+- [ADR 014: Robin Hood Protocol](014-robin-hood-protocol.md) - Feature requiring agent interpretation of chore swaps
 
 ## References
 

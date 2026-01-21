@@ -52,10 +52,10 @@ async def test_no_join_request_returns_onboarding():
 
     result = await choresir_agent.handle_unknown_user(user_phone=user_phone, message_text=message)
 
-    # Should return onboarding prompt
+    # Should return onboarding prompt with new conversational flow
     assert "Welcome! You're not yet a member" in result
-    assert "To join, please provide:" in result
-    assert "Code: XXXX, Password: YYYY, Name: Your Name" in result
+    assert "/house join" in result
+    assert "I'll guide you through the rest step by step" in result
 
 
 @pytest.mark.asyncio

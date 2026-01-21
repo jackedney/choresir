@@ -129,7 +129,7 @@ Version specifications must be explicit in:
 
 ## Related ADRs
 
-- [ADR 004: Redis Caching for Leaderboard Performance](004-redis-caching.md) - Another infrastructure component subject to version management requirements
+- [ADR 013: Redis Caching for Leaderboard Performance](013-redis-caching.md) - Another infrastructure component subject to version management requirements
 
 ## References
 

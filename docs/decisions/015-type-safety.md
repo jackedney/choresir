@@ -23,12 +23,18 @@ We will use `ty` as our type checker for this project.
 ### Running Type Checks
 
 ```bash
-# Recommended: Run directly with uv
-uv run ty
+# Recommended: Run directly with uv (check entire src directory)
+uv run ty check src
+
+# Check specific file
+uv run ty check src/agents/choresir_agent.py
+
+# Watch mode (re-check on file changes)
+uv run ty check src --watch
 
 # Alternative: Activate environment first
 source .venv/bin/activate  # or your uv environment activation method
-ty
+ty check src
 ```
 
 ## Consequences

@@ -8,7 +8,7 @@ from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
 from src.domain.chore import ChoreState
-from src.services import chore_service, personal_chore_service, user_service, verification_service
+from src.services import chore_service, personal_chore_service, robin_hood_service, user_service, verification_service
 
 
 logger = logging.getLogger(__name__)
@@ -110,12 +110,84 @@ async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
         return "Error: Unable to create chore. Please try again."
 
 
+async def _handle_robin_hood_swap(ctx: RunContext[Deps], household_match: dict, chore_title: str) -> str | None:
+    """
+    Handle Robin Hood swap validation and tracking.
+
+    Returns:
+        Error message if validation fails, None if successful
+    """
+    # Verify that the claimer is not the original assignee
+    if household_match["assigned_to"] == ctx.deps.user_id:
+        return (
+            f"Error: You are already assigned to '{chore_title}'. "
+            f"Robin Hood swaps are only for taking over another member's chore."
+        )
+
+    # Check weekly takeover limit
+    can_takeover, error_message = await robin_hood_service.can_perform_takeover(ctx.deps.user_id)
+    if not can_takeover:
+        return f"Error: {error_message}"
+
+    # Increment takeover count
+    try:
+        await robin_hood_service.increment_weekly_takeover_count(ctx.deps.user_id)
+    except RuntimeError as e:
+        logger.error("Failed to increment takeover count: %s", e)
+        return "Error: Unable to process Robin Hood swap. Please try again."
+
+    return None
+
+
+async def _validate_chore_logging(
+    ctx: RunContext[Deps],
+    household_match: dict | None,
+    personal_match: dict | None,
+    chore_title_fuzzy: str,
+    is_swap: bool,
+) -> str | None:
+    """
+    Validate chore logging request.
+
+    Returns:
+        Error message if validation fails, None if successful
+    """
+    # Check for collision
+    if household_match and personal_match:
+        return (
+            f"I found both a household chore '{household_match['title']}' and "
+            f"your personal chore '{personal_match['title']}'. "
+            f"Please be more specific: use '/personal done {chore_title_fuzzy}' "
+            f"for personal chores or provide the full household chore name."
+        )
+
+    # No collision - proceed with household chore logging
+    if not household_match:
+        return f"Error: No household chore found matching '{chore_title_fuzzy}'."
+
+    chore_title = household_match["title"]
+
+    # Check if chore is in TODO state
+    if household_match["current_state"] != ChoreState.TODO:
+        return (
+            f"Error: Chore '{chore_title}' is in state '{household_match['current_state']}' "
+            f"and cannot be logged right now."
+        )
+
+    # Robin Hood Protocol: Check if this is a swap and enforce weekly limits
+    if is_swap:
+        return await _handle_robin_hood_swap(ctx, household_match, chore_title)
+
+    return None
+
+
 async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     """
     Log a chore completion and request verification.
 
     Supports fuzzy matching for chore titles and Robin Hood swaps.
     Checks for name collisions with personal chores.
+    Enforces weekly takeover limits for Robin Hood swaps.
 
     Args:
         ctx: Agent runtime context with dependencies
@@ -141,35 +213,24 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
                 personal_chores, params.chore_title_fuzzy
             )
 
-            # Check for collision
-            if household_match and personal_match:
-                # Cannot disambiguate - require more specific input
-                return (
-                    f"I found both a household chore '{household_match['title']}' and "
-                    f"your personal chore '{personal_match['title']}'. "
-                    f"Please be more specific: use '/personal done {params.chore_title_fuzzy}' "
-                    f"for personal chores or provide the full household chore name."
-                )
+            # Validate the chore logging request
+            validation_error = await _validate_chore_logging(
+                ctx, household_match, personal_match, params.chore_title_fuzzy, params.is_swap
+            )
+            if validation_error:
+                return validation_error
 
-            # No collision - proceed with household chore logging
-            if not household_match:
-                return f"Error: No household chore found matching '{params.chore_title_fuzzy}'."
-
+            # At this point, household_match is guaranteed to be not None
+            assert household_match is not None  # Type narrowing for static analysis
             chore_id = household_match["id"]
             chore_title = household_match["title"]
-
-            # Check if chore is in TODO state
-            if household_match["current_state"] != ChoreState.TODO:
-                return (
-                    f"Error: Chore '{chore_title}' is in state '{household_match['current_state']}' "
-                    f"and cannot be logged right now."
-                )
 
             # Log the completion
             await verification_service.request_verification(
                 chore_id=chore_id,
                 claimer_user_id=ctx.deps.user_id,
                 notes=params.notes or "",
+                is_swap=params.is_swap,
             )
 
             swap_msg = " (Robin Hood swap)" if params.is_swap else ""

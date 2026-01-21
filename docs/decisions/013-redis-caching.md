@@ -135,7 +135,7 @@ If future evaluation indicates Redis is not the optimal solution:
 
 ## Related ADRs
 
-- [ADR 002: Version Management Strategy](002-version-management.md) - Establishes version parity requirements that apply to Redis infrastructure
+- [ADR 011: Version Management Strategy](011-version-management.md) - Establishes version parity requirements that apply to Redis infrastructure
 
 ## References
 

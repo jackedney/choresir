@@ -90,6 +90,11 @@ class Settings(BaseSettings):
         default=60, description="Cooldown period between notifications for the same error category (in minutes)"
     )
 
+    # Robin Hood Protocol Configuration
+    robin_hood_weekly_limit: int = Field(
+        default=3, description="Maximum number of chore takeovers allowed per user per week"
+    )
+
 
 # Application Constants
 class Constants:

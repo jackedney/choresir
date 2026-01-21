@@ -72,7 +72,7 @@ This automatically:
 - Starts all services
 - Shows you the ngrok URL for webhook configuration
 
-For more control, see [Local Development Guide](LOCAL_DEVELOPMENT.md).
+For more control, start services individually (see step-by-step instructions below).
 
 ---
 
@@ -349,7 +349,7 @@ message = client.messages.create(
 )
 ```
 
-**For detailed template specifications and troubleshooting, see [WhatsApp Templates Guide](WHATSAPP_TEMPLATES.md).**
+**Note:** Template approval typically takes 24-48 hours. You can test basic functionality without templates, but scheduled reminders and verification buttons require approved templates.
 
 ---
 
@@ -409,14 +409,15 @@ After the system is running, you need to create the first admin user.
 
 ### Option 1: Via WhatsApp (Recommended)
 
-1. Send a message to the bot: "I want to join. Code: FAMILY2024, Password: your-password, Name: Your Name"
-2. The bot will create your account with status "pending"
-3. Go to PocketBase Admin UI: http://127.0.0.1:8090/_/
-4. Navigate to Collections → users
-5. Find your user record
-6. Edit: Change `role` from "member" to "admin"
-7. Edit: Change `status` from "pending" to "active"
-8. Save
+1. Send a message to the bot: `/house join MyHouse` (replace MyHouse with your configured HOUSE_NAME)
+2. Follow the bot's prompts to provide your password and name
+3. The bot will create your account with status "pending"
+4. Go to PocketBase Admin UI: http://127.0.0.1:8090/_/
+5. Navigate to Collections → users
+6. Find your user record
+7. Edit: Change `role` from "member" to "admin"
+8. Edit: Change `status` from "pending" to "active"
+9. Save
 
 ### Option 2: Manually in PocketBase
 

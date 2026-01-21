@@ -291,14 +291,12 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
             return "Sorry, an error occurred while processing your join request. Please try again later."
 
     # No join request detected, return onboarding prompt
+    house_name = settings.house_name or "the house"
     return (
         "Welcome! You're not yet a member of this household.\n\n"
-        "To join, please provide:\n"
-        "1. House code\n"
-        "2. House password\n"
-        "3. Your preferred name\n\n"
-        "Say something like: 'I want to join. Code: XXXX, Password: YYYY, Name: Your Name'\n"
-        '(Use quotes around password if it contains spaces or commas: Password: "my pass")'
+        f"To join, send the command:\n"
+        f"/house join {house_name}\n\n"
+        "I'll guide you through the rest step by step."
     )
 
 

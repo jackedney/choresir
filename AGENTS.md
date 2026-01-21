@@ -3,7 +3,7 @@
 **Target Audience:** AI Agents (Claude, Gemini, etc.) modifying this codebase.
 **Purpose:** This document serves as the "System Prompt" extension for this repository. It defines the coding standards, architectural patterns, and operational constraints you must follow.
 
-**CRITICAL:** This file is NOT for defining the business logic of agents *within* the application (e.g., `choresir`). Those specifications belong in `adrs/` (e.g., `adrs/002-agents.md`).
+**CRITICAL:** This file is NOT for defining the business logic of agents *within* the application (e.g., `choresir`). Those specifications belong in `docs/decisions/` (e.g., `docs/decisions/002-agents.md`).
 
 ---
 
@@ -121,3 +121,55 @@ Specific rules for building Pydantic AI agents in `src/agents/`.
 ## 7. Testing Strategy
 *   **Integration:** Use `pytest` with an ephemeral PocketBase instance (via `TestClient` fixture).
 *   **No Mocks:** Do not mock the database logic. Test against the real (temporary) binary.
+
+## 8. Development Workflow
+
+### A. Code Quality Commands
+
+Before committing code, run these checks:
+
+```bash
+# Format code with ruff
+uv run ruff format .
+
+# Lint code with ruff
+uv run ruff check . --fix
+
+# Type check with ty
+uv run ty check src
+
+# Run tests
+uv run pytest
+```
+
+### B. Pre-Commit Checklist
+
+- [ ] Code is formatted (`ruff format .`)
+- [ ] No linting errors (`ruff check .`)
+- [ ] Type checking passes (`ty check src`)
+- [ ] All tests pass (`pytest`)
+- [ ] No uncommitted changes
+
+### C. Type Checking with ty
+
+**Why ty?** Astral's `ty` is 10-60x faster than mypy/pyright, with better error messages and first-class support for modern Python features.
+
+**Running ty:**
+```bash
+# Check entire src directory
+uv run ty check src
+
+# Check specific file
+uv run ty check src/agents/choresir_agent.py
+
+# Watch mode (re-check on file changes)
+uv run ty check src --watch
+```
+
+**Common Type Issues:**
+- Missing return type annotations
+- Untyped function parameters
+- Incorrect type hints for async functions
+- Missing `-> None` for functions without return values
+
+See [ADR-017](docs/decisions/017-type-safety.md) for more details on type checking configuration.
