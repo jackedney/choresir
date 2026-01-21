@@ -106,7 +106,12 @@ async def _fetch_claim_logs_map(chore_ids: list[str]) -> dict[str, dict]:
             filter_query=f'action = "claimed_completion" && ({or_clause})',
         )
         for claim_log in claim_logs:
-            claim_logs_map[claim_log["chore_id"]] = claim_log
+            chore_id = claim_log["chore_id"]
+            # Keep only the most recent claim log per chore
+            if chore_id not in claim_logs_map or claim_log.get("timestamp", "") > claim_logs_map[chore_id].get(
+                "timestamp", ""
+            ):
+                claim_logs_map[chore_id] = claim_log
     return claim_logs_map
 
 
