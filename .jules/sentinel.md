@@ -17,3 +17,10 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** PocketBase collections (`users`, `chores`, etc.) were configured with public API rules (`listRule: ""`, etc.), allowing unauthenticated users to list and view all data, including PII like phone numbers.
 **Learning:** The initial configuration likely assumed public access was required for the backend service to function or for registration, not realizing that the backend service uses Admin authentication which bypasses these rules.
 **Prevention:** Default to restrictive rules (`None`) for all collections. Only enable public or user-scoped rules when there is a direct client-side requirement.
+
+## 2026-06-15 - [PocketBase Filter Injection]
+**Vulnerability:** PocketBase filter queries were constructed using f-strings with unsanitized user inputs (e.g., `f'assigned_to = "{user_id}"'`). This allowed attackers to break out of the quoted string and inject arbitrary filter logic (Filter Injection).
+**Learning:** Manual string concatenation for query building is prone to injection, even in NoSQL/BaaS contexts. Developers often forget to escape inputs when not using a query builder.
+**Prevention:**
+1. Always use `src.core.db_client.sanitize_param()` for any dynamic value embedded in a filter string.
+2. Added regression tests in `tests/security/test_filter_injection.py` to verify sanitization.

@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from src.core import db_client
+from src.core.db_client import sanitize_param
 from src.core.logging import span
 from src.core.recurrence_parser import parse_recurrence_to_cron
 from src.domain.chore import ChoreState
@@ -82,10 +83,10 @@ async def get_chores(
         filters = []
 
         if user_id:
-            filters.append(f'assigned_to = "{user_id}"')
+            filters.append(f'assigned_to = "{sanitize_param(user_id)}"')
 
         if state:
-            filters.append(f'current_state = "{state}"')
+            filters.append(f'current_state = "{sanitize_param(state)}"')
 
         if time_range_start:
             filters.append(f'deadline >= "{time_range_start.isoformat()}"')
