@@ -243,10 +243,10 @@ def _get_collection_schema(
             "name": "personal_chores",
             "type": "base",
             "system": False,
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "",
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
             "deleteRule": None,
             "fields": [
                 {"name": "owner_phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
@@ -277,10 +277,10 @@ def _get_collection_schema(
             "name": "personal_chore_logs",
             "type": "base",
             "system": False,
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "",  # Allow updates for verification status
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
             "deleteRule": None,
             "fields": [
                 {
@@ -318,12 +318,11 @@ def _get_collection_schema(
             "name": "join_sessions",
             "type": "base",
             "system": False,
-            # API Rules: Anyone can list/view/create/update (needed for webhook processing),
-            # deletion is admin-only
-            "listRule": "",
-            "viewRule": "",
-            "createRule": "",
-            "updateRule": "",
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
             "deleteRule": None,
             "fields": [
                 {"name": "phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
