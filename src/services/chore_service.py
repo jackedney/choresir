@@ -82,7 +82,7 @@ async def get_chores(
         filters = []
 
         if user_id:
-            filters.append(f'assigned_to = "{user_id}"')
+            filters.append(f'assigned_to = "{db_client.sanitize_param(user_id)}"')
 
         if state:
             filters.append(f'current_state = "{state}"')

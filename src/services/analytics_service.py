@@ -83,7 +83,7 @@ async def _fetch_chores_map(chore_ids: list[str]) -> dict[str, dict]:
     chunk_size = 50
     for i in range(0, len(unique_chore_ids), chunk_size):
         chunk = unique_chore_ids[i : i + chunk_size]
-        or_clause = " || ".join([f'id = "{cid}"' for cid in chunk])
+        or_clause = " || ".join([f'id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
         chores = await db_client.list_records(
             collection="chores",
             filter_query=or_clause,
@@ -100,7 +100,7 @@ async def _fetch_claim_logs_map(chore_ids: list[str]) -> dict[str, dict]:
     chunk_size = 50
     for i in range(0, len(unique_chore_ids), chunk_size):
         chunk = unique_chore_ids[i : i + chunk_size]
-        or_clause = " || ".join([f'chore_id = "{cid}"' for cid in chunk])
+        or_clause = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
         claim_logs = await db_client.list_records(
             collection="logs",
             filter_query=f'action = "claimed_completion" && ({or_clause})',
@@ -507,7 +507,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                         for i in range(0, len(chore_ids_list), chunk_size):
                             chunk = chore_ids_list[i : i + chunk_size]
                             chunk_index = i // chunk_size
-                            or_clause = " || ".join([f'chore_id = "{cid}"' for cid in chunk])
+                            or_clause = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
 
                             # Fetch claims with pagination handling
                             page = 1
@@ -516,7 +516,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                             while True:
                                 try:
                                     filter_query = (
-                                        f'user_id = "{user_id}" && action = "claimed_completion" && ({or_clause})'
+                                        f'user_id = "{db_client.sanitize_param(user_id)}" && action = "claimed_completion" && ({or_clause})'
                                     )
                                     logs = await db_client.list_records(
                                         collection="logs",
