@@ -120,6 +120,7 @@ async def test_name_step_calls_request_join_with_correct_params() -> None:
         patch("src.agents.choresir_agent.User") as mock_user_class,
     ):
         mock_settings.house_password = "correct_password"
+        mock_settings.house_code = "TestHouse"
         mock_session_service.get_session = AsyncMock(
             return_value={
                 "id": "session123",
@@ -134,7 +135,7 @@ async def test_name_step_calls_request_join_with_correct_params() -> None:
 
         await handle_join_name_step("+1234567890", "John Doe")
 
-        # Verify request_join was called with correct params
+        # Verify request_join was called with correct params (house_code now comes from settings)
         mock_user_service.request_join.assert_called_once_with(
             phone="+1234567890",
             name="John Doe",

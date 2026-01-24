@@ -76,7 +76,7 @@ async def test_handle_house_join_creates_session_on_success() -> None:
         # Verify password prompt
         assert "password" in response.lower()
 
-        # Verify session creation
+        # Verify session creation (house_name preserves original case)
         mock_session_service.create_session.assert_called_once_with(
             phone="+1234567890",
             house_name="TestHouse",

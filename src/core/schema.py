@@ -335,7 +335,7 @@ def _get_collection_schema(
                     "values": ["awaiting_password", "awaiting_name"],
                     "maxSelect": 1,
                 },
-                {"name": "password_attempts_count", "type": "number", "required": False},
+                {"name": "password_attempts_count", "type": "number", "required": False, "default": 0},
                 {"name": "last_attempt_at", "type": "date", "required": False},
                 {"name": "created_at", "type": "date", "required": True},
                 {"name": "expires_at", "type": "date", "required": True},
