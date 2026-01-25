@@ -22,6 +22,7 @@ from pydantic import ValidationError
 
 from src.core import db_client
 from src.core.config import Constants
+from src.core.db_client import sanitize_param
 from src.core.logging import span
 from src.core.redis_client import redis_client
 from src.domain.chore import ChoreState
@@ -335,7 +336,7 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
         ]
 
         if user_id:
-            filters.append(f'assigned_to = "{user_id}"')
+            filters.append(f'assigned_to = "{sanitize_param(user_id)}"')
 
         filter_query = " && ".join(filters)
 
@@ -516,7 +517,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                             while True:
                                 try:
                                     filter_query = (
-                                        f'user_id = "{user_id}" && action = "claimed_completion" && ({or_clause})'
+                                        f'user_id = "{sanitize_param(user_id)}" && action = "claimed_completion" && ({or_clause})'
                                     )
                                     logs = await db_client.list_records(
                                         collection="logs",

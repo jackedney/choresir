@@ -22,3 +22,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** Collections `join_sessions`, `personal_chores`, and `personal_chore_logs` were left with public API rules (`""`), exposing personal phone numbers and private chore data.
 **Learning:** Security audits must cover all collections, including auxiliary or "temporary" ones like `join_sessions`. Comments suggesting public access is "needed for webhook processing" can be misleading when the backend uses admin privileges.
 **Prevention:** Verify the actual client usage (Admin vs. User) before trusting comments claiming public access is required. Audit all collections during security reviews, not just the core ones.
+
+## 2026-02-20 - [Filter Injection in Analytics Service]
+**Vulnerability:** `analytics_service` and `robin_hood_service` were constructing PocketBase filter queries by directly interpolating user IDs (e.g. `f'user_id = "{user_id}"'`). This allowed attackers to inject malicious filter logic (e.g. `foo" || true || "`) to bypass filters or access unauthorized data.
+**Learning:** Even in backend service-to-service calls, inputs like `user_id` should not be trusted if they originate from potentially manipulatable contexts (like API params or Agent tools). `sanitize_param` exists but wasn't consistently applied in newer services.
+**Prevention:** Enforce usage of `sanitize_param` for ALL variable interpolation in PocketBase filter strings. Added security tests to `tests/security/` to specifically check for injection in these services.
