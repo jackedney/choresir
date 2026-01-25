@@ -125,34 +125,15 @@ async def verify_chore(
     """
     with span("verification_service.verify_chore"):
         # Guard: Get the original claim log to find the claimer
-        # Get all logs (PocketBase filter seems to have issues)
-        # Fetch all pages to avoid missing data
-        all_logs = []
-        page = 1
-        while True:
-            page_logs = await db_client.list_records(
-                collection="logs",
-                filter_query="",
-                sort="-timestamp",
-                per_page=LOGS_PAGE_SIZE,
-                page=page,
-            )
-            if not page_logs:
-                break
-            all_logs.extend(page_logs)
-            if len(page_logs) < LOGS_PAGE_SIZE:
-                break
-            page += 1
-        # Filter manually for claimed_completion logs for this chore
-        claim_logs = [
-            log for log in all_logs if log.get("action") == "claimed_completion" and log.get("chore_id") == chore_id
-        ][:1]
+        # Use a specific filter query instead of fetching all logs (DoS prevention)
+        filter_query = f'chore_id = "{db_client.sanitize_param(chore_id)}" && action = "claimed_completion"'
+        claim_log = await db_client.get_first_record(collection="logs", filter_query=filter_query)
 
-        if not claim_logs:
+        if not claim_log:
             msg = f"No claim log found for chore {chore_id}"
             raise KeyError(msg)
 
-        claimer_user_id = claim_logs[0]["user_id"]
+        claimer_user_id = claim_log["user_id"]
 
         # Guard: Prevent self-verification
         if verifier_user_id == claimer_user_id:
@@ -213,41 +194,31 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
 
         # If user_id provided, filter out chores they claimed
         if user_id:
-            # Get all logs once (PocketBase filter seems to have issues)
-            # Fetch all pages to avoid missing data
-            all_logs = []
-            page = 1
-            while True:
-                page_logs = await db_client.list_records(
-                    collection="logs",
-                    filter_query="",
-                    sort="-timestamp",
-                    per_page=LOGS_PAGE_SIZE,
-                    page=page,
-                )
-                if not page_logs:
-                    break
-                all_logs.extend(page_logs)
-                if len(page_logs) < LOGS_PAGE_SIZE:
-                    break
-                page += 1
+            if not chores:
+                return []
 
-            # Build map of chore claims
-            # Map chore_id -> user_id of the claimer
-            # We preserve the behavior of taking the first matching log in the list
-            chore_claims = {}
-            for log in all_logs:
-                if log.get("action") == "claimed_completion":
-                    c_id = log.get("chore_id")
-                    # Only take the first claim log found for each chore
-                    if c_id and c_id not in chore_claims:
-                        chore_claims[c_id] = log.get("user_id")
+            # Build filter query for logs (action="claimed_completion" && chore_id in [...])
+            chore_ids = [c["id"] for c in chores]
+            chore_id_conditions = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chore_ids])
+            # Optimization: Filter by user_id as well to only find claims by THIS user
+            # This ensures we don't miss self-claims due to pagination if there are many other claims
+            filter_query = f'action = "claimed_completion" && user_id = "{db_client.sanitize_param(user_id)}" && ({chore_id_conditions})'
+
+            # Fetch logs matching these chores AND this user
+            logs = await db_client.list_records(
+                collection="logs",
+                filter_query=filter_query,
+                sort="-timestamp",
+                per_page=LOGS_PAGE_SIZE,
+            )
+
+            # Build set of chores claimed by this user
+            user_claimed_chore_ids = {log.get("chore_id") for log in logs if log.get("chore_id")}
 
             filtered_chores = []
             for chore in chores:
                 # Exclude if this user claimed it
-                claimer_id = chore_claims.get(chore["id"])
-                if claimer_id != user_id:
+                if chore["id"] not in user_claimed_chore_ids:
                     filtered_chores.append(chore)
             return filtered_chores
 

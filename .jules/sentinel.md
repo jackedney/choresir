@@ -22,3 +22,11 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** Collections `join_sessions`, `personal_chores`, and `personal_chore_logs` were left with public API rules (`""`), exposing personal phone numbers and private chore data.
 **Learning:** Security audits must cover all collections, including auxiliary or "temporary" ones like `join_sessions`. Comments suggesting public access is "needed for webhook processing" can be misleading when the backend uses admin privileges.
 **Prevention:** Verify the actual client usage (Admin vs. User) before trusting comments claiming public access is required. Audit all collections during security reviews, not just the core ones.
+
+## 2026-03-05 - [Unbounded Query DoS Prevention]
+**Vulnerability:** The `verify_chore` and `get_pending_verifications` functions in `verification_service.py` contained `while True` loops that fetched *all* logs from the database to filter them in memory. This is a Denial of Service (DoS) vulnerability as the logs collection grows.
+**Learning:** Using in-memory filtering for database records is unsafe and unscalable. Always push filtering to the database query layer.
+**Prevention:**
+1. Replaced unbounded loops with specific PocketBase filter queries (e.g., `filter_query='chore_id = "..." && action = "..."'`).
+2. Utilized `db_client.get_first_record` for single-record lookups.
+3. Added `user_id` filtering to list queries to ensure pagination limits (500) don't hide security-critical records (like self-claims).
