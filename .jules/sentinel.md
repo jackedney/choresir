@@ -22,3 +22,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** Collections `join_sessions`, `personal_chores`, and `personal_chore_logs` were left with public API rules (`""`), exposing personal phone numbers and private chore data.
 **Learning:** Security audits must cover all collections, including auxiliary or "temporary" ones like `join_sessions`. Comments suggesting public access is "needed for webhook processing" can be misleading when the backend uses admin privileges.
 **Prevention:** Verify the actual client usage (Admin vs. User) before trusting comments claiming public access is required. Audit all collections during security reviews, not just the core ones.
+
+## 2026-02-20 - [Hardcoded Passwords in Auto-Provisioned Accounts]
+**Vulnerability:** New users created via the WhatsApp onboarding flow were assigned a hardcoded password ("temp_password_will_be_set_on_activation"). While PocketBase API rules restricted access, this created a latent vulnerability where anyone knowing the phone number could potentially authenticate against the API if rules were ever relaxed or if another vulnerability allowed bypassing the admin-only check.
+**Learning:** Even when accounts are "service-managed" or authenticated via alternative means (WhatsApp), the underlying auth provider (PocketBase) still enforces its own authentication model. Hardcoding passwords relies entirely on the API access layer for security, violating defense-in-depth.
+**Prevention:** Always generate high-entropy random passwords for service-created accounts using `secrets.token_urlsafe()`, even if those passwords are never intended to be used by humans.
