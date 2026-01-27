@@ -335,7 +335,7 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
         ]
 
         if user_id:
-            filters.append(f'assigned_to = "{user_id}"')
+            filters.append(f'assigned_to = "{db_client.sanitize_param(user_id)}"')
 
         filter_query = " && ".join(filters)
 
