@@ -69,14 +69,20 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         # Create pending user
         # Generate email from phone for PocketBase auth collection requirement
         email = f"{phone.replace('+', '').replace('-', '')}@choresir.local"
+
+        # Security: Use cryptographically secure random password for pending users
+        # rather than a hardcoded string to prevent unauthorized access.
+        # This password is never shared with the user.
+        temp_password = secrets.token_urlsafe(32)
+
         user_data = {
             "phone": phone,
             "name": name,
             "email": email,
             "role": UserRole.MEMBER,
             "status": UserStatus.PENDING,
-            "password": "temp_password_will_be_set_on_activation",
-            "passwordConfirm": "temp_password_will_be_set_on_activation",
+            "password": temp_password,
+            "passwordConfirm": temp_password,
         }
 
         record = await db_client.create_record(collection="users", data=user_data)
