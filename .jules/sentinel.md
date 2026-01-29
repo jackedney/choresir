@@ -22,3 +22,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** Collections `join_sessions`, `personal_chores`, and `personal_chore_logs` were left with public API rules (`""`), exposing personal phone numbers and private chore data.
 **Learning:** Security audits must cover all collections, including auxiliary or "temporary" ones like `join_sessions`. Comments suggesting public access is "needed for webhook processing" can be misleading when the backend uses admin privileges.
 **Prevention:** Verify the actual client usage (Admin vs. User) before trusting comments claiming public access is required. Audit all collections during security reviews, not just the core ones.
+
+## 2026-10-18 - [Hardcoded Credential Prevention]
+**Vulnerability:** User accounts were being provisioned with a hardcoded password ("temp_password_will_be_set_on_activation"). This created a backdoor where knowing a user's phone number (which determines their email) allowed logging in as them if API rules were not restrictive.
+**Learning:** Even if the onboarding flow intends for passwords to be "temporary", hardcoding them bypasses defense-in-depth. Reliance on API rules alone is insufficient if the credentials themselves are known.
+**Prevention:** Always use `secrets.token_urlsafe()` to generate random credentials, even for temporary accounts. Never hardcode passwords in the codebase.
