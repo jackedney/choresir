@@ -72,6 +72,11 @@ class TestRequestJoin:
         expected_email = f"{sample_join_request['phone'].replace('+', '').replace('-', '')}@choresir.local"
         assert result["email"] == expected_email
 
+        # Password should be securely generated
+        assert result["password"] != "temp_password_will_be_set_on_activation"
+        assert len(result["password"]) >= 32  # Should be long enough
+        assert result["password"] == result["passwordConfirm"]
+
     async def test_request_join_invalid_house_code(self, patched_user_db, patched_settings, sample_join_request):
         """Test join request fails with invalid house code."""
         sample_join_request["house_code"] = "WRONG_CODE"
