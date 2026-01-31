@@ -27,3 +27,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The user onboarding process (`user_service.request_join`) used a hardcoded string (`"temp_password_will_be_set_on_activation"`) as the initial password for pending user accounts.
 **Learning:** Hardcoding credentials, even for temporary or pending accounts, creates a persistent vulnerability. If the pending account status is bypassed or if the user becomes active without changing the password, the account remains compromised.
 **Prevention:** Use `secrets.token_urlsafe(32)` to generate a cryptographically secure random password for all new accounts, ensuring that even initial/pending accounts are protected against default credential attacks.
+
+## 2026-03-08 - [DoS Prevention in Verification Service]
+**Vulnerability:** `verification_service` was fetching all records from the `logs` collection (using a `while True` loop) to find chore claims, leading to unbounded data retrieval. As the logs collection grows, this would cause severe performance degradation and potential Denial of Service (DoS) due to memory exhaustion or timeouts.
+**Learning:** Client-side filtering of database records scales poorly (`O(N)` where N is total history) compared to server-side filtering (`O(log N)` or `O(1)` with indexes). Workarounds for "complex filters" often introduce greater risks than the complexity they avoid.
+**Prevention:** Always use server-side filtering (`filter_query`) in `list_records`. Avoid unbounded pagination loops. If a query seems too complex for the filter syntax, verify if the schema or access pattern needs optimization rather than fetching all data.
