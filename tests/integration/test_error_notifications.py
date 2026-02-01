@@ -96,7 +96,7 @@ async def test_webhook_critical_error_notification(mock_db_module, db_client, sa
         sent_messages.append({"to_phone": to_phone, "text": text})
         return MagicMock(success=True, message_id="test_msg_id")
 
-    # Mock parse_twilio_webhook to return a parsed message
+    # Mock parse_waha_webhook to return a parsed message
     mock_parsed = ParsedMessage(
         message_id="test_msg_123",
         from_phone="+15551234567",
@@ -115,7 +115,7 @@ async def test_webhook_critical_error_notification(mock_db_module, db_client, sa
             side_effect=mock_send_message,
         ),
         patch(
-            "src.interface.webhook.whatsapp_parser.parse_twilio_webhook",
+            "src.interface.webhook.whatsapp_parser.parse_waha_webhook",
             return_value=mock_parsed,
         ),
         patch("src.interface.webhook.choresir_agent.build_deps", side_effect=mock_build_deps),
