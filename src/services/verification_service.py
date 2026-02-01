@@ -124,16 +124,22 @@ async def verify_chore(
         db_client.RecordNotFoundError: If chore or log not found
     """
     with span("verification_service.verify_chore"):
-        # Guard: Get the original claim log to find the claimer
+        # Guard: Get the latest claim log to find the claimer (sorted by timestamp for determinism)
         # Use a specific filter query instead of fetching all logs (DoS prevention)
         filter_query = f'chore_id = "{db_client.sanitize_param(chore_id)}" && action = "claimed_completion"'
-        claim_log = await db_client.get_first_record(collection="logs", filter_query=filter_query)
+        claim_logs = await db_client.list_records(
+            collection="logs",
+            filter_query=filter_query,
+            sort="-timestamp",
+            per_page=1,
+        )
 
-        if not claim_log:
+        if not claim_logs:
             msg = f"No claim log found for chore {chore_id}"
             raise KeyError(msg)
 
-        claimer_user_id = claim_log["user_id"]
+        latest_claim = claim_logs[0]
+        claimer_user_id = latest_claim["user_id"]
 
         # Guard: Prevent self-verification
         if verifier_user_id == claimer_user_id:
@@ -207,16 +213,25 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
                 f'action = "claimed_completion" && user_id = "{sanitized_user_id}" && ({chore_id_conditions})'
             )
 
-            # Fetch logs matching these chores AND this user
-            logs = await db_client.list_records(
-                collection="logs",
-                filter_query=filter_query,
-                sort="-timestamp",
-                per_page=LOGS_PAGE_SIZE,
-            )
-
-            # Build set of chores claimed by this user
-            user_claimed_chore_ids = {log.get("chore_id") for log in logs if log.get("chore_id")}
+            # Fetch all logs matching these chores AND this user (paginate to get all)
+            user_claimed_chore_ids: set[str] = set()
+            page = 1
+            while True:
+                logs = await db_client.list_records(
+                    collection="logs",
+                    filter_query=filter_query,
+                    sort="-timestamp",
+                    per_page=LOGS_PAGE_SIZE,
+                    page=page,
+                )
+                # Accumulate chore IDs from this page
+                for log in logs:
+                    if chore_id := log.get("chore_id"):
+                        user_claimed_chore_ids.add(chore_id)
+                # Stop if we got fewer than a full page (no more results)
+                if len(logs) < LOGS_PAGE_SIZE:
+                    break
+                page += 1
 
             filtered_chores = []
             for chore in chores:
