@@ -2,6 +2,8 @@
 
 import logging
 from datetime import UTC, date, datetime
+from itertools import groupby
+from operator import attrgetter
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -91,15 +93,12 @@ async def send_overdue_reminders() -> None:
             return
 
         # Group chores by assigned user
-        chores_by_user: dict[str, list[OverdueChore]] = {}
-        for chore in overdue_chores:
-            user_id = chore.assigned_to
-            if not user_id:
-                continue  # Skip unassigned chores
-
-            if user_id not in chores_by_user:
-                chores_by_user[user_id] = []
-            chores_by_user[user_id].append(chore)
+        sorted_chores = sorted(overdue_chores, key=attrgetter("assigned_to"))
+        chores_by_user = {
+            user_id: list(chores)
+            for user_id, chores in groupby(sorted_chores, key=attrgetter("assigned_to"))
+            if user_id  # Skip unassigned chores (None or empty string)
+        }
 
         # Send reminders to each user
         sent_count = 0

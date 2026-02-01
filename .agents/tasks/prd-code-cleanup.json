@@ -64,7 +64,7 @@
     {
       "id": "US-002",
       "title": "Consolidate error classification duplication in errors.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -78,13 +78,13 @@
         "All existing tests for error classification pass"
       ],
       "startedAt": "2026-02-01T22:30:35.250383+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-01T22:30:35.250587+00:00"
+      "completedAt": "2026-02-01T22:38:44.083124+00:00",
+      "updatedAt": "2026-02-01T22:38:44.082862+00:00"
     },
     {
       "id": "US-003",
       "title": "Replace manual grouping with itertools.groupby in scheduler.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
@@ -95,7 +95,10 @@
         "Example: `chores_by_user = {k: list(v) for k, v in groupby(sorted(chores, key=attrgetter('assigned_to')), key=attrgetter('assigned_to'))}`",
         "Negative case: Ensure sorted() is called before groupby when input is not pre-sorted",
         "All scheduler tests pass"
-      ]
+      ],
+      "startedAt": "2026-02-01T22:38:46.204792+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-01T22:38:46.205078+00:00"
     },
     {
       "id": "US-004",
