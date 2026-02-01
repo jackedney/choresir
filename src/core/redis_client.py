@@ -12,7 +12,7 @@ from redis.asyncio import Redis
 from redis.asyncio.connection import ConnectionPool
 from redis.exceptions import RedisError
 
-from src.core.config import settings
+from src.core.config import Constants, settings
 
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ class RedisClient:
         self._total_operations = 0
 
         # Fallback queue for cache invalidation when Redis is unavailable
-        self._invalidation_queue: deque[tuple[str, ...]] = deque(maxlen=1000)
+        self._invalidation_queue: deque[tuple[str, ...]] = deque(maxlen=Constants.REDIS_INVALIDATION_QUEUE_MAXLEN)
 
         if self._enabled and settings.redis_url:
             try:
@@ -90,7 +90,7 @@ class RedisClient:
                 self._pool = ConnectionPool.from_url(
                     settings.redis_url,
                     decode_responses=True,
-                    max_connections=10,
+                    max_connections=Constants.REDIS_MAX_CONNECTIONS,
                 )
                 self._client = Redis(connection_pool=self._pool)
                 logger.info("Redis client initialized with URL: %s", settings.redis_url)

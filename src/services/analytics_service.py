@@ -80,9 +80,8 @@ async def _fetch_chores_map(chore_ids: list[str]) -> dict[str, dict]:
     """Fetch chores in chunks and return as a map."""
     chores_map = {}
     unique_chore_ids = list(set(chore_ids))
-    chunk_size = 50
-    for i in range(0, len(unique_chore_ids), chunk_size):
-        chunk = unique_chore_ids[i : i + chunk_size]
+    for i in range(0, len(unique_chore_ids), Constants.ANALYTICS_CHUNK_SIZE):
+        chunk = unique_chore_ids[i : i + Constants.ANALYTICS_CHUNK_SIZE]
         or_clause = " || ".join([f'id = "{cid}"' for cid in chunk])
         chores = await db_client.list_records(
             collection="chores",
@@ -97,9 +96,8 @@ async def _fetch_claim_logs_map(chore_ids: list[str]) -> dict[str, dict]:
     """Fetch claim logs in chunks and return as a map."""
     claim_logs_map = {}
     unique_chore_ids = list(set(chore_ids))
-    chunk_size = 50
-    for i in range(0, len(unique_chore_ids), chunk_size):
-        chunk = unique_chore_ids[i : i + chunk_size]
+    for i in range(0, len(unique_chore_ids), Constants.ANALYTICS_CHUNK_SIZE):
+        chunk = unique_chore_ids[i : i + Constants.ANALYTICS_CHUNK_SIZE]
         or_clause = " || ".join([f'chore_id = "{cid}"' for cid in chunk])
         claim_logs = await db_client.list_records(
             collection="logs",
@@ -490,9 +488,10 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                         # This avoids fetching thousands of historical claims for completed chores.
                         # We process in chunks to avoid potentially long filter queries.
                         chore_ids_list = list(pending_chore_ids)
-                        chunk_size = 50
-                        per_page_limit = chunk_size * 2  # 2x buffer for expected 1 claim per chore
-                        estimated_chunks = (len(chore_ids_list) + chunk_size - 1) // chunk_size
+                        per_page_limit = Constants.ANALYTICS_CHUNK_SIZE * 2  # 2x buffer for expected 1 claim per chore
+                        estimated_chunks = (
+                            len(chore_ids_list) + Constants.ANALYTICS_CHUNK_SIZE - 1
+                        ) // Constants.ANALYTICS_CHUNK_SIZE
 
                         logger.debug(
                             "Processing pending claims",
@@ -500,13 +499,13 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                                 "user_id": user_id,
                                 "pending_chores_count": len(pending_chore_ids),
                                 "estimated_chunks": estimated_chunks,
-                                "chunk_size": chunk_size,
+                                "chunk_size": Constants.ANALYTICS_CHUNK_SIZE,
                             },
                         )
 
-                        for i in range(0, len(chore_ids_list), chunk_size):
-                            chunk = chore_ids_list[i : i + chunk_size]
-                            chunk_index = i // chunk_size
+                        for i in range(0, len(chore_ids_list), Constants.ANALYTICS_CHUNK_SIZE):
+                            chunk = chore_ids_list[i : i + Constants.ANALYTICS_CHUNK_SIZE]
+                            chunk_index = i // Constants.ANALYTICS_CHUNK_SIZE
                             or_clause = " || ".join([f'chore_id = "{cid}"' for cid in chunk])
 
                             # Fetch claims with pagination handling
@@ -572,7 +571,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                             )
 
                             # Log if chunk size is unusually large (indicates potential data anomaly)
-                            if chunk_claims > chunk_size * 1.5:
+                            if chunk_claims > Constants.ANALYTICS_CHUNK_SIZE * 1.5:
                                 logger.warning(
                                     "User %s has %d claims for %d chores in chunk (%.1fx ratio). "
                                     "Expected ~1 claim per chore.",

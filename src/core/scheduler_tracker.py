@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.core.admin_notifier import notify_admins
+from src.core.config import Constants
 from src.core.redis_client import redis_client
 
 
@@ -20,7 +21,7 @@ class JobTracker:
         """Initialize job tracker."""
         # Fallback in-memory storage when Redis is unavailable
         self._memory_storage: dict[str, dict[str, Any]] = {}
-        self._dead_letter_queue: deque[tuple[str, str, str]] = deque(maxlen=100)
+        self._dead_letter_queue: deque[tuple[str, str, str]] = deque(maxlen=Constants.TRACKER_DEAD_LETTER_QUEUE_MAXLEN)
 
     async def record_job_start(self, job_name: str) -> None:
         """Record job execution start.

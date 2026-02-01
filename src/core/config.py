@@ -138,6 +138,16 @@ class Constants:
     # Pagination Defaults
     DEFAULT_PER_PAGE_LIMIT: int = 100  # Default pagination limit for list queries
 
+    # Redis Configuration
+    REDIS_MAX_CONNECTIONS: int = 10  # Maximum connections in Redis connection pool
+    REDIS_INVALIDATION_QUEUE_MAXLEN: int = 1000  # Max items in Redis invalidation queue
+
+    # Analytics Configuration
+    ANALYTICS_CHUNK_SIZE: int = 50  # Chunk size for batch fetching analytics data
+
+    # Job Tracker Configuration
+    TRACKER_DEAD_LETTER_QUEUE_MAXLEN: int = 100  # Max items in dead letter queue
+
     # Paths
     PROJECT_ROOT: Path = Path(__file__).parent.parent.parent
     POCKETBASE_DATA_DIR: Path = PROJECT_ROOT / "pb_data"

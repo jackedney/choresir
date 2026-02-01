@@ -142,7 +142,7 @@
     {
       "id": "US-006",
       "title": "Extract database update pattern to reusable utility",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-002"
       ],
@@ -154,12 +154,15 @@
         "Example: `await db_client.update_first_matching('messages', f'waha_id=\"{msg_id}\"', {'status': 'delivered'})`",
         "Negative case: Keep separate calls when additional logic exists between get and update",
         "All tests pass"
-      ]
+      ],
+      "updatedAt": "2026-02-01T23:00:01.257833+00:00",
+      "completedAt": "2026-02-01T23:00:01.257974+00:00",
+      "startedAt": "2026-02-01T23:00:01.257976+00:00"
     },
     {
       "id": "US-007",
       "title": "Replace magic numbers and strings with constants",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
@@ -170,7 +173,10 @@
         "Example: `ANALYTICS_CHUNK_SIZE = 50` in config, used as `chunk_size=config.ANALYTICS_CHUNK_SIZE`",
         "Negative case: Keep inline values for truly one-off or self-explanatory cases (e.g., `range(3)` for retries already named)",
         "All tests pass"
-      ]
+      ],
+      "startedAt": "2026-02-01T23:00:03.339038+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-01T23:00:03.339206+00:00"
     },
     {
       "id": "US-008",
