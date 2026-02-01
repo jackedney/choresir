@@ -63,7 +63,7 @@ src/
 *   **Background Tasks:** WhatsApp Webhooks MUST return `200 OK` immediately. Use `FastAPI.BackgroundTasks` for AI processing.
 
 ### C. Security & Robustness
-*   **Signature:** Validate `X-Hub-Signature-256` on all webhooks.
+*   **Validation:** Validate webhook security (timestamp, nonce, rate limit).
 *   **Idempotency:** check `processed_message_ids` to prevent double-replies.
 *   **Cost Cap:** Hard limit of ~$0.10/day (track usage in memory/DB).
 

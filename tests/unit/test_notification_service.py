@@ -20,14 +20,6 @@ def patched_notification_db(monkeypatch, in_memory_db):
 
 
 @pytest.fixture
-def mock_whatsapp_templates(monkeypatch):
-    """Mock the whatsapp_templates.send_template_message function."""
-    mock_send = AsyncMock(return_value=SendMessageResult(success=True, message_id="msg_123"))
-    monkeypatch.setattr("src.services.notification_service.whatsapp_templates.send_template_message", mock_send)
-    return mock_send
-
-
-@pytest.fixture
 def mock_whatsapp_sender(monkeypatch):
     """Mock the whatsapp_sender.send_text_message function."""
     mock_send = AsyncMock(return_value=SendMessageResult(success=True, message_id="msg_456"))
@@ -61,15 +53,11 @@ class TestSendVerificationRequest:
     async def test_excludes_claimer(
         self,
         patched_notification_db,
-        mock_whatsapp_templates,
+        mock_whatsapp_sender,
         sample_chore,
         sample_users,
-        monkeypatch,
     ):
         """Notifications go to all active users except claimer."""
-        # Set up template SID
-        monkeypatch.setattr(settings, "template_verification_request_sid", "HX123456")
-
         # Populate in-memory database
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
         created_users = []
@@ -94,60 +82,18 @@ class TestSendVerificationRequest:
         # All should be successful
         assert all(r.success for r in results)
 
-        # Template message should be called twice (once for each non-claimer)
-        assert mock_whatsapp_templates.call_count == 2
+        # Message should be sent twice
+        assert mock_whatsapp_sender.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_uses_template_when_configured(
-        self,
-        patched_notification_db,
-        mock_whatsapp_templates,
-        sample_chore,
-        sample_users,
-        monkeypatch,
-    ):
-        """Uses template message when template SID is configured."""
-        # Set up template SID
-        monkeypatch.setattr(settings, "template_verification_request_sid", "HX123456")
-
-        # Populate in-memory database
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
-        created_users = []
-        for user in sample_users:
-            created_user = await patched_notification_db.create_record(collection="users", data=user)
-            created_users.append(created_user)
-
-        # Send verification request
-        await notification_service.send_verification_request(
-            log_id="log123",
-            chore_id=chore["id"],
-            claimer_user_id=created_users[0]["id"],
-        )
-
-        # Verify template message was called with correct parameters
-        assert mock_whatsapp_templates.call_count == 2
-
-        # Check first call arguments
-        first_call = mock_whatsapp_templates.call_args_list[0]
-        assert first_call.kwargs["to_phone"] in ["+12222222222", "+13333333333"]
-        assert first_call.kwargs["content_sid"] == "HX123456"
-        assert first_call.kwargs["variables"]["1"] == "Alice"  # claimer name
-        assert first_call.kwargs["variables"]["2"] == "Dishes"  # chore title
-        assert first_call.kwargs["variables"]["3"] == "log123"  # log_id
-
-    @pytest.mark.asyncio
-    async def test_fallback_to_text_when_no_template(
+    async def test_sends_verification_request_text(
         self,
         patched_notification_db,
         mock_whatsapp_sender,
         sample_chore,
         sample_users,
-        monkeypatch,
     ):
-        """Uses text message when template SID not configured."""
-        # No template SID configured
-        monkeypatch.setattr(settings, "template_verification_request_sid", "")
-
+        """Uses text message with instructions."""
         # Populate in-memory database
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
         created_users = []
@@ -199,15 +145,11 @@ class TestSendVerificationRequest:
     async def test_handles_claimer_not_found(
         self,
         patched_notification_db,
-        mock_whatsapp_templates,
+        mock_whatsapp_sender,
         sample_chore,
         sample_users,
-        monkeypatch,
     ):
         """Uses 'Someone' as claimer name when claimer not found."""
-        # Set up template SID
-        monkeypatch.setattr(settings, "template_verification_request_sid", "HX123456")
-
         # Populate in-memory database (only chore and users, but claimer doesn't exist)
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
         for user in sample_users:
@@ -223,22 +165,18 @@ class TestSendVerificationRequest:
         # Should still send to all users
         assert len(results) == 3
 
-        # Check that "Someone" is used as claimer name
-        first_call = mock_whatsapp_templates.call_args_list[0]
-        assert first_call.kwargs["variables"]["1"] == "Someone"
+        # Check that "Someone" is used as claimer name in text
+        first_call = mock_whatsapp_sender.call_args_list[0]
+        assert "Someone" in first_call.kwargs["text"]
 
     @pytest.mark.asyncio
     async def test_only_sends_to_active_users(
         self,
         patched_notification_db,
-        mock_whatsapp_templates,
+        mock_whatsapp_sender,
         sample_chore,
-        monkeypatch,
     ):
         """Only sends notifications to active users."""
-        # Set up template SID
-        monkeypatch.setattr(settings, "template_verification_request_sid", "HX123456")
-
         # Populate with users of different statuses
         users = [
             {"name": "Alice", "phone": "+11111111111", "status": UserStatus.ACTIVE},
@@ -275,18 +213,15 @@ class TestSendVerificationRequest:
         monkeypatch,
     ):
         """Handles send failures gracefully."""
-        # Set up template SID
-        monkeypatch.setattr(settings, "template_verification_request_sid", "HX123456")
-
-        # Mock template send to fail for specific phone
-        async def mock_send_template(**kwargs):
+        # Mock send to fail for specific phone
+        async def mock_send_text(**kwargs):
             if kwargs["to_phone"] == "+12222222222":
                 return SendMessageResult(success=False, error="Rate limit exceeded")
             return SendMessageResult(success=True, message_id="msg_123")
 
         monkeypatch.setattr(
-            "src.services.notification_service.whatsapp_templates.send_template_message",
-            mock_send_template,
+            "src.services.notification_service.whatsapp_sender.send_text_message",
+            mock_send_text,
         )
 
         # Populate in-memory database
@@ -322,12 +257,8 @@ class TestSendVerificationRequest:
         self,
         patched_notification_db,
         sample_chore,
-        monkeypatch,
     ):
         """Returns empty list when only the claimer exists."""
-        # Set up template SID
-        monkeypatch.setattr(settings, "template_verification_request_sid", "HX123456")
-
         # Only add the chore and the claimer
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
         claimer = await patched_notification_db.create_record(

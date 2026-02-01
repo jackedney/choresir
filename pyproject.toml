@@ -14,7 +14,6 @@ dependencies = [
     "croniter>=3.0.0",
     "logfire[fastapi]>=2.5.0",
     "httpx>=0.28.0",
-    "twilio>=9.0.0",
     "redis[hiredis]>=5.0.0",
     "python-dateutil>=2.9.0.post0",
 ]

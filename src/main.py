@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from twilio.rest import Client
 
 from src.core.config import settings
 from src.core.db_client import get_client
@@ -62,34 +61,6 @@ async def check_redis_connectivity() -> None:
         logger.warning("startup_validation", extra={"service": "redis", "status": "unavailable", "error": str(e)})
 
 
-async def check_twilio_auth() -> None:
-    """Verify Twilio credentials are valid.
-
-    Raises:
-        ConnectionError: If credentials are invalid or API call fails
-    """
-    try:
-        account_sid = settings.require_credential("twilio_account_sid", "Twilio Account SID")
-        auth_token = settings.require_credential("twilio_auth_token", "Twilio Auth Token")
-
-        # Create client and test with a simple API call
-        client = Client(account_sid, auth_token)
-        # Fetch account to verify credentials (lightweight API call)
-        account = client.api.accounts(account_sid).fetch()
-
-        if account.status != "active":
-            raise ConnectionError(f"Twilio account is not active: {account.status}")
-
-        logger.info("startup_validation", extra={"service": "twilio", "status": "ok", "account_status": account.status})
-    except ValueError as e:
-        # Credential missing
-        logger.error("startup_validation", extra={"service": "twilio", "status": "failed", "error": str(e)})
-        raise
-    except Exception as e:
-        logger.error("startup_validation", extra={"service": "twilio", "status": "failed", "error": str(e)})
-        raise ConnectionError(f"Twilio authentication check failed: {e}") from e
-
-
 async def validate_startup_configuration() -> None:
     """Validate all required credentials and external service connectivity.
 
@@ -108,8 +79,6 @@ async def validate_startup_configuration() -> None:
         # Validate required credentials
         settings.require_credential("house_code", "House onboarding code")
         settings.require_credential("house_password", "House onboarding password")
-        settings.require_credential("twilio_account_sid", "Twilio Account SID")
-        settings.require_credential("twilio_auth_token", "Twilio Auth Token")
         settings.require_credential("openrouter_api_key", "OpenRouter API key")
         settings.require_credential("pocketbase_url", "PocketBase URL")
         settings.require_credential("pocketbase_admin_email", "PocketBase admin email")
@@ -120,7 +89,6 @@ async def validate_startup_configuration() -> None:
         # Check external service connectivity
         await check_pocketbase_connectivity()
         await check_redis_connectivity()
-        await check_twilio_auth()
 
         logger.info("startup_validation_complete", extra={"status": "ok"})
 

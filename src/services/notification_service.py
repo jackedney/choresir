@@ -5,10 +5,10 @@ import logging
 from pydantic import ValidationError
 
 from src.core import db_client
-from src.core.config import Constants, settings
+from src.core.config import Constants
 from src.core.logging import span
 from src.domain.user import UserStatus
-from src.interface import whatsapp_sender, whatsapp_templates
+from src.interface import whatsapp_sender
 from src.models.service_models import NotificationResult
 
 
@@ -125,9 +125,7 @@ async def _send_verification_message(
     chore_title: str,
     log_id: str,
 ) -> whatsapp_sender.SendMessageResult:
-    """Send verification message with interactive buttons.
-
-    Uses Content API template if configured, falls back to text message.
+    """Send verification message.
 
     Args:
         to_phone: Recipient phone number in E.164 format
@@ -138,19 +136,9 @@ async def _send_verification_message(
     Returns:
         SendMessageResult indicating success or failure
     """
-    # Check if template is configured
-    if settings.template_verification_request_sid:
-        # Use template message with interactive buttons
-        logger.debug("Sending template verification message to %s", to_phone)
-        return await whatsapp_templates.send_template_message(
-            to_phone=to_phone,
-            content_sid=settings.template_verification_request_sid,
-            variables={"1": claimer_name, "2": chore_title, "3": log_id},
-        )
-    # Fallback to plain text message
-    logger.debug("Sending text verification message to %s (no template configured)", to_phone)
+    logger.debug("Sending text verification message to %s", to_phone)
 
-    # NOTE: This fallback uses simple command format that the AI agent parses.
+    # NOTE: This uses simple command format that the AI agent parses.
     # The agent's tool_verify_chore (in src/agents/tools/verification_tools.py) expects:
     # - log_id: Log ID to verify
     # - decision: "APPROVE" or "REJECT"

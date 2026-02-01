@@ -1,4 +1,4 @@
-"""WhatsApp webhook endpoints with signature verification."""
+"""WhatsApp webhook endpoints."""
 
 import logging
 from datetime import datetime
@@ -6,12 +6,11 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pocketbase import PocketBase
-from twilio.request_validator import RequestValidator
 
 from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
-from src.core.config import Constants, settings
+from src.core.config import Constants
 from src.core.db_client import sanitize_param
 from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
@@ -28,68 +27,43 @@ ERROR_MSG_BUTTON_PROCESSING_FAILED = (
 )
 
 
-def verify_twilio_signature(url: str, params: dict[str, str], signature: str) -> bool:
-    """Verify Twilio webhook signature.
-
-    Args:
-        url: The full URL of the webhook endpoint
-        params: Form parameters from the webhook request
-        signature: X-Twilio-Signature header value
-
-    Returns:
-        True if signature is valid, False otherwise
-    """
-    auth_token = settings.require_credential("twilio_auth_token", "Twilio Auth Token")
-    validator = RequestValidator(auth_token)
-    return validator.validate(url, params, signature)
-
-
 @router.post("")
 async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -> dict[str, str]:
-    """Receive and validate Twilio webhook POST requests.
+    """Receive and validate WAHA webhook POST requests.
 
     This endpoint:
-    1. Validates the X-Twilio-Signature header
+    1. Parses JSON payload
     2. Performs security checks (timestamp, nonce, rate limit)
     3. Returns 200 OK immediately
     4. Dispatches message processing to background tasks
 
     Args:
-        request: FastAPI request object containing headers and form data
+        request: FastAPI request object containing JSON data
         background_tasks: FastAPI BackgroundTasks for async processing
 
     Returns:
         Success status dictionary
 
     Raises:
-        HTTPException: If signature validation or security checks fail
+        HTTPException: If payload is invalid or security checks fail
     """
     # Check global webhook rate limit (raises HTTPException directly)
     await rate_limiter.check_webhook_rate_limit()
 
-    # Get form data (not JSON)
-    form_data = await request.form()
-    params = {k: str(v) for k, v in form_data.items()}
-
-    # Get signature
-    signature = request.headers.get("X-Twilio-Signature", "")
-    if not signature:
-        raise HTTPException(status_code=401, detail="Missing signature")
-
-    # Build full URL for validation
-    url = str(request.url)
-
-    # Verify signature
-    if not verify_twilio_signature(url, params, signature):
-        raise HTTPException(status_code=401, detail="Invalid signature")
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     # Parse message for security validation
-    message = whatsapp_parser.parse_twilio_webhook(params)
+    message = whatsapp_parser.parse_waha_webhook(payload)
     if not message:
-        logger.warning("Failed to parse webhook for security validation")
-        raise HTTPException(status_code=400, detail="Invalid webhook format")
+        # Ignore non-message events (e.g., status updates, qr codes)
+        return {"status": "ignored"}
 
     # Perform security checks (replay attack protection)
+    # Note: WAHA timestamp might be slightly different or missing in some events,
+    # but our parser extracts it.
     security_result = await webhook_security.verify_webhook_security(
         message_id=message.message_id,
         timestamp_str=message.timestamp,
@@ -112,7 +86,7 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
         )
 
     # Dispatch to background task
-    background_tasks.add_task(process_webhook_message, params)
+    background_tasks.add_task(process_webhook_message, payload)
 
     return {"status": "received"}
 
@@ -434,7 +408,7 @@ async def _route_webhook_message(message: whatsapp_parser.ParsedMessage) -> None
         logger.info("No text message found, skipping")
 
 
-async def _handle_webhook_error(e: Exception, params: dict[str, str]) -> None:
+async def _handle_webhook_error(e: Exception, params: dict[str, Any]) -> None:
     """Handle errors during webhook processing.
 
     Args:
@@ -458,7 +432,7 @@ async def _handle_webhook_error(e: Exception, params: dict[str, str]) -> None:
 
     if admin_notifier.should_notify_admins(error_category):
         try:
-            parsed_message = whatsapp_parser.parse_twilio_webhook(params)
+            parsed_message = whatsapp_parser.parse_waha_webhook(params)
             user_context = "Unknown user"
             if parsed_message and parsed_message.from_phone:
                 user_context = parsed_message.from_phone
@@ -479,7 +453,7 @@ async def _handle_webhook_error(e: Exception, params: dict[str, str]) -> None:
             logger.error("Failed to notify admins of critical error: %s", notify_error)
 
     try:
-        parsed_message = whatsapp_parser.parse_twilio_webhook(params)
+        parsed_message = whatsapp_parser.parse_waha_webhook(params)
         if parsed_message and parsed_message.from_phone:
             try:
                 existing_record = await db_client.get_first_record(
@@ -507,14 +481,14 @@ async def _handle_webhook_error(e: Exception, params: dict[str, str]) -> None:
         logger.error("Failed to send error message to user: %s", send_error)
 
 
-async def process_webhook_message(params: dict[str, str]) -> None:
-    """Process Twilio webhook message in background.
+async def process_webhook_message(params: dict[str, Any]) -> None:
+    """Process WAHA webhook message in background.
 
     Args:
-        params: Form parameters from Twilio webhook
+        params: JSON payload from WAHA webhook
     """
     try:
-        message = whatsapp_parser.parse_twilio_webhook(params)
+        message = whatsapp_parser.parse_waha_webhook(params)
         if message:
             await _route_webhook_message(message)
     except Exception as e:

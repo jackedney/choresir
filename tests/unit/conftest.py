@@ -17,11 +17,6 @@ async def _mock_send_text_message(**kwargs) -> SendMessageResult:
     return SendMessageResult(success=True, message_id="mock_message_id")
 
 
-async def _mock_send_template_message(**kwargs) -> SendMessageResult:
-    """Mock WhatsApp template sender that returns success instantly."""
-    return SendMessageResult(success=True, message_id="mock_template_message_id")
-
-
 async def _mock_invalidate_cache() -> None:
     """Mock cache invalidation that does nothing."""
     pass
@@ -47,10 +42,6 @@ def patched_db(monkeypatch, in_memory_db):
     monkeypatch.setattr(
         "src.interface.whatsapp_sender.send_text_message",
         _mock_send_text_message,
-    )
-    monkeypatch.setattr(
-        "src.interface.whatsapp_templates.send_template_message",
-        _mock_send_template_message,
     )
 
     # Patch analytics service cache invalidation

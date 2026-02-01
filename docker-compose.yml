@@ -20,6 +20,20 @@ services:
       timeout: 3s
       retries: 5
 
+  waha:
+    image: devlikeapro/waha
+    container_name: choresir-waha
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      WAHA_LOG_LEVEL: info
+      WAHA_PRINT_QR: "True"
+    volumes:
+      - waha-data:/app/sessions
+
 volumes:
   redis-data:
+    driver: local
+  waha-data:
     driver: local

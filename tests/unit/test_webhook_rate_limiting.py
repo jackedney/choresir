@@ -13,15 +13,11 @@ from src.interface.webhook import _handle_user_status, receive_webhook
 async def test_webhook_rate_limit_enforced():
     """Test that webhook endpoint enforces rate limits."""
     mock_request = MagicMock(spec=Request)
-    mock_request.form = AsyncMock(
+    mock_request.json = AsyncMock(
         return_value={
-            "Body": "test message",
-            "From": "whatsapp:+1234567890",
-            "MessageSid": "test123",
+            "payload": {"body": "test"}
         }
     )
-    mock_request.headers.get.return_value = "valid_signature"
-    mock_request.url = "https://example.com/webhook"
 
     mock_bg_tasks = MagicMock(spec=BackgroundTasks)
 
@@ -54,34 +50,33 @@ async def test_webhook_rate_limit_enforced():
 async def test_webhook_rate_limit_passes_when_under_limit():
     """Test that webhook processes normally when under rate limit."""
     mock_request = MagicMock(spec=Request)
-    mock_request.form = AsyncMock(
+    mock_request.json = AsyncMock(
         return_value={
-            "Body": "test message",
-            "From": "whatsapp:+1234567890",
-            "To": "whatsapp:+0987654321",
-            "MessageSid": "test123",
+            "event": "message",
+            "payload": {
+                "id": "123",
+                "from": "1234567890@c.us",
+                "body": "test message",
+                "timestamp": 1234567890,
+            }
         }
     )
-    mock_request.headers.get.return_value = "valid_signature"
-    mock_request.url = "https://example.com/webhook"
 
     mock_bg_tasks = MagicMock(spec=BackgroundTasks)
     mock_bg_tasks.add_task = MagicMock()
 
     with (
         patch("src.interface.webhook.rate_limiter") as mock_limiter,
-        patch("src.interface.webhook.verify_twilio_signature") as mock_verify,
-        patch("src.interface.webhook.whatsapp_parser") as mock_parser,
+        patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook") as mock_parse,
         patch("src.interface.webhook.webhook_security") as mock_security,
     ):
         mock_limiter.check_webhook_rate_limit = AsyncMock(return_value=None)
-        mock_verify.return_value = True
 
         mock_message = MagicMock()
         mock_message.message_id = "test123"
         mock_message.timestamp = "2024-01-01T00:00:00Z"
         mock_message.from_phone = "+1234567890"
-        mock_parser.parse_twilio_webhook.return_value = mock_message
+        mock_parse.return_value = mock_message
 
         mock_security_result = MagicMock()
         mock_security_result.is_valid = True
