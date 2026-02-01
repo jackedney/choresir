@@ -476,7 +476,10 @@ async def _is_chore_due_today(chore: dict, today: date) -> bool:
         owner_phone = chore.get("owner_phone", "")
 
         if not chore_id or not owner_phone:
-            logger.warning(f"Missing chore_id or owner_phone for chore: {chore}")
+            logger.warning(
+                "Missing chore_id or owner_phone for chore",
+                extra={"operation": "personal_chore_reminder_check", "chore_id": chore.get("id", "")},
+            )
             return False
 
         last_completion = await _get_last_completion_date(chore_id, owner_phone)

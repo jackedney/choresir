@@ -150,7 +150,9 @@ async def delete_personal_chore(
             data={"status": "ARCHIVED"},
         )
 
-        logger.info("Archived personal chore '%s' for %s", chore["title"], owner_phone)
+        logger.info(
+            "Archived personal chore", extra={"operation": "archive_personal_chore", "chore_title": chore["title"]}
+        )
 
 
 def fuzzy_match_personal_chore(

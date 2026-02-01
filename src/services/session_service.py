@@ -49,7 +49,7 @@ async def create_session(
                 collection="join_sessions",
                 record_id=existing_session["id"],
             )
-            logger.info("Deleted existing session for %s", phone)
+            logger.info("Deleted existing session", extra={"operation": "delete_existing_session"})
 
         # Create new session
         now = datetime.now(UTC)
@@ -68,7 +68,9 @@ async def create_session(
             collection="join_sessions",
             data=session_data,
         )
-        logger.info("Created join session for %s (expires at %s)", phone, expires_at.isoformat())
+        logger.info(
+            "Created join session", extra={"operation": "create_join_session", "expires_at": expires_at.isoformat()}
+        )
 
         return record
 
@@ -100,7 +102,7 @@ async def get_session(*, phone: str) -> dict[str, Any] | None:
                 collection="join_sessions",
                 record_id=session["id"],
             )
-            logger.info("Deleted expired session for %s", phone)
+            logger.info("Deleted expired session", extra={"operation": "delete_expired_session"})
             return None
 
         return session
@@ -126,7 +128,7 @@ async def update_session(*, phone: str, updates: dict[str, Any]) -> bool:
         )
 
         if not session:
-            logger.warning("Session not found for %s", phone)
+            logger.warning("Session not found", extra={"operation": "update_session", "status": "not_found"})
             return False
 
         await db_client.update_record(
@@ -134,7 +136,7 @@ async def update_session(*, phone: str, updates: dict[str, Any]) -> bool:
             record_id=session["id"],
             data=updates,
         )
-        logger.info("Updated session for %s: %s", phone, updates)
+        logger.info("Updated session", extra={"operation": "update_session", "updates": list(updates.keys())})
 
         return True
 
@@ -164,7 +166,7 @@ async def delete_session(*, phone: str) -> bool:
             collection="join_sessions",
             record_id=session["id"],
         )
-        logger.info("Deleted session for %s", phone)
+        logger.info("Deleted session", extra={"operation": "delete_session"})
 
         return True
 
@@ -207,7 +209,10 @@ async def increment_password_attempts(*, phone: str) -> None:
         )
 
         if not session:
-            logger.warning("Session not found for %s, cannot increment attempts", phone)
+            logger.warning(
+                "Session not found, cannot increment attempts",
+                extra={"operation": "increment_attempts", "status": "not_found"},
+            )
             return
 
         current_count = session.get("password_attempts_count", 0)

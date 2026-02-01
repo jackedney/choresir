@@ -88,7 +88,10 @@ async def log_personal_chore(
             data=log_data,
         )
 
-        logger.info("Logged personal chore '%s' for %s (status: %s)", chore["title"], owner_phone, verification_status)
+        logger.info(
+            "Logged personal chore",
+            extra={"operation": "log_personal_chore", "chore_title": chore["title"], "status": verification_status},
+        )
 
         # Send verification request notification if pending
         if verification_status == "PENDING" and partner_phone:
@@ -161,7 +164,14 @@ async def verify_personal_chore(
             },
         )
 
-        logger.info("Personal chore log %s %s by %s", log_id, "approved" if approved else "rejected", verifier_phone)
+        logger.info(
+            "Personal chore log verified",
+            extra={
+                "operation": "verify_personal_chore",
+                "log_id": log_id,
+                "status": "approved" if approved else "rejected",
+            },
+        )
 
         # Send result notification to owner
         try:

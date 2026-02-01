@@ -314,13 +314,15 @@ async def _handle_legacy_join_or_onboard(user_phone: str, message_text: str) -> 
             f"Welcome, {name}! Your membership request has been submitted. An admin will review your request shortly."
         )
     except ValueError as e:
-        logger.warning(f"Join request failed for {user_phone}: {e}")
+        logger.warning("Join request failed", extra={"operation": "join_request_failed", "error": str(e)})
         return (
             f"Sorry, I couldn't process your join request: {e}\n\n"
             "Please check your house code and password and try again."
         )
     except Exception as e:
-        logger.error(f"Unexpected error processing join request for {user_phone}: {e}")
+        logger.error(
+            "Unexpected error processing join request", extra={"operation": "join_request_error", "error": str(e)}
+        )
         return "Sorry, an error occurred while processing your join request. Please try again later."
 
 
@@ -494,7 +496,7 @@ async def handle_join_name_step(phone: str, name: str) -> str:
         User(id="temp", phone=phone, name=name)
     except ValueError as e:
         # Name validation failed - keep session alive for retry
-        logger.info("Invalid name submitted by %s: %s", phone, str(e))
+        logger.info("Invalid name submitted", extra={"operation": "join_name_validation_failed", "error": str(e)})
         return (
             "That name isn't usable. Please provide a different name (letters, spaces, hyphens, and apostrophes only)."
         )
@@ -514,7 +516,9 @@ async def handle_join_name_step(phone: str, name: str) -> str:
         )
     except Exception as e:
         # Join request failed - delete session anyway (flow is complete)
-        logger.error("Failed to create join request for %s: %s", phone, str(e))
+        logger.error(
+            "Failed to create join request", extra={"operation": "join_request_creation_failed", "error": str(e)}
+        )
         await session_service.delete_session(phone=phone)
         return (
             "Sorry, something went wrong while processing your request. "
