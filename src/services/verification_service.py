@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 LOGS_PAGE_SIZE = 500
+CHORE_ID_BATCH_SIZE = 100  # PocketBase limits: 200 filter expressions, 3500 char filter strings
 
 
 class VerificationDecision(StrEnum):
@@ -124,35 +125,22 @@ async def verify_chore(
         db_client.RecordNotFoundError: If chore or log not found
     """
     with span("verification_service.verify_chore"):
-        # Guard: Get the original claim log to find the claimer
-        # Get all logs (PocketBase filter seems to have issues)
-        # Fetch all pages to avoid missing data
-        all_logs = []
-        page = 1
-        while True:
-            page_logs = await db_client.list_records(
-                collection="logs",
-                filter_query="",
-                sort="-timestamp",
-                per_page=LOGS_PAGE_SIZE,
-                page=page,
-            )
-            if not page_logs:
-                break
-            all_logs.extend(page_logs)
-            if len(page_logs) < LOGS_PAGE_SIZE:
-                break
-            page += 1
-        # Filter manually for claimed_completion logs for this chore
-        claim_logs = [
-            log for log in all_logs if log.get("action") == "claimed_completion" and log.get("chore_id") == chore_id
-        ][:1]
+        # Guard: Get the latest claim log to find the claimer (sorted by timestamp for determinism)
+        # Use a specific filter query instead of fetching all logs (DoS prevention)
+        filter_query = f'chore_id = "{db_client.sanitize_param(chore_id)}" && action = "claimed_completion"'
+        claim_logs = await db_client.list_records(
+            collection="logs",
+            filter_query=filter_query,
+            sort="-timestamp",
+            per_page=1,
+        )
 
         if not claim_logs:
             msg = f"No claim log found for chore {chore_id}"
             raise KeyError(msg)
 
-        claimer_user_id = claim_logs[0]["user_id"]
+        latest_claim = claim_logs[0]
+        claimer_user_id = latest_claim["user_id"]
 
         # Guard: Prevent self-verification
         if verifier_user_id == claimer_user_id:
@@ -213,41 +201,48 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
 
         # If user_id provided, filter out chores they claimed
         if user_id:
-            # Get all logs once (PocketBase filter seems to have issues)
-            # Fetch all pages to avoid missing data
-            all_logs = []
-            page = 1
-            while True:
-                page_logs = await db_client.list_records(
-                    collection="logs",
-                    filter_query="",
-                    sort="-timestamp",
-                    per_page=LOGS_PAGE_SIZE,
-                    page=page,
-                )
-                if not page_logs:
-                    break
-                all_logs.extend(page_logs)
-                if len(page_logs) < LOGS_PAGE_SIZE:
-                    break
-                page += 1
+            if not chores:
+                return []
 
-            # Build map of chore claims
-            # Map chore_id -> user_id of the claimer
-            # We preserve the behavior of taking the first matching log in the list
-            chore_claims = {}
-            for log in all_logs:
-                if log.get("action") == "claimed_completion":
-                    c_id = log.get("chore_id")
-                    # Only take the first claim log found for each chore
-                    if c_id and c_id not in chore_claims:
-                        chore_claims[c_id] = log.get("user_id")
+            # Build filter query for logs (action="claimed_completion" && chore_id in [...])
+            # Batch chore_ids to stay within PocketBase limits (200 filter expressions, 3500 char filter strings)
+            chore_ids = [c["id"] for c in chores]
+            sanitized_user_id = db_client.sanitize_param(user_id)
+
+            # Fetch logs in batches to avoid exceeding PocketBase filter limits
+            user_claimed_chore_ids: set[str] = set()
+            for batch_start in range(0, len(chore_ids), CHORE_ID_BATCH_SIZE):
+                batch_ids = chore_ids[batch_start : batch_start + CHORE_ID_BATCH_SIZE]
+                chore_id_conditions = " || ".join(
+                    [f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in batch_ids]
+                )
+                filter_query = (
+                    f'action = "claimed_completion" && user_id = "{sanitized_user_id}" && ({chore_id_conditions})'
+                )
+
+                # Paginate within each batch to get all matching logs
+                page = 1
+                while True:
+                    logs = await db_client.list_records(
+                        collection="logs",
+                        filter_query=filter_query,
+                        sort="-timestamp",
+                        per_page=LOGS_PAGE_SIZE,
+                        page=page,
+                    )
+                    # Accumulate chore IDs from this page
+                    for log in logs:
+                        if chore_id := log.get("chore_id"):
+                            user_claimed_chore_ids.add(chore_id)
+                    # Stop if we got fewer than a full page (no more results)
+                    if len(logs) < LOGS_PAGE_SIZE:
+                        break
+                    page += 1
 
             filtered_chores = []
             for chore in chores:
                 # Exclude if this user claimed it
-                claimer_id = chore_claims.get(chore["id"])
-                if claimer_id != user_id:
+                if chore["id"] not in user_claimed_chore_ids:
                     filtered_chores.append(chore)
             return filtered_chores
 
