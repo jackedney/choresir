@@ -218,6 +218,7 @@ class TestSendTextMessage:
             # Should fail after retries
             assert result.success is False
             # Check for error in return
+            assert result.error is not None
             assert "Failed after retries" in result.error or result.error == "Max retries exceeded"
             # In code: return SendMessageResult(success=False, error=f"Failed after retries: {str(e)}")
 

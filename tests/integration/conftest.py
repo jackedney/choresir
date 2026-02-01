@@ -234,9 +234,7 @@ def test_settings(pocketbase_server: str) -> Settings:
     return Settings(
         pocketbase_url=pocketbase_server,
         openrouter_api_key="test_key",
-        twilio_account_sid="test_account_sid",
-        twilio_auth_token="test_auth_token",
-        twilio_whatsapp_number="whatsapp:+14155238886",
+        waha_base_url="http://waha:3000",
         logfire_token="test_logfire",
         house_name="TestHouse",
         house_code="TEST123",
