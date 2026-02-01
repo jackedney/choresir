@@ -238,3 +238,30 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Pattern: Ty type checker requires explicit return types on all functions, including test methods
   - Context: Type checking is enforced by the Astral stack (ty) as specified in AGENTS.md
   - Gotcha: Git lock file (.git/index.lock) may remain after failed git operations - remove manually with rm -f .git/index.lock
+
+---
+
+## Sun  1 Feb 2026 22:07:43 GMT - US-010: Avoid redundant webhook parsing
+Thread:
+Run: 20260201-211312-25911 (iteration 10)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-10.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-10.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 21afd42 refactor(webhook): avoid redundant webhook parsing in _handle_webhook_error
+- Post-commit status: clean
+- Verification:
+  - Command: uv run ruff format . -> PASS (106 files left unchanged)
+  - Command: uv run ruff check . --fix -> PASS (All checks passed!)
+  - Command: uv run ty check src -> PASS (All checks passed!)
+  - Command: uv run pytest -> PASS (526 passed, 2 warnings)
+- Files changed:
+  - src/interface/webhook.py
+  - .ralph/progress.md
+- What was implemented:
+  Modified _handle_webhook_error() in src/interface/webhook.py to accept optional parsed_message parameter, eliminating redundant webhook parsing. Changed function signature to use keyword-only arguments: async def _handle_webhook_error(*, e: Exception, params: dict[str, Any], parsed_message: whatsapp_parser.ParsedMessage | None = None) -> None. The function now only parses the webhook if parsed_message is None, and reuses the already-parsed message when provided. Updated process_webhook_message() to pass the already-parsed message when calling _handle_webhook_error(). The second redundant parse_waha_webhook call (previously at line 456 in the original function) was removed, ensuring only one parse operation occurs in error handling.
+- **Learnings for future iterations:**
+  - Pattern: When functions parse data that may already be available, accept an optional pre-parsed parameter to avoid redundant work
+  - Pattern: Use keyword-only arguments (*) for functions with multiple parameters to improve code clarity and prevent accidental positional argument errors
+  - Context: Redundant parsing can impact performance, especially in error handling paths that may execute frequently
+  - Gotcha: When passing an optional pre-parsed value, ensure it's initialized to None before the try block to avoid "possibly unbound" errors when exceptions occur early
