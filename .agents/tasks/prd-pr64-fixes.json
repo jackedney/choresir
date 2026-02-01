@@ -214,7 +214,7 @@
     {
       "id": "US-009",
       "title": "Add return type hints to test methods",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want test methods to have proper return type hints so that the codebase passes type checking.",
       "acceptanceCriteria": [
@@ -224,8 +224,8 @@
         "Negative case: ty check passes without type hint errors for these methods"
       ],
       "startedAt": "2026-02-01T22:04:46.971576+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-01T22:04:46.971730+00:00"
+      "completedAt": "2026-02-01T22:17:00.000000+00:00",
+      "updatedAt": "2026-02-01T22:17:00.000000+00:00"
     },
     {
       "id": "US-010",
@@ -250,7 +250,7 @@
     {
       "id": "US-011",
       "title": "Update existing tests for new changes",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-003",
         "US-004",
@@ -267,8 +267,8 @@
         "Negative case: No test failures related to missing HMAC or timestamp"
       ],
       "startedAt": "2026-02-01T22:11:36.186763+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-01T22:11:36.186965+00:00"
+      "completedAt": "2026-02-01T22:16:46.831634+00:00",
+      "updatedAt": "2026-02-01T22:16:46.831300+00:00"
     }
   ]
 }

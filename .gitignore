@@ -75,3 +75,6 @@ ngrok.yml
 
 # pb_migrations
 pb_migrations/
+
+# Ralph (AI agent tool)
+.ralph/
