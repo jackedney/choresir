@@ -206,3 +206,35 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Pattern: Preserve non-sensitive context in extra dicts (chore_title, status, error, expires_at) while removing sensitive data
   - Context: This completes PII removal from all service modules, ensuring no phone numbers appear in any logger calls across the codebase
   - Gotcha: Some logs (line 91 in personal_verification_service.py) included multiple PII fields (chore_title and owner_phone), requiring careful extraction of only non-sensitive context
+
+---
+
+## Sun  1 Feb 2026 22:08:00 GMT - US-009: Add return type hints to test methods
+Thread:
+Run: 20260201-211312-25911 (iteration 9)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-9.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-9.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 324edc4 test(whatsapp-sender): add return type hints to TestFormatPhoneForWaha methods
+- Post-commit status: clean
+- Verification:
+  - Command: uv run pytest tests/unit/test_whatsapp_sender.py::TestFormatPhoneForWaha -v -> PASS (4 passed)
+  - Command: uv run ruff check tests/unit/test_whatsapp_sender.py -> PASS
+  - Command: uv run ruff format --check tests/unit/test_whatsapp_sender.py -> PASS
+  - Command: uv run ty check tests/unit/test_whatsapp_sender.py -> PASS
+  - Command: uv run pytest -> PASS (526 passed)
+- Files changed:
+  - tests/unit/test_whatsapp_sender.py
+  - .agents/tasks/prd-pr64-fixes.json
+  - .ralph/runs/run-20260201-211312-25911-iter-6.md
+  - .ralph/runs/run-20260201-211312-25911-iter-7.md
+  - .ralph/runs/run-20260201-211312-25911-iter-8.md
+  - .ralph/.tmp/* (prompt and story files)
+- What was implemented:
+  Added `-> None` return type annotations to all four test methods in the TestFormatPhoneForWaha class in tests/unit/test_whatsapp_sender.py (lines 73, 76, 79, 82): test_format_clean_number, test_format_with_plus, test_format_with_whatsapp_prefix, and test_format_already_formatted. The changes ensure that the codebase passes type checking with ty, as required by the coding standards defined in AGENTS.md which mandate strict type hints for all functions including `-> None` for functions without return values.
+- **Learnings for future iterations:**
+  - Pattern: All test methods should have `-> None` return type annotations to satisfy type checking requirements
+  - Pattern: Ty type checker requires explicit return types on all functions, including test methods
+  - Context: Type checking is enforced by the Astral stack (ty) as specified in AGENTS.md
+  - Gotcha: Git lock file (.git/index.lock) may remain after failed git operations - remove manually with rm -f .git/index.lock

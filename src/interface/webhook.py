@@ -435,12 +435,18 @@ async def _route_webhook_message(message: whatsapp_parser.ParsedMessage) -> None
         logger.info("No text message found, skipping")
 
 
-async def _handle_webhook_error(e: Exception, params: dict[str, Any]) -> None:
+async def _handle_webhook_error(
+    *,
+    e: Exception,
+    params: dict[str, Any],
+    parsed_message: whatsapp_parser.ParsedMessage | None = None,
+) -> None:
     """Handle errors during webhook processing.
 
     Args:
         e: Exception that occurred
         params: Original webhook parameters
+        parsed_message: Already parsed message (if available, avoids re-parsing)
     """
     logger.error("Error processing webhook message: %s", e)
 
@@ -459,7 +465,8 @@ async def _handle_webhook_error(e: Exception, params: dict[str, Any]) -> None:
 
     if admin_notifier.should_notify_admins(error_category):
         try:
-            parsed_message = whatsapp_parser.parse_waha_webhook(params)
+            if parsed_message is None:
+                parsed_message = whatsapp_parser.parse_waha_webhook(params)
             user_context = "Unknown user"
             if parsed_message and parsed_message.from_phone:
                 user_context = parsed_message.from_phone
@@ -480,7 +487,6 @@ async def _handle_webhook_error(e: Exception, params: dict[str, Any]) -> None:
             logger.error("Failed to notify admins of critical error: %s", notify_error)
 
     try:
-        parsed_message = whatsapp_parser.parse_waha_webhook(params)
         if parsed_message and parsed_message.from_phone:
             try:
                 existing_record = await db_client.get_first_record(
@@ -514,9 +520,10 @@ async def process_webhook_message(params: dict[str, Any]) -> None:
     Args:
         params: JSON payload from WAHA webhook
     """
+    message = None
     try:
         message = whatsapp_parser.parse_waha_webhook(params)
         if message:
             await _route_webhook_message(message)
     except Exception as e:
-        await _handle_webhook_error(e, params)
+        await _handle_webhook_error(e=e, params=params, parsed_message=message)
