@@ -104,7 +104,6 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
             security_result.error_message,
             extra={
                 "message_id": message.message_id,
-                "phone": message.from_phone,
                 "reason": security_result.error_message,
             },
         )
@@ -157,19 +156,19 @@ async def _handle_user_status(
     status = user_record["status"]
 
     if status == UserStatus.PENDING:
-        logger.info("Pending user %s sent message", message.from_phone)
+        logger.info("Pending user sent message", extra={"user_status": "pending"})
         response = await choresir_agent.handle_pending_user(user_name=user_record["name"])
         result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
         return (result.success, result.error)
 
     if status == UserStatus.BANNED:
-        logger.info("Banned user %s sent message", message.from_phone)
+        logger.info("Banned user sent message", extra={"user_status": "banned"})
         response = await choresir_agent.handle_banned_user(user_name=user_record["name"])
         result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
         return (result.success, result.error)
 
     if status == UserStatus.ACTIVE:
-        logger.info("Processing active user %s message with agent", message.from_phone)
+        logger.info("Processing active user message with agent", extra={"user_status": "active"})
 
         # Check per-user agent call rate limit
         try:
@@ -199,12 +198,12 @@ async def _handle_user_status(
             text=agent_response,
         )
         if not result.success:
-            logger.error("Failed to send response to %s: %s", message.from_phone, result.error)
+            logger.error("Failed to send response", extra={"error": result.error})
         else:
-            logger.info("Successfully processed message for %s", message.from_phone)
+            logger.info("Successfully processed message", extra={"user_status": "active"})
         return (result.success, result.error)
 
-    logger.info("User %s has unknown status: %s", message.from_phone, status)
+    logger.info("User has unknown status", extra={"user_status": status})
     return (False, f"Unknown user status: {status}")
 
 
@@ -362,7 +361,7 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
     if await _check_duplicate_message(message.message_id):
         return
 
-    logger.info("Processing button click from %s: %s", message.from_phone, message.button_payload)
+    logger.info("Processing button click", extra={"button_payload": message.button_payload})
     await _log_message_start(message, "Button")
 
     user_record = await db_client.get_first_record(
@@ -370,7 +369,7 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
         filter_query=f'phone = "{sanitize_param(message.from_phone)}"',
     )
     if not user_record:
-        logger.warning("Unknown user clicked button: %s", message.from_phone)
+        logger.warning("Unknown user clicked button", extra={"operation": "button_unknown_user"})
         await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="Sorry, I don't recognize your number. Please contact your household admin.",
@@ -390,14 +389,14 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     if await _check_duplicate_message(message.message_id):
         return
 
-    logger.info("Processing message from %s: %s", message.from_phone, message.text)
+    logger.info("Processing message", extra={"operation": "text_message"})
     await _log_message_start(message, "Processing")
 
     db = db_client.get_client()
     deps = await choresir_agent.build_deps(db=db, user_phone=message.from_phone)
 
     if deps is None:
-        logger.info("Unknown user %s, processing unknown user message", message.from_phone)
+        logger.info("Unknown user, processing unknown user message", extra={"operation": "unknown_user"})
         response = await choresir_agent.handle_unknown_user(
             user_phone=message.from_phone, message_text=message.text or ""
         )
@@ -410,7 +409,7 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
         filter_query=f'phone = "{sanitize_param(message.from_phone)}"',
     )
     if not user_record:
-        logger.error("User record not found after build_deps succeeded for %s", message.from_phone)
+        logger.error("User record not found after build_deps succeeded", extra={"operation": "record_not_found"})
         await _update_message_status(
             message_id=message.message_id,
             success=False,
