@@ -134,7 +134,7 @@
     {
       "id": "US-005",
       "title": "Add logging to sender module",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want the WhatsApp sender module to log send operations so that I can debug message delivery issues.",
       "acceptanceCriteria": [
@@ -148,13 +148,13 @@
         "Negative case: Failed send logs error without exposing phone number"
       ],
       "startedAt": "2026-02-01T21:45:04.162354+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-01T21:45:04.162496+00:00"
+      "completedAt": "2026-02-01T21:50:04.808137+00:00",
+      "updatedAt": "2026-02-01T21:50:04.807760+00:00"
     },
     {
       "id": "US-006",
       "title": "Remove PII from notification_service logs",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a security-conscious developer, I want phone numbers removed from notification_service.py logs so that PII is not exposed in log files.",
       "acceptanceCriteria": [
@@ -164,12 +164,15 @@
         "Replace line 244: `logger.info('Sent personal verification result to %s: %s', owner_phone, status)` - remove phone, keep status",
         "Example: Log output shows operation type without phone numbers",
         "Negative case: No phone number patterns (\\+\\d{10,}) appear in notification_service log calls"
-      ]
+      ],
+      "startedAt": "2026-02-01T21:50:06.892312+00:00",
+      "completedAt": "2026-02-01T21:56:50.380861+00:00",
+      "updatedAt": "2026-02-01T21:56:50.380456+00:00"
     },
     {
       "id": "US-007",
       "title": "Remove PII from webhook.py logs",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a security-conscious developer, I want phone numbers removed from webhook.py logs so that PII is not exposed.",
       "acceptanceCriteria": [
@@ -182,12 +185,15 @@
         "Use extra={'user_status': status} or similar structured metadata instead",
         "Example: Logs show operation context without exposing phone numbers",
         "Negative case: grep for 'from_phone' in logger calls returns no matches"
-      ]
+      ],
+      "startedAt": "2026-02-01T21:56:52.455049+00:00",
+      "completedAt": "2026-02-01T22:00:20.927402+00:00",
+      "updatedAt": "2026-02-01T22:00:20.927213+00:00"
     },
     {
       "id": "US-008",
       "title": "Remove PII from remaining service logs",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a security-conscious developer, I want phone numbers removed from all remaining service modules so that PII is not exposed anywhere.",
       "acceptanceCriteria": [
@@ -200,12 +206,15 @@
         "Use structured extra={'operation': '...'} pattern consistently",
         "Example: All service logs use structured metadata without PII",
         "Negative case: grep -r 'phone' src/ --include='*.py' | grep logger shows no phone variable logging"
-      ]
+      ],
+      "startedAt": "2026-02-01T22:00:23.025929+00:00",
+      "completedAt": "2026-02-01T22:04:44.878851+00:00",
+      "updatedAt": "2026-02-01T22:04:44.878396+00:00"
     },
     {
       "id": "US-009",
       "title": "Add return type hints to test methods",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want test methods to have proper return type hints so that the codebase passes type checking.",
       "acceptanceCriteria": [
@@ -213,7 +222,10 @@
         "Specifically: test_format_clean_number, test_format_with_plus, test_format_with_whatsapp_prefix, test_format_already_formatted",
         "Example: `def test_format_clean_number(self) -> None:`",
         "Negative case: ty check passes without type hint errors for these methods"
-      ]
+      ],
+      "startedAt": "2026-02-01T22:04:46.971576+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-01T22:04:46.971730+00:00"
     },
     {
       "id": "US-010",

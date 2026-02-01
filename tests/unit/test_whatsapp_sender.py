@@ -70,16 +70,16 @@ class TestRateLimiter:
 class TestFormatPhoneForWaha:
     """Test phone number formatting for WAHA."""
 
-    def test_format_clean_number(self):
+    def test_format_clean_number(self) -> None:
         assert format_phone_for_waha("1234567890") == "1234567890@c.us"
 
-    def test_format_with_plus(self):
+    def test_format_with_plus(self) -> None:
         assert format_phone_for_waha("+1234567890") == "1234567890@c.us"
 
-    def test_format_with_whatsapp_prefix(self):
+    def test_format_with_whatsapp_prefix(self) -> None:
         assert format_phone_for_waha("whatsapp:+1234567890") == "1234567890@c.us"
 
-    def test_format_already_formatted(self):
+    def test_format_already_formatted(self) -> None:
         assert format_phone_for_waha("1234567890@c.us") == "1234567890@c.us"
 
 
