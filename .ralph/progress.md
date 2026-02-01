@@ -61,7 +61,37 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
 - **Learnings for future iterations:**
   - Pattern: HMAC validation should use constant-time comparison (hmac.compare_digest) to prevent timing attacks
   - Pattern: Security validation functions should return WebhookSecurityResult NamedTuple for consistent error handling
-  - Pattern: Webhook validation functions should accept raw bytes (not parsed JSON) to ensure the signature is computed on the exact payload received
-  - Pattern: Test imports for hashlib and hmac must be at module level to satisfy ruff PLC0415
-  - Context: This function will be integrated into the webhook endpoint in US-003 to validate incoming requests before processing
+   - Pattern: Webhook validation functions should accept raw bytes (not parsed JSON) to ensure the signature is computed on the exact payload received
+   - Pattern: Test imports for hashlib and hmac must be at module level to satisfy ruff PLC0415
+   - Context: This function will be integrated into the webhook endpoint in US-003 to validate incoming requests before processing
 ---
+
+## Sun  1 Feb 2026 21:30:00 GMT - US-003: Integrate HMAC validation into webhook endpoint
+Thread:
+Run: 20260201-211312-25911 (iteration 3)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-3.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-3.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: a003693 feat(webhook): integrate HMAC validation into webhook endpoint (US-003)
+- Post-commit status: clean
+- Verification:
+  - Command: uv run ruff check . --fix -> PASS
+  - Command: uv run ruff format . -> PASS
+  - Command: uv run ty check src -> PASS
+  - Command: uv run pytest -q -> PASS (523 passed)
+- Files changed:
+  - src/interface/webhook.py
+  - tests/unit/test_webhook.py
+  - tests/unit/test_webhook_rate_limiting.py
+- What was implemented:
+  Modified receive_webhook() to validate HMAC signature before any other processing. The endpoint now reads raw request body before JSON parsing, extracts X-Webhook-Hmac header, and calls validate_webhook_hmac() to authenticate the request. Invalid HMAC signatures or missing headers return 401 Unauthorized with appropriate error messages. Added comprehensive unit tests covering valid HMAC, missing headers, and invalid signatures, and updated all existing webhook tests to include HMAC mocking. The webhook rate limiting tests were also updated to include HMAC validation mocking.
+- **Learnings for future iterations:**
+  - Pattern: When mocking settings.waha_webhook_hmac_key in tests, use @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret") to set the value directly
+  - Pattern: Mock request.body must be AsyncMock(return_value=bytes) for HMAC validation tests
+  - Pattern: Mock request.headers must include "X-Webhook-Hmac" for HMAC validation tests
+  - Gotcha: Pydantic BaseSettings instance methods like require_credential cannot be mocked directly with patch(), so access fields directly (e.g., settings.waha_webhook_hmac_key)
+  - Pattern: When updating existing tests for new validation layers, add HMAC mock first (outermost patch) to ensure it runs before other validations
+  - Context: HMAC validation is now the first security check in the webhook pipeline, before rate limiting and other security checks
+---
+

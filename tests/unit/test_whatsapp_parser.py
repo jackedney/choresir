@@ -1,5 +1,7 @@
 """Tests for WAHA webhook parser."""
 
+import pytest
+
 from src.interface.whatsapp_parser import parse_waha_webhook
 
 
@@ -105,3 +107,52 @@ def test_parse_invalid_data():
     assert parse_waha_webhook({}) is None
     assert parse_waha_webhook({"payload": {}}) is None
     assert parse_waha_webhook({"payload": {"id": "1"}}) is None  # Missing 'from'
+
+
+def test_parse_missing_timestamp():
+    """Test parsing webhook with no timestamp field raises ValueError."""
+    data = {
+        "event": "message",
+        "payload": {
+            "id": "true_1234567890@c.us_ABC",
+            "from": "1234567890@c.us",
+            "body": "Hello",
+            "type": "chat",
+        },
+    }
+    with pytest.raises(ValueError, match="Missing required timestamp in webhook payload"):
+        parse_waha_webhook(data)
+
+
+def test_parse_empty_timestamp():
+    """Test parsing webhook with empty timestamp string raises ValueError."""
+    data = {
+        "event": "message",
+        "payload": {
+            "id": "true_1234567890@c.us_ABC",
+            "from": "1234567890@c.us",
+            "body": "Hello",
+            "timestamp": "",
+            "type": "chat",
+        },
+    }
+    with pytest.raises(ValueError, match="Missing required timestamp in webhook payload"):
+        parse_waha_webhook(data)
+
+
+def test_parse_valid_timestamp():
+    """Test parsing webhook with valid timestamp."""
+    data = {
+        "event": "message",
+        "payload": {
+            "id": "true_1234567890@c.us_ABC",
+            "from": "1234567890@c.us",
+            "body": "Hello",
+            "timestamp": 1678900000,
+            "type": "chat",
+        },
+    }
+    result = parse_waha_webhook(data)
+    assert result is not None
+    assert result.message_id == "true_1234567890@c.us_ABC"
+    assert result.timestamp == "1678900000"

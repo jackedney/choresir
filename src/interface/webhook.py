@@ -80,7 +80,11 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
 
     # Parse message for security validation
-    message = whatsapp_parser.parse_waha_webhook(payload)
+    try:
+        message = whatsapp_parser.parse_waha_webhook(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
     if not message:
         # Ignore non-message events (e.g., status updates, qr codes)
         return {"status": "ignored"}

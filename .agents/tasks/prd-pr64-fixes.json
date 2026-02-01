@@ -92,7 +92,7 @@
     {
       "id": "US-003",
       "title": "Integrate HMAC validation into webhook endpoint",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-002"
       ],
@@ -109,13 +109,13 @@
         "Update tests/unit/test_webhook.py with HMAC validation tests"
       ],
       "startedAt": "2026-02-01T21:26:30.332810+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-01T21:26:30.332986+00:00"
+      "completedAt": "2026-02-01T21:37:55.672144+00:00",
+      "updatedAt": "2026-02-01T21:37:55.671788+00:00"
     },
     {
       "id": "US-004",
       "title": "Handle missing timestamp in parser",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want the webhook parser to raise an explicit error when timestamp is missing so that invalid webhooks are rejected clearly.",
       "acceptanceCriteria": [
@@ -126,7 +126,10 @@
         "Negative case: Payload with no timestamp field raises ValueError",
         "Negative case: Payload with timestamp='' raises ValueError",
         "Update tests/unit/test_whatsapp_parser.py with test cases for missing timestamp"
-      ]
+      ],
+      "startedAt": "2026-02-01T21:37:57.775001+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-01T21:37:57.775214+00:00"
     },
     {
       "id": "US-005",

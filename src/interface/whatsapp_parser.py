@@ -49,6 +49,11 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
     if not msg_id or not from_raw:
         return None
 
+    # Check for required timestamp field (only if basic fields are present)
+    timestamp = payload.get("timestamp")
+    if timestamp is None or timestamp == "":
+        raise ValueError("Missing required timestamp in webhook payload")
+
     # Ignore status updates or other events if they sneak in
     # (WAHA usually sends "message" event for incoming messages)
     # If "from" is "status@broadcast", ignore it
