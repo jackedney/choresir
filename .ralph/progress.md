@@ -263,5 +263,33 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
 - **Learnings for future iterations:**
   - Pattern: When functions parse data that may already be available, accept an optional pre-parsed parameter to avoid redundant work
   - Pattern: Use keyword-only arguments (*) for functions with multiple parameters to improve code clarity and prevent accidental positional argument errors
-  - Context: Redundant parsing can impact performance, especially in error handling paths that may execute frequently
-  - Gotcha: When passing an optional pre-parsed value, ensure it's initialized to None before the try block to avoid "possibly unbound" errors when exceptions occur early
+   - Context: Redundant parsing can impact performance, especially in error handling paths that may execute frequently
+   - Gotcha: When passing an optional pre-parsed value, ensure it's initialized to None before the try block to avoid "possibly unbound" errors when exceptions occur early
+
+---
+
+## Sun  1 Feb 2026 22:13:00 GMT - US-011: Update existing tests for new changes
+Thread:
+Run: 20260201-211312-25911 (iteration 11)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-11.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-11.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: none (no changes needed - tests already properly configured)
+- Post-commit status: clean
+- Verification:
+  - Command: uv run ruff format . -> PASS (106 files left unchanged)
+  - Command: uv run ruff check . --fix -> PASS (All checks passed!)
+  - Command: uv run ty check src -> PASS (All checks passed!)
+  - Command: uv run pytest -> PASS (526 passed, 2 warnings)
+- Files changed:
+  - (none - no changes required)
+- What was implemented:
+  Verified that all existing tests are properly configured for the new changes implemented in previous iterations. The test suite is already passing with all acceptance criteria satisfied: (1) tests/unit/test_webhook.py already has HMAC validation mocking via @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret") in all test methods; (2) tests/unit/test_whatsapp_parser.py already includes timestamp in all test payloads; (3) Integration tests don't send webhook payloads directly, they test service layers; (4) tests/unit/test_webhook_rate_limiting.py already mocks waha_webhook_hmac_key; (5) All 526 tests are passing with no failures related to missing HMAC or timestamp; (6) All quality gates (pytest, ruff check, ruff format, ty check) pass. No code changes were required as the tests were properly updated when the related features (US-003, US-004, US-005, US-010) were implemented.
+- **Learnings for future iterations:**
+  - Pattern: Test updates should be done as part of the feature implementation stories, not as a separate cleanup story
+  - Pattern: When implementing security features (like HMAC validation), immediately update all tests to mock the new validation layer
+  - Pattern: Verify test coverage by running pytest immediately after each feature implementation, not deferring to a later story
+  - Context: US-011 was effectively a verification story that confirmed previous test updates were complete
+  - Gotcha: Stories that depend on multiple previous stories may have no actual work if those stories included test updates in their acceptance criteria
+
