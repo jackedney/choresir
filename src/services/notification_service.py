@@ -99,12 +99,13 @@ async def send_verification_request(
                 continue
 
             if send_result.success:
-                logger.info("Verification request sent to user=%s phone=%s", user_id, phone)
+                logger.info(
+                    "Verification request sent", extra={"operation": "verification_request_sent", "user_id": user_id}
+                )
             else:
                 logger.error(
-                    "Failed to send verification request to user=%s phone=%s error=%s",
+                    "Failed to send verification request to user=%s error=%s",
                     user_id,
-                    phone,
                     send_result.error,
                 )
 
@@ -136,7 +137,7 @@ async def _send_verification_message(
     Returns:
         SendMessageResult indicating success or failure
     """
-    logger.debug("Sending text verification message to %s", to_phone)
+    logger.debug("Sending text verification message", extra={"operation": "verification_message_send"})
 
     # NOTE: This uses simple command format that the AI agent parses.
     # The agent's tool_verify_chore (in src/agents/tools/verification_tools.py) expects:
@@ -191,7 +192,11 @@ async def send_personal_verification_request(
         )
 
         if result.success:
-            logger.info("Sent personal verification request to %s for chore '%s'", partner_phone, chore_title)
+            logger.info(
+                "Sent personal verification request for chore '%s'",
+                chore_title,
+                extra={"operation": "personal_verification_request_sent"},
+            )
         else:
             logger.error("Failed to send personal verification request: %s", result.error)
 
@@ -241,7 +246,11 @@ async def send_personal_verification_result(
         )
 
         if result.success:
-            logger.info("Sent personal verification result to %s: %s", owner_phone, status)
+            logger.info(
+                "Sent personal verification result: %s",
+                status,
+                extra={"operation": "personal_verification_result_sent"},
+            )
         else:
             logger.error("Failed to send personal verification result: %s", result.error)
 
