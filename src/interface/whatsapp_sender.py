@@ -1,6 +1,7 @@
 """WhatsApp message sender with rate limiting and retry logic using WAHA."""
 
 import asyncio
+import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -8,6 +9,9 @@ import httpx
 from pydantic import BaseModel, Field
 
 from src.core.config import constants, settings
+
+
+logger = logging.getLogger(__name__)
 
 
 # HTTP status code constants for error handling
@@ -92,8 +96,11 @@ async def send_text_message(
     Returns:
         SendMessageResult indicating success or failure
     """
+    logger.debug("Sending text message", extra={"operation": "send_message_start"})
+
     # Check rate limit
     if not rate_limiter.can_send(to_phone):
+        logger.warning("Rate limit exceeded", extra={"operation": "send_rate_limited"})
         return SendMessageResult(
             success=False,
             error="Rate limit exceeded. Please try again later.",
@@ -122,7 +129,12 @@ async def send_text_message(
                 if response.is_success:
                     data = response.json()
                     # WAHA returns { "id": "...", ... }
-                    return SendMessageResult(success=True, message_id=data.get("id"))
+                    message_id = data.get("id")
+                    logger.info(
+                        "Message sent successfully",
+                        extra={"operation": "send_message_success", "message_id": message_id},
+                    )
+                    return SendMessageResult(success=True, message_id=message_id)
 
                 # Client error (4xx) - don't retry
                 if HTTP_CLIENT_ERROR_START <= response.status_code < HTTP_CLIENT_ERROR_END:
@@ -141,6 +153,9 @@ async def send_text_message(
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
             else:
+                logger.error(
+                    "Failed to send message", extra={"operation": "send_message_failed", "error_type": type(e).__name__}
+                )
                 return SendMessageResult(success=False, error=f"Failed after retries: {e!s}")
 
     return SendMessageResult(success=False, error="Max retries exceeded")

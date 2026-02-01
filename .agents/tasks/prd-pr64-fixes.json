@@ -115,7 +115,7 @@
     {
       "id": "US-004",
       "title": "Handle missing timestamp in parser",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want the webhook parser to raise an explicit error when timestamp is missing so that invalid webhooks are rejected clearly.",
       "acceptanceCriteria": [
@@ -128,13 +128,13 @@
         "Update tests/unit/test_whatsapp_parser.py with test cases for missing timestamp"
       ],
       "startedAt": "2026-02-01T21:37:57.775001+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-01T21:37:57.775214+00:00"
+      "completedAt": "2026-02-01T21:45:02.090934+00:00",
+      "updatedAt": "2026-02-01T21:45:02.090787+00:00"
     },
     {
       "id": "US-005",
       "title": "Add logging to sender module",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want the WhatsApp sender module to log send operations so that I can debug message delivery issues.",
       "acceptanceCriteria": [
@@ -146,7 +146,10 @@
         "Never log phone numbers - use structured extra dict only",
         "Example: Successful send logs info with message_id",
         "Negative case: Failed send logs error without exposing phone number"
-      ]
+      ],
+      "startedAt": "2026-02-01T21:45:04.162354+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-01T21:45:04.162496+00:00"
     },
     {
       "id": "US-006",

@@ -6,36 +6,33 @@ Started: Sun  1 Feb 2026 21:13:12 GMT
 
 ---
 
-## Sun  1 Feb 2026 21:13:12 GMT - US-001: Add WAHA_WEBHOOK_HMAC_KEY setting
+## Sun  1 Feb 2026 21:37:57 GMT - US-004: Handle missing timestamp in parser
 Thread:
-Run: 20260201-211312-25911 (iteration 1)
-Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-1.log
-Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-1.md
+Run: 20260201-211312-25911 (iteration 4)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-4.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-4.md
 - Guardrails reviewed: yes
 - No-commit run: false
-- Commit: b2d3eb3 feat(config): add waha_webhook_hmac_key validation
+- Commit: 9034402 fix(parser): raise ValueError for missing timestamp in webhook payload
 - Post-commit status: clean
 - Verification:
-  - Command: uv run ruff check src -> PASS
+  - Command: uv run ruff check . --fix -> PASS
   - Command: uv run ruff format --check . -> PASS
   - Command: uv run ty check src -> PASS
-  - Command: uv run pytest -q -> PASS (517 passed, 2 warnings)
+  - Command: uv run pytest -> PASS (526 passed)
 - Files changed:
-  - src/core/config.py
-  - src/main.py
-  - tests/conftest.py
-  - tests/integration/conftest.py
-  - tests/unit/test_config.py
-  - tests/unit/test_startup_validation.py
-  - tests/unit/test_webhook.py
+  - src/interface/whatsapp_parser.py
+  - src/interface/webhook.py
+  - tests/unit/test_whatsapp_parser.py
 - What was implemented:
-  Added WAHA_WEBHOOK_HMAC_KEY as a required configuration field with startup validation. The Settings class now includes waha_webhook_hmac_key as an optional field (str | None with default None), and the validate_startup_configuration() function in main.py validates that it's set before the application starts. All test fixtures were updated to include this field, and comprehensive tests were added for the validation logic.
+  Added timestamp validation to parse_waha_webhook() function to raise ValueError when timestamp is missing or empty. The validation occurs after basic id/from field checks to maintain backward compatibility with completely invalid payloads (which return None). The webhook endpoint now wraps parse_waha_webhook() in try/except to catch ValueError and return 400 Bad Request. Added unit tests for missing timestamp, empty timestamp, and valid timestamp scenarios.
 - **Learnings for future iterations:**
-  - Pattern: Required configuration fields should be Optional with default=None, validated at startup via settings.require_credential()
-  - Pattern: Test fixtures (test_settings) must include all optional fields when creating Settings instances for testing
-  - Gotcha: pytest.raises(HTTPException) with type checker requires type: ignore[attr-defined] comments on exception attribute access
-  - Gotcha: Module-level settings = get_settings() pattern works with pydantic-settings because values load from environment variables at runtime, not at type-check time
-  - Context: WAHA_WEBHOOK_HMAC_KEY is used for webhook HMAC validation (US-002 will implement the actual validation logic)
+  - Pattern: When adding validation to existing parsers, preserve backward compatibility by checking new fields only after basic validation passes
+  - Pattern: ValueError raised in parsers should be caught by endpoint exception handlers and converted to appropriate HTTP status codes (400 for client errors)
+  - Pattern: Import pytest for exception testing in test files
+  - Context: Timestamp validation prevents invalid webhooks from being processed and provides clear error messages
+  - Gotcha: ruff I001 (import block un-sorted) was triggered - use ruff check --fix to auto-fix
+
 ---
 
 ## Sun  1 Feb 2026 21:23:01 GMT - US-002: Implement HMAC webhook validation
