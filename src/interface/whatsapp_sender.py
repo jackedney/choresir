@@ -1,6 +1,7 @@
 """WhatsApp message sender with rate limiting and retry logic using WAHA."""
 
 import asyncio
+import functools
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -68,6 +69,7 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
+@functools.cache
 def format_phone_for_waha(phone: str) -> str:
     """Format phone number for WAHA (e.g., '1234567890@c.us')."""
     # Remove 'whatsapp:' prefix if present

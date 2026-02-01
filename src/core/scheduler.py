@@ -1,5 +1,6 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
+import functools
 import logging
 from datetime import UTC, date, datetime
 from itertools import groupby
@@ -174,6 +175,7 @@ async def send_daily_report() -> None:
         logger.error(f"Error in daily report job: {e}")
 
 
+@functools.cache
 def _get_rank_emoji(rank: int) -> str:
     """Get emoji for leaderboard rank.
 
@@ -595,7 +597,7 @@ def start_scheduler() -> None:
 
     # Schedule overdue reminders job (daily at 8am) with retry
     scheduler.add_job(
-        lambda: retry_job_with_backoff(send_overdue_reminders, "overdue_reminders"),
+        functools.partial(retry_job_with_backoff, send_overdue_reminders, "overdue_reminders"),
         trigger=CronTrigger(hour=constants.DAILY_REMINDER_HOUR, minute=0),
         id="overdue_reminders",
         name="Send Overdue Chore Reminders",
@@ -605,7 +607,7 @@ def start_scheduler() -> None:
 
     # Schedule daily report job (daily at 9pm) with retry
     scheduler.add_job(
-        lambda: retry_job_with_backoff(send_daily_report, "daily_report"),
+        functools.partial(retry_job_with_backoff, send_daily_report, "daily_report"),
         trigger=CronTrigger(hour=constants.DAILY_REPORT_HOUR, minute=0),
         id="daily_report",
         name="Send Daily Household Report",
@@ -615,7 +617,7 @@ def start_scheduler() -> None:
 
     # Schedule weekly leaderboard job (Sunday at 8pm) with retry
     scheduler.add_job(
-        lambda: retry_job_with_backoff(send_weekly_leaderboard, "weekly_leaderboard"),
+        functools.partial(retry_job_with_backoff, send_weekly_leaderboard, "weekly_leaderboard"),
         trigger=CronTrigger(
             day_of_week=constants.WEEKLY_REPORT_DAY,
             hour=constants.WEEKLY_REPORT_HOUR,
@@ -631,7 +633,7 @@ def start_scheduler() -> None:
 
     # Schedule personal chore reminders (daily at 8am) with retry
     scheduler.add_job(
-        lambda: retry_job_with_backoff(send_personal_chore_reminders, "personal_chore_reminders"),
+        functools.partial(retry_job_with_backoff, send_personal_chore_reminders, "personal_chore_reminders"),
         trigger=CronTrigger(hour=8, minute=0),
         id="personal_chore_reminders",
         name="Send Personal Chore Reminders",
@@ -641,7 +643,7 @@ def start_scheduler() -> None:
 
     # Schedule auto-verification (hourly) with retry
     scheduler.add_job(
-        lambda: retry_job_with_backoff(auto_verify_personal_chores, "auto_verify_personal"),
+        functools.partial(retry_job_with_backoff, auto_verify_personal_chores, "auto_verify_personal"),
         trigger=CronTrigger(hour="*", minute=0),  # Every hour at minute 0
         id="auto_verify_personal",
         name="Auto-Verify Personal Chores",

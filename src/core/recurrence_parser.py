@@ -1,11 +1,13 @@
 """Recurrence parsing utilities for chore scheduling."""
 
+import functools
 import re
 from datetime import datetime, timedelta
 
 from croniter import croniter
 
 
+@functools.cache
 def parse_recurrence_to_cron(recurrence: str) -> str:
     """Parse recurrence string to CRON expression.
 
