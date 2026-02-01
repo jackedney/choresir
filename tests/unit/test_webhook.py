@@ -18,11 +18,16 @@ class TestReceiveWebhook:
     """Test webhook endpoint."""
 
     @pytest.mark.asyncio
+    @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
+    @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
     @patch("src.interface.webhook.webhook_security.verify_webhook_security")
     @patch("src.interface.webhook.process_webhook_message")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    async def test_receive_webhook_valid(self, mock_parse, mock_process, mock_security):
+    async def test_receive_webhook_valid(self, mock_parse, mock_process, mock_security, mock_hmac):
         """Test webhook receives and validates valid requests."""
+        # Mock HMAC validation success
+        mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
+
         mock_security.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
         mock_msg = MagicMock()
@@ -33,6 +38,8 @@ class TestReceiveWebhook:
 
         # Create mock request with JSON data
         mock_request = MagicMock()
+        mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
+        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
         mock_request.json = AsyncMock(return_value={"event": "message", "payload": {}})
 
         mock_background_tasks = MagicMock()
@@ -42,6 +49,9 @@ class TestReceiveWebhook:
         # Should return success
         assert result == {"status": "received"}
 
+        # Should validate HMAC
+        mock_hmac.assert_called_once()
+
         # Should verify security
         mock_security.assert_called_once()
 
@@ -49,9 +59,89 @@ class TestReceiveWebhook:
         mock_background_tasks.add_task.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_receive_webhook_invalid_json(self):
-        """Test webhook rejects invalid JSON."""
+    @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
+    @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
+    async def test_receive_webhook_missing_hmac_header(self, mock_hmac):
+        """Test webhook rejects requests without HMAC header."""
+        # Mock HMAC validation failure (missing header)
+        mock_hmac.return_value = WebhookSecurityResult(
+            is_valid=False, error_message="Missing webhook signature", http_status_code=401
+        )
+
         mock_request = MagicMock()
+        mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
+        mock_request.headers = {}
+        mock_background_tasks = MagicMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await receive_webhook(mock_request, mock_background_tasks)
+
+        assert exc_info.value.status_code == 401  # type: ignore[attr-defined]
+        assert exc_info.value.detail == "Missing webhook signature"  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
+    @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
+    async def test_receive_webhook_invalid_hmac_signature(self, mock_hmac):
+        """Test webhook rejects requests with invalid HMAC signature."""
+        # Mock HMAC validation failure (invalid signature)
+        mock_hmac.return_value = WebhookSecurityResult(
+            is_valid=False, error_message="Invalid webhook signature", http_status_code=401
+        )
+
+        mock_request = MagicMock()
+        mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
+        mock_request.headers = {"X-Webhook-Hmac": "invalid_signature"}
+        mock_background_tasks = MagicMock()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await receive_webhook(mock_request, mock_background_tasks)
+
+        assert exc_info.value.status_code == 401  # type: ignore[attr-defined]
+        assert exc_info.value.detail == "Invalid webhook signature"  # type: ignore[attr-defined]
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
+    @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
+    @patch("src.interface.webhook.webhook_security.verify_webhook_security")
+    @patch("src.interface.webhook.process_webhook_message")
+    @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
+    async def test_receive_webhook_valid_hmac_proceeds(self, mock_parse, mock_process, mock_security, mock_hmac):
+        """Test webhook with valid HMAC proceeds to normal processing."""
+        # Mock HMAC validation success
+        mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
+
+        mock_security.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
+
+        mock_msg = MagicMock()
+        mock_msg.message_id = "123"
+        mock_msg.timestamp = "123456"
+        mock_msg.from_phone = "1234567890"
+        mock_parse.return_value = mock_msg
+
+        mock_request = MagicMock()
+        body = b'{"event": "message", "payload": {"from": "1234567890"}}'
+        mock_request.body = AsyncMock(return_value=body)
+        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
+        mock_request.json = AsyncMock(return_value={"event": "message", "payload": {}})
+
+        mock_background_tasks = MagicMock()
+
+        result = await receive_webhook(mock_request, mock_background_tasks)
+
+        assert result == {"status": "received"}
+        mock_hmac.assert_called_once_with(raw_body=body, signature="valid_signature", secret="test_secret")
+
+    @pytest.mark.asyncio
+    @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
+    @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
+    async def test_receive_webhook_invalid_json(self, mock_hmac):
+        """Test webhook rejects invalid JSON."""
+        mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
+
+        mock_request = MagicMock()
+        mock_request.body = AsyncMock(return_value=b'{"invalid": json}')
+        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
         mock_request.json = AsyncMock(side_effect=Exception("Invalid JSON"))
         mock_background_tasks = MagicMock()
 
@@ -61,12 +151,17 @@ class TestReceiveWebhook:
         assert exc_info.value.status_code == 400  # type: ignore[attr-defined]
 
     @pytest.mark.asyncio
+    @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
+    @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    async def test_receive_webhook_ignored_event(self, mock_parse):
+    async def test_receive_webhook_ignored_event(self, mock_parse, mock_hmac):
         """Test webhook ignores non-message events."""
+        mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
         mock_parse.return_value = None
 
         mock_request = MagicMock()
+        mock_request.body = AsyncMock(return_value=b'{"event": "status"}')
+        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
         mock_request.json = AsyncMock(return_value={"event": "status"})
         mock_background_tasks = MagicMock()
 
@@ -76,10 +171,14 @@ class TestReceiveWebhook:
         mock_background_tasks.add_task.assert_not_called()
 
     @pytest.mark.asyncio
+    @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
+    @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
     @patch("src.interface.webhook.webhook_security.verify_webhook_security")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    async def test_receive_webhook_security_failure(self, mock_parse, mock_security):
+    async def test_receive_webhook_security_failure(self, mock_parse, mock_security, mock_hmac):
         """Test webhook fails on security check."""
+        mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
+
         mock_msg = MagicMock()
         mock_msg.message_id = "123"
         mock_msg.timestamp = "123456"
@@ -91,6 +190,8 @@ class TestReceiveWebhook:
         )
 
         mock_request = MagicMock()
+        mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
+        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
         mock_request.json = AsyncMock(return_value={})
         mock_background_tasks = MagicMock()
 

@@ -10,7 +10,7 @@ from pocketbase import PocketBase
 from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
-from src.core.config import Constants
+from src.core.config import Constants, settings
 from src.core.db_client import sanitize_param
 from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
@@ -32,10 +32,11 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
     """Receive and validate WAHA webhook POST requests.
 
     This endpoint:
-    1. Parses JSON payload
-    2. Performs security checks (timestamp, nonce, rate limit)
-    3. Returns 200 OK immediately
-    4. Dispatches message processing to background tasks
+    1. Validates HMAC signature before any processing
+    2. Parses JSON payload
+    3. Performs security checks (timestamp, nonce, rate limit)
+    4. Returns 200 OK immediately
+    5. Dispatches message processing to background tasks
 
     Args:
         request: FastAPI request object containing JSON data
@@ -47,6 +48,29 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
     Raises:
         HTTPException: If payload is invalid or security checks fail
     """
+    # Read raw body for HMAC validation before JSON parsing
+    raw_body = await request.body()
+
+    # Extract HMAC signature from header
+    hmac_signature = request.headers.get("X-Webhook-Hmac")
+
+    # Validate HMAC signature before any other processing
+    # This is safe because startup validation ensures waha_webhook_hmac_key is set
+    hmac_secret = settings.waha_webhook_hmac_key or ""
+    hmac_result = webhook_security.validate_webhook_hmac(
+        raw_body=raw_body, signature=hmac_signature, secret=hmac_secret
+    )
+
+    if not hmac_result.is_valid:
+        logger.warning(
+            "HMAC validation failed",
+            extra={"operation": "hmac_validation_failed"},
+        )
+        raise HTTPException(
+            status_code=hmac_result.http_status_code or 401,
+            detail=hmac_result.error_message,
+        )
+
     # Check global webhook rate limit (raises HTTPException directly)
     await rate_limiter.check_webhook_rate_limit()
 

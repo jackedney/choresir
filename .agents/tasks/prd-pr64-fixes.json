@@ -69,7 +69,7 @@
     {
       "id": "US-002",
       "title": "Implement HMAC webhook validation",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -86,13 +86,13 @@
         "Add unit tests in tests/unit/test_webhook_security.py for all cases"
       ],
       "startedAt": "2026-02-01T21:21:52.810046+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-01T21:21:52.810243+00:00"
+      "completedAt": "2026-02-01T21:26:28.263875+00:00",
+      "updatedAt": "2026-02-01T21:26:28.263686+00:00"
     },
     {
       "id": "US-003",
       "title": "Integrate HMAC validation into webhook endpoint",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-002"
       ],
@@ -107,7 +107,10 @@
         "Negative case: Request without header returns 401",
         "Negative case: Request with invalid signature returns 401",
         "Update tests/unit/test_webhook.py with HMAC validation tests"
-      ]
+      ],
+      "startedAt": "2026-02-01T21:26:30.332810+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-01T21:26:30.332986+00:00"
     },
     {
       "id": "US-004",

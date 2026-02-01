@@ -7,17 +7,25 @@ from fastapi import BackgroundTasks, HTTPException, Request
 
 from src.interface import whatsapp_parser
 from src.interface.webhook import _handle_user_status, receive_webhook
+from src.interface.webhook_security import WebhookSecurityResult
 
 
 @pytest.mark.asyncio
 async def test_webhook_rate_limit_enforced():
     """Test that webhook endpoint enforces rate limits."""
     mock_request = MagicMock(spec=Request)
+    mock_request.body = AsyncMock(return_value=b'{"payload": {"body": "test"}}')
     mock_request.json = AsyncMock(return_value={"payload": {"body": "test"}})
+    mock_request.headers = {"X-Webhook-Hmac": "test_signature"}
 
     mock_bg_tasks = MagicMock(spec=BackgroundTasks)
 
-    with patch("src.interface.webhook.rate_limiter") as mock_limiter:
+    with (
+        patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret"),
+        patch("src.interface.webhook.webhook_security.validate_webhook_hmac") as mock_hmac,
+        patch("src.interface.webhook.rate_limiter") as mock_limiter,
+    ):
+        mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
         mock_limiter.check_webhook_rate_limit = AsyncMock(
             side_effect=HTTPException(
                 status_code=429,
@@ -46,6 +54,8 @@ async def test_webhook_rate_limit_enforced():
 async def test_webhook_rate_limit_passes_when_under_limit():
     """Test that webhook processes normally when under rate limit."""
     mock_request = MagicMock(spec=Request)
+    mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
+    mock_request.headers = {"X-Webhook-Hmac": "test_signature"}
     mock_request.json = AsyncMock(
         return_value={
             "event": "message",
@@ -62,10 +72,13 @@ async def test_webhook_rate_limit_passes_when_under_limit():
     mock_bg_tasks.add_task = MagicMock()
 
     with (
+        patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret"),
+        patch("src.interface.webhook.webhook_security.validate_webhook_hmac") as mock_hmac,
         patch("src.interface.webhook.rate_limiter") as mock_limiter,
         patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook") as mock_parse,
         patch("src.interface.webhook.webhook_security") as mock_security,
     ):
+        mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
         mock_limiter.check_webhook_rate_limit = AsyncMock(return_value=None)
 
         mock_message = MagicMock()
