@@ -92,3 +92,117 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Context: HMAC validation is now the first security check in the webhook pipeline, before rate limiting and other security checks
 ---
 
+
+## Sun  1 Feb 2026 21:45:04 GMT - US-005: Add logging to sender module
+Thread:
+Run: 20260201-211312-25911 (iteration 5)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-5.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-5.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 27e12d8 feat(logging): add structured logging to sender module
+- Post-commit status: clean
+- Verification:
+  - Command: uv run ruff format . -> PASS
+  - Command: uv run ruff check . -> PASS
+  - Command: uv run ty check src -> PASS
+  - Command: uv run pytest -> PASS (526 passed)
+- Files changed:
+  - src/interface/whatsapp_sender.py
+- What was implemented:
+  Added structured logging to the WhatsApp sender module following the logging standards defined in AGENTS.md. Added logger.debug() at start of send_text_message with operation tracking, logger.info() on successful send including message_id, logger.warning() on rate limit exceeded, and logger.error() on failure including error_type. All logging uses structured extra dicts with operation types and never logs phone numbers to protect PII. The implementation follows the standard logging pattern: import logging and logger = logging.getLogger(__name__) at module level. Logfire integration will automatically capture these standard logging calls.
+- **Learnings for future iterations:**
+  - Pattern: Standard logging pattern requires import logging and logger = logging.getLogger(__name__) at module level
+  - Pattern: Structured logging uses extra={'operation': '...', ...} dicts for context and filtering
+  - Pattern: Never log sensitive data (PII) like phone numbers in log messages or extra dicts
+  - Pattern: Log levels follow conventions: DEBUG for fine-grained info, INFO for operational events, WARNING for recoverable issues, ERROR for failures requiring attention
+  - Context: This logging enables debugging message delivery issues without exposing user privacy
+  - Gotcha: ruff I001 (import block un-sorted) was triggered - use ruff check --fix to auto-fix
+
+---
+
+## Sun  1 Feb 2026 21:52:00 GMT - US-006: Remove PII from notification_service logs
+Thread:
+Run: 20260201-211312-25911 (iteration 6)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-6.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-6.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 57f164b refactor(security): remove PII from notification_service logs
+- Post-commit status: clean
+- Verification:
+  - Command: uv run ruff format . -> PASS
+  - Command: uv run ruff check . -> PASS
+  - Command: uv run ty check src -> PASS
+  - Command: uv run pytest -> PASS (526 passed)
+  - Command: uv run pytest tests/unit/test_notification_service.py -v -> PASS (7 passed)
+- Files changed:
+  - src/services/notification_service.py
+- What was implemented:
+  Removed phone numbers from all logger calls in notification_service.py to protect PII. Replaced 5 logging statements with structured logging using extra dicts: (1) Line 102: verification request sent now uses extra={'operation': 'verification_request_sent', 'user_id': user_id} instead of logging phone; (2) Line 141: verification message send uses extra={'operation': 'verification_message_send'}; (3) Line 196: personal verification request uses extra={'operation': 'personal_verification_request_sent'} and keeps chore title; (4) Line 250: personal verification result uses extra={'operation': 'personal_verification_result_sent'} and keeps status; (5) Line 106: error case now logs only user_id and error, not phone. All phone number references removed from log messages while maintaining operation tracking for debugging.
+- **Learnings for future iterations:**
+  - Pattern: When removing PII from logs, preserve non-sensitive context (user_id, status, chore title) using structured extra dicts
+  - Pattern: Error cases should also be reviewed for PII exposure - fixed line 106 error log which wasn't in the original acceptance criteria
+  - Pattern: Use grep -n "logger\." file.py | grep -E "(phone|to_phone|partner_phone|owner_phone)" to verify no phone numbers in logs
+  - Context: Protecting PII in logs is critical for security compliance and user privacy
+  - Gotcha: Acceptance criteria listed specific line numbers, but a grep search revealed additional PII in error logs that also needed fixing
+
+---
+
+## Sun  1 Feb 2026 21:58:00 GMT - US-007: Remove PII from webhook.py logs
+Thread:
+Run: 20260201-211312-25911 (iteration 7)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-7.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-7.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 79a860a refactor(webhook): remove PII from logger calls in webhook.py
+- Post-commit status: clean
+- Verification:
+  - Command: uv run ruff check . --fix -> PASS
+  - Command: uv run ruff format . -> PASS
+  - Command: uv run ty check src -> PASS
+  - Command: uv run pytest -> PASS (526 passed)
+- Files changed:
+  - src/interface/webhook.py
+- What was implemented:
+  Removed all phone numbers from logger calls in src/interface/webhook.py to protect PII. Updated 11 logging statements: (1) Line 160: Pending user now logs with extra={'user_status': 'pending'}; (2) Line 166: Banned user with extra={'user_status': 'banned'}; (3) Line 172: Active user with extra={'user_status': 'active'}; (4) Line 202: Failed response with extra={'error': result.error}; (5) Line 204: Success with extra={'user_status': 'active'}; (6) Line 207: Unknown status with extra={'user_status': status}; (7) Line 365: Button click with extra={'button_payload': message.button_payload}; (8) Line 373: Unknown button with extra={'operation': 'button_unknown_user'}; (9) Line 393: Text message with extra={'operation': 'text_message'}; (10) Line 400: Unknown user with extra={'operation': 'unknown_user'}; (11) Line 413: Record not found with extra={'operation': 'record_not_found'}; (12) Line 107: Removed 'phone' key from security check failure extra dict. Verification confirms no phone numbers in logger calls via grep.
+- **Learnings for future iterations:**
+  - Pattern: Structured logging with extra dicts provides operation context without exposing PII
+  - Pattern: User status information should be tracked in extra={'user_status': status} rather than in log messages
+  - Pattern: When searching for PII in logs, use multiple grep patterns: 'from_phone', '"phone"', and phone number patterns
+  - Context: Webhook module processes all incoming WhatsApp messages, making PII removal critical
+  - Gotcha: Phone numbers were also being logged in extra dicts (line 107 'phone': message.from_phone) which required removal
+
+---
+
+## Sun  1 Feb 2026 22:07:00 GMT - US-008: Remove PII from remaining service logs
+Thread:
+Run: 20260201-211312-25911 (iteration 8)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-8.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260201-211312-25911-iter-8.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: cd747bf fix(security): Remove PII from remaining service logs
+- Post-commit status: clean
+- Verification:
+  - Command: uv run pytest -> PASS (526 passed)
+  - Command: uv run ruff check . -> PASS
+  - Command: uv run ruff format --check . -> PASS
+  - Command: uv run ty check src -> PASS
+  - Command: grep -r 'phone' src/ --include='*.py' | grep logger -> PASS (no matches)
+- Files changed:
+  - src/services/personal_chore_service.py
+  - src/services/user_service.py
+  - src/core/scheduler.py
+  - src/services/session_service.py
+  - src/services/personal_verification_service.py
+  - src/agents/choresir_agent.py
+- What was implemented:
+  Removed phone numbers from all remaining logger calls across service modules and agents. Updated 15 logging statements across 6 files: (1) personal_chore_service.py line 153: archived chore log; (2) user_service.py lines 48, 66, 88, 140: join request validation, name validation, user creation, and approval logs; (3) scheduler.py line 479: missing chore data warning; (4) session_service.py lines 52, 71, 103, 129, 137, 167, 210: session creation, deletion, expiration, update, and password attempt logs; (5) personal_verification_service.py lines 91, 164: chore logging and verification logs; (6) choresir_agent.py lines 317, 323, 497, 517: join request errors and name validation logs. All logs now use structured extra={'operation': '...'} pattern consistently without exposing phone numbers.
+- **Learnings for future iterations:**
+  - Pattern: Consistent use of extra={'operation': '...'} across all service modules provides uniform log filtering and debugging capabilities
+  - Pattern: When removing PII from logs, always verify with grep -r 'phone' src/ --include='*.py' | grep logger to ensure no remaining phone variable logging
+  - Pattern: Preserve non-sensitive context in extra dicts (chore_title, status, error, expires_at) while removing sensitive data
+  - Context: This completes PII removal from all service modules, ensuring no phone numbers appear in any logger calls across the codebase
+  - Gotcha: Some logs (line 91 in personal_verification_service.py) included multiple PII fields (chore_title and owner_phone), requiring careful extraction of only non-sensitive context
