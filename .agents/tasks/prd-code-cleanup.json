@@ -103,7 +103,7 @@
     {
       "id": "US-004",
       "title": "Introduce functools.cache and functools.partial where beneficial",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -114,12 +114,15 @@
         "Example: Caching emoji lookups in _get_rank_emoji() if called repeatedly",
         "Negative case: Do not cache functions with side effects or mutable arguments",
         "All tests pass after changes"
-      ]
+      ],
+      "updatedAt": "2026-02-01T22:49:44.779512+00:00",
+      "completedAt": "2026-02-01T22:49:44.779658+00:00",
+      "startedAt": "2026-02-01T22:49:44.779660+00:00"
     },
     {
       "id": "US-005",
       "title": "Standardize logging to use logger.exception() in error handlers",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
@@ -131,7 +134,10 @@
         "Example: `except Exception as e: logger.exception('Failed to send reminder')` instead of `logger.error(f'Error: {e}')`",
         "Negative case: Keep logger.error() when not in an exception context",
         "All tests pass"
-      ]
+      ],
+      "startedAt": "2026-02-01T22:49:46.875340+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-01T22:49:46.875505+00:00"
     },
     {
       "id": "US-006",

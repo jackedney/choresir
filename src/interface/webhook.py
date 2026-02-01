@@ -239,7 +239,7 @@ async def _handle_button_payload(
     # Parse payload: VERIFY:APPROVE:log_id or VERIFY:REJECT:log_id
     parts = payload.split(":")
     if len(parts) != Constants.WEBHOOK_BUTTON_PAYLOAD_PARTS or parts[0] != "VERIFY":
-        logger.error("Invalid button payload format: %s", payload)
+        logger.error(f"Invalid button payload format: {payload}")
         result = await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text=ERROR_MSG_BUTTON_PROCESSING_FAILED,
@@ -250,7 +250,7 @@ async def _handle_button_payload(
 
     # Validate decision type
     if decision_str not in ("APPROVE", "REJECT"):
-        logger.error("Invalid decision in payload: %s", decision_str)
+        logger.error(f"Invalid decision in payload: {decision_str}")
         result = await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="Sorry, I couldn't process that button click. Please try typing your response instead.",
@@ -292,7 +292,7 @@ async def _handle_button_payload(
         return (False, "Self-verification attempted")
 
     except KeyError as e:
-        logger.error("Record not found for button payload: %s", e)
+        logger.exception("Record not found for button payload")
         await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="This verification request may have expired or been processed already.",
@@ -301,12 +301,7 @@ async def _handle_button_payload(
 
     except Exception as e:
         # Log with more detail for unexpected exceptions
-        logger.error(
-            "Unexpected button handler error (%s): %s",
-            type(e).__name__,
-            e,
-            exc_info=True,  # Include stack trace
-        )
+        logger.exception("Unexpected button handler error")
         await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="Sorry, an error occurred while processing your verification.",
@@ -448,7 +443,7 @@ async def _handle_webhook_error(
         params: Original webhook parameters
         parsed_message: Already parsed message (if available, avoids re-parsing)
     """
-    logger.error("Error processing webhook message: %s", e)
+    logger.exception("Error processing webhook message")
 
     error_category, _ = classify_agent_error(e)
     error_response = classify_error_with_response(e)
@@ -483,8 +478,8 @@ async def _handle_webhook_error(
                 message=notification_msg,
                 severity="critical",
             )
-        except Exception as notify_error:
-            logger.error("Failed to notify admins of critical error: %s", notify_error)
+        except Exception:
+            logger.exception("Failed to notify admins of critical error")
 
     try:
         if parsed_message and parsed_message.from_phone:
@@ -502,16 +497,16 @@ async def _handle_webhook_error(
                             "error_message": str(e),
                         },
                     )
-            except Exception as update_error:
-                logger.error("Failed to update processed message record: %s", update_error)
+            except Exception:
+                logger.exception("Failed to update processed message record")
 
             user_message = f"{error_response.message}\n\n{error_response.suggestion}"
             await whatsapp_sender.send_text_message(
                 to_phone=parsed_message.from_phone,
                 text=user_message,
             )
-    except Exception as send_error:
-        logger.error("Failed to send error message to user: %s", send_error)
+    except Exception:
+        logger.exception("Failed to send error message to user")
 
 
 async def process_webhook_message(params: dict[str, Any]) -> None:

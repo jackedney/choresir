@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 from pocketbase import PocketBase
-from pocketbase.client import ClientResponseError
+from pocketbase.errors import ClientResponseError
 
 from src.core.config import settings
 
@@ -510,8 +510,8 @@ async def sync_schema(
     try:
         client.admins.auth_with_password(admin_email, admin_password)
         logger.info("Successfully authenticated as admin")
-    except ClientResponseError as e:
-        logger.error(f"Failed to authenticate as admin: {e}")
+    except ClientResponseError:
+        logger.exception("Failed to authenticate as admin")
         raise
 
     # Use httpx with the auth token from PocketBase SDK

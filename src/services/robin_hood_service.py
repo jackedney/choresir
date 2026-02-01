@@ -62,8 +62,8 @@ async def get_weekly_takeover_count(user_id: str) -> int:
             return records[0].get("takeover_count", 0)
         return 0
 
-    except Exception as e:
-        logger.error("Failed to get weekly takeover count for user %s: %s", user_id, e)
+    except Exception:
+        logger.exception("Failed to get weekly takeover count for user %s", user_id)
         # Fail safe: return 0 to allow operation if DB query fails
         return 0
 

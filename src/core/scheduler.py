@@ -72,8 +72,8 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) ->
     except KeyError:
         logger.warning(f"User {user_id} not found for overdue reminders")
         return False
-    except Exception as e:
-        logger.error(f"Error sending reminder to user {user_id}: {e}")
+    except Exception:
+        logger.exception("Error sending reminder to user %s", user_id)
         return False
 
 
@@ -109,8 +109,8 @@ async def send_overdue_reminders() -> None:
 
         logger.info("Completed overdue reminders job: %d/%d users notified", sent_count, len(chores_by_user))
 
-    except Exception as e:
-        logger.error(f"Error in overdue reminders job: {e}")
+    except Exception:
+        logger.exception("Error in overdue reminders job")
 
 
 async def send_daily_report() -> None:
@@ -165,14 +165,14 @@ async def send_daily_report() -> None:
                 else:
                     logger.warning(f"Failed to send daily report to {user['name']}: {result.error}")
 
-            except Exception as e:
-                logger.error(f"Error sending daily report to user {user['id']}: {e}")
+            except Exception:
+                logger.exception("Error sending daily report to user %s", user["id"])
                 continue
 
         logger.info("Completed daily report job: sent to %d/%d users", sent_count, len(active_users))
 
-    except Exception as e:
-        logger.error(f"Error in daily report job: {e}")
+    except Exception:
+        logger.exception("Error in daily report job")
 
 
 @functools.cache
@@ -329,14 +329,14 @@ async def send_weekly_leaderboard() -> None:
                 else:
                     logger.warning(f"Failed to send weekly leaderboard to {user['name']}: {result.error}")
 
-            except Exception as e:
-                logger.error(f"Error sending weekly leaderboard to user {user['id']}: {e}")
+            except Exception:
+                logger.exception("Error sending weekly leaderboard to user %s", user["id"])
                 continue
 
         logger.info("Completed weekly leaderboard job: sent to %d/%d users", sent_count, len(active_users))
 
-    except Exception as e:
-        logger.error(f"Error in weekly leaderboard job: {e}")
+    except Exception:
+        logger.exception("Error in weekly leaderboard job")
 
 
 async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | None:
@@ -560,14 +560,14 @@ async def send_personal_chore_reminders() -> None:
             try:
                 if await _send_personal_chore_reminder_to_user(user, today):
                     sent_count += 1
-            except Exception as e:
-                logger.error(f"Error sending reminder to user {user['id']}: {e}")
+            except Exception:
+                logger.exception("Error sending reminder to user %s", user["id"])
                 continue
 
         logger.info("Completed personal chore reminders: sent to %d/%d users", sent_count, len(active_users))
 
-    except Exception as e:
-        logger.error(f"Error in personal chore reminders job: {e}")
+    except Exception:
+        logger.exception("Error in personal chore reminders job")
 
 
 async def auto_verify_personal_chores() -> None:
@@ -584,8 +584,8 @@ async def auto_verify_personal_chores() -> None:
 
         logger.info(f"Completed auto-verification job: {count} logs auto-verified")
 
-    except Exception as e:
-        logger.error(f"Error in auto-verification job: {e}")
+    except Exception:
+        logger.exception("Error in auto-verification job")
 
 
 def start_scheduler() -> None:

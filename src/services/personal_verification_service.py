@@ -296,8 +296,8 @@ async def auto_verify_expired_logs() -> int:
                         log["id"],
                     )
 
-            except Exception as e:
-                logger.error("Failed to auto-verify log %s: %s", log["id"], e)
+            except Exception:
+                logger.exception("Failed to auto-verify log %s", log["id"])
                 continue
 
         logger.info("Auto-verified %d personal chore logs", auto_verified_count)

@@ -102,8 +102,8 @@ class PocketBaseConnectionPool:
             # Using admins.auth_refresh as a lightweight health check
             client.admins.auth_refresh()
             return True
-        except Exception as e:
-            logger.warning("PocketBase health check failed", extra={"error": str(e)})
+        except Exception:
+            logger.exception("PocketBase health check failed")
             return False
 
     def _get_client_with_retry(self) -> PocketBase:
