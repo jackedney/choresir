@@ -126,19 +126,14 @@ async def _update_message_status(*, message_id: str, success: bool, error: str |
         success: Whether the message was successfully processed
         error: Error message if processing failed
     """
-    msg_record = await db_client.get_first_record(
+    await db_client.update_first_matching(
         collection="processed_messages",
         filter_query=f'message_id = "{sanitize_param(message_id)}"',
+        data={
+            "success": success,
+            "error_message": error if not success else None,
+        },
     )
-    if msg_record:
-        await db_client.update_record(
-            collection="processed_messages",
-            record_id=msg_record["id"],
-            data={
-                "success": success,
-                "error_message": error if not success else None,
-            },
-        )
 
 
 async def _handle_user_status(
@@ -484,19 +479,14 @@ async def _handle_webhook_error(
     try:
         if parsed_message and parsed_message.from_phone:
             try:
-                existing_record = await db_client.get_first_record(
+                await db_client.update_first_matching(
                     collection="processed_messages",
                     filter_query=f'message_id = "{sanitize_param(parsed_message.message_id)}"',
+                    data={
+                        "success": False,
+                        "error_message": str(e),
+                    },
                 )
-                if existing_record:
-                    await db_client.update_record(
-                        collection="processed_messages",
-                        record_id=existing_record["id"],
-                        data={
-                            "success": False,
-                            "error_message": str(e),
-                        },
-                    )
             except Exception:
                 logger.exception("Failed to update processed message record")
 

@@ -302,3 +302,32 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         msg = f"Failed to get first record from {collection}: {e}"
         logger.error(msg)
         raise RuntimeError(msg) from e
+
+
+async def update_first_matching(*, collection: str, filter_query: str, data: dict[str, Any]) -> bool:
+    """Update the first record matching the filter query.
+
+    Args:
+        collection: The collection to search in
+        filter_query: PocketBase filter query string
+        data: Dictionary of fields to update
+
+    Returns:
+        True if a record was found and updated, False if not found
+
+    Raises:
+        RuntimeError: If database operation fails
+
+    Example:
+        >>> await update_first_matching(
+        ...     collection="messages",
+        ...     filter_query='waha_id="msg123"',
+        ...     data={"status": "delivered"}
+        ... )
+    """
+    record = await get_first_record(collection=collection, filter_query=filter_query)
+    if not record:
+        return False
+
+    await update_record(collection=collection, record_id=record["id"], data=data)
+    return True

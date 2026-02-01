@@ -265,10 +265,10 @@ class TestProcessWebhookMessage:
             side_effect=[
                 None,  # check duplicate
                 None,  # user lookup
-                None,  # update message status
             ]
         )
         mock_db.create_record = AsyncMock(return_value={"id": "msg123"})
+        mock_db.update_first_matching = AsyncMock(return_value=False)
 
         # build_deps returns None for unknown user
         mock_agent.build_deps = AsyncMock(return_value=None)
