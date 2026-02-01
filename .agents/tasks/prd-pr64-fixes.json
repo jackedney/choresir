@@ -51,7 +51,7 @@
     {
       "id": "US-001",
       "title": "Add WAHA_WEBHOOK_HMAC_KEY setting",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want a mandatory WAHA_WEBHOOK_HMAC_KEY configuration setting so that webhook HMAC validation can be performed.",
       "acceptanceCriteria": [
@@ -63,13 +63,13 @@
         "Update existing tests that mock settings to include this field"
       ],
       "startedAt": "2026-02-01T21:13:12.980741+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-01T21:13:12.980911+00:00"
+      "completedAt": "2026-02-01T21:21:50.706260+00:00",
+      "updatedAt": "2026-02-01T21:21:50.705814+00:00"
     },
     {
       "id": "US-002",
       "title": "Implement HMAC webhook validation",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
@@ -84,7 +84,10 @@
         "Negative case: Missing X-Webhook-Hmac header returns 401",
         "Negative case: Invalid HMAC signature returns 401 and logs warning",
         "Add unit tests in tests/unit/test_webhook_security.py for all cases"
-      ]
+      ],
+      "startedAt": "2026-02-01T21:21:52.810046+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-01T21:21:52.810243+00:00"
     },
     {
       "id": "US-003",

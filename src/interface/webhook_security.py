@@ -1,5 +1,7 @@
 """Webhook security utilities for replay attack protection."""
 
+import hashlib
+import hmac
 import logging
 from datetime import datetime
 from typing import NamedTuple
@@ -96,6 +98,45 @@ async def validate_webhook_nonce(message_id: str) -> WebhookSecurityResult:
             is_valid=False,
             error_message="Duplicate webhook",
             http_status_code=400,
+        )
+
+    return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
+
+
+def validate_webhook_hmac(*, raw_body: bytes, signature: str | None, secret: str) -> WebhookSecurityResult:
+    """Validate webhook HMAC signature.
+
+    Computes SHA512 HMAC of raw request body using secret key and compares
+    with the provided signature header using constant-time comparison.
+
+    Args:
+        raw_body: Raw bytes of the request body
+        signature: X-Webhook-Hmac header value (hex-encoded HMAC)
+        secret: Secret key used to compute HMAC
+
+    Returns:
+        WebhookSecurityResult indicating if signature is valid
+    """
+    if signature is None:
+        logger.warning("Missing X-Webhook-Hmac header")
+        return WebhookSecurityResult(
+            is_valid=False,
+            error_message="Missing webhook signature",
+            http_status_code=401,
+        )
+
+    expected_signature = hmac.new(
+        secret.encode(),
+        raw_body,
+        hashlib.sha512,
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected_signature, signature):
+        logger.warning("Invalid webhook signature")
+        return WebhookSecurityResult(
+            is_valid=False,
+            error_message="Invalid webhook signature",
+            http_status_code=401,
         )
 
     return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)

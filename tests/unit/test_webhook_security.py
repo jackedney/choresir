@@ -1,11 +1,14 @@
 """Tests for webhook security module."""
 
+import hashlib
+import hmac
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src.interface.webhook_security import (
+    validate_webhook_hmac,
     validate_webhook_nonce,
     validate_webhook_rate_limit,
     validate_webhook_timestamp,
@@ -57,6 +60,45 @@ class TestValidateWebhookTimestamp:
         assert result.error_message is not None
         assert "format" in result.error_message.lower()
         assert result.http_status_code == 400
+
+
+class TestValidateWebhookHmac:
+    """Test webhook HMAC validation."""
+
+    def test_valid_hmac_signature(self):
+        """Test validation passes for valid HMAC signature."""
+        secret = "test_secret_key_123"
+        body = b'{"message": "test"}'
+        signature = hmac.new(secret.encode(), body, hashlib.sha512).hexdigest()
+
+        result = validate_webhook_hmac(raw_body=body, signature=signature, secret=secret)
+
+        assert result.is_valid is True
+        assert result.error_message is None
+        assert result.http_status_code is None
+
+    def test_missing_hmac_header(self):
+        """Test validation fails with 401 when header is missing."""
+        secret = "test_secret_key_123"
+        body = b'{"message": "test"}'
+
+        result = validate_webhook_hmac(raw_body=body, signature=None, secret=secret)
+
+        assert result.is_valid is False
+        assert result.error_message == "Missing webhook signature"
+        assert result.http_status_code == 401
+
+    def test_invalid_hmac_signature(self):
+        """Test validation fails with 401 for invalid signature."""
+        secret = "test_secret_key_123"
+        body = b'{"message": "test"}'
+        wrong_signature = "invalid_signature_1234567890"
+
+        result = validate_webhook_hmac(raw_body=body, signature=wrong_signature, secret=secret)
+
+        assert result.is_valid is False
+        assert result.error_message == "Invalid webhook signature"
+        assert result.http_status_code == 401
 
 
 class TestValidateWebhookNonce:
