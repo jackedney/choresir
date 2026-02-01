@@ -130,19 +130,17 @@ async def send_text_message(
 
                 # Server error (5xx) - allow retry
                 raise httpx.HTTPStatusError(
-                    f"Server error: {response.status_code}",
-                    request=response.request,
-                    response=response
+                    f"Server error: {response.status_code}", request=response.request, response=response
                 )
 
         except httpx.HTTPStatusError:
-             if attempt < max_retries - 1:
+            if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
         except Exception as e:
             # Retry on unexpected errors
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
             else:
-                 return SendMessageResult(success=False, error=f"Failed after retries: {str(e)}")
+                return SendMessageResult(success=False, error=f"Failed after retries: {e!s}")
 
     return SendMessageResult(success=False, error="Max retries exceeded")

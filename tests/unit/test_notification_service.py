@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.core.config import settings
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import SendMessageResult
 from src.services import notification_service
@@ -213,6 +212,7 @@ class TestSendVerificationRequest:
         monkeypatch,
     ):
         """Handles send failures gracefully."""
+
         # Mock send to fail for specific phone
         async def mock_send_text(**kwargs):
             if kwargs["to_phone"] == "+12222222222":

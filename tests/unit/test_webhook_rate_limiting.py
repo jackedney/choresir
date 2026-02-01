@@ -13,11 +13,7 @@ from src.interface.webhook import _handle_user_status, receive_webhook
 async def test_webhook_rate_limit_enforced():
     """Test that webhook endpoint enforces rate limits."""
     mock_request = MagicMock(spec=Request)
-    mock_request.json = AsyncMock(
-        return_value={
-            "payload": {"body": "test"}
-        }
-    )
+    mock_request.json = AsyncMock(return_value={"payload": {"body": "test"}})
 
     mock_bg_tasks = MagicMock(spec=BackgroundTasks)
 
@@ -58,7 +54,7 @@ async def test_webhook_rate_limit_passes_when_under_limit():
                 "from": "1234567890@c.us",
                 "body": "test message",
                 "timestamp": 1234567890,
-            }
+            },
         }
     )
 

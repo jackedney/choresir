@@ -2,14 +2,13 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 import httpx
+import pytest
 
-import src.interface.whatsapp_sender as sender_module
 from src.interface.whatsapp_sender import (
     RateLimiter,
-    send_text_message,
     format_phone_for_waha,
+    send_text_message,
 )
 
 
@@ -219,7 +218,7 @@ class TestSendTextMessage:
             # Should fail after retries
             assert result.success is False
             # Check for error in return
-            assert "Failed after retries" in result.error or "Max retries exceeded" == result.error
+            assert "Failed after retries" in result.error or result.error == "Max retries exceeded"
             # In code: return SendMessageResult(success=False, error=f"Failed after retries: {str(e)}")
 
             # Should retry

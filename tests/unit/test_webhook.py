@@ -87,9 +87,7 @@ class TestReceiveWebhook:
         mock_parse.return_value = mock_msg
 
         mock_security.return_value = WebhookSecurityResult(
-            is_valid=False,
-            error_message="Security failed",
-            http_status_code=400
+            is_valid=False, error_message="Security failed", http_status_code=400
         )
 
         mock_request = MagicMock()
@@ -162,11 +160,13 @@ class TestProcessWebhookMessage:
         mock_parser.return_value = mock_message
 
         # No existing message log
-        mock_db.get_first_record = AsyncMock(side_effect=[
-             None, # check duplicate
-             None, # user lookup
-             None # update message status
-        ])
+        mock_db.get_first_record = AsyncMock(
+            side_effect=[
+                None,  # check duplicate
+                None,  # user lookup
+                None,  # update message status
+            ]
+        )
         mock_db.create_record = AsyncMock(return_value={"id": "msg123"})
 
         # build_deps returns None for unknown user

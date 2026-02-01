@@ -61,10 +61,7 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
 
     # Ensure E.164 format with + prefix for consistency with existing database records
     # WAHA usually sends '1234567890', we want '+1234567890'
-    if not clean_number.startswith("+"):
-        from_phone = f"+{clean_number}"
-    else:
-        from_phone = clean_number
+    from_phone = f"+{clean_number}" if not clean_number.startswith("+") else clean_number
 
     # Extract content
     body = payload.get("body")
@@ -84,13 +81,13 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
     if msg_type == "buttons_response":
         button_payload = payload.get("selectedButtonId")
         if not button_payload and "_data" in payload:
-             button_payload = payload["_data"].get("selectedButtonId")
+            button_payload = payload["_data"].get("selectedButtonId")
 
     # Also check list response
     if msg_type == "list_response":
         button_payload = payload.get("selectedRowId")
         if not button_payload and "_data" in payload:
-             button_payload = payload["_data"].get("selectedRowId")
+            button_payload = payload["_data"].get("selectedRowId")
 
     # Map message type to application types
     # Application expects: text, button_reply, etc.
