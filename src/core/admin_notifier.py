@@ -1,7 +1,6 @@
 """Admin notification system for critical errors and events."""
 
 import logging
-from collections import defaultdict
 from datetime import datetime, timedelta
 
 import logfire
@@ -25,7 +24,7 @@ class NotificationRateLimiter:
 
     def __init__(self) -> None:
         """Initialize notification rate limiter."""
-        self._notifications: dict[str, datetime] = defaultdict()
+        self._notifications: dict[str, datetime] = {}
 
     def can_notify(self, error_category: ErrorCategory) -> bool:
         """Check if a notification can be sent for the given error category.
