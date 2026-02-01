@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, TypeVar
+from typing import Any
 
 from pocketbase import PocketBase
 from pocketbase.errors import ClientResponseError
@@ -13,7 +13,6 @@ from src.core.config import settings
 
 
 logger = logging.getLogger(__name__)
-T = TypeVar("T")
 
 
 def sanitize_param(value: str | int | float | bool | None) -> str:

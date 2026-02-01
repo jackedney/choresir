@@ -6,12 +6,8 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import TypeVar
 
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
-
-
-T = TypeVar("T")
 
 
 logger = logging.getLogger(__name__)
@@ -171,7 +167,7 @@ class AgentRetryHandler:
         delay = self.config.base_delay * (self.config.backoff_multiplier**attempt)
         return min(delay, 30.0)  # Cap at 30 seconds
 
-    async def execute_with_retry(
+    async def execute_with_retry[T](
         self,
         func: Callable[..., Awaitable[T]],
         *args: object,

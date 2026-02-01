@@ -6,7 +6,7 @@ from collections import deque
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
 from functools import wraps
-from typing import Any, TypeVar
+from typing import Any
 
 from redis.asyncio import Redis
 from redis.asyncio.connection import ConnectionPool
@@ -17,11 +17,8 @@ from src.core.config import Constants, settings
 
 logger = logging.getLogger(__name__)
 
-# Type variable for generic retry decorator
-T = TypeVar("T")
 
-
-def with_retry(
+def with_retry[T](
     max_retries: int = 3, base_delay: float = 0.1
 ) -> Callable[[Callable[..., Coroutine[Any, Any, T]]], Callable[..., Coroutine[Any, Any, T]]]:
     """Decorator to retry async functions with exponential backoff.
