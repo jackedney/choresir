@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pocketbase import PocketBase
 from twilio.request_validator import RequestValidator
 
@@ -41,11 +41,20 @@ def verify_twilio_signature(url: str, params: dict[str, str], signature: str) ->
     """
     auth_token = settings.require_credential("twilio_auth_token", "Twilio Auth Token")
     validator = RequestValidator(auth_token)
+
+    # Debug logging - using warning level to ensure it shows
+    logger.warning("DEBUG Signature verification:")
+    logger.warning("  URL: %s", url)
+    logger.warning("  Signature: %s...", signature[:20])
+    logger.warning("  Auth token length: %d", len(auth_token))
+    logger.warning("  Auth token starts: %s...", auth_token[:4])
+    logger.warning("  Params keys: %s", list(params.keys()))
+
     return validator.validate(url, params, signature)
 
 
 @router.post("")
-async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -> dict[str, str]:
+async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -> Response:
     """Receive and validate Twilio webhook POST requests.
 
     This endpoint:
@@ -59,7 +68,7 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
         background_tasks: FastAPI BackgroundTasks for async processing
 
     Returns:
-        Success status dictionary
+        Empty 200 response (Twilio expects empty body or TwiML, not JSON)
 
     Raises:
         HTTPException: If signature validation or security checks fail
@@ -78,9 +87,11 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
 
     # Build full URL for validation
     url = str(request.url)
+    logger.info("Signature verification - URL: %s", url)
 
     # Verify signature
     if not verify_twilio_signature(url, params, signature):
+        logger.warning("Signature verification failed - URL used: %s", url)
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     # Parse message for security validation
@@ -114,7 +125,8 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
     # Dispatch to background task
     background_tasks.add_task(process_webhook_message, params)
 
-    return {"status": "received"}
+    # Return empty response - Twilio expects empty body or TwiML, not JSON
+    return Response(status_code=200)
 
 
 async def _update_message_status(*, message_id: str, success: bool, error: str | None = None) -> None:
@@ -385,7 +397,9 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     Args:
         message: Parsed message with text content
     """
+    logger.warning("BG: _handle_text_message starting")
     if await _check_duplicate_message(message.message_id):
+        logger.warning("BG: Duplicate message, skipping")
         return
 
     logger.info("Processing message from %s: %s", message.from_phone, message.text)
@@ -393,13 +407,16 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
 
     db = db_client.get_client()
     deps = await choresir_agent.build_deps(db=db, user_phone=message.from_phone)
+    logger.warning("BG: deps=%s", deps)
 
     if deps is None:
         logger.info("Unknown user %s, processing unknown user message", message.from_phone)
         response = await choresir_agent.handle_unknown_user(
             user_phone=message.from_phone, message_text=message.text or ""
         )
+        logger.warning("BG: Got response, sending message")
         result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
+        logger.warning("BG: Send result: success=%s, error=%s", result.success, result.error)
         await _update_message_status(message_id=message.message_id, success=result.success, error=result.error)
         return
 
@@ -513,9 +530,15 @@ async def process_webhook_message(params: dict[str, str]) -> None:
     Args:
         params: Form parameters from Twilio webhook
     """
+    logger.warning("BG: Starting background task")
     try:
         message = whatsapp_parser.parse_twilio_webhook(params)
+        logger.warning("BG: Parsed message: %s", message)
         if message:
             await _route_webhook_message(message)
+            logger.warning("BG: Finished routing")
+        else:
+            logger.warning("BG: Message was None")
     except Exception as e:
+        logger.exception("BG: Exception in background task: %s", e)
         await _handle_webhook_error(e, params)

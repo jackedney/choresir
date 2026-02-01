@@ -101,8 +101,8 @@ class TestReceiveWebhook:
 
         result = await receive_webhook(mock_request, mock_background_tasks)
 
-        # Should return success
-        assert result == {"status": "received"}
+        # Should return Response with 200 status
+        assert result.status_code == 200
 
         # Should verify signature
         mock_verify.assert_called_once()

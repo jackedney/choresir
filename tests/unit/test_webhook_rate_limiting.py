@@ -89,7 +89,7 @@ async def test_webhook_rate_limit_passes_when_under_limit():
 
         result = await receive_webhook(mock_request, mock_bg_tasks)
 
-        assert result == {"status": "received"}
+        assert result.status_code == 200
         mock_limiter.check_webhook_rate_limit.assert_called_once()
 
 
