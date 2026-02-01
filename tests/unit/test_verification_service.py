@@ -777,3 +777,63 @@ class TestGetPendingVerificationsPagination:
         assert chore2["id"] in result_ids
         assert chore3["id"] in result_ids
         assert _chore1["id"] not in result_ids
+
+    async def test_many_pending_chores_batched_queries(self, patched_verification_db, monkeypatch):
+        """Test that many pending chores are processed in batches to avoid PocketBase limits.
+
+        PocketBase enforces limits of 200 filter expressions and 3500 character filter strings.
+        This test verifies that batching is used by checking the number of list_records calls.
+        """
+        # Use smaller batch size for testing
+        monkeypatch.setattr(verification_service, "CHORE_ID_BATCH_SIZE", 5)
+
+        # Create 12 pending chores (exceeds batch size of 5, requires 3 batches)
+        user1_chores = []
+        user2_chores = []
+        for i in range(12):
+            # Alternate between user1 and user2 claiming chores
+            claimer = "user1" if i % 2 == 0 else "user2"
+            chore = await self._create_chore_with_claim(patched_verification_db, f"Chore {i}", claimer)
+            if claimer == "user1":
+                user1_chores.append(chore)
+            else:
+                user2_chores.append(chore)
+
+        # Track list_records calls
+        original_list_records = patched_verification_db.list_records
+        call_count = 0
+        filter_queries = []
+
+        async def tracking_list_records(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if "filter_query" in kwargs:
+                filter_queries.append(kwargs["filter_query"])
+            return await original_list_records(*args, **kwargs)
+
+        monkeypatch.setattr(patched_verification_db, "list_records", tracking_list_records)
+        # Also patch db_client used by verification_service
+        monkeypatch.setattr("src.core.db_client.list_records", tracking_list_records)
+
+        # Reset counter after setup
+        call_count = 0
+        filter_queries.clear()
+
+        # user1 should only see chores claimed by user2 (6 chores)
+        result = await verification_service.get_pending_verifications(user_id="user1")
+
+        assert len(result) == 6
+        result_ids = {c["id"] for c in result}
+        # All user2's chores should be visible to user1
+        for chore in user2_chores:
+            assert chore["id"] in result_ids
+        # None of user1's chores should be visible
+        for chore in user1_chores:
+            assert chore["id"] not in result_ids
+
+        # Verify batching occurred: 12 chores / 5 per batch = 3 batches
+        # Each batch makes at least 1 call to list_records for logs
+        # Note: First call is to get chores by state (in chore_service.get_chores)
+        # Then we expect 3 batches of log queries
+        log_query_calls = [q for q in filter_queries if "claimed_completion" in q]
+        assert len(log_query_calls) >= 3, f"Expected at least 3 batched log queries, got {len(log_query_calls)}"

@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 LOGS_PAGE_SIZE = 500
+CHORE_ID_BATCH_SIZE = 100  # PocketBase limits: 200 filter expressions, 3500 char filter strings
 
 
 class VerificationDecision(StrEnum):
@@ -204,34 +205,39 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
                 return []
 
             # Build filter query for logs (action="claimed_completion" && chore_id in [...])
+            # Batch chore_ids to stay within PocketBase limits (200 filter expressions, 3500 char filter strings)
             chore_ids = [c["id"] for c in chores]
-            chore_id_conditions = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chore_ids])
-            # Optimization: Filter by user_id as well to only find claims by THIS user
-            # This ensures we don't miss self-claims due to pagination if there are many other claims
             sanitized_user_id = db_client.sanitize_param(user_id)
-            filter_query = (
-                f'action = "claimed_completion" && user_id = "{sanitized_user_id}" && ({chore_id_conditions})'
-            )
 
-            # Fetch all logs matching these chores AND this user (paginate to get all)
+            # Fetch logs in batches to avoid exceeding PocketBase filter limits
             user_claimed_chore_ids: set[str] = set()
-            page = 1
-            while True:
-                logs = await db_client.list_records(
-                    collection="logs",
-                    filter_query=filter_query,
-                    sort="-timestamp",
-                    per_page=LOGS_PAGE_SIZE,
-                    page=page,
+            for batch_start in range(0, len(chore_ids), CHORE_ID_BATCH_SIZE):
+                batch_ids = chore_ids[batch_start : batch_start + CHORE_ID_BATCH_SIZE]
+                chore_id_conditions = " || ".join(
+                    [f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in batch_ids]
                 )
-                # Accumulate chore IDs from this page
-                for log in logs:
-                    if chore_id := log.get("chore_id"):
-                        user_claimed_chore_ids.add(chore_id)
-                # Stop if we got fewer than a full page (no more results)
-                if len(logs) < LOGS_PAGE_SIZE:
-                    break
-                page += 1
+                filter_query = (
+                    f'action = "claimed_completion" && user_id = "{sanitized_user_id}" && ({chore_id_conditions})'
+                )
+
+                # Paginate within each batch to get all matching logs
+                page = 1
+                while True:
+                    logs = await db_client.list_records(
+                        collection="logs",
+                        filter_query=filter_query,
+                        sort="-timestamp",
+                        per_page=LOGS_PAGE_SIZE,
+                        page=page,
+                    )
+                    # Accumulate chore IDs from this page
+                    for log in logs:
+                        if chore_id := log.get("chore_id"):
+                            user_claimed_chore_ids.add(chore_id)
+                    # Stop if we got fewer than a full page (no more results)
+                    if len(logs) < LOGS_PAGE_SIZE:
+                        break
+                    page += 1
 
             filtered_chores = []
             for chore in chores:
