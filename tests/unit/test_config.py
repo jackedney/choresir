@@ -13,6 +13,10 @@ def test_require_credential_with_valid_value():
 
     assert result == "TEST123"
 
+    result = settings.require_credential("house_code", "House code")
+
+    assert result == "TEST123"
+
 
 def test_require_credential_with_none_raises_error():
     """Test require_credential raises ValueError when credential is None."""
@@ -36,3 +40,28 @@ def test_require_credential_error_message_includes_field_name():
 
     with pytest.raises(ValueError, match="HOUSE_PASSWORD"):
         settings.require_credential("house_password", "House password")
+
+
+def test_require_waha_webhook_hmac_key():
+    """Test require_credential validates waha_webhook_hmac_key."""
+    settings = Settings(waha_webhook_hmac_key="secret123")
+
+    result = settings.require_credential("waha_webhook_hmac_key", "WAHA Webhook HMAC")
+
+    assert result == "secret123"
+
+
+def test_require_waha_webhook_hmac_key_missing():
+    """Test require_credential raises error when waha_webhook_hmac_key is missing."""
+    settings = Settings(waha_webhook_hmac_key=None)
+
+    with pytest.raises(ValueError, match="WAHA Webhook HMAC credential not configured"):
+        settings.require_credential("waha_webhook_hmac_key", "WAHA Webhook HMAC")
+
+
+def test_require_waha_webhook_hmac_key_empty():
+    """Test require_credential raises error when waha_webhook_hmac_key is empty string."""
+    settings = Settings(waha_webhook_hmac_key="")
+
+    with pytest.raises(ValueError, match="WAHA Webhook HMAC credential not configured"):
+        settings.require_credential("waha_webhook_hmac_key", "WAHA Webhook HMAC")

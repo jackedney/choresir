@@ -77,6 +77,7 @@ async def validate_startup_configuration() -> None:
 
     try:
         # Validate required credentials
+        settings.require_credential("waha_webhook_hmac_key", "WAHA Webhook HMAC")
         settings.require_credential("house_code", "House onboarding code")
         settings.require_credential("house_password", "House onboarding password")
         settings.require_credential("openrouter_api_key", "OpenRouter API key")

@@ -241,6 +241,7 @@ def test_settings(pocketbase_server: str) -> Settings:
         pocketbase_url=pocketbase_server,
         openrouter_api_key="test_key",
         waha_base_url="http://waha:3000",
+        waha_webhook_hmac_key="test_hmac_key",
         logfire_token="test_logfire",
         house_code="TEST123",
         house_password="testpass",

@@ -27,6 +27,13 @@ def test_startup_fails_without_house_password() -> None:
         settings.require_credential("house_password", "House onboarding password")
 
 
+def test_startup_fails_without_waha_webhook_hmac_key() -> None:
+    """Test that application startup fails when waha_webhook_hmac_key is missing."""
+    settings = Settings(waha_webhook_hmac_key=None)
+    with pytest.raises(ValueError, match="WAHA Webhook HMAC credential not configured"):
+        settings.require_credential("waha_webhook_hmac_key", "WAHA Webhook HMAC")
+
+
 def test_startup_fails_with_empty_house_code() -> None:
     """Test that application startup fails when house_code is empty string."""
     settings = Settings(house_code="", house_password="test_password")
@@ -36,9 +43,11 @@ def test_startup_fails_with_empty_house_code() -> None:
 
 def test_startup_succeeds_with_valid_credentials() -> None:
     """Test that validation passes when both credentials are properly set."""
-    settings = Settings(house_code="TEST123", house_password="test_password")
+    settings = Settings(house_code="TEST123", house_password="test_password", waha_webhook_hmac_key="secret123")
+    waha_webhook_hmac_key = settings.require_credential("waha_webhook_hmac_key", "WAHA Webhook HMAC")
     house_code = settings.require_credential("house_code", "House onboarding code")
     house_password = settings.require_credential("house_password", "House onboarding password")
+    assert waha_webhook_hmac_key == "secret123"
     assert house_code == "TEST123"
     assert house_password == "test_password"
 

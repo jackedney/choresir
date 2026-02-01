@@ -58,7 +58,7 @@ class TestReceiveWebhook:
         with pytest.raises(HTTPException) as exc_info:
             await receive_webhook(mock_request, mock_background_tasks)
 
-        assert exc_info.value.status_code == 400
+        assert exc_info.value.status_code == 400  # type: ignore[attr-defined]
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
@@ -97,8 +97,8 @@ class TestReceiveWebhook:
         with pytest.raises(HTTPException) as exc_info:
             await receive_webhook(mock_request, mock_background_tasks)
 
-        assert exc_info.value.status_code == 400
-        assert exc_info.value.detail == "Security failed"
+        assert exc_info.value.status_code == 400  # type: ignore[attr-defined]
+        assert exc_info.value.detail == "Security failed"  # type: ignore[attr-defined]
 
 
 class TestProcessWebhookMessage:
