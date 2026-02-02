@@ -1,5 +1,6 @@
 """Tests for WhatsApp message sender using WAHA via httpx."""
 
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -13,7 +14,7 @@ from src.interface.whatsapp_sender import (
 
 
 @pytest.fixture(autouse=True)
-def mock_asyncio_sleep():
+def mock_asyncio_sleep() -> Generator[AsyncMock, None, None]:
     """Mock asyncio.sleep to avoid actual delays in retry tests."""
     with patch("src.interface.whatsapp_sender.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         yield mock_sleep
@@ -169,7 +170,7 @@ class TestSendTextMessage:
 
     @pytest.mark.asyncio
     @patch("src.interface.whatsapp_sender.rate_limiter")
-    async def test_send_text_message_rate_limited(self, mock_rate_limiter) -> None:
+    async def test_send_text_message_rate_limited(self, mock_rate_limiter: MagicMock) -> None:
         """Test that rate limiting blocks message sending."""
         # Mock rate limiter to deny request
         mock_rate_limiter.can_send.return_value = False
@@ -183,7 +184,7 @@ class TestSendTextMessage:
 
     @pytest.mark.asyncio
     @patch("src.interface.whatsapp_sender.rate_limiter")
-    async def test_rate_limiter_records_request(self, mock_rate_limiter) -> None:
+    async def test_rate_limiter_records_request(self, mock_rate_limiter: MagicMock) -> None:
         """Test that rate limiter records successful requests."""
         mock_rate_limiter.can_send.return_value = True
 
