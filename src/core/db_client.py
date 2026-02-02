@@ -192,10 +192,14 @@ def get_client() -> PocketBase:
     global _connection_pool  # noqa: PLW0603
 
     if _connection_pool is None:
+        # Ensure credentials are available
+        admin_email = settings.require_credential("pocketbase_admin_email", "PocketBase Admin Email")
+        admin_password = settings.require_credential("pocketbase_admin_password", "PocketBase Admin Password")
+
         _connection_pool = PocketBaseConnectionPool(
             url=settings.pocketbase_url,
-            admin_email=settings.pocketbase_admin_email,
-            admin_password=settings.pocketbase_admin_password,
+            admin_email=admin_email,
+            admin_password=admin_password,
         )
 
     return _connection_pool.get_client()

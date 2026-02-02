@@ -27,3 +27,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The user onboarding process (`user_service.request_join`) used a hardcoded string (`"temp_password_will_be_set_on_activation"`) as the initial password for pending user accounts.
 **Learning:** Hardcoding credentials, even for temporary or pending accounts, creates a persistent vulnerability. If the pending account status is bypassed or if the user becomes active without changing the password, the account remains compromised.
 **Prevention:** Use `secrets.token_urlsafe(32)` to generate a cryptographically secure random password for all new accounts, ensuring that even initial/pending accounts are protected against default credential attacks.
+
+## 2025-05-20 - [Hardcoded Admin Credentials]
+**Vulnerability:** The `sync_schema` function and `Settings` class contained hardcoded default credentials ("admin@test.local", "testpassword123") for PocketBase admin access. While intended for local development, these defaults pose a risk if deployed to production where the same defaults might be active or if the application fails to load environment variables and falls back to these insecure values.
+**Learning:** Default arguments in security-critical functions and configuration classes can act as backdoors. Code should fail fast if credentials are missing rather than falling back to insecure defaults.
+**Prevention:** Removed default values from `src/core/schema.py` and set configuration defaults to `None` in `src/core/config.py`. Updated `src/main.py` and `src/core/db_client.py` to explicitly validate and retrieve credentials at runtime using `settings.require_credential()`, ensuring the application fails startup if secrets are missing.
