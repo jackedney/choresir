@@ -57,7 +57,7 @@
     {
       "id": "US-001",
       "title": "Replace X-Webhook-Hmac with X-Hub-Signature-256 validation",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a security engineer, I want webhook validation to use X-Hub-Signature-256 (SHA256) instead of X-Webhook-Hmac (SHA512) so that we follow standard webhook security practices.",
       "acceptanceCriteria": [
@@ -71,13 +71,13 @@
         "Update related tests in tests/unit/test_webhook_security.py"
       ],
       "startedAt": "2026-02-02T12:14:10.633418+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T12:14:10.633603+00:00"
+      "completedAt": "2026-02-02T12:20:03.708491+00:00",
+      "updatedAt": "2026-02-02T12:20:03.708347+00:00"
     },
     {
       "id": "US-002",
       "title": "Add structured logging to webhook_security.py warning logs",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
@@ -88,7 +88,10 @@
         "Update logger.warning at line 36 (invalid timestamp format) to include extra={'operation': 'validate_webhook_timestamp', 'timestamp_str': timestamp_str}",
         "Example: Missing signature logs with operation and status fields in extra",
         "Negative case: Do not include secret or raw_body in extra fields"
-      ]
+      ],
+      "startedAt": "2026-02-02T12:20:05.821840+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T12:20:05.822025+00:00"
     },
     {
       "id": "US-003",

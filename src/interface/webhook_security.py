@@ -33,7 +33,10 @@ async def validate_webhook_timestamp(timestamp_str: str) -> WebhookSecurityResul
     try:
         webhook_timestamp = int(timestamp_str)
     except (ValueError, TypeError):
-        logger.warning(f"Invalid timestamp format: {timestamp_str}")
+        logger.warning(
+            "Invalid timestamp format",
+            extra={"operation": "validate_webhook_timestamp", "timestamp_str": timestamp_str},
+        )
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Invalid timestamp format",
@@ -118,7 +121,10 @@ def validate_webhook_hmac(*, raw_body: bytes, signature: str | None, secret: str
         WebhookSecurityResult indicating if signature is valid
     """
     if signature is None:
-        logger.warning("Missing X-Hub-Signature-256 header")
+        logger.warning(
+            "Missing X-Hub-Signature-256 header",
+            extra={"operation": "validate_webhook_hmac", "status": "missing_signature"},
+        )
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Missing webhook signature",
@@ -132,7 +138,10 @@ def validate_webhook_hmac(*, raw_body: bytes, signature: str | None, secret: str
     ).hexdigest()
 
     if not hmac.compare_digest(expected_signature, signature):
-        logger.warning("Invalid webhook signature")
+        logger.warning(
+            "Invalid webhook signature",
+            extra={"operation": "validate_webhook_hmac", "status": "invalid_signature"},
+        )
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Invalid webhook signature",
