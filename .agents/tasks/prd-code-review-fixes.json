@@ -208,7 +208,7 @@
     {
       "id": "US-010",
       "title": "Add type hints to test_whatsapp_sender.py fixture",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want all test fixtures and parameters to have explicit type hints to meet strict typing requirements.",
       "acceptanceCriteria": [
@@ -218,12 +218,15 @@
         "Add type hint to mock_rate_limiter parameter in test_rate_limiter_records_request: MagicMock",
         "All tests pass with pytest",
         "All type hints pass ty check"
-      ]
+      ],
+      "updatedAt": "2026-02-02T18:16:36.802866+00:00",
+      "completedAt": "2026-02-02T18:16:36.803035+00:00",
+      "startedAt": "2026-02-02T18:16:36.803037+00:00"
     },
     {
       "id": "US-011",
       "title": "Remove hard-coded rate limit in test_whatsapp_sender.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want tests to use constants instead of magic numbers to stay aligned if the limit changes.",
       "acceptanceCriteria": [
@@ -232,7 +235,10 @@
         "Replace hard-coded 60 with constants.MAX_REQUESTS_PER_MINUTE on line 60",
         "All tests pass with pytest",
         "All type hints pass ty check"
-      ]
+      ],
+      "startedAt": "2026-02-02T18:16:38.917140+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T18:16:38.917314+00:00"
     },
     {
       "id": "US-012",

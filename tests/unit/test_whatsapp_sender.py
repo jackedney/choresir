@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+from src.core.config import constants
 from src.interface.whatsapp_sender import (
     RateLimiter,
     format_phone_for_waha,
@@ -43,9 +44,8 @@ class TestRateLimiter:
         limiter = RateLimiter()
         phone = "+1234567890"
 
-        # Record max requests (60 per minute based on constants.MAX_REQUESTS_PER_MINUTE)
-        # Assuming default limit is 60
-        for _ in range(60):
+        # Record max requests (MAX_REQUESTS_PER_MINUTE per minute)
+        for _ in range(constants.MAX_REQUESTS_PER_MINUTE):
             limiter.record_request(phone)
 
         # Should block
@@ -58,7 +58,7 @@ class TestRateLimiter:
         phone2 = "+9876543210"
 
         # Max out phone1
-        for _ in range(60):
+        for _ in range(constants.MAX_REQUESTS_PER_MINUTE):
             limiter.record_request(phone1)
 
         # phone1 should be blocked
