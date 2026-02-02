@@ -97,8 +97,8 @@
         "All scheduler tests pass"
       ],
       "startedAt": "2026-02-01T22:38:46.204792+00:00",
-      "completedAt": "2026-02-01T22:42:16.000000+00:00",
-      "updatedAt": "2026-02-02T09:16:09.440911+00:00"
+      "completedAt": "2026-02-02T09:22:41.750270+00:00",
+      "updatedAt": "2026-02-02T09:22:41.749862+00:00"
     },
     {
       "id": "US-004",
@@ -122,7 +122,7 @@
     {
       "id": "US-005",
       "title": "Standardize logging to use logger.exception() in error handlers",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
@@ -137,7 +137,7 @@
       ],
       "startedAt": "2026-02-01T22:49:46.875340+00:00",
       "completedAt": null,
-      "updatedAt": "2026-02-01T22:49:46.875505+00:00"
+      "updatedAt": "2026-02-02T09:22:43.856671+00:00"
     },
     {
       "id": "US-006",

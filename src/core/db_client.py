@@ -205,7 +205,7 @@ async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, A
     try:
         client = get_client()
         record = client.collection(collection).create(data)
-        logger.info("Created record in %s: %s", collection, record.id)
+        logger.info(f"Created record in {collection}: {record.id}")
         return record.__dict__
     except ClientResponseError as e:
         msg = f"Failed to create record in {collection}: {e}"
@@ -233,7 +233,7 @@ async def update_record(*, collection: str, record_id: str, data: dict[str, Any]
     try:
         client = get_client()
         record = client.collection(collection).update(record_id, data)
-        logger.info("Updated record in %s: %s", collection, record_id)
+        logger.info(f"Updated record in {collection}: {record_id}")
         return record.__dict__
     except ClientResponseError as e:
         if e.status == 404:  # noqa: PLR2004
@@ -249,7 +249,7 @@ async def delete_record(*, collection: str, record_id: str) -> None:
     try:
         client = get_client()
         client.collection(collection).delete(record_id)
-        logger.info("Deleted record from %s: %s", collection, record_id)
+        logger.info(f"Deleted record from {collection}: {record_id}")
     except ClientResponseError as e:
         if e.status == 404:  # noqa: PLR2004
             msg = f"Record not found in {collection}: {record_id}"

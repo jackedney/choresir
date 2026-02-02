@@ -100,7 +100,7 @@ async def increment_weekly_takeover_count(user_id: str) -> int:
                 record_id=record["id"],
                 data={"takeover_count": new_count},
             )
-            logger.info("Incremented takeover count for user %s to %d", user_id, new_count)
+            logger.info(f"Incremented takeover count for user {user_id} to {new_count}")
             return new_count
         # Create new record for this week
         await db_client.create_record(
@@ -111,7 +111,7 @@ async def increment_weekly_takeover_count(user_id: str) -> int:
                 "takeover_count": 1,
             },
         )
-        logger.info("Created new takeover record for user %s", user_id)
+        logger.info(f"Created new takeover record for user {user_id}")
         return 1
 
     except Exception as e:

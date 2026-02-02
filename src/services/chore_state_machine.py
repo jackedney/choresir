@@ -59,7 +59,7 @@ async def transition_to_completed(*, chore_id: str) -> dict[str, Any]:
             },
         )
 
-        logger.info("Transitioned chore %s to COMPLETED, next deadline: %s", chore_id, next_deadline)
+        logger.info(f"Transitioned chore {chore_id} to COMPLETED, next deadline: {next_deadline}")
 
         return updated_record
 
@@ -73,7 +73,7 @@ async def transition_to_todo(*, chore_id: str) -> dict[str, Any]:
             data={"current_state": ChoreState.TODO},
         )
 
-        logger.info("Transitioned chore %s to TODO", chore_id)
+        logger.info(f"Transitioned chore {chore_id} to TODO")
 
         return updated_record
 
@@ -94,7 +94,7 @@ async def transition_to_pending_verification(*, chore_id: str) -> dict[str, Any]
             data={"current_state": ChoreState.PENDING_VERIFICATION},
         )
 
-        logger.info("Transitioned chore %s to PENDING_VERIFICATION", chore_id)
+        logger.info(f"Transitioned chore {chore_id} to PENDING_VERIFICATION")
 
         return updated_record
 
@@ -115,7 +115,7 @@ async def transition_to_conflict(*, chore_id: str) -> dict[str, Any]:
             data={"current_state": ChoreState.CONFLICT},
         )
 
-        logger.info("Transitioned chore %s to CONFLICT", chore_id)
+        logger.info(f"Transitioned chore {chore_id} to CONFLICT")
 
         return updated_record
 
@@ -136,6 +136,6 @@ async def transition_to_deadlock(*, chore_id: str) -> dict[str, Any]:
             data={"current_state": ChoreState.DEADLOCK},
         )
 
-        logger.warning("Transitioned chore %s to DEADLOCK", chore_id)
+        logger.warning(f"Transitioned chore {chore_id} to DEADLOCK")
 
         return updated_record

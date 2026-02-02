@@ -81,10 +81,12 @@ async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
         eligible_voters = [u for u in all_users if u["id"] not in excluded_user_ids]
 
         logger.info(
-            "Initiating vote for chore %s with %d eligible voters (excluded: %s)",
-            chore_id,
-            len(eligible_voters),
-            excluded_user_ids,
+            "Initiating vote for chore",
+            extra={
+                "chore_id": chore_id,
+                "eligible_voters": len(eligible_voters),
+                "excluded_user_ids": excluded_user_ids,
+            },
         )
 
         # Create vote placeholder logs (will be updated when votes are cast)
@@ -180,7 +182,7 @@ async def cast_vote(
             },
         )
 
-        logger.info("User %s voted %s on chore %s", voter_user_id, choice, chore_id)
+        logger.info(f"User {voter_user_id} voted {choice} on chore {chore_id}")
 
         # Check if all votes are in
         # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
@@ -197,7 +199,7 @@ async def cast_vote(
         ]
 
         if not pending_votes:
-            logger.info("All votes received for chore %s, ready to tally", chore_id)
+            logger.info(f"All votes received for chore {chore_id}, ready to tally")
             # Note: Automatic tally triggering not yet implemented
 
         return updated_vote
@@ -267,19 +269,19 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
             result = VoteResult.APPROVED
             # Complete the chore
             updated_chore = await chore_state_machine.transition_to_completed(chore_id=chore_id)
-            logger.info("Vote result: APPROVED - chore %s completed", chore_id)
+            logger.info(f"Vote result: APPROVED - chore {chore_id} completed")
 
         elif no_count > yes_count:
             result = VoteResult.REJECTED
             # Reset chore to TODO
             updated_chore = await chore_state_machine.transition_to_todo(chore_id=chore_id)
-            logger.info("Vote result: REJECTED - chore %s reset to TODO", chore_id)
+            logger.info(f"Vote result: REJECTED - chore {chore_id} reset to TODO")
 
         else:  # Tie - deadlock
             result = VoteResult.DEADLOCK
             # Transition to DEADLOCK state
             updated_chore = await chore_state_machine.transition_to_deadlock(chore_id=chore_id)
-            logger.warning("Vote result: DEADLOCK - chore %s in deadlock state", chore_id)
+            logger.warning(f"Vote result: DEADLOCK - chore {chore_id} in deadlock state")
 
         # Create tally log
         tally_log = {

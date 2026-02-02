@@ -375,7 +375,7 @@ async def _create_collection(*, client: httpx.AsyncClient, schema: dict[str, Any
     """Create a new collection in PocketBase."""
     response = await client.post("/api/collections", json=schema)
     response.raise_for_status()
-    logger.info("Created collection: %s", schema["name"])
+    logger.info(f"Created collection: {schema['name']}")
 
 
 # API rule keys that can be set on collections
@@ -471,7 +471,7 @@ async def _update_collection(
     rules_to_update = _get_rules_to_update(schema, current)
 
     if not fields_added and not fields_updated and not rules_to_update:
-        logger.info("Collection %s schema is already up to date", collection_name)
+        logger.info(f"Collection {collection_name} schema is already up to date")
         return
 
     update_payload = _build_update_payload(merged_fields, rules_to_update, schema, current)
@@ -486,7 +486,7 @@ async def _update_collection(
         log_parts.append(f"updated {fields_updated}")
     if rules_to_update:
         log_parts.append(f"updated rules {list(rules_to_update.keys())}")
-    logger.info("Updated collection %s: %s", collection_name, ", ".join(log_parts))
+    logger.info(f"Updated collection {collection_name}: {', '.join(log_parts)}")
 
 
 async def sync_schema(

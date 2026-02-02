@@ -66,14 +66,14 @@ async def invalidate_leaderboard_cache() -> None:
             # Delete all matching keys with retry logic for critical operation
             success = await redis_client.delete_with_retry(*keys)
             if success:
-                logger.info("Invalidated %d leaderboard cache entries", len(keys))
+                logger.info(f"Invalidated {len(keys)} leaderboard cache entries")
             else:
-                logger.warning("Failed to invalidate %d cache entries, queued for retry", len(keys))
+                logger.warning(f"Failed to invalidate {len(keys)} cache entries, queued for retry")
         else:
             logger.debug("No leaderboard cache entries to invalidate")
     except Exception as e:
         # Log warning but don't raise - cache invalidation failure shouldn't break app
-        logger.warning("Failed to invalidate leaderboard cache: %s", e)
+        logger.warning(f"Failed to invalidate leaderboard cache: {e}")
 
 
 async def _fetch_chores_map(chore_ids: list[str]) -> dict[str, dict]:
@@ -148,7 +148,7 @@ def _determine_user_to_award(
         # On-time: award to original assignee, Overdue: award to actual completer
         user_to_award = original_assignee_id if approval_dt <= deadline_dt else actual_completer_id
     except Exception as e:
-        logger.warning("Failed to parse timestamps for Robin Hood attribution: %s", e)
+        logger.warning(f"Failed to parse timestamps for Robin Hood attribution: {e}")
 
     return user_to_award
 
@@ -161,7 +161,7 @@ def _build_leaderboard_entries(
     leaderboard_data = []
     for user_id, count in user_completion_counts.items():
         if user_id not in users_map:
-            logger.warning("User %s not found for leaderboard", user_id)
+            logger.warning(f"User {user_id} not found for leaderboard")
             continue
 
         user = users_map[user_id]
@@ -173,7 +173,7 @@ def _build_leaderboard_entries(
             )
             leaderboard_data.append(entry)
         except ValidationError as e:
-            logger.error("Failed to create LeaderboardEntry for user %s: %s", user_id, e)
+            logger.error(f"Failed to create LeaderboardEntry for user {user_id}: {e}")
 
     # Sort by completion count descending
     leaderboard_data.sort(key=lambda x: x.completion_count, reverse=True)
@@ -201,12 +201,12 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
             try:
                 cached_data = json.loads(cached_value)
                 leaderboard_entries = [LeaderboardEntry(**entry) for entry in cached_data]
-                logger.debug("Returning cached leaderboard for %d days from Redis", period_days)
+                logger.debug(f"Returning cached leaderboard for {period_days} days from Redis")
                 return leaderboard_entries
             except (json.JSONDecodeError, ValidationError) as e:
-                logger.warning("Failed to deserialize cached leaderboard: %s", e)
+                logger.warning(f"Failed to deserialize cached leaderboard: {e}")
     except Exception as e:
-        logger.warning("Failed to retrieve cached leaderboard from Redis: %s", e)
+        logger.warning(f"Failed to retrieve cached leaderboard from Redis: {e}")
 
     with span("analytics_service.get_leaderboard"):
         # Calculate cutoff date
@@ -249,14 +249,14 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
         # Build and sort leaderboard
         leaderboard_data = _build_leaderboard_entries(user_completion_counts, users_map)
 
-        logger.info("Generated leaderboard for %d days: %d users", period_days, len(leaderboard_data))
+        logger.info(f"Generated leaderboard for {period_days} days: {len(leaderboard_data)} users")
 
         # Update Redis cache
         try:
             cache_value = json.dumps([entry.model_dump() for entry in leaderboard_data])
             await redis_client.set(cache_key, cache_value, Constants.CACHE_TTL_LEADERBOARD_SECONDS)
         except Exception as e:
-            logger.warning("Failed to cache leaderboard in Redis: %s", e)
+            logger.warning(f"Failed to cache leaderboard in Redis: {e}")
 
         return leaderboard_data
 
@@ -304,7 +304,7 @@ async def get_completion_rate(*, period_days: int = 30) -> CompletionRate:
             period_days=period_days,
         )
 
-        logger.info("Completion rate for %d days: %s", period_days, result.model_dump())
+        logger.info(f"Completion rate for {period_days} days: {result.model_dump()}")
 
         return result
 
@@ -358,10 +358,10 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
             try:
                 overdue_chore_models.append(OverdueChore(**chore))
             except ValidationError as e:
-                logger.error("Failed to create OverdueChore model for chore %s: %s", chore.get("id"), e)
+                logger.error(f"Failed to create OverdueChore model for chore {chore.get('id')}: {e}")
                 continue
 
-        logger.info("Found %d overdue chores", len(overdue_chore_models))
+        logger.info(f"Found {len(overdue_chore_models)} overdue chores")
 
         return overdue_chore_models
 
@@ -405,13 +405,13 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
             user = await db_client.get_record(collection="users", record_id=user_id)
             user_name = user.get("name")
             if not user_name:
-                logger.warning("User %s missing 'name' field, using ID as fallback", user_id)
+                logger.warning(f"User {user_id} missing 'name' field, using ID as fallback")
                 user_name = user_id
         except KeyError:
-            logger.error("User %s not found", user_id)
+            logger.error(f"User {user_id} not found")
             raise
         except RuntimeError as e:
-            logger.error("Database error fetching user %s: %s", user_id, e)
+            logger.error(f"Database error fetching user {user_id}: {e}")
             raise
 
         # Initialize result dictionary (will be converted to model at the end)
@@ -437,7 +437,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                     result_data["completions"] = entry.completion_count
                     break
 
-            logger.info("User %s rank: %s, completions: %d", user_id, result_data["rank"], result_data["completions"])
+            logger.info(f"User {user_id} rank: {result_data['rank']}, completions: {result_data['completions']}")
         except RuntimeError as e:
             error_msg = f"Database error fetching leaderboard: {e}"
             logger.error(error_msg)
@@ -460,11 +460,11 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
             for chore in pending_verification_chores:
                 chore_id = chore.get("id")
                 if not chore_id:
-                    logger.warning("Chore missing 'id' field, skipping: %s", chore)
+                    logger.warning(f"Chore missing 'id' field, skipping: {chore}")
                     continue
                 pending_chore_ids.add(chore_id)
 
-            logger.info("Found %d pending verification chores", len(pending_chore_ids))
+            logger.info(f"Found {len(pending_chore_ids)} pending verification chores")
 
             # Business Rule: Claim Lifecycle
             # 1. User claims chore → chore state: TODO → PENDING_VERIFICATION
@@ -584,7 +584,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                     # Count distinct chores, not total logs
                     claims_pending = len(claimed_chore_ids)
                     result_data["claims_pending"] = claims_pending
-                    logger.info("User %s has %d pending claims", user_id, claims_pending)
+                    logger.info(f"User {user_id} has {claims_pending} pending claims")
 
                 except RuntimeError as e:
                     error_msg = f"Database error fetching pending claims: {e}"
@@ -597,7 +597,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
             else:
                 # No pending chores, so 0 pending claims
                 result_data["claims_pending"] = 0
-                logger.info("No pending verification chores, user %s has 0 pending claims", user_id)
+                logger.info(f"No pending verification chores, user {user_id} has 0 pending claims")
 
         except RuntimeError as e:
             error_msg = f"Database error fetching pending verification chores: {e}"
@@ -612,7 +612,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
         try:
             overdue_chores = await get_overdue_chores(user_id=user_id)
             result_data["overdue_chores"] = len(overdue_chores)
-            logger.info("User %s has %d overdue chores", user_id, result_data["overdue_chores"])
+            logger.info(f"User {user_id} has {result_data['overdue_chores']} overdue chores")
         except RuntimeError as e:
             error_msg = f"Database error fetching overdue chores: {e}"
             logger.error(error_msg)
@@ -691,6 +691,6 @@ async def get_household_summary(*, period_days: int = 7) -> HouseholdSummary:
             period_days=period_days,
         )
 
-        logger.info("Household summary for %d days: %s", period_days, result.model_dump())
+        logger.info(f"Household summary for {period_days} days: {result.model_dump()}")
 
         return result

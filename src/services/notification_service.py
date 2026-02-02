@@ -46,7 +46,7 @@ async def send_verification_request(
             chore = await db_client.get_record(collection="chores", record_id=chore_id)
             chore_title = chore["title"]
         except KeyError:
-            logger.error("Chore not found: %s", chore_id)
+            logger.error(f"Chore not found: {chore_id}")
             return []
 
         # 2. Get claimer name
@@ -54,7 +54,7 @@ async def send_verification_request(
             claimer = await db_client.get_record(collection="users", record_id=claimer_user_id)
             claimer_name = claimer.get("name", "Someone")
         except KeyError:
-            logger.error("Claimer user not found: %s", claimer_user_id)
+            logger.error(f"Claimer user not found: {claimer_user_id}")
             claimer_name = "Someone"
 
         # 3. Get all active users except claimer
@@ -95,7 +95,7 @@ async def send_verification_request(
                 )
                 results.append(notification_result)
             except ValidationError as e:
-                logger.error("Failed to create NotificationResult for user %s: %s", user_id, e)
+                logger.error(f"Failed to create NotificationResult for user {user_id}: {e}")
                 continue
 
             if send_result.success:
@@ -103,11 +103,7 @@ async def send_verification_request(
                     "Verification request sent", extra={"operation": "verification_request_sent", "user_id": user_id}
                 )
             else:
-                logger.error(
-                    "Failed to send verification request to user=%s error=%s",
-                    user_id,
-                    send_result.error,
-                )
+                logger.error(f"Failed to send verification request to user={user_id} error={send_result.error}")
 
         # 5. Return results
         logger.info(
@@ -198,7 +194,7 @@ async def send_personal_verification_request(
                 extra={"operation": "personal_verification_request_sent"},
             )
         else:
-            logger.error("Failed to send personal verification request: %s", result.error)
+            logger.error(f"Failed to send personal verification request: {result.error}")
 
     except Exception:
         logger.exception("Error sending personal verification request for chore '%s'", chore_title)
@@ -252,7 +248,7 @@ async def send_personal_verification_result(
                 extra={"operation": "personal_verification_result_sent"},
             )
         else:
-            logger.error("Failed to send personal verification result: %s", result.error)
+            logger.error(f"Failed to send personal verification result: {result.error}")
 
     except Exception:
         logger.exception("Error sending personal verification result for chore '%s'", chore_title)

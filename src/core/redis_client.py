@@ -90,9 +90,9 @@ class RedisClient:
                     max_connections=Constants.REDIS_MAX_CONNECTIONS,
                 )
                 self._client = Redis(connection_pool=self._pool)
-                logger.info("Redis client initialized with URL: %s", settings.redis_url)
+                logger.info(f"Redis client initialized with URL: {settings.redis_url}")
             except RedisError as e:
-                logger.warning("Failed to initialize Redis client: %s. Running without cache.", e)
+                logger.warning(f"Failed to initialize Redis client: {e}. Running without cache.")
                 self._enabled = False
                 self._client = None
                 self._pool = None
@@ -148,11 +148,11 @@ class RedisClient:
             value = await self._client.get(key)
             self._record_success()
             if value:
-                logger.debug("Cache hit for key: %s", key)
+                logger.debug(f"Cache hit for key: {key}")
             return value
         except RedisError as e:
             self._record_failure()
-            logger.warning("Redis GET error for key %s: %s", key, e)
+            logger.warning(f"Redis GET error for key {key}: {e}")
             return None
 
     async def set(self, key: str, value: str, ttl_seconds: int) -> bool:
@@ -172,11 +172,11 @@ class RedisClient:
         try:
             await self._client.setex(key, ttl_seconds, value)
             self._record_success()
-            logger.debug("Cached key: %s (TTL: %ds)", key, ttl_seconds)
+            logger.debug(f"Cached key: {key} (TTL: {ttl_seconds}s)")
             return True
         except RedisError as e:
             self._record_failure()
-            logger.warning("Redis SET error for key %s: %s", key, e)
+            logger.warning(f"Redis SET error for key {key}: {e}")
             return False
 
     async def delete(self, *keys: str) -> bool:
@@ -197,11 +197,11 @@ class RedisClient:
         try:
             await self._client.delete(*keys)
             self._record_success()
-            logger.debug("Deleted %d cache key(s)", len(keys))
+            logger.debug(f"Deleted {len(keys)} cache key(s)")
             return True
         except RedisError as e:
             self._record_failure()
-            logger.warning("Redis DELETE error: %s", e)
+            logger.warning(f"Redis DELETE error: {e}")
             return False
 
     async def delete_with_retry(self, *keys: str) -> bool:
@@ -216,7 +216,7 @@ class RedisClient:
         if not self.is_available or not self._client:
             # Add to fallback queue for later processing
             self._invalidation_queue.append(keys)
-            logger.info("Redis unavailable, queued %d key(s) for invalidation", len(keys))
+            logger.info(f"Redis unavailable, queued {len(keys)} key(s) for invalidation")
             return False
 
         if not keys:
@@ -230,7 +230,7 @@ class RedisClient:
         try:
             await _delete_operation()
             self._record_success()
-            logger.debug("Deleted %d cache key(s) with retry", len(keys))
+            logger.debug(f"Deleted {len(keys)} cache key(s) with retry")
             # Process any pending invalidations since Redis is now available
             await self._process_invalidation_queue()
             return True
@@ -238,7 +238,7 @@ class RedisClient:
             self._record_failure()
             # Add to fallback queue after retry attempts exhausted
             self._invalidation_queue.append(keys)
-            logger.error("Redis DELETE failed after retries: %s. Queued for later.", e)
+            logger.error(f"Redis DELETE failed after retries: {e}. Queued for later.")
             return False
 
     async def _process_invalidation_queue(self) -> None:
@@ -261,13 +261,13 @@ class RedisClient:
                 # Re-queue if still failing
                 self._invalidation_queue.append(keys)
                 failed += 1
-                logger.warning("Failed to process queued invalidation: %s", e)
+                logger.warning(f"Failed to process queued invalidation: {e}")
                 break  # Stop processing to avoid infinite loop
 
         if processed > 0:
-            logger.info("Processed %d queued cache invalidations", processed)
+            logger.info(f"Processed {processed} queued cache invalidations")
         if failed > 0:
-            logger.warning("Failed to process %d queued invalidations", failed)
+            logger.warning(f"Failed to process {failed} queued invalidations")
 
     async def keys(self, pattern: str) -> list[str]:
         """Find keys matching a pattern.
@@ -286,7 +286,7 @@ class RedisClient:
             # Handle both bytes and string responses
             return [k.decode() if isinstance(k, bytes) else k for k in keys]
         except RedisError as e:
-            logger.warning("Redis KEYS error for pattern %s: %s", pattern, e)
+            logger.warning(f"Redis KEYS error for pattern {pattern}: {e}")
             return []
 
     async def close(self) -> None:
@@ -308,7 +308,7 @@ class RedisClient:
             result = await self._client.ping()  # type: ignore[misc]
             return bool(result)
         except RedisError as e:
-            logger.warning("Redis PING failed: %s", e)
+            logger.warning(f"Redis PING failed: {e}")
             return False
 
     async def set_if_not_exists(self, key: str, value: str, ttl_seconds: int) -> bool:
@@ -329,7 +329,7 @@ class RedisClient:
             result = await self._client.set(key, value, ex=ttl_seconds, nx=True)
             return bool(result)
         except RedisError as e:
-            logger.warning("Redis SETNX error for key %s: %s", key, e)
+            logger.warning(f"Redis SETNX error for key {key}: {e}")
             return False
 
     async def increment(self, key: str) -> int | None:
@@ -347,7 +347,7 @@ class RedisClient:
         try:
             return await self._client.incr(key)
         except RedisError as e:
-            logger.warning("Redis INCR error for key %s: %s", key, e)
+            logger.warning(f"Redis INCR error for key {key}: {e}")
             return None
 
     async def expire(self, key: str, ttl_seconds: int) -> bool:
@@ -367,7 +367,7 @@ class RedisClient:
             await self._client.expire(key, ttl_seconds)
             return True
         except RedisError as e:
-            logger.warning("Redis EXPIRE error for key %s: %s", key, e)
+            logger.warning(f"Redis EXPIRE error for key {key}: {e}")
             return False
 
 

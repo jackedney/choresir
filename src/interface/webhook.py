@@ -318,7 +318,7 @@ async def _check_duplicate_message(message_id: str) -> bool:
         filter_query=f'message_id = "{sanitize_param(message_id)}"',
     )
     if existing_log:
-        logger.info("Message %s already processed, skipping", message_id)
+        logger.info(f"Message {message_id} already processed, skipping")
         return True
     return False
 

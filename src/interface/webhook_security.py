@@ -33,7 +33,7 @@ async def validate_webhook_timestamp(timestamp_str: str) -> WebhookSecurityResul
     try:
         webhook_timestamp = int(timestamp_str)
     except (ValueError, TypeError):
-        logger.warning("Invalid timestamp format: %s", timestamp_str)
+        logger.warning(f"Invalid timestamp format: {timestamp_str}")
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Invalid timestamp format",
@@ -44,7 +44,7 @@ async def validate_webhook_timestamp(timestamp_str: str) -> WebhookSecurityResul
     age_seconds = current_timestamp - webhook_timestamp
 
     if age_seconds < 0:
-        logger.warning("Webhook timestamp in future: %s", timestamp_str)
+        logger.warning(f"Webhook timestamp in future: {timestamp_str}")
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Timestamp is in the future",

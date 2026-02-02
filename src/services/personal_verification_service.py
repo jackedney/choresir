@@ -58,14 +58,14 @@ async def log_personal_chore(
                 else:
                     # Partner no longer active, auto-convert to self-verified
                     logger.info(
-                        "Partner %s inactive for chore %s, auto-converting to self-verified", partner_phone, chore_id
+                        f"Partner {partner_phone} inactive for chore {chore_id}, auto-converting to self-verified"
                     )
                     verification_status = "SELF_VERIFIED"
                     partner_phone = ""
             except Exception:
                 # Partner not found, auto-convert to self-verified
                 logger.warning(
-                    "Partner %s not found for chore %s, auto-converting to self-verified", partner_phone, chore_id
+                    f"Partner {partner_phone} not found for chore {chore_id}, auto-converting to self-verified"
                 )
                 verification_status = "SELF_VERIFIED"
                 partner_phone = ""
@@ -237,7 +237,7 @@ async def get_pending_partner_verifications(
                 enriched_log = PersonalChoreLog(**enriched_view)
                 enriched_logs.append(enriched_log)
             except (KeyError, ValidationError) as e:
-                logger.warning("Failed to process log %s: %s", log.get("id"), e)
+                logger.warning(f"Failed to process log {log.get('id')}: {e}")
                 continue
 
         return enriched_logs
@@ -272,7 +272,7 @@ async def auto_verify_expired_logs() -> int:
                     },
                 )
                 auto_verified_count += 1
-                logger.info("Auto-verified personal chore log %s (48h timeout)", log["id"])
+                logger.info(f"Auto-verified personal chore log {log['id']} (48h timeout)")
 
                 # Send auto-verify notification to owner
                 try:
@@ -300,7 +300,7 @@ async def auto_verify_expired_logs() -> int:
                 logger.exception("Failed to auto-verify log %s", log["id"])
                 continue
 
-        logger.info("Auto-verified %d personal chore logs", auto_verified_count)
+        logger.info(f"Auto-verified {auto_verified_count} personal chore logs")
         return auto_verified_count
 
 

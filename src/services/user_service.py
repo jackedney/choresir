@@ -178,7 +178,7 @@ async def ban_user(*, admin_user_id: str, target_user_id: str) -> dict[str, Any]
             data={"status": UserStatus.BANNED},
         )
 
-        logger.info("Banned user %s by admin %s", target_user_id, admin_user_id)
+        logger.info(f"Banned user {target_user_id} by admin {admin_user_id}")
 
         return updated_record
 
