@@ -46,7 +46,7 @@ async def send_verification_request(
             chore = await db_client.get_record(collection="chores", record_id=chore_id)
             chore_title = chore["title"]
         except KeyError:
-            logger.error(f"Chore not found: {chore_id}")
+            logger.error("Chore not found", extra={"chore_id": chore_id})
             return []
 
         # 2. Get claimer name
@@ -54,7 +54,7 @@ async def send_verification_request(
             claimer = await db_client.get_record(collection="users", record_id=claimer_user_id)
             claimer_name = claimer.get("name", "Someone")
         except KeyError:
-            logger.error(f"Claimer user not found: {claimer_user_id}")
+            logger.error("Claimer user not found", extra={"claimer_user_id": claimer_user_id})
             claimer_name = "Someone"
 
         # 3. Get all active users except claimer
@@ -95,7 +95,7 @@ async def send_verification_request(
                 )
                 results.append(notification_result)
             except ValidationError as e:
-                logger.error(f"Failed to create NotificationResult for user {user_id}: {e}")
+                logger.error("Failed to create NotificationResult", extra={"user_id": user_id, "error": str(e)})
                 continue
 
             if send_result.success:

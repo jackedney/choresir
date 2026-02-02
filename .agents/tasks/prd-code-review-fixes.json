@@ -174,7 +174,7 @@
     {
       "id": "US-008",
       "title": "Standardize logging in conflict_service.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want consistent structured logging throughout the codebase for better log aggregation.",
       "acceptanceCriteria": [
@@ -186,13 +186,13 @@
         "All type hints pass ty check"
       ],
       "startedAt": "2026-02-02T18:07:26.666695+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T18:07:26.666897+00:00"
+      "completedAt": "2026-02-02T18:10:00.058659+00:00",
+      "updatedAt": "2026-02-02T18:10:00.058493+00:00"
     },
     {
       "id": "US-009",
       "title": "Standardize logging in notification_service.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want consistent structured logging throughout the codebase for better log aggregation.",
       "acceptanceCriteria": [
@@ -200,7 +200,10 @@
         "All error logs use consistent structured logging format",
         "Example: logger.error('Failed to send notification', extra={'error_type': '...', 'recipient': '...'})",
         "All type hints pass ty check"
-      ]
+      ],
+      "startedAt": "2026-02-02T18:10:02.166616+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T18:10:02.166873+00:00"
     },
     {
       "id": "US-010",
