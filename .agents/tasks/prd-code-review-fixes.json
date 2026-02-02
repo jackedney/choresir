@@ -92,7 +92,7 @@
     {
       "id": "US-003",
       "title": "Narrow exception catch in webhook admin notifications",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want exception handling to be specific to avoid masking unexpected errors.",
       "acceptanceCriteria": [
@@ -102,8 +102,8 @@
         "All type hints pass ty check"
       ],
       "startedAt": "2026-02-02T17:45:05.884837+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T17:45:05.885047+00:00"
+      "completedAt": "2026-02-02T20:09:00.000000+00:00",
+      "updatedAt": "2026-02-02T20:09:00.000000+00:00"
     },
     {
       "id": "US-004",
@@ -125,7 +125,7 @@
     {
       "id": "US-005",
       "title": "Add bounded cache to format_phone_for_waha",
-      "status": "in_progress",
+      "status": "open",
       "dependsOn": [],
       "description": "As a developer, I want the phone formatter to use bounded caching to prevent unbounded memory growth.",
       "acceptanceCriteria": [
@@ -192,7 +192,7 @@
     {
       "id": "US-009",
       "title": "Standardize logging in notification_service.py",
-      "status": "in_progress",
+      "status": "open",
       "dependsOn": [],
       "description": "As a developer, I want consistent structured logging throughout the codebase for better log aggregation.",
       "acceptanceCriteria": [
@@ -276,7 +276,7 @@
     {
       "id": "US-014",
       "title": "Replace DB mocks with ephemeral PocketBase in test_webhook.py",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want to test against real database logic instead of mocking to catch integration issues.",
       "acceptanceCriteria": [
@@ -285,12 +285,15 @@
         "Tests exercise real DB interactions",
         "All tests pass with pytest",
         "All type hints pass ty check"
-      ]
+      ],
+      "startedAt": "2026-02-02T18:56:57.731088+00:00",
+      "completedAt": "2026-02-02T19:02:39.097054+00:00",
+      "updatedAt": "2026-02-02T19:02:39.096905+00:00"
     },
     {
       "id": "US-015",
       "title": "Replace DB mocks with ephemeral PocketBase in test_webhook_rate_limiting.py",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want to test against real database logic instead of mocking to catch integration issues.",
       "acceptanceCriteria": [
@@ -299,7 +302,10 @@
         "Tests exercise real DB interactions",
         "All tests pass with pytest",
         "All type hints pass ty check"
-      ]
+      ],
+      "updatedAt": "2026-02-02T18:56:55.619684+00:00",
+      "completedAt": "2026-02-02T18:56:55.619835+00:00",
+      "startedAt": "2026-02-02T18:56:55.619837+00:00"
     }
   ]
 }
