@@ -459,7 +459,7 @@ async def _handle_webhook_error(
                 message=notification_msg,
                 severity="critical",
             )
-        except Exception:
+        except (RuntimeError, ConnectionError, OSError):
             logger.exception("Failed to notify admins of critical error")
 
     try:
