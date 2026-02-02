@@ -239,8 +239,6 @@ def test_settings(pocketbase_server: str) -> Settings:
     """Override settings for testing."""
     return Settings(
         pocketbase_url=pocketbase_server,
-        pocketbase_admin_email="admin@test.local",
-        pocketbase_admin_password="testpassword123",
         openrouter_api_key="test_key",
         waha_base_url="http://waha:3000",
         logfire_token="test_logfire",
