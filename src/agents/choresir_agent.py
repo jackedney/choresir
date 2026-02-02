@@ -21,6 +21,8 @@ from src.services import session_service, user_service
 logger = logging.getLogger(__name__)
 
 
+logger = logging.getLogger(__name__)
+
 # System prompt template
 SYSTEM_PROMPT_TEMPLATE = """You are choresir, a household chore management assistant. Your role is strictly functional.
 
@@ -174,7 +176,7 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
                     message=message,
                     severity="critical",
                 )
-            except (RuntimeError, ConnectionError, OSError) as notify_error:
+            except Exception as notify_error:
                 logger.error(f"Failed to notify admins of quota exceeded error: {notify_error}")
 
         return user_message
@@ -312,15 +314,13 @@ async def _handle_legacy_join_or_onboard(user_phone: str, message_text: str) -> 
             f"Welcome, {name}! Your membership request has been submitted. An admin will review your request shortly."
         )
     except ValueError as e:
-        logger.warning("Join request failed", extra={"operation": "join_request_failed", "error": str(e)})
+        logger.warning(f"Join request failed for {user_phone}: {e}")
         return (
             f"Sorry, I couldn't process your join request: {e}\n\n"
             "Please check your house code and password and try again."
         )
-    except (RuntimeError, ConnectionError, KeyError, OSError) as e:
-        logger.error(
-            "Unexpected error processing join request", extra={"operation": "join_request_error", "error": str(e)}
-        )
+    except Exception as e:
+        logger.error(f"Unexpected error processing join request for {user_phone}: {e}")
         return "Sorry, an error occurred while processing your join request. Please try again later."
 
 
@@ -494,7 +494,7 @@ async def handle_join_name_step(phone: str, name: str) -> str:
         User(id="temp", phone=phone, name=name)
     except ValueError as e:
         # Name validation failed - keep session alive for retry
-        logger.info("Invalid name submitted", extra={"operation": "join_name_validation_failed", "error": str(e)})
+        logger.info("Invalid name submitted by %s: %s", phone, str(e))
         return (
             "That name isn't usable. Please provide a different name (letters, spaces, hyphens, and apostrophes only)."
         )
@@ -512,11 +512,9 @@ async def handle_join_name_step(phone: str, name: str) -> str:
             house_code=settings.house_code,
             password=settings.house_password,
         )
-    except (RuntimeError, ConnectionError, KeyError, OSError) as e:
+    except Exception as e:
         # Join request failed - delete session anyway (flow is complete)
-        logger.error(
-            "Failed to create join request", extra={"operation": "join_request_creation_failed", "error": str(e)}
-        )
+        logger.error("Failed to create join request for %s: %s", phone, str(e))
         await session_service.delete_session(phone=phone)
         return (
             "Sorry, something went wrong while processing your request. "

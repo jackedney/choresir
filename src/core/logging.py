@@ -21,9 +21,6 @@ from fastapi import FastAPI
 from src.core.config import settings
 
 
-logger = logging.getLogger(__name__)
-
-
 def configure_logfire() -> None:
     """Configure Pydantic Logfire with token from environment.
 
@@ -39,12 +36,14 @@ def configure_logfire() -> None:
     # Integrate with standard logging - all logging calls will be captured by logfire
     # Note: logfire.instrument_logging() removed due to type compatibility issues
 
+    logger = logging.getLogger(__name__)
     logger.info("Logfire configured successfully")
 
 
 def instrument_fastapi(app: FastAPI) -> None:
     """Add Logfire instrumentation to FastAPI application."""
     logfire.instrument_fastapi(app)
+    logger = logging.getLogger(__name__)
     logger.info("FastAPI instrumentation configured")
 
 
@@ -52,6 +51,7 @@ def instrument_pydantic_ai() -> None:
     """Configure automatic tracing for Pydantic AI agent calls."""
     # Pydantic AI tracing is automatic when logfire is configured
     # The framework automatically creates spans for agent.run() calls
+    logger = logging.getLogger(__name__)
     logger.info("Pydantic AI instrumentation ready (automatic)")
 
 

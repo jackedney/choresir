@@ -1,29 +1,35 @@
 """Recurrence parsing utilities for chore scheduling."""
 
-import functools
 import re
 from datetime import datetime, timedelta
 
 from croniter import croniter
 
 
-@functools.lru_cache(maxsize=256)
 def parse_recurrence_to_cron(recurrence: str) -> str:
-    """Parse recurrence string to CRON expression or INTERVAL:N:cron format."""
-    # Normalize input by stripping whitespace
-    recurrence_normalized = recurrence.strip()
+    """Parse recurrence string to CRON expression.
 
+    Supports:
+    - Direct CRON expressions (e.g., "0 20 * * *")
+    - Interval format (e.g., "every 3 days")
+
+    Args:
+        recurrence: Recurrence string
+
+    Returns:
+        CRON expression
+
+    Raises:
+        ValueError: If recurrence format is invalid
+    """
     # Check if already a valid CRON expression
-    if croniter.is_valid(recurrence_normalized):
-        return recurrence_normalized
+    if croniter.is_valid(recurrence):
+        return recurrence
 
     # Parse "every X days" format
-    match = re.match(r"^every\s+(\d+)\s+days?$", recurrence_normalized.lower())
+    match = re.match(r"^every\s+(\d+)\s+days?$", recurrence.lower())
     if match:
         days = int(match.group(1))
-        if days <= 0:
-            msg = f"Invalid interval: {days} days. Interval must be a positive integer"
-            raise ValueError(msg)
         # Encode interval in CRON string: INTERVAL:N:cron_expression
         # This allows us to add N days programmatically instead of using invalid CRON syntax
         return f"INTERVAL:{days}:0 0 * * *"
@@ -33,7 +39,26 @@ def parse_recurrence_to_cron(recurrence: str) -> str:
 
 
 def parse_recurrence_for_personal_chore(recurrence: str) -> tuple[str | None, datetime | None]:
-    """Parse recurrence string for personal chores supporting CRON, interval, or natural language formats."""
+    """Parse recurrence string for personal chores.
+
+    Supports:
+    - Direct CRON expressions (e.g., "0 20 * * *")
+    - "every X days" format (e.g., "every 3 days")
+    - "every morning" → 0 8 * * * (daily at 8 AM)
+    - "every Friday" → 0 8 * * 5 (weekly on Friday at 8 AM)
+    - "by Friday" → one-time task with due date (no recurrence)
+
+    Args:
+        recurrence: Recurrence string from user input
+
+    Returns:
+        Tuple of (cron_expression, due_date)
+        - If recurring: (cron_string, None)
+        - If one-time: (None, due_date)
+
+    Raises:
+        ValueError: If recurrence format is invalid
+    """
     recurrence_lower = recurrence.lower().strip()
 
     # Check if already a valid CRON expression
@@ -44,9 +69,6 @@ def parse_recurrence_for_personal_chore(recurrence: str) -> tuple[str | None, da
     match = re.match(r"^every\s+(\d+)\s+days?$", recurrence_lower)
     if match:
         days = int(match.group(1))
-        if days <= 0:
-            msg = f"Invalid interval: {days} days. Interval must be a positive integer"
-            raise ValueError(msg)
         return (f"INTERVAL:{days}:0 0 * * *", None)
 
     # Parse "every morning"

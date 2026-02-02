@@ -1,7 +1,5 @@
 """Webhook security utilities for replay attack protection."""
 
-import hashlib
-import hmac
 import logging
 from datetime import datetime
 from typing import NamedTuple
@@ -33,10 +31,7 @@ async def validate_webhook_timestamp(timestamp_str: str) -> WebhookSecurityResul
     try:
         webhook_timestamp = int(timestamp_str)
     except (ValueError, TypeError):
-        logger.warning(
-            "Invalid timestamp format",
-            extra={"operation": "validate_webhook_timestamp", "timestamp_str": timestamp_str},
-        )
+        logger.warning("Invalid timestamp format: %s", timestamp_str)
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Invalid timestamp format",
@@ -47,7 +42,7 @@ async def validate_webhook_timestamp(timestamp_str: str) -> WebhookSecurityResul
     age_seconds = current_timestamp - webhook_timestamp
 
     if age_seconds < 0:
-        logger.warning(f"Webhook timestamp in future: {timestamp_str}")
+        logger.warning("Webhook timestamp in future: %s", timestamp_str)
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Timestamp is in the future",
@@ -101,51 +96,6 @@ async def validate_webhook_nonce(message_id: str) -> WebhookSecurityResult:
             is_valid=False,
             error_message="Duplicate webhook",
             http_status_code=400,
-        )
-
-    return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
-
-
-def validate_webhook_hmac(*, raw_body: bytes, signature: str | None, secret: str) -> WebhookSecurityResult:
-    """Validate webhook HMAC signature.
-
-    Computes SHA256 HMAC of raw request body using secret key and compares
-    with the provided signature header using constant-time comparison.
-
-    Args:
-        raw_body: Raw bytes of the request body
-        signature: X-Hub-Signature-256 header value (hex-encoded HMAC)
-        secret: Secret key used to compute HMAC
-
-    Returns:
-        WebhookSecurityResult indicating if signature is valid
-    """
-    if signature is None:
-        logger.warning(
-            "Missing X-Hub-Signature-256 header",
-            extra={"operation": "validate_webhook_hmac", "status": "missing_signature"},
-        )
-        return WebhookSecurityResult(
-            is_valid=False,
-            error_message="Missing webhook signature",
-            http_status_code=401,
-        )
-
-    expected_signature = hmac.new(
-        secret.encode(),
-        raw_body,
-        hashlib.sha256,
-    ).hexdigest()
-
-    if not hmac.compare_digest(expected_signature, signature):
-        logger.warning(
-            "Invalid webhook signature",
-            extra={"operation": "validate_webhook_hmac", "status": "invalid_signature"},
-        )
-        return WebhookSecurityResult(
-            is_valid=False,
-            error_message="Invalid webhook signature",
-            http_status_code=401,
         )
 
     return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)

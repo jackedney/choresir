@@ -1,8 +1,6 @@
 """WhatsApp message sender with rate limiting and retry logic using WAHA."""
 
 import asyncio
-import functools
-import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -10,9 +8,6 @@ import httpx
 from pydantic import BaseModel, Field
 
 from src.core.config import constants, settings
-
-
-logger = logging.getLogger(__name__)
 
 
 # HTTP status code constants for error handling
@@ -69,7 +64,6 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
-@functools.lru_cache(maxsize=1024)
 def format_phone_for_waha(phone: str) -> str:
     """Format phone number for WAHA (e.g., '1234567890@c.us')."""
     # Remove 'whatsapp:' prefix if present
@@ -98,11 +92,8 @@ async def send_text_message(
     Returns:
         SendMessageResult indicating success or failure
     """
-    logger.debug("Sending text message", extra={"operation": "send_message_start"})
-
     # Check rate limit
     if not rate_limiter.can_send(to_phone):
-        logger.warning("Rate limit exceeded", extra={"operation": "send_rate_limited"})
         return SendMessageResult(
             success=False,
             error="Rate limit exceeded. Please try again later.",
@@ -131,12 +122,7 @@ async def send_text_message(
                 if response.is_success:
                     data = response.json()
                     # WAHA returns { "id": "...", ... }
-                    message_id = data.get("id")
-                    logger.info(
-                        "Message sent successfully",
-                        extra={"operation": "send_message_success", "message_id": message_id},
-                    )
-                    return SendMessageResult(success=True, message_id=message_id)
+                    return SendMessageResult(success=True, message_id=data.get("id"))
 
                 # Client error (4xx) - don't retry
                 if HTTP_CLIENT_ERROR_START <= response.status_code < HTTP_CLIENT_ERROR_END:
@@ -147,29 +133,14 @@ async def send_text_message(
                     f"Server error: {response.status_code}", request=response.request, response=response
                 )
 
-        except httpx.HTTPStatusError as e:
+        except httpx.HTTPStatusError:
             if attempt < max_retries - 1:
-                logger.debug(
-                    "Server error, retrying",
-                    extra={"attempt": attempt + 1, "status_code": e.response.status_code},
-                )
+                await asyncio.sleep(retry_delay * (2**attempt))
+        except Exception as e:
+            # Retry on unexpected errors
+            if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
             else:
-                logger.error(
-                    "Server error after retries",
-                    extra={"operation": "send_message_failed", "status_code": e.response.status_code},
-                )
-                return SendMessageResult(success=False, error=f"Failed after retries: {e}")
-        except (httpx.ConnectError, httpx.NetworkError, httpx.HTTPError) as e:
-            # Retry on httpx errors
-            if attempt < max_retries - 1:
-                logger.debug("Network error, retrying", extra={"attempt": attempt + 1, "error_type": type(e).__name__})
-                await asyncio.sleep(retry_delay * (2**attempt))
-            else:
-                logger.error(
-                    "Failed to send message", extra={"operation": "send_message_failed", "error_type": type(e).__name__}
-                )
-                return SendMessageResult(success=False, error=f"Failed after retries: {e}")
+                return SendMessageResult(success=False, error=f"Failed after retries: {e!s}")
 
-    # Type safety: all code paths above return, but ty requires explicit return
     return SendMessageResult(success=False, error="Max retries exceeded")

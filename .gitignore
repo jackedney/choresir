@@ -75,9 +75,3 @@ ngrok.yml
 
 # pb_migrations
 pb_migrations/
-
-# AI agent tools
-.ralph/
-.claude/
-.agents/
-.opencode/

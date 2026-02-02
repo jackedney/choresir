@@ -1,10 +1,7 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
-import functools
 import logging
 from datetime import UTC, date, datetime
-from itertools import groupby
-from operator import attrgetter
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -63,7 +60,7 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) ->
         )
 
         if result.success:
-            logger.info(f"Sent overdue reminder to {user['name']} ({len(chores)} chores)")
+            logger.info("Sent overdue reminder to %s (%d chores)", user["name"], len(chores))
             return True
 
         logger.warning(f"Failed to send reminder to {user['name']}: {result.error}")
@@ -72,8 +69,8 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) ->
     except KeyError:
         logger.warning(f"User {user_id} not found for overdue reminders")
         return False
-    except (RuntimeError, ConnectionError, PermissionError):
-        logger.exception("Error sending reminder to user %s", user_id)
+    except Exception as e:
+        logger.error(f"Error sending reminder to user {user_id}: {e}")
         return False
 
 
@@ -94,12 +91,15 @@ async def send_overdue_reminders() -> None:
             return
 
         # Group chores by assigned user
-        sorted_chores = sorted(overdue_chores, key=attrgetter("assigned_to"))
-        chores_by_user = {
-            user_id: list(chores)
-            for user_id, chores in groupby(sorted_chores, key=attrgetter("assigned_to"))
-            if user_id  # Skip unassigned chores (None or empty string)
-        }
+        chores_by_user: dict[str, list[OverdueChore]] = {}
+        for chore in overdue_chores:
+            user_id = chore.assigned_to
+            if not user_id:
+                continue  # Skip unassigned chores
+
+            if user_id not in chores_by_user:
+                chores_by_user[user_id] = []
+            chores_by_user[user_id].append(chore)
 
         # Send reminders to each user
         sent_count = 0
@@ -107,10 +107,10 @@ async def send_overdue_reminders() -> None:
             if await _send_reminder_to_user(user_id=user_id, chores=chores):
                 sent_count += 1
 
-        logger.info(f"Completed overdue reminders job: {sent_count}/{len(chores_by_user)} users notified")
+        logger.info("Completed overdue reminders job: %d/%d users notified", sent_count, len(chores_by_user))
 
-    except Exception:
-        logger.exception("Error in overdue reminders job")
+    except Exception as e:
+        logger.error(f"Error in overdue reminders job: {e}")
 
 
 async def send_daily_report() -> None:
@@ -165,17 +165,16 @@ async def send_daily_report() -> None:
                 else:
                     logger.warning(f"Failed to send daily report to {user['name']}: {result.error}")
 
-            except (RuntimeError, ConnectionError, KeyError):
-                logger.exception("Error sending daily report to user %s", user["id"])
+            except Exception as e:
+                logger.error(f"Error sending daily report to user {user['id']}: {e}")
                 continue
 
-        logger.info(f"Completed daily report job: sent to {sent_count}/{len(active_users)} users")
+        logger.info("Completed daily report job: sent to %d/%d users", sent_count, len(active_users))
 
-    except Exception:
-        logger.exception("Error in daily report job")
+    except Exception as e:
+        logger.error(f"Error in daily report job: {e}")
 
 
-@functools.cache
 def _get_rank_emoji(rank: int) -> str:
     """Get emoji for leaderboard rank.
 
@@ -205,17 +204,15 @@ def _get_dynamic_title(rank: int, total_users: int, completions: int) -> str:
     Returns:
         Dynamic title string
     """
-    match (rank, completions):
-        case (Constants.LEADERBOARD_RANK_FIRST, c) if c >= Constants.LEADERBOARD_COMPLETIONS_CARRYING_TEAM:
-            return '"Carrying the team!"'
-        case (Constants.LEADERBOARD_RANK_FIRST, _):
-            return '"MVP!"'
-        case (r, c) if r == total_users and c == 0:
-            return '"The Observer"'
-        case (r, c) if r == total_users and c <= Constants.LEADERBOARD_COMPLETIONS_NEEDS_IMPROVEMENT:
-            return '"Room for improvement"'
-        case _:
-            return ""
+    if rank == Constants.LEADERBOARD_RANK_FIRST and completions >= Constants.LEADERBOARD_COMPLETIONS_CARRYING_TEAM:
+        return '"Carrying the team!"'
+    if rank == Constants.LEADERBOARD_RANK_FIRST:
+        return '"MVP!"'
+    if rank == total_users and completions == 0:
+        return '"The Observer"'
+    if rank == total_users and completions <= Constants.LEADERBOARD_COMPLETIONS_NEEDS_IMPROVEMENT:
+        return '"Room for improvement"'
+    return ""
 
 
 def _format_weekly_leaderboard(leaderboard: list[LeaderboardEntry], overdue: list[OverdueChore]) -> str:
@@ -331,14 +328,14 @@ async def send_weekly_leaderboard() -> None:
                 else:
                     logger.warning(f"Failed to send weekly leaderboard to {user['name']}: {result.error}")
 
-            except (RuntimeError, ConnectionError, KeyError):
-                logger.exception("Error sending weekly leaderboard to user %s", user["id"])
+            except Exception as e:
+                logger.error(f"Error sending weekly leaderboard to user {user['id']}: {e}")
                 continue
 
-        logger.info(f"Completed weekly leaderboard job: sent to {sent_count}/{len(active_users)} users")
+        logger.info("Completed weekly leaderboard job: sent to %d/%d users", sent_count, len(active_users))
 
-    except Exception:
-        logger.exception("Error in weekly leaderboard job")
+    except Exception as e:
+        logger.error(f"Error in weekly leaderboard job: {e}")
 
 
 async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | None:
@@ -368,7 +365,7 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
                 return datetime.fromisoformat(completed_at_str).date()
 
         return None
-    except (RuntimeError, KeyError, ValueError, ConnectionError) as e:
+    except Exception as e:
         logger.warning(f"Error fetching last completion for chore {chore_id}: {e}")
         return None
 
@@ -400,7 +397,7 @@ def _is_recurring_chore_due_today(recurrence: str, last_completion: date | None,
         logger.warning(f"Could not parse recurrence pattern: {recurrence}")
         return False
 
-    except (ValueError, AttributeError, RuntimeError) as e:
+    except Exception as e:
         logger.warning(f"Error checking recurrence pattern '{recurrence}': {e}")
         return False
 
@@ -479,10 +476,7 @@ async def _is_chore_due_today(chore: dict, today: date) -> bool:
         owner_phone = chore.get("owner_phone", "")
 
         if not chore_id or not owner_phone:
-            logger.warning(
-                "Missing chore_id or owner_phone for chore",
-                extra={"operation": "personal_chore_reminder_check", "chore_id": chore.get("id", "")},
-            )
+            logger.warning(f"Missing chore_id or owner_phone for chore: {chore}")
             return False
 
         last_completion = await _get_last_completion_date(chore_id, owner_phone)
@@ -562,14 +556,14 @@ async def send_personal_chore_reminders() -> None:
             try:
                 if await _send_personal_chore_reminder_to_user(user, today):
                     sent_count += 1
-            except (RuntimeError, ConnectionError, KeyError):
-                logger.exception("Error sending reminder to user %s", user["id"])
+            except Exception as e:
+                logger.error(f"Error sending reminder to user {user['id']}: {e}")
                 continue
 
-        logger.info(f"Completed personal chore reminders: sent to {sent_count}/{len(active_users)} users")
+        logger.info("Completed personal chore reminders: sent to %d/%d users", sent_count, len(active_users))
 
-    except Exception:
-        logger.exception("Error in personal chore reminders job")
+    except Exception as e:
+        logger.error(f"Error in personal chore reminders job: {e}")
 
 
 async def auto_verify_personal_chores() -> None:
@@ -586,8 +580,8 @@ async def auto_verify_personal_chores() -> None:
 
         logger.info(f"Completed auto-verification job: {count} logs auto-verified")
 
-    except Exception:
-        logger.exception("Error in auto-verification job")
+    except Exception as e:
+        logger.error(f"Error in auto-verification job: {e}")
 
 
 def start_scheduler() -> None:
@@ -599,7 +593,7 @@ def start_scheduler() -> None:
 
     # Schedule overdue reminders job (daily at 8am) with retry
     scheduler.add_job(
-        functools.partial(retry_job_with_backoff, send_overdue_reminders, "overdue_reminders"),
+        lambda: retry_job_with_backoff(send_overdue_reminders, "overdue_reminders"),
         trigger=CronTrigger(hour=constants.DAILY_REMINDER_HOUR, minute=0),
         id="overdue_reminders",
         name="Send Overdue Chore Reminders",
@@ -609,7 +603,7 @@ def start_scheduler() -> None:
 
     # Schedule daily report job (daily at 9pm) with retry
     scheduler.add_job(
-        functools.partial(retry_job_with_backoff, send_daily_report, "daily_report"),
+        lambda: retry_job_with_backoff(send_daily_report, "daily_report"),
         trigger=CronTrigger(hour=constants.DAILY_REPORT_HOUR, minute=0),
         id="daily_report",
         name="Send Daily Household Report",
@@ -619,7 +613,7 @@ def start_scheduler() -> None:
 
     # Schedule weekly leaderboard job (Sunday at 8pm) with retry
     scheduler.add_job(
-        functools.partial(retry_job_with_backoff, send_weekly_leaderboard, "weekly_leaderboard"),
+        lambda: retry_job_with_backoff(send_weekly_leaderboard, "weekly_leaderboard"),
         trigger=CronTrigger(
             day_of_week=constants.WEEKLY_REPORT_DAY,
             hour=constants.WEEKLY_REPORT_HOUR,
@@ -635,7 +629,7 @@ def start_scheduler() -> None:
 
     # Schedule personal chore reminders (daily at 8am) with retry
     scheduler.add_job(
-        functools.partial(retry_job_with_backoff, send_personal_chore_reminders, "personal_chore_reminders"),
+        lambda: retry_job_with_backoff(send_personal_chore_reminders, "personal_chore_reminders"),
         trigger=CronTrigger(hour=8, minute=0),
         id="personal_chore_reminders",
         name="Send Personal Chore Reminders",
@@ -645,7 +639,7 @@ def start_scheduler() -> None:
 
     # Schedule auto-verification (hourly) with retry
     scheduler.add_job(
-        functools.partial(retry_job_with_backoff, auto_verify_personal_chores, "auto_verify_personal"),
+        lambda: retry_job_with_backoff(auto_verify_personal_chores, "auto_verify_personal"),
         trigger=CronTrigger(hour="*", minute=0),  # Every hour at minute 0
         id="auto_verify_personal",
         name="Auto-Verify Personal Chores",

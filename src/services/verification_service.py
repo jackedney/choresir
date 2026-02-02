@@ -85,7 +85,7 @@ async def request_verification(
                 chore_id=chore_id,
                 claimer_user_id=claimer_user_id,
             )
-        except (RuntimeError, ConnectionError, KeyError):
+        except Exception:
             # Log with full traceback for debugging
             # Note: Notification failure doesn't fail the claim itself
             logger.exception(

@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
-from src.core.config import Constants
 from src.models.service_models import CompletionRate, LeaderboardEntry, OverdueChore, UserStatistics
 from src.services import analytics_service
 
@@ -101,7 +100,7 @@ def _format_overdue_chores(chores: list[OverdueChore]) -> str:
     now = datetime.now(UTC)
     lines = [f"⚠️ {len(chores)} overdue chore(s):"]
 
-    for chore in chores[: Constants.WHATSAPP_OVERDUE_CHORES_DISPLAY_LIMIT]:
+    for chore in chores[:5]:  # Limit to 5 for WhatsApp readability
         title = chore.title
         deadline = datetime.fromisoformat(chore.deadline)
         # If deadline is naive (no timezone), assume UTC
@@ -118,7 +117,7 @@ def _format_overdue_chores(chores: list[OverdueChore]) -> str:
 
         lines.append(f"• '{title}' ({time_str})")
 
-    max_display = Constants.WHATSAPP_OVERDUE_CHORES_DISPLAY_LIMIT
+    max_display = 5
     if len(chores) > max_display:
         lines.append(f"... and {len(chores) - max_display} more")
 
@@ -154,7 +153,7 @@ async def tool_get_analytics(_ctx: RunContext[Deps], params: GetAnalytics) -> st
 
             return f"Error: Unknown metric '{params.metric}'."
 
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_get_analytics", extra={"error": str(e)})
         return "Error: Unable to retrieve analytics. Please try again."
 
@@ -184,15 +183,14 @@ def _format_user_stats(stats: UserStatistics, period_days: int) -> str:
     overdue = stats.overdue_chores
 
     # Build dynamic title based on performance
-    match completions:
-        case c if c >= TITLE_THRESHOLD_MACHINE:
-            title = "🏆 The Machine"
-        case c if c >= TITLE_THRESHOLD_CONTRIBUTOR:
-            title = "💪 Solid Contributor"
-        case c if c >= TITLE_THRESHOLD_STARTER:
-            title = "👍 Getting Started"
-        case _:
-            title = "😴 The Observer"
+    if completions >= TITLE_THRESHOLD_MACHINE:
+        title = "🏆 The Machine"
+    elif completions >= TITLE_THRESHOLD_CONTRIBUTOR:
+        title = "💪 Solid Contributor"
+    elif completions >= TITLE_THRESHOLD_STARTER:
+        title = "👍 Getting Started"
+    else:
+        title = "😴 The Observer"
 
     if period_days == PERIOD_WEEKLY_DAYS:
         period_label = "This Week"
@@ -246,7 +244,7 @@ async def tool_get_stats(ctx: RunContext[Deps], params: GetStats) -> str:
 
             return _format_user_stats(stats, params.period_days)
 
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_get_stats", extra={"error": str(e)})
         return "Error: Unable to retrieve your stats. Please try again."
 

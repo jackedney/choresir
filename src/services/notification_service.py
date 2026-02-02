@@ -46,7 +46,7 @@ async def send_verification_request(
             chore = await db_client.get_record(collection="chores", record_id=chore_id)
             chore_title = chore["title"]
         except KeyError:
-            logger.error("Chore not found", extra={"chore_id": chore_id})
+            logger.error("Chore not found: %s", chore_id)
             return []
 
         # 2. Get claimer name
@@ -54,7 +54,7 @@ async def send_verification_request(
             claimer = await db_client.get_record(collection="users", record_id=claimer_user_id)
             claimer_name = claimer.get("name", "Someone")
         except KeyError:
-            logger.error("Claimer user not found", extra={"claimer_user_id": claimer_user_id})
+            logger.error("Claimer user not found: %s", claimer_user_id)
             claimer_name = "Someone"
 
         # 3. Get all active users except claimer
@@ -95,16 +95,17 @@ async def send_verification_request(
                 )
                 results.append(notification_result)
             except ValidationError as e:
-                logger.error("Failed to create NotificationResult", extra={"user_id": user_id, "error": str(e)})
+                logger.error("Failed to create NotificationResult for user %s: %s", user_id, e)
                 continue
 
             if send_result.success:
-                logger.info(
-                    "Verification request sent", extra={"operation": "verification_request_sent", "user_id": user_id}
-                )
+                logger.info("Verification request sent to user=%s phone=%s", user_id, phone)
             else:
                 logger.error(
-                    "Failed to send verification request", extra={"user_id": user_id, "error": send_result.error}
+                    "Failed to send verification request to user=%s phone=%s error=%s",
+                    user_id,
+                    phone,
+                    send_result.error,
                 )
 
         # 5. Return results
@@ -135,7 +136,7 @@ async def _send_verification_message(
     Returns:
         SendMessageResult indicating success or failure
     """
-    logger.debug("Sending text verification message", extra={"operation": "verification_message_send"})
+    logger.debug("Sending text verification message to %s", to_phone)
 
     # NOTE: This uses simple command format that the AI agent parses.
     # The agent's tool_verify_chore (in src/agents/tools/verification_tools.py) expects:
@@ -190,15 +191,11 @@ async def send_personal_verification_request(
         )
 
         if result.success:
-            logger.info(
-                "Sent personal verification request for chore '%s'",
-                chore_title,
-                extra={"operation": "personal_verification_request_sent"},
-            )
+            logger.info("Sent personal verification request to %s for chore '%s'", partner_phone, chore_title)
         else:
-            logger.error("Failed to send personal verification request", extra={"error": result.error})
+            logger.error("Failed to send personal verification request: %s", result.error)
 
-    except (RuntimeError, ConnectionError):
+    except Exception:
         logger.exception("Error sending personal verification request for chore '%s'", chore_title)
         # Don't raise - notification failure shouldn't fail the claim
 
@@ -244,14 +241,10 @@ async def send_personal_verification_result(
         )
 
         if result.success:
-            logger.info(
-                "Sent personal verification result: %s",
-                status,
-                extra={"operation": "personal_verification_result_sent"},
-            )
+            logger.info("Sent personal verification result to %s: %s", owner_phone, status)
         else:
-            logger.error("Failed to send personal verification result", extra={"error": result.error})
+            logger.error("Failed to send personal verification result: %s", result.error)
 
-    except (RuntimeError, ConnectionError):
+    except Exception:
         logger.exception("Error sending personal verification result for chore '%s'", chore_title)
         # Don't raise - notification failure shouldn't fail the verification

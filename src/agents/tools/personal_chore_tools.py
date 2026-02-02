@@ -128,7 +128,7 @@ async def tool_create_personal_chore(ctx: RunContext[Deps], params: CreatePerson
     except ValueError as e:
         logger.warning("Personal chore creation failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_create_personal_chore", extra={"error": str(e)})
         return "Error: Unable to create personal chore. Please try again."
 
@@ -177,7 +177,7 @@ async def tool_log_personal_chore(ctx: RunContext[Deps], params: LogPersonalChor
     except ValueError as e:
         logger.warning("Personal chore logging failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_log_personal_chore", extra={"error": str(e)})
         return "Error: Unable to log personal chore. Please try again."
 
@@ -222,7 +222,7 @@ async def tool_verify_personal_chore(ctx: RunContext[Deps], params: VerifyPerson
     except ValueError as e:
         logger.warning("Verification failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_verify_personal_chore", extra={"error": str(e)})
         return "Error: Unable to verify personal chore. Please try again."
 
@@ -255,7 +255,7 @@ async def tool_get_personal_stats(ctx: RunContext[Deps], params: GetPersonalStat
                 f"Completion Rate: {stats.completion_rate}%"
             )
 
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_get_personal_stats", extra={"error": str(e)})
         return "Error: Unable to retrieve personal stats. Please try again."
 
@@ -292,7 +292,7 @@ async def tool_list_personal_chores(ctx: RunContext[Deps], params: ListPersonalC
 
             return "\n".join(lines)
 
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_list_personal_chores", extra={"error": str(e)})
         return "Error: Unable to list personal chores. Please try again."
 
@@ -329,7 +329,7 @@ async def tool_remove_personal_chore(ctx: RunContext[Deps], params: RemovePerson
 
             return f"✅ Removed personal chore '{matched_chore['title']}'."
 
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_remove_personal_chore", extra={"error": str(e)})
         return "Error: Unable to remove personal chore. Please try again."
 

@@ -58,7 +58,7 @@ async def add_to_shopping_list(
                 record_id=existing_item["id"],
                 data=update_data,
             )
-            logger.info(f"Updated shopping list item: {item_name}")
+            logger.info("Updated shopping list item: %s", item_name)
             return record
 
         # Create new item
@@ -71,7 +71,7 @@ async def add_to_shopping_list(
         }
 
         record = await db_client.create_record(collection="shopping_list", data=item_data)
-        logger.info(f"Added to shopping list: {item_name}", extra={"user_id": user_id})
+        logger.info("Added to shopping list: %s (by user: %s)", item_name, user_id)
 
         return record
 
@@ -88,7 +88,7 @@ async def get_shopping_list() -> list[dict[str, Any]]:
             sort="+added_at",
         )
 
-        logger.debug(f"Retrieved {len(records)} shopping list items")
+        logger.debug("Retrieved %d shopping list items", len(records))
         return records
 
 
@@ -111,7 +111,7 @@ async def remove_from_shopping_list(*, item_name: str) -> bool:
 
         if item:
             await db_client.delete_record(collection="shopping_list", record_id=item["id"])
-            logger.info(f"Removed from shopping list: {item_name}")
+            logger.info("Removed from shopping list: %s", item_name)
             return True
 
         return False
@@ -131,7 +131,7 @@ async def clear_shopping_list() -> int:
             await db_client.delete_record(collection="shopping_list", record_id=item["id"])
             count += 1
 
-        logger.info(f"Cleared shopping list: {count} items removed")
+        logger.info("Cleared shopping list: %d items removed", count)
         return count
 
 
@@ -184,7 +184,7 @@ async def checkout_shopping_list(*, user_id: str) -> tuple[int, list[str]]:
 
                 processed_items.append(item_name)
 
-        except (RuntimeError, KeyError, ConnectionError):
+        except Exception:
             logger.error(
                 "Checkout failed midway for user %s. Successfully processed %d/%d items: %s. "
                 "Data may be inconsistent - some items updated in pantry but still on shopping list.",
@@ -196,7 +196,7 @@ async def checkout_shopping_list(*, user_id: str) -> tuple[int, list[str]]:
             )
             raise
 
-        logger.info(f"Checked out {len(item_names)} items from shopping list (user: {user_id})")
+        logger.info("Checked out %d items from shopping list (user: %s)", len(item_names), user_id)
         return len(item_names), item_names
 
 
@@ -266,7 +266,7 @@ async def get_pantry_items(*, status: PantryItemStatus | None = None) -> list[di
             sort="+name",
         )
 
-        logger.debug(f"Retrieved {len(records)} pantry items")
+        logger.debug("Retrieved %d pantry items", len(records))
         return records
 
 
@@ -294,7 +294,7 @@ async def update_pantry_item_status(*, item_name: str, status: PantryItemStatus)
                 record_id=item["id"],
                 data={"status": status},
             )
-            logger.info(f"Updated pantry item status: {item_name} -> {status}")
+            logger.info("Updated pantry item status: %s -> %s", item_name, status)
             return record
 
         return None

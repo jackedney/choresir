@@ -58,7 +58,7 @@ async def tool_request_join(ctx: RunContext[Deps], params: RequestJoin) -> str:
     except ValueError as e:
         logger.warning("Join request failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_request_join", extra={"error": str(e)})
         return "Error: Unable to process join request. Please try again."
 
@@ -92,7 +92,7 @@ async def tool_approve_member(ctx: RunContext[Deps], params: ApproveMember) -> s
     except ValueError as e:
         logger.warning("Approval failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_approve_member", extra={"error": str(e)})
         return "Error: Unable to approve member. Please try again."
 

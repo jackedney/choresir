@@ -54,7 +54,7 @@ async def create_chore(
         }
 
         record = await db_client.create_record(collection="chores", data=chore_data)
-        logger.info("Created chore", extra={"chore_id": record["id"], "assigned_to": assigned_to or "unassigned"})
+        logger.info("Created chore: %s (assigned to: %s)", title, assigned_to or "unassigned")
 
         return record
 

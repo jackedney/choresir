@@ -1,6 +1,5 @@
 """WhatsApp webhook endpoints."""
 
-import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -11,7 +10,7 @@ from pocketbase import PocketBase
 from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
-from src.core.config import Constants, settings
+from src.core.config import Constants
 from src.core.db_client import sanitize_param
 from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
@@ -30,44 +29,34 @@ ERROR_MSG_BUTTON_PROCESSING_FAILED = (
 
 @router.post("")
 async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -> dict[str, str]:
-    """Receive and validate WAHA webhook POST requests."""
-    # Read raw body for HMAC validation before JSON parsing
-    raw_body = await request.body()
+    """Receive and validate WAHA webhook POST requests.
 
-    # Extract HMAC signature from header
-    hmac_signature = request.headers.get("X-Hub-Signature-256")
+    This endpoint:
+    1. Parses JSON payload
+    2. Performs security checks (timestamp, nonce, rate limit)
+    3. Returns 200 OK immediately
+    4. Dispatches message processing to background tasks
 
-    # Validate HMAC signature before any other processing
-    # This is safe because startup validation ensures waha_webhook_hmac_key is set
-    hmac_secret = settings.waha_webhook_hmac_key or ""
-    hmac_result = webhook_security.validate_webhook_hmac(
-        raw_body=raw_body, signature=hmac_signature, secret=hmac_secret
-    )
+    Args:
+        request: FastAPI request object containing JSON data
+        background_tasks: FastAPI BackgroundTasks for async processing
 
-    if not hmac_result.is_valid:
-        logger.warning(
-            "HMAC validation failed",
-            extra={"operation": "hmac_validation_failed"},
-        )
-        raise HTTPException(
-            status_code=hmac_result.http_status_code or 401,
-            detail=hmac_result.error_message,
-        )
+    Returns:
+        Success status dictionary
 
+    Raises:
+        HTTPException: If payload is invalid or security checks fail
+    """
     # Check global webhook rate limit (raises HTTPException directly)
     await rate_limiter.check_webhook_rate_limit()
 
     try:
         payload = await request.json()
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+    except Exception as e:
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
 
     # Parse message for security validation
-    try:
-        message = whatsapp_parser.parse_waha_webhook(payload)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
+    message = whatsapp_parser.parse_waha_webhook(payload)
     if not message:
         # Ignore non-message events (e.g., status updates, qr codes)
         return {"status": "ignored"}
@@ -87,6 +76,7 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
             security_result.error_message,
             extra={
                 "message_id": message.message_id,
+                "phone": message.from_phone,
                 "reason": security_result.error_message,
             },
         )
@@ -109,14 +99,19 @@ async def _update_message_status(*, message_id: str, success: bool, error: str |
         success: Whether the message was successfully processed
         error: Error message if processing failed
     """
-    await db_client.update_first_matching(
+    msg_record = await db_client.get_first_record(
         collection="processed_messages",
         filter_query=f'message_id = "{sanitize_param(message_id)}"',
-        data={
-            "success": success,
-            "error_message": error if not success else None,
-        },
     )
+    if msg_record:
+        await db_client.update_record(
+            collection="processed_messages",
+            record_id=msg_record["id"],
+            data={
+                "success": success,
+                "error_message": error if not success else None,
+            },
+        )
 
 
 async def _handle_user_status(
@@ -134,19 +129,19 @@ async def _handle_user_status(
     status = user_record["status"]
 
     if status == UserStatus.PENDING:
-        logger.info("Pending user sent message", extra={"user_status": "pending"})
+        logger.info("Pending user %s sent message", message.from_phone)
         response = await choresir_agent.handle_pending_user(user_name=user_record["name"])
         result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
         return (result.success, result.error)
 
     if status == UserStatus.BANNED:
-        logger.info("Banned user sent message", extra={"user_status": "banned"})
+        logger.info("Banned user %s sent message", message.from_phone)
         response = await choresir_agent.handle_banned_user(user_name=user_record["name"])
         result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
         return (result.success, result.error)
 
     if status == UserStatus.ACTIVE:
-        logger.info("Processing active user message with agent", extra={"user_status": "active"})
+        logger.info("Processing active user %s message with agent", message.from_phone)
 
         # Check per-user agent call rate limit
         try:
@@ -176,12 +171,12 @@ async def _handle_user_status(
             text=agent_response,
         )
         if not result.success:
-            logger.error("Failed to send response", extra={"error": result.error})
+            logger.error("Failed to send response to %s: %s", message.from_phone, result.error)
         else:
-            logger.info("Successfully processed message", extra={"user_status": "active"})
+            logger.info("Successfully processed message for %s", message.from_phone)
         return (result.success, result.error)
 
-    logger.info("User has unknown status", extra={"user_status": status})
+    logger.info("User %s has unknown status: %s", message.from_phone, status)
     return (False, f"Unknown user status: {status}")
 
 
@@ -217,7 +212,7 @@ async def _handle_button_payload(
     # Parse payload: VERIFY:APPROVE:log_id or VERIFY:REJECT:log_id
     parts = payload.split(":")
     if len(parts) != Constants.WEBHOOK_BUTTON_PAYLOAD_PARTS or parts[0] != "VERIFY":
-        logger.error("Invalid button payload format", extra={"payload_prefix": payload[:20] if payload else None})
+        logger.error("Invalid button payload format: %s", payload)
         result = await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text=ERROR_MSG_BUTTON_PROCESSING_FAILED,
@@ -228,9 +223,7 @@ async def _handle_button_payload(
 
     # Validate decision type
     if decision_str not in ("APPROVE", "REJECT"):
-        logger.error(
-            "Invalid decision in payload", extra={"decision_str_prefix": decision_str[:20] if decision_str else None}
-        )
+        logger.error("Invalid decision in payload: %s", decision_str)
         result = await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="Sorry, I couldn't process that button click. Please try typing your response instead.",
@@ -272,7 +265,7 @@ async def _handle_button_payload(
         return (False, "Self-verification attempted")
 
     except KeyError as e:
-        logger.exception("Record not found for button payload")
+        logger.error("Record not found for button payload: %s", e)
         await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="This verification request may have expired or been processed already.",
@@ -281,7 +274,12 @@ async def _handle_button_payload(
 
     except Exception as e:
         # Log with more detail for unexpected exceptions
-        logger.exception("Unexpected button handler error")
+        logger.error(
+            "Unexpected button handler error (%s): %s",
+            type(e).__name__,
+            e,
+            exc_info=True,  # Include stack trace
+        )
         await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="Sorry, an error occurred while processing your verification.",
@@ -303,7 +301,7 @@ async def _check_duplicate_message(message_id: str) -> bool:
         filter_query=f'message_id = "{sanitize_param(message_id)}"',
     )
     if existing_log:
-        logger.info(f"Message {message_id} already processed, skipping")
+        logger.info("Message %s already processed, skipping", message_id)
         return True
     return False
 
@@ -336,7 +334,7 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
     if await _check_duplicate_message(message.message_id):
         return
 
-    logger.info("Processing button click", extra={"button_payload": message.button_payload})
+    logger.info("Processing button click from %s: %s", message.from_phone, message.button_payload)
     await _log_message_start(message, "Button")
 
     user_record = await db_client.get_first_record(
@@ -344,7 +342,7 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
         filter_query=f'phone = "{sanitize_param(message.from_phone)}"',
     )
     if not user_record:
-        logger.warning("Unknown user clicked button", extra={"operation": "button_unknown_user"})
+        logger.warning("Unknown user clicked button: %s", message.from_phone)
         await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="Sorry, I don't recognize your number. Please contact your household admin.",
@@ -364,14 +362,14 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     if await _check_duplicate_message(message.message_id):
         return
 
-    logger.info("Processing message", extra={"operation": "text_message"})
+    logger.info("Processing message from %s: %s", message.from_phone, message.text)
     await _log_message_start(message, "Processing")
 
     db = db_client.get_client()
     deps = await choresir_agent.build_deps(db=db, user_phone=message.from_phone)
 
     if deps is None:
-        logger.info("Unknown user, processing unknown user message", extra={"operation": "unknown_user"})
+        logger.info("Unknown user %s, processing unknown user message", message.from_phone)
         response = await choresir_agent.handle_unknown_user(
             user_phone=message.from_phone, message_text=message.text or ""
         )
@@ -384,7 +382,7 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
         filter_query=f'phone = "{sanitize_param(message.from_phone)}"',
     )
     if not user_record:
-        logger.error("User record not found after build_deps succeeded", extra={"operation": "record_not_found"})
+        logger.error("User record not found after build_deps succeeded for %s", message.from_phone)
         await _update_message_status(
             message_id=message.message_id,
             success=False,
@@ -410,23 +408,14 @@ async def _route_webhook_message(message: whatsapp_parser.ParsedMessage) -> None
         logger.info("No text message found, skipping")
 
 
-async def _handle_webhook_error(
-    *,
-    e: Exception,
-    params: dict[str, Any],
-    parsed_message: whatsapp_parser.ParsedMessage | None = None,
-) -> None:
+async def _handle_webhook_error(e: Exception, params: dict[str, Any]) -> None:
     """Handle errors during webhook processing.
 
     Args:
         e: Exception that occurred
         params: Original webhook parameters
-        parsed_message: Already parsed message (if available, avoids re-parsing)
     """
-    logger.exception("Error processing webhook message")
-
-    if parsed_message is None:
-        parsed_message = whatsapp_parser.parse_waha_webhook(params)
+    logger.error("Error processing webhook message: %s", e)
 
     error_category, _ = classify_agent_error(e)
     error_response = classify_error_with_response(e)
@@ -443,12 +432,13 @@ async def _handle_webhook_error(
 
     if admin_notifier.should_notify_admins(error_category):
         try:
-            user_context = "Unknown message_id"
-            if parsed_message and parsed_message.message_id:
-                user_context = f"message_id: {parsed_message.message_id}"
+            parsed_message = whatsapp_parser.parse_waha_webhook(params)
+            user_context = "Unknown user"
+            if parsed_message and parsed_message.from_phone:
+                user_context = parsed_message.from_phone
 
             timestamp = datetime.now().isoformat()
-            error_preview = str(e)[: Constants.ERROR_PREVIEW_MAX_LENGTH]
+            error_preview = str(e)[:100]
             notification_msg = (
                 f"⚠️ Webhook error: {error_response.code}\n"
                 f"Category: {error_category.value}\n"
@@ -459,30 +449,36 @@ async def _handle_webhook_error(
                 message=notification_msg,
                 severity="critical",
             )
-        except (RuntimeError, ConnectionError, OSError):
-            logger.exception("Failed to notify admins of critical error")
+        except Exception as notify_error:
+            logger.error("Failed to notify admins of critical error: %s", notify_error)
 
     try:
+        parsed_message = whatsapp_parser.parse_waha_webhook(params)
         if parsed_message and parsed_message.from_phone:
             try:
-                await db_client.update_first_matching(
+                existing_record = await db_client.get_first_record(
                     collection="processed_messages",
                     filter_query=f'message_id = "{sanitize_param(parsed_message.message_id)}"',
-                    data={
-                        "success": False,
-                        "error_message": str(e),
-                    },
                 )
-            except Exception:
-                logger.exception("Failed to update processed message record")
+                if existing_record:
+                    await db_client.update_record(
+                        collection="processed_messages",
+                        record_id=existing_record["id"],
+                        data={
+                            "success": False,
+                            "error_message": str(e),
+                        },
+                    )
+            except Exception as update_error:
+                logger.error("Failed to update processed message record: %s", update_error)
 
             user_message = f"{error_response.message}\n\n{error_response.suggestion}"
             await whatsapp_sender.send_text_message(
                 to_phone=parsed_message.from_phone,
                 text=user_message,
             )
-    except Exception:
-        logger.exception("Failed to send error message to user")
+    except Exception as send_error:
+        logger.error("Failed to send error message to user: %s", send_error)
 
 
 async def process_webhook_message(params: dict[str, Any]) -> None:
@@ -491,10 +487,9 @@ async def process_webhook_message(params: dict[str, Any]) -> None:
     Args:
         params: JSON payload from WAHA webhook
     """
-    message = None
     try:
         message = whatsapp_parser.parse_waha_webhook(params)
         if message:
             await _route_webhook_message(message)
     except Exception as e:
-        await _handle_webhook_error(e=e, params=params, parsed_message=message)
+        await _handle_webhook_error(e, params)

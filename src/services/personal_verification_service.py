@@ -58,16 +58,14 @@ async def log_personal_chore(
                 else:
                     # Partner no longer active, auto-convert to self-verified
                     logger.info(
-                        "Partner inactive for chore, auto-converting to self-verified",
-                        extra={"chore_id": chore_id, "reason": "partner_inactive"},
+                        "Partner %s inactive for chore %s, auto-converting to self-verified", partner_phone, chore_id
                     )
                     verification_status = "SELF_VERIFIED"
                     partner_phone = ""
-            except (RuntimeError, KeyError, ConnectionError):
+            except Exception:
                 # Partner not found, auto-convert to self-verified
                 logger.warning(
-                    "Partner not found for chore, auto-converting to self-verified",
-                    extra={"chore_id": chore_id, "reason": "partner_not_found"},
+                    "Partner %s not found for chore %s, auto-converting to self-verified", partner_phone, chore_id
                 )
                 verification_status = "SELF_VERIFIED"
                 partner_phone = ""
@@ -90,10 +88,7 @@ async def log_personal_chore(
             data=log_data,
         )
 
-        logger.info(
-            "Logged personal chore",
-            extra={"operation": "log_personal_chore", "chore_id": chore_id, "status": verification_status},
-        )
+        logger.info("Logged personal chore '%s' for %s (status: %s)", chore["title"], owner_phone, verification_status)
 
         # Send verification request notification if pending
         if verification_status == "PENDING" and partner_phone:
@@ -108,7 +103,7 @@ async def log_personal_chore(
                     owner_name=owner_name,
                     partner_phone=partner_phone,
                 )
-            except (RuntimeError, ConnectionError, KeyError):
+            except Exception:
                 logger.exception(
                     "Failed to send verification request notification for chore %s",
                     chore_id,
@@ -166,14 +161,7 @@ async def verify_personal_chore(
             },
         )
 
-        logger.info(
-            "Personal chore log verified",
-            extra={
-                "operation": "verify_personal_chore",
-                "log_id": log_id,
-                "status": "approved" if approved else "rejected",
-            },
-        )
+        logger.info("Personal chore log %s %s by %s", log_id, "approved" if approved else "rejected", verifier_phone)
 
         # Send result notification to owner
         try:
@@ -191,7 +179,7 @@ async def verify_personal_chore(
                 approved=approved,
                 feedback=feedback,
             )
-        except (RuntimeError, ConnectionError, KeyError):
+        except Exception:
             logger.exception(
                 "Failed to send verification result notification for log %s",
                 log_id,
@@ -239,7 +227,7 @@ async def get_pending_partner_verifications(
                 enriched_log = PersonalChoreLog(**enriched_view)
                 enriched_logs.append(enriched_log)
             except (KeyError, ValidationError) as e:
-                logger.warning(f"Failed to process log {log.get('id')}: {e}")
+                logger.warning("Failed to process log %s: %s", log.get("id"), e)
                 continue
 
         return enriched_logs
@@ -274,7 +262,7 @@ async def auto_verify_expired_logs() -> int:
                     },
                 )
                 auto_verified_count += 1
-                logger.info("Auto-verified personal chore log (48h timeout)", extra={"log_id": log["id"]})
+                logger.info("Auto-verified personal chore log %s (48h timeout)", log["id"])
 
                 # Send auto-verify notification to owner
                 try:
@@ -292,17 +280,17 @@ async def auto_verify_expired_logs() -> int:
                         approved=True,
                         feedback="Auto-verified (partner did not respond within 48 hours)",
                     )
-                    logger.info("Auto-verify notification sent successfully", extra={"log_id": log["id"]})
-                except (RuntimeError, ConnectionError, KeyError):
+                except Exception:
                     logger.exception(
                         "Failed to send auto-verify notification for log %s",
                         log["id"],
                     )
-            except (ValueError, KeyError, TypeError, AttributeError):
-                logger.exception("Failed to auto-verify log %s", log["id"])
+
+            except Exception as e:
+                logger.error("Failed to auto-verify log %s: %s", log["id"], e)
                 continue
 
-        logger.info("Auto-verified personal chore logs", extra={"count": auto_verified_count})
+        logger.info("Auto-verified %d personal chore logs", auto_verified_count)
         return auto_verified_count
 
 

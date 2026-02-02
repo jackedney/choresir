@@ -116,7 +116,7 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
     except ValueError as e:
         logger.warning("Verification failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_verify_chore", extra={"error": str(e)})
         return "Error: Unable to verify chore. Please try again."
 
@@ -156,7 +156,7 @@ async def tool_get_status(ctx: RunContext[Deps], params: GetStatus) -> str:
 
             return _format_chore_status(chores, target_user_name)
 
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_get_status", extra={"error": str(e)})
         return "Error: Unable to retrieve status. Please try again."
 

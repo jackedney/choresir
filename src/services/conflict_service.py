@@ -6,7 +6,6 @@ from enum import StrEnum
 from typing import Any
 
 from src.core import db_client
-from src.core.config import Constants
 from src.core.logging import span
 from src.domain.chore import ChoreState
 from src.domain.user import UserStatus
@@ -59,7 +58,7 @@ async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
-            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,
+            per_page=500,
             sort="",
         )
 
@@ -82,12 +81,10 @@ async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
         eligible_voters = [u for u in all_users if u["id"] not in excluded_user_ids]
 
         logger.info(
-            "Initiating vote for chore",
-            extra={
-                "chore_id": chore_id,
-                "eligible_voters": len(eligible_voters),
-                "excluded_user_ids": excluded_user_ids,
-            },
+            "Initiating vote for chore %s with %d eligible voters (excluded: %s)",
+            chore_id,
+            len(eligible_voters),
+            excluded_user_ids,
         )
 
         # Create vote placeholder logs (will be updated when votes are cast)
@@ -141,7 +138,7 @@ async def cast_vote(
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
-            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,
+            per_page=500,
             sort="",  # No sort to avoid issues
         )
 
@@ -183,16 +180,14 @@ async def cast_vote(
             },
         )
 
-        logger.info(
-            "User voted on chore", extra={"user_id": voter_user_id, "choice": str(choice), "chore_id": chore_id}
-        )
+        logger.info("User %s voted %s on chore %s", voter_user_id, choice, chore_id)
 
         # Check if all votes are in
         # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
         all_logs_updated = await db_client.list_records(
             collection="logs",
             filter_query="",  # Get all logs
-            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,  # Increase page size to avoid pagination issues
+            per_page=500,  # Increase page size to avoid pagination issues
             sort="",  # No sort to avoid issues
         )
 
@@ -202,7 +197,7 @@ async def cast_vote(
         ]
 
         if not pending_votes:
-            logger.info("All votes received, ready to tally", extra={"chore_id": chore_id})
+            logger.info("All votes received for chore %s, ready to tally", chore_id)
             # Note: Automatic tally triggering not yet implemented
 
         return updated_vote
@@ -237,7 +232,7 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
-            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,
+            per_page=500,
             sort="",  # No sort to avoid issues
         )
 
@@ -272,23 +267,19 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
             result = VoteResult.APPROVED
             # Complete the chore
             updated_chore = await chore_state_machine.transition_to_completed(chore_id=chore_id)
-            logger.info("Vote result: APPROVED - chore completed", extra={"chore_id": chore_id, "result": "approved"})
+            logger.info("Vote result: APPROVED - chore %s completed", chore_id)
 
         elif no_count > yes_count:
             result = VoteResult.REJECTED
             # Reset chore to TODO
             updated_chore = await chore_state_machine.transition_to_todo(chore_id=chore_id)
-            logger.info(
-                "Vote result: REJECTED - chore reset to TODO", extra={"chore_id": chore_id, "result": "rejected"}
-            )
+            logger.info("Vote result: REJECTED - chore %s reset to TODO", chore_id)
 
         else:  # Tie - deadlock
             result = VoteResult.DEADLOCK
             # Transition to DEADLOCK state
             updated_chore = await chore_state_machine.transition_to_deadlock(chore_id=chore_id)
-            logger.warning(
-                "Vote result: DEADLOCK - chore in deadlock state", extra={"chore_id": chore_id, "result": "deadlock"}
-            )
+            logger.warning("Vote result: DEADLOCK - chore %s in deadlock state", chore_id)
 
         # Create tally log
         tally_log = {
@@ -316,7 +307,7 @@ async def get_vote_status(*, chore_id: str) -> dict[str, Any]:
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
-            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,
+            per_page=500,
             sort="",  # No sort to avoid issues
         )
 

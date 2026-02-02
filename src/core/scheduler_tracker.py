@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.core.admin_notifier import notify_admins
-from src.core.config import Constants
 from src.core.redis_client import redis_client
 
 
@@ -21,7 +20,7 @@ class JobTracker:
         """Initialize job tracker."""
         # Fallback in-memory storage when Redis is unavailable
         self._memory_storage: dict[str, dict[str, Any]] = {}
-        self._dead_letter_queue: deque[tuple[str, str, str]] = deque(maxlen=Constants.TRACKER_DEAD_LETTER_QUEUE_MAXLEN)
+        self._dead_letter_queue: deque[tuple[str, str, str]] = deque(maxlen=100)
 
     async def record_job_start(self, job_name: str) -> None:
         """Record job execution start.
@@ -33,7 +32,7 @@ class JobTracker:
         key = f"scheduler:job:{job_name}:current_run"
 
         if redis_client.is_available:
-            await redis_client.set(key, now.isoformat(), ttl_seconds=Constants.TRACKER_CURRENT_RUN_TTL_SECONDS)
+            await redis_client.set(key, now.isoformat(), ttl_seconds=3600)
         else:
             if job_name not in self._memory_storage:
                 self._memory_storage[job_name] = {}
@@ -52,21 +51,19 @@ class JobTracker:
             await redis_client.set(
                 f"scheduler:job:{job_name}:last_success",
                 now.isoformat(),
-                ttl_seconds=Constants.TRACKER_JOB_METRICS_TTL_SECONDS,
+                ttl_seconds=86400 * 7,  # Keep for 7 days
             )
 
             # Reset consecutive failures
             await redis_client.set(
                 f"scheduler:job:{job_name}:consecutive_failures",
                 "0",
-                ttl_seconds=Constants.TRACKER_JOB_METRICS_TTL_SECONDS,
+                ttl_seconds=86400 * 7,
             )
 
             # Increment success count
             await redis_client.increment(f"scheduler:job:{job_name}:success_count")
-            await redis_client.expire(
-                f"scheduler:job:{job_name}:success_count", Constants.TRACKER_JOB_METRICS_TTL_SECONDS
-            )
+            await redis_client.expire(f"scheduler:job:{job_name}:success_count", 86400 * 7)
 
             # Clear current run
             await redis_client.delete(f"scheduler:job:{job_name}:current_run")
@@ -93,26 +90,24 @@ class JobTracker:
             await redis_client.set(
                 f"scheduler:job:{job_name}:last_failure",
                 now.isoformat(),
-                ttl_seconds=Constants.TRACKER_JOB_METRICS_TTL_SECONDS,
+                ttl_seconds=86400 * 7,
             )
 
             # Store last error
             await redis_client.set(
                 f"scheduler:job:{job_name}:last_error",
-                error[: Constants.TRACKER_ERROR_MESSAGE_MAX_LENGTH],
-                ttl_seconds=Constants.TRACKER_JOB_METRICS_TTL_SECONDS,
+                error[:500],  # Truncate long errors
+                ttl_seconds=86400 * 7,
             )
 
             # Increment consecutive failures
             consecutive_key = f"scheduler:job:{job_name}:consecutive_failures"
             consecutive_failures = await redis_client.increment(consecutive_key)
-            await redis_client.expire(consecutive_key, Constants.TRACKER_JOB_METRICS_TTL_SECONDS)
+            await redis_client.expire(consecutive_key, 86400 * 7)
 
             # Increment total failure count
             await redis_client.increment(f"scheduler:job:{job_name}:failure_count")
-            await redis_client.expire(
-                f"scheduler:job:{job_name}:failure_count", Constants.TRACKER_JOB_METRICS_TTL_SECONDS
-            )
+            await redis_client.expire(f"scheduler:job:{job_name}:failure_count", 86400 * 7)
 
             # Clear current run
             await redis_client.delete(f"scheduler:job:{job_name}:current_run")
@@ -122,7 +117,7 @@ class JobTracker:
             self._memory_storage[job_name] = {}
 
         self._memory_storage[job_name]["last_failure"] = now.isoformat()
-        self._memory_storage[job_name]["last_error"] = error[: Constants.TRACKER_ERROR_MESSAGE_MAX_LENGTH]
+        self._memory_storage[job_name]["last_error"] = error[:500]
 
         consecutive_failures = self._memory_storage[job_name].get("consecutive_failures", 0) + 1
         self._memory_storage[job_name]["consecutive_failures"] = consecutive_failures
@@ -202,7 +197,7 @@ class JobTracker:
             await redis_client.set(
                 dlq_key,
                 f"{error} | {context}",
-                ttl_seconds=Constants.TRACKER_DEAD_LETTER_QUEUE_TTL_SECONDS,
+                ttl_seconds=86400 * 30,  # Keep for 30 days
             )
 
     def get_dead_letter_queue(self) -> list[dict[str, str]]:
@@ -244,12 +239,12 @@ async def retry_job_with_backoff(
     last_error = None
     for attempt in range(max_retries):
         try:
-            logger.info(f"Executing {job_name} (attempt {attempt + 1}/{max_retries})")
+            logger.info("Executing %s (attempt %d/%d)", job_name, attempt + 1, max_retries)
             await job_func()
 
             # Success - record and return
             await job_tracker.record_job_success(job_name)
-            logger.info(f"{job_name} completed successfully")
+            logger.info("%s completed successfully", job_name)
             return
 
         except Exception as e:
@@ -265,7 +260,7 @@ async def retry_job_with_backoff(
             # If this is not the last attempt, wait before retrying
             if attempt < max_retries - 1:
                 delay = base_delay**attempt
-                logger.info(f"Retrying {job_name} in {delay}s")
+                logger.info("Retrying %s in %ds", job_name, delay)
                 await asyncio.sleep(delay)
 
     # All retries exhausted - record failure

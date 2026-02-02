@@ -100,7 +100,7 @@ async def test_check_rate_limit_redis_error(rate_limiter):
     """Test rate limit check handles Redis errors gracefully."""
     with patch("src.core.rate_limiter.redis_client") as mock_redis:
         mock_redis.is_available = True
-        mock_redis.increment = AsyncMock(side_effect=RuntimeError("Redis error"))
+        mock_redis.increment = AsyncMock(side_effect=Exception("Redis error"))
 
         # Should not raise - fail open
         await rate_limiter.check_rate_limit(

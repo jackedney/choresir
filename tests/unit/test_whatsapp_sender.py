@@ -1,12 +1,10 @@
 """Tests for WhatsApp message sender using WAHA via httpx."""
 
-from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
-from src.core.config import constants
 from src.interface.whatsapp_sender import (
     RateLimiter,
     format_phone_for_waha,
@@ -15,7 +13,7 @@ from src.interface.whatsapp_sender import (
 
 
 @pytest.fixture(autouse=True)
-def mock_asyncio_sleep() -> Generator[AsyncMock, None, None]:
+def mock_asyncio_sleep():
     """Mock asyncio.sleep to avoid actual delays in retry tests."""
     with patch("src.interface.whatsapp_sender.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         yield mock_sleep
@@ -24,7 +22,7 @@ def mock_asyncio_sleep() -> Generator[AsyncMock, None, None]:
 class TestRateLimiter:
     """Test rate limiting functionality."""
 
-    def test_can_send_when_under_limit(self) -> None:
+    def test_can_send_when_under_limit(self):
         """Test that sending is allowed when under rate limit."""
         limiter = RateLimiter()
         phone = "+1234567890"
@@ -39,26 +37,27 @@ class TestRateLimiter:
         # Should still allow
         assert limiter.can_send(phone) is True
 
-    def test_cannot_send_when_at_limit(self) -> None:
+    def test_cannot_send_when_at_limit(self):
         """Test that sending is blocked when at rate limit."""
         limiter = RateLimiter()
         phone = "+1234567890"
 
-        # Record max requests (MAX_REQUESTS_PER_MINUTE per minute)
-        for _ in range(constants.MAX_REQUESTS_PER_MINUTE):
+        # Record max requests (60 per minute based on constants.MAX_REQUESTS_PER_MINUTE)
+        # Assuming default limit is 60
+        for _ in range(60):
             limiter.record_request(phone)
 
         # Should block
         assert limiter.can_send(phone) is False
 
-    def test_rate_limit_per_phone(self) -> None:
+    def test_rate_limit_per_phone(self):
         """Test that rate limits are tracked per phone number."""
         limiter = RateLimiter()
         phone1 = "+1234567890"
         phone2 = "+9876543210"
 
         # Max out phone1
-        for _ in range(constants.MAX_REQUESTS_PER_MINUTE):
+        for _ in range(60):
             limiter.record_request(phone1)
 
         # phone1 should be blocked
@@ -71,16 +70,16 @@ class TestRateLimiter:
 class TestFormatPhoneForWaha:
     """Test phone number formatting for WAHA."""
 
-    def test_format_clean_number(self) -> None:
+    def test_format_clean_number(self):
         assert format_phone_for_waha("1234567890") == "1234567890@c.us"
 
-    def test_format_with_plus(self) -> None:
+    def test_format_with_plus(self):
         assert format_phone_for_waha("+1234567890") == "1234567890@c.us"
 
-    def test_format_with_whatsapp_prefix(self) -> None:
+    def test_format_with_whatsapp_prefix(self):
         assert format_phone_for_waha("whatsapp:+1234567890") == "1234567890@c.us"
 
-    def test_format_already_formatted(self) -> None:
+    def test_format_already_formatted(self):
         assert format_phone_for_waha("1234567890@c.us") == "1234567890@c.us"
 
 
@@ -88,7 +87,7 @@ class TestSendTextMessage:
     """Test sending text messages via WAHA."""
 
     @pytest.mark.asyncio
-    async def test_send_text_message_success(self) -> None:
+    async def test_send_text_message_success(self):
         """Test successful message sending."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 200
@@ -119,7 +118,7 @@ class TestSendTextMessage:
             assert payload["session"] == "default"
 
     @pytest.mark.asyncio
-    async def test_send_text_message_client_error(self) -> None:
+    async def test_send_text_message_client_error(self):
         """Test handling of 4xx client errors (no retry)."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 400
@@ -141,7 +140,7 @@ class TestSendTextMessage:
             assert mock_post.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_send_text_message_server_error_with_retry(self) -> None:
+    async def test_send_text_message_server_error_with_retry(self):
         """Test retry logic on 5xx server errors."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 500
@@ -163,14 +162,14 @@ class TestSendTextMessage:
 
             # Should fail after retries
             assert result.success is False
-            assert result.error == "Failed after retries: Server error: 500"
+            assert result.error == "Max retries exceeded"
 
             # Should retry 3 times
             assert mock_post.call_count == 3
 
     @pytest.mark.asyncio
     @patch("src.interface.whatsapp_sender.rate_limiter")
-    async def test_send_text_message_rate_limited(self, mock_rate_limiter: MagicMock) -> None:
+    async def test_send_text_message_rate_limited(self, mock_rate_limiter):
         """Test that rate limiting blocks message sending."""
         # Mock rate limiter to deny request
         mock_rate_limiter.can_send.return_value = False
@@ -184,7 +183,7 @@ class TestSendTextMessage:
 
     @pytest.mark.asyncio
     @patch("src.interface.whatsapp_sender.rate_limiter")
-    async def test_rate_limiter_records_request(self, mock_rate_limiter: MagicMock) -> None:
+    async def test_rate_limiter_records_request(self, mock_rate_limiter):
         """Test that rate limiter records successful requests."""
         mock_rate_limiter.can_send.return_value = True
 
@@ -204,10 +203,10 @@ class TestSendTextMessage:
             mock_rate_limiter.record_request.assert_called_once_with(phone)
 
     @pytest.mark.asyncio
-    async def test_send_text_message_unexpected_error(self) -> None:
+    async def test_send_text_message_unexpected_error(self):
         """Test handling of unexpected errors."""
         with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_post.side_effect = httpx.HTTPError("Unexpected error")
+            mock_post.side_effect = Exception("Unexpected error")
 
             result = await send_text_message(
                 to_phone="+1234567890",

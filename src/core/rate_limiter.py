@@ -93,10 +93,8 @@ class RateLimiter:
 
         except HTTPException:
             raise
-        except (RuntimeError, ConnectionError, OSError):
-            logger.exception(
-                "rate_limit_check_error", extra={"scope": scope, "limit": limit, "window_seconds": window_seconds}
-            )
+        except Exception as e:
+            logger.error("rate_limit_check_error", extra={"error": str(e)})
             # Fail open - don't block requests if rate limiting fails
             return
 

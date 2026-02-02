@@ -45,7 +45,7 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         # Use bitwise AND to prevent short-circuit evaluation and maintain constant time
         if not (house_code_valid & password_valid):
             msg = "Invalid house code or password"
-            logger.warning("Failed join request", extra={"operation": "join_request_failed", "reason": msg})
+            logger.warning("Failed join request for %s: %s", phone, msg)
             raise ValueError(msg)
 
         # Guard: Check if user already exists
@@ -61,11 +61,9 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         # Validate name using User model validator
         try:
             User(id="temp", phone=phone, name=name)
-        except (ValueError, TypeError) as e:
+        except Exception as e:
             msg = str(e)
-            logger.warning(
-                "Invalid name for join request", extra={"operation": "join_request_invalid_name", "reason": msg}
-            )
+            logger.warning("Invalid name for join request %s: %s", phone, msg)
             raise ValueError(msg) from e
 
         # Create pending user
@@ -87,7 +85,7 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         }
 
         record = await db_client.create_record(collection="users", data=user_data)
-        logger.info("Created pending user", extra={"operation": "create_pending_user", "user_name": name})
+        logger.info("Created pending user: %s (%s)", name, phone)
 
         return record
 
@@ -139,7 +137,7 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
             data={"status": UserStatus.ACTIVE},
         )
 
-        logger.info("Approved user", extra={"operation": "approve_user", "admin_id": admin_user_id})
+        logger.info("Approved user %s by admin %s", target_phone, admin_user_id)
 
         return updated_record
 

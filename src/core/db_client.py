@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, TypeVar
 
 from pocketbase import PocketBase
 from pocketbase.errors import ClientResponseError
@@ -13,6 +13,7 @@ from src.core.config import settings
 
 
 logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 def sanitize_param(value: str | int | float | bool | None) -> str:
@@ -101,8 +102,8 @@ class PocketBaseConnectionPool:
             # Using admins.auth_refresh as a lightweight health check
             client.admins.auth_refresh()
             return True
-        except (ConnectionError, ClientResponseError, KeyError):
-            logger.exception("PocketBase health check failed")
+        except Exception as e:
+            logger.warning("PocketBase health check failed", extra={"error": str(e)})
             return False
 
     def _get_client_with_retry(self) -> PocketBase:
@@ -125,7 +126,7 @@ class PocketBaseConnectionPool:
                     extra={"attempt": attempt + 1, "max_retries": self._max_retries},
                 )
                 return client
-            except (ConnectionError, ClientResponseError, KeyError) as e:
+            except Exception as e:
                 logger.error(
                     "PocketBase connection attempt failed",
                     extra={"attempt": attempt + 1, "max_retries": self._max_retries, "error": str(e)},
@@ -205,7 +206,7 @@ async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, A
     try:
         client = get_client()
         record = client.collection(collection).create(data)
-        logger.info(f"Created record in {collection}: {record.id}")
+        logger.info("Created record in %s: %s", collection, record.id)
         return record.__dict__
     except ClientResponseError as e:
         msg = f"Failed to create record in {collection}: {e}"
@@ -233,7 +234,7 @@ async def update_record(*, collection: str, record_id: str, data: dict[str, Any]
     try:
         client = get_client()
         record = client.collection(collection).update(record_id, data)
-        logger.info(f"Updated record in {collection}: {record_id}")
+        logger.info("Updated record in %s: %s", collection, record_id)
         return record.__dict__
     except ClientResponseError as e:
         if e.status == 404:  # noqa: PLR2004
@@ -249,7 +250,7 @@ async def delete_record(*, collection: str, record_id: str) -> None:
     try:
         client = get_client()
         client.collection(collection).delete(record_id)
-        logger.info(f"Deleted record from {collection}: {record_id}")
+        logger.info("Deleted record from %s: %s", collection, record_id)
     except ClientResponseError as e:
         if e.status == 404:  # noqa: PLR2004
             msg = f"Record not found in {collection}: {record_id}"
@@ -301,32 +302,3 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         msg = f"Failed to get first record from {collection}: {e}"
         logger.error(msg)
         raise RuntimeError(msg) from e
-
-
-async def update_first_matching(*, collection: str, filter_query: str, data: dict[str, Any]) -> bool:
-    """Update the first record matching the filter query.
-
-    Args:
-        collection: The collection to search in
-        filter_query: PocketBase filter query string
-        data: Dictionary of fields to update
-
-    Returns:
-        True if a record was found and updated, False if not found
-
-    Raises:
-        RuntimeError: If database operation fails
-
-    Example:
-        >>> await update_first_matching(
-        ...     collection="messages",
-        ...     filter_query='waha_id="msg123"',
-        ...     data={"status": "delivered"}
-        ... )
-    """
-    record = await get_first_record(collection=collection, filter_query=filter_query)
-    if not record:
-        return False
-
-    await update_record(collection=collection, record_id=record["id"], data=data)
-    return True

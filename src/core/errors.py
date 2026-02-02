@@ -1,7 +1,6 @@
 """Error classification utilities for agent execution errors."""
 
 from enum import Enum
-from typing import Literal
 
 from pydantic import BaseModel
 
@@ -67,68 +66,6 @@ class ErrorResponse(BaseModel):
     severity: ErrorSeverity
 
 
-_ERROR_PATTERNS: dict[
-    Literal["quota", "rate_limit", "auth", "network", "validation", "context_length"],
-    dict[str, list[str] | set[str]],
-] = {
-    "quota": {
-        "phrases": [
-            "quota exceeded",
-            "insufficient credits",
-            "credit limit",
-            "credits exhausted",
-            "out of credits",
-        ],
-        "exception_types": set(),
-    },
-    "rate_limit": {
-        "phrases": [
-            "rate limit",
-            "too many requests",
-            "rate_limit_exceeded",
-            "throttled",
-        ],
-        "exception_types": set(),
-    },
-    "auth": {
-        "phrases": [
-            "authentication failed",
-            "invalid api key",
-            "unauthorized",
-            "invalid token",
-            "api key",
-            "401",
-        ],
-        "exception_types": {"AuthenticationError", "PermissionError"},
-    },
-    "network": {
-        "phrases": [
-            "connection",
-            "timeout",
-            "network",
-            "503",
-            "502",
-            "504",
-            "unreachable",
-        ],
-        "exception_types": {"ConnectionError", "TimeoutError"},
-    },
-    "validation": {"phrases": [], "exception_types": set()},
-    "context_length": {"phrases": [], "exception_types": set()},
-}
-
-
-def _match_error_pattern(
-    *,
-    error_str: str,
-    exception_type: str,
-    pattern_type: Literal["quota", "rate_limit", "auth", "network", "validation", "context_length"],
-) -> bool:
-    """Return True if the error matches the configured pattern type."""
-    patterns = _ERROR_PATTERNS[pattern_type]
-    return any(phrase in error_str for phrase in patterns["phrases"]) or exception_type in patterns["exception_types"]
-
-
 def classify_agent_error(exception: Exception) -> tuple[ErrorCategory, str]:
     """Classify an agent execution error and return a user-friendly message.
 
@@ -144,30 +81,73 @@ def classify_agent_error(exception: Exception) -> tuple[ErrorCategory, str]:
     error_str = str(exception).lower()
     exception_type = type(exception).__name__
 
-    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="quota"):
+    # Check for quota/credit exceeded errors
+    if any(
+        phrase in error_str
+        for phrase in [
+            "quota exceeded",
+            "insufficient credits",
+            "credit limit",
+            "credits exhausted",
+            "out of credits",
+        ]
+    ):
         return (
             ErrorCategory.SERVICE_QUOTA_EXCEEDED,
             "The AI service quota has been exceeded. Please try again later or contact support.",
         )
 
-    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="rate_limit"):
+    # Check for rate limit errors
+    if any(
+        phrase in error_str
+        for phrase in [
+            "rate limit",
+            "too many requests",
+            "rate_limit_exceeded",
+            "throttled",
+        ]
+    ):
         return (
             ErrorCategory.RATE_LIMIT_EXCEEDED,
             "Too many requests. Please wait a moment and try again.",
         )
 
-    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="auth"):
+    # Check for authentication errors
+    if any(
+        phrase in error_str
+        for phrase in [
+            "authentication failed",
+            "invalid api key",
+            "unauthorized",
+            "invalid token",
+            "api key",
+            "401",
+        ]
+    ) or exception_type in ["AuthenticationError", "PermissionError"]:
         return (
             ErrorCategory.AUTHENTICATION_FAILED,
             "Service authentication failed. Please contact support.",
         )
 
-    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="network"):
+    # Check for network errors
+    if any(
+        phrase in error_str
+        for phrase in [
+            "connection",
+            "timeout",
+            "network",
+            "503",
+            "502",
+            "504",
+            "unreachable",
+        ]
+    ) or exception_type in ["ConnectionError", "TimeoutError"]:
         return (
             ErrorCategory.NETWORK_ERROR,
             "Network error occurred. Please check your connection and try again.",
         )
 
+    # Default to unknown error
     return (
         ErrorCategory.UNKNOWN,
         "An unexpected error occurred. Please try again later.",
@@ -186,6 +166,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
     error_str = str(exception).lower()
     exception_type = type(exception).__name__
 
+    # Check for chore-specific errors by message patterns
     if "already claimed" in error_str or "cannot claim" in error_str:
         return ErrorResponse(
             code=ErrorCode.ERR_CHORE_ALREADY_CLAIMED,
@@ -202,6 +183,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.LOW,
         )
 
+    # Check for permission errors
     if exception_type == "PermissionError" or "permission denied" in error_str or "does not belong to" in error_str:
         return ErrorResponse(
             code=ErrorCode.ERR_PERMISSION_DENIED,
@@ -210,6 +192,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.MEDIUM,
         )
 
+    # Check for user not found
     if exception_type == "KeyError" and ("user" in error_str or "not found" in error_str):
         return ErrorResponse(
             code=ErrorCode.ERR_USER_NOT_FOUND,
@@ -218,6 +201,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.MEDIUM,
         )
 
+    # Check for invalid state transitions
     if exception_type == "ValueError" and ("cannot" in error_str or "invalid state" in error_str):
         return ErrorResponse(
             code=ErrorCode.ERR_INVALID_STATE_TRANSITION,
@@ -226,6 +210,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.LOW,
         )
 
+    # Check for recurrence pattern errors
     if "recurrence" in error_str or "pattern" in error_str:
         return ErrorResponse(
             code=ErrorCode.ERR_INVALID_RECURRENCE_PATTERN,
@@ -234,7 +219,17 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.LOW,
         )
 
-    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="quota"):
+    # Check for quota/credit exceeded errors
+    if any(
+        phrase in error_str
+        for phrase in [
+            "quota exceeded",
+            "insufficient credits",
+            "credit limit",
+            "credits exhausted",
+            "out of credits",
+        ]
+    ):
         return ErrorResponse(
             code=ErrorCode.ERR_SERVICE_QUOTA_EXCEEDED,
             message="The AI service quota has been exceeded.",
@@ -242,7 +237,16 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.HIGH,
         )
 
-    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="rate_limit"):
+    # Check for rate limit errors
+    if any(
+        phrase in error_str
+        for phrase in [
+            "rate limit",
+            "too many requests",
+            "rate_limit_exceeded",
+            "throttled",
+        ]
+    ):
         return ErrorResponse(
             code=ErrorCode.ERR_RATE_LIMIT_EXCEEDED,
             message="Too many requests.",
@@ -250,7 +254,21 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.MEDIUM,
         )
 
-    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="auth"):
+    # Check for authentication errors
+    if (
+        any(
+            phrase in error_str
+            for phrase in [
+                "authentication failed",
+                "invalid api key",
+                "unauthorized",
+                "invalid token",
+                "api key",
+                "401",
+            ]
+        )
+        or exception_type == "AuthenticationError"
+    ):
         return ErrorResponse(
             code=ErrorCode.ERR_AUTHENTICATION_FAILED,
             message="Service authentication failed.",
@@ -258,7 +276,19 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.CRITICAL,
         )
 
-    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="network"):
+    # Check for network errors
+    if any(
+        phrase in error_str
+        for phrase in [
+            "connection",
+            "timeout",
+            "network",
+            "503",
+            "502",
+            "504",
+            "unreachable",
+        ]
+    ) or exception_type in ["ConnectionError", "TimeoutError"]:
         return ErrorResponse(
             code=ErrorCode.ERR_NETWORK_ERROR,
             message="Network error occurred.",
@@ -266,6 +296,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.MEDIUM,
         )
 
+    # Default to unknown error
     return ErrorResponse(
         code=ErrorCode.ERR_UNKNOWN,
         message="An unexpected error occurred.",

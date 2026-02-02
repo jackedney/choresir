@@ -105,7 +105,7 @@ async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
     except ValueError as e:
         logger.warning("Chore creation failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError, PermissionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_define_chore", extra={"error": str(e)})
         return "Error: Unable to create chore. Please try again."
 
@@ -133,7 +133,7 @@ async def _handle_robin_hood_swap(ctx: RunContext[Deps], household_match: dict, 
     try:
         await robin_hood_service.increment_weekly_takeover_count(ctx.deps.user_id)
     except RuntimeError as e:
-        logger.error("Failed to increment takeover count", extra={"error": str(e)})
+        logger.error("Failed to increment takeover count: %s", e)
         return "Error: Unable to process Robin Hood swap. Please try again."
 
     return None
@@ -241,7 +241,7 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     except ValueError as e:
         logger.warning("Chore logging failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError, PermissionError) as e:
+    except Exception as e:
         logger.error("Unexpected error in tool_log_chore", extra={"error": str(e)})
         return "Error: Unable to log chore. Please try again."
 

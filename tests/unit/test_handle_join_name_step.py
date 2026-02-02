@@ -196,7 +196,7 @@ async def test_name_step_deletes_session_even_if_join_fails() -> None:
             }
         )
         # Simulate join failure
-        mock_user_service.request_join = AsyncMock(side_effect=RuntimeError("Database error"))
+        mock_user_service.request_join = AsyncMock(side_effect=Exception("Database error"))
         mock_session_service.delete_session = AsyncMock()
         mock_user_class.return_value = None  # Name validation succeeds
 

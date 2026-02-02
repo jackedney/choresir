@@ -1,11 +1,5 @@
 """Pytest configuration and shared fixtures."""
 
-import os
-
-
-# Set required environment variables before importing config
-os.environ["WAHA_WEBHOOK_HMAC_KEY"] = "test_hmac_key"
-
 import asyncio
 import contextlib
 import logging
@@ -247,7 +241,6 @@ def test_settings(pocketbase_server: str) -> Settings:
         pocketbase_url=pocketbase_server,
         openrouter_api_key="test_key",
         waha_base_url="http://waha:3000",
-        waha_webhook_hmac_key="test_hmac_key",
         logfire_token="test_logfire",
         house_code="TEST123",
         house_password="testpass",
@@ -265,6 +258,14 @@ def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBas
     client.admins.auth_with_password("admin@test.local", "testpassword123")
 
     return client
+
+
+# @pytest.fixture
+# def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypatch):
+#     """Patch the db_client module to use the test PocketBase instance."""
+#     # NOTE: This fixture is commented out as it references undefined mock functions
+#     # For integration tests, use the real db_client with a test PocketBase instance
+#     yield
 
 
 @pytest.fixture

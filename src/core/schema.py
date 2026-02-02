@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 from pocketbase import PocketBase
-from pocketbase.errors import ClientResponseError
+from pocketbase.client import ClientResponseError
 
 from src.core.config import settings
 
@@ -375,7 +375,7 @@ async def _create_collection(*, client: httpx.AsyncClient, schema: dict[str, Any
     """Create a new collection in PocketBase."""
     response = await client.post("/api/collections", json=schema)
     response.raise_for_status()
-    logger.info(f"Created collection: {schema['name']}")
+    logger.info("Created collection: %s", schema["name"])
 
 
 # API rule keys that can be set on collections
@@ -471,7 +471,7 @@ async def _update_collection(
     rules_to_update = _get_rules_to_update(schema, current)
 
     if not fields_added and not fields_updated and not rules_to_update:
-        logger.info(f"Collection {collection_name} schema is already up to date")
+        logger.info("Collection %s schema is already up to date", collection_name)
         return
 
     update_payload = _build_update_payload(merged_fields, rules_to_update, schema, current)
@@ -486,7 +486,7 @@ async def _update_collection(
         log_parts.append(f"updated {fields_updated}")
     if rules_to_update:
         log_parts.append(f"updated rules {list(rules_to_update.keys())}")
-    logger.info(f"Updated collection {collection_name}: {', '.join(log_parts)}")
+    logger.info("Updated collection %s: %s", collection_name, ", ".join(log_parts))
 
 
 async def sync_schema(
@@ -510,8 +510,8 @@ async def sync_schema(
     try:
         client.admins.auth_with_password(admin_email, admin_password)
         logger.info("Successfully authenticated as admin")
-    except ClientResponseError:
-        logger.exception("Failed to authenticate as admin")
+    except ClientResponseError as e:
+        logger.error(f"Failed to authenticate as admin: {e}")
         raise
 
     # Use httpx with the auth token from PocketBase SDK

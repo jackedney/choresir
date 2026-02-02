@@ -1,10 +1,8 @@
 """Tests for startup validation functions."""
 
-import os
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from pydantic import ValidationError
 
 from src.core.config import Settings
 from src.main import (
@@ -17,46 +15,30 @@ from src.main import (
 # Legacy credential validation tests
 def test_startup_fails_without_house_code() -> None:
     """Test that application startup fails when house_code is missing."""
-    settings = Settings(house_code=None, house_password="test_password", waha_webhook_hmac_key="test123")
+    settings = Settings(house_code=None, house_password="test_password")
     with pytest.raises(ValueError, match="House onboarding code credential not configured"):
         settings.require_credential("house_code", "House onboarding code")
 
 
 def test_startup_fails_without_house_password() -> None:
     """Test that application startup fails when house_password is missing."""
-    settings = Settings(house_code="TEST123", house_password=None, waha_webhook_hmac_key="test123")
+    settings = Settings(house_code="TEST123", house_password=None)
     with pytest.raises(ValueError, match="House onboarding password credential not configured"):
         settings.require_credential("house_password", "House onboarding password")
 
 
-def test_startup_fails_without_waha_webhook_hmac_key() -> None:
-    """Test that application startup fails when waha_webhook_hmac_key is missing."""
-
-    # Temporarily unset the environment variable
-    original_value = os.environ.pop("WAHA_WEBHOOK_HMAC_KEY", None)
-    try:
-        with pytest.raises(ValidationError, match=r"waha_webhook_hmac_key"):
-            Settings()  # type: ignore[arg-type]
-    finally:
-        # Restore the original value
-        if original_value is not None:
-            os.environ["WAHA_WEBHOOK_HMAC_KEY"] = original_value
-
-
 def test_startup_fails_with_empty_house_code() -> None:
     """Test that application startup fails when house_code is empty string."""
-    settings = Settings(house_code="", house_password="test_password", waha_webhook_hmac_key="test123")
+    settings = Settings(house_code="", house_password="test_password")
     with pytest.raises(ValueError, match="House onboarding code credential not configured"):
         settings.require_credential("house_code", "House onboarding code")
 
 
 def test_startup_succeeds_with_valid_credentials() -> None:
     """Test that validation passes when both credentials are properly set."""
-    settings = Settings(house_code="TEST123", house_password="test_password", waha_webhook_hmac_key="secret123")
-    waha_webhook_hmac_key = settings.require_credential("waha_webhook_hmac_key", "WAHA Webhook HMAC")
+    settings = Settings(house_code="TEST123", house_password="test_password")
     house_code = settings.require_credential("house_code", "House onboarding code")
     house_password = settings.require_credential("house_password", "House onboarding password")
-    assert waha_webhook_hmac_key == "secret123"
     assert house_code == "TEST123"
     assert house_password == "test_password"
 
