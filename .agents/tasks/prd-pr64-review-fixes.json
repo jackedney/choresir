@@ -276,7 +276,7 @@
     {
       "id": "US-013",
       "title": "Mock rate_limiter in test_webhook.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-011"
       ],
@@ -288,13 +288,13 @@
         "Negative case: Test does not call real rate limiter"
       ],
       "startedAt": "2026-02-02T13:04:56.122222+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T13:04:56.122457+00:00"
+      "completedAt": "2026-02-02T13:08:24.384470+00:00",
+      "updatedAt": "2026-02-02T13:08:24.384226+00:00"
     },
     {
       "id": "US-014",
       "title": "Remove stale Twilio mock code from test_webhook_rate_limiting.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-012"
       ],
@@ -305,7 +305,10 @@
         "Keep only the validate_webhook_hmac mock which is the correct WAHA implementation",
         "Example: Test uses only validate_webhook_hmac mock",
         "Negative case: No references to verify_webhook_security"
-      ]
+      ],
+      "startedAt": "2026-02-02T13:08:26.469286+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T13:08:26.469501+00:00"
     },
     {
       "id": "US-015",

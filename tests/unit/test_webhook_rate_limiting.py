@@ -1,5 +1,7 @@
 """Tests for webhook rate limiting integration."""
 
+import time
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -76,20 +78,17 @@ async def test_webhook_rate_limit_passes_when_under_limit() -> None:
         patch("src.interface.webhook.webhook_security.validate_webhook_hmac") as mock_hmac,
         patch("src.interface.webhook.rate_limiter") as mock_limiter,
         patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook") as mock_parse,
-        patch("src.interface.webhook.webhook_security") as mock_security,
+        patch("src.interface.webhook.webhook_security.redis_client") as mock_redis,
     ):
+        mock_redis.is_available = False
         mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
         mock_limiter.check_webhook_rate_limit = AsyncMock(return_value=None)
 
         mock_message = MagicMock()
-        mock_message.message_id = "test123"
-        mock_message.timestamp = "2024-01-01T00:00:00Z"
+        mock_message.message_id = f"test-{uuid.uuid4()}"
+        mock_message.timestamp = str(int(time.time()))
         mock_message.from_phone = "+1234567890"
         mock_parse.return_value = mock_message
-
-        mock_security_result = MagicMock()
-        mock_security_result.is_valid = True
-        mock_security.verify_webhook_security = AsyncMock(return_value=mock_security_result)
 
         result = await receive_webhook(mock_request, mock_bg_tasks)
 
