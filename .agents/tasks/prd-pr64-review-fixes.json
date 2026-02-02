@@ -663,7 +663,7 @@
     {
       "id": "US-036",
       "title": "Simplify webhook.py docstring",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want the receive_webhook docstring in webhook.py simplified to single line per style guide.",
       "acceptanceCriteria": [
@@ -672,13 +672,13 @@
         "Negative case: No multi-line docstring for receive_webhook"
       ],
       "startedAt": "2026-02-02T15:50:14.038080+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T15:50:14.038298+00:00"
+      "completedAt": "2026-02-02T15:53:14.821457+00:00",
+      "updatedAt": "2026-02-02T15:53:14.821262+00:00"
     },
     {
       "id": "US-037",
       "title": "Add Final annotations to Constants class",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want Constants class attributes in config.py marked as Final to prevent accidental modification.",
       "acceptanceCriteria": [
@@ -686,7 +686,10 @@
         "Add Final annotation to all constants in Constants class (lines 88-165)",
         "Example: API_TIMEOUT_SECONDS: Final[int] = 30",
         "Negative case: Constants can still be accessed normally but mypy will warn on modification"
-      ]
+      ],
+      "startedAt": "2026-02-02T15:53:16.897566+00:00",
+      "completedAt": "2026-02-02T15:59:24.469884+00:00",
+      "updatedAt": "2026-02-02T15:59:24.469435+00:00"
     }
   ]
 }
