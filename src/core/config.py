@@ -168,6 +168,7 @@ class Constants:
 
 def get_settings() -> Settings:
     """Get application settings (singleton pattern)."""
+    # type: ignore[arg-type] - Settings() may raise ValidationError for missing required fields (e.g., waha_webhook_hmac_key)
     return Settings()  # type: ignore[arg-type]
 
 
