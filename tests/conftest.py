@@ -261,14 +261,6 @@ def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBas
     return client
 
 
-# @pytest.fixture
-# def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypatch):
-#     """Patch the db_client module to use the test PocketBase instance."""
-#     # NOTE: This fixture is commented out as it references undefined mock functions
-#     # For integration tests, use the real db_client with a test PocketBase instance
-#     yield
-
-
 @pytest.fixture
 def db_client(initialized_db: PocketBase) -> Generator[MockDBClient]:
     """Provide clean database for each test with async wrapper interface."""
