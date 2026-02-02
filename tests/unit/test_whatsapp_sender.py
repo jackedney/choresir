@@ -162,7 +162,7 @@ class TestSendTextMessage:
 
             # Should fail after retries
             assert result.success is False
-            assert result.error == "Max retries exceeded"
+            assert result.error == "Failed after retries: Server error: 500"
 
             # Should retry 3 times
             assert mock_post.call_count == 3
