@@ -272,19 +272,23 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
             result = VoteResult.APPROVED
             # Complete the chore
             updated_chore = await chore_state_machine.transition_to_completed(chore_id=chore_id)
-            logger.info(f"Vote result: APPROVED - chore {chore_id} completed")
+            logger.info("Vote result: APPROVED - chore completed", extra={"chore_id": chore_id, "result": "approved"})
 
         elif no_count > yes_count:
             result = VoteResult.REJECTED
             # Reset chore to TODO
             updated_chore = await chore_state_machine.transition_to_todo(chore_id=chore_id)
-            logger.info(f"Vote result: REJECTED - chore {chore_id} reset to TODO")
+            logger.info(
+                "Vote result: REJECTED - chore reset to TODO", extra={"chore_id": chore_id, "result": "rejected"}
+            )
 
         else:  # Tie - deadlock
             result = VoteResult.DEADLOCK
             # Transition to DEADLOCK state
             updated_chore = await chore_state_machine.transition_to_deadlock(chore_id=chore_id)
-            logger.warning(f"Vote result: DEADLOCK - chore {chore_id} in deadlock state")
+            logger.warning(
+                "Vote result: DEADLOCK - chore in deadlock state", extra={"chore_id": chore_id, "result": "deadlock"}
+            )
 
         # Create tally log
         tally_log = {
