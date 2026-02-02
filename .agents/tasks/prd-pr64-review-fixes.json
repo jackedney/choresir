@@ -478,7 +478,7 @@
     {
       "id": "US-025",
       "title": "Fix structured logging in robin_hood_service.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want robin_hood_service.py to use structured logging with extra parameter consistently.",
       "acceptanceCriteria": [
@@ -490,13 +490,13 @@
         "Negative case: No f-string interpolation for context fields in log messages"
       ],
       "startedAt": "2026-02-02T14:40:24.619492+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T14:40:24.619685+00:00"
+      "completedAt": "2026-02-02T14:46:22.614182+00:00",
+      "updatedAt": "2026-02-02T14:46:22.613993+00:00"
     },
     {
       "id": "US-026",
       "title": "Use structured logging in errors.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want _match_error_pattern in errors.py to use keyword-only arguments and single-line docstring.",
       "acceptanceCriteria": [
@@ -504,7 +504,10 @@
         "Convert docstring to single line: 'Return True if the error matches the configured pattern type.'",
         "Example: def _match_error_pattern(*, error_str: str, exception_type: str, pattern_type: ...) -> bool:",
         "Negative case: No positional arguments allowed"
-      ]
+      ],
+      "startedAt": "2026-02-02T14:46:33.881344+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T14:46:33.881504+00:00"
     },
     {
       "id": "US-027",

@@ -93,20 +93,12 @@ _ERROR_PATTERNS: dict[
 
 
 def _match_error_pattern(
+    *,
     error_str: str,
     exception_type: str,
     pattern_type: Literal["quota", "rate_limit", "auth", "network", "validation", "context_length"],
 ) -> bool:
-    """Check if an error matches a specific pattern type.
-
-    Args:
-        error_str: The lowercase error message string
-        exception_type: The exception type name
-        pattern_type: The pattern type to check (quota, rate_limit, auth, network, etc.)
-
-    Returns:
-        True if the error matches the pattern, False otherwise
-    """
+    """Return True if the error matches the configured pattern type."""
     patterns = _ERROR_PATTERNS[pattern_type]
     return any(phrase in error_str for phrase in patterns["phrases"]) or exception_type in patterns["exception_types"]
 
@@ -126,25 +118,25 @@ def classify_agent_error(exception: Exception) -> tuple[ErrorCategory, str]:
     error_str = str(exception).lower()
     exception_type = type(exception).__name__
 
-    if _match_error_pattern(error_str, exception_type, "quota"):
+    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="quota"):
         return (
             ErrorCategory.SERVICE_QUOTA_EXCEEDED,
             "The AI service quota has been exceeded. Please try again later or contact support.",
         )
 
-    if _match_error_pattern(error_str, exception_type, "rate_limit"):
+    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="rate_limit"):
         return (
             ErrorCategory.RATE_LIMIT_EXCEEDED,
             "Too many requests. Please wait a moment and try again.",
         )
 
-    if _match_error_pattern(error_str, exception_type, "auth"):
+    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="auth"):
         return (
             ErrorCategory.AUTHENTICATION_FAILED,
             "Service authentication failed. Please contact support.",
         )
 
-    if _match_error_pattern(error_str, exception_type, "network"):
+    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="network"):
         return (
             ErrorCategory.NETWORK_ERROR,
             "Network error occurred. Please check your connection and try again.",
@@ -216,7 +208,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.LOW,
         )
 
-    if _match_error_pattern(error_str, exception_type, "quota"):
+    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="quota"):
         return ErrorResponse(
             code=ErrorCode.ERR_SERVICE_QUOTA_EXCEEDED,
             message="The AI service quota has been exceeded.",
@@ -224,7 +216,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.HIGH,
         )
 
-    if _match_error_pattern(error_str, exception_type, "rate_limit"):
+    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="rate_limit"):
         return ErrorResponse(
             code=ErrorCode.ERR_RATE_LIMIT_EXCEEDED,
             message="Too many requests.",
@@ -232,7 +224,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.MEDIUM,
         )
 
-    if _match_error_pattern(error_str, exception_type, "auth"):
+    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="auth"):
         return ErrorResponse(
             code=ErrorCode.ERR_AUTHENTICATION_FAILED,
             message="Service authentication failed.",
@@ -240,7 +232,7 @@ def classify_error_with_response(exception: Exception) -> ErrorResponse:  # noqa
             severity=ErrorSeverity.CRITICAL,
         )
 
-    if _match_error_pattern(error_str, exception_type, "network"):
+    if _match_error_pattern(error_str=error_str, exception_type=exception_type, pattern_type="network"):
         return ErrorResponse(
             code=ErrorCode.ERR_NETWORK_ERROR,
             message="Network error occurred.",
