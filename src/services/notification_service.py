@@ -196,7 +196,7 @@ async def send_personal_verification_request(
         else:
             logger.error(f"Failed to send personal verification request: {result.error}")
 
-    except (RuntimeError, ConnectionError, KeyError):
+    except (RuntimeError, ConnectionError):
         logger.exception("Error sending personal verification request for chore '%s'", chore_title)
         # Don't raise - notification failure shouldn't fail the claim
 
@@ -250,6 +250,6 @@ async def send_personal_verification_result(
         else:
             logger.error(f"Failed to send personal verification result: {result.error}")
 
-    except (RuntimeError, ConnectionError, KeyError):
+    except (RuntimeError, ConnectionError):
         logger.exception("Error sending personal verification result for chore '%s'", chore_title)
         # Don't raise - notification failure shouldn't fail the verification
