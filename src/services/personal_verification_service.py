@@ -58,14 +58,16 @@ async def log_personal_chore(
                 else:
                     # Partner no longer active, auto-convert to self-verified
                     logger.info(
-                        f"Partner {partner_phone} inactive for chore {chore_id}, auto-converting to self-verified"
+                        "Partner inactive for chore, auto-converting to self-verified",
+                        extra={"chore_id": chore_id, "reason": "partner_inactive"},
                     )
                     verification_status = "SELF_VERIFIED"
                     partner_phone = ""
             except (RuntimeError, KeyError, ConnectionError):
                 # Partner not found, auto-convert to self-verified
                 logger.warning(
-                    f"Partner {partner_phone} not found for chore {chore_id}, auto-converting to self-verified"
+                    "Partner not found for chore, auto-converting to self-verified",
+                    extra={"chore_id": chore_id, "reason": "partner_not_found"},
                 )
                 verification_status = "SELF_VERIFIED"
                 partner_phone = ""
@@ -90,7 +92,7 @@ async def log_personal_chore(
 
         logger.info(
             "Logged personal chore",
-            extra={"operation": "log_personal_chore", "chore_title": chore["title"], "status": verification_status},
+            extra={"operation": "log_personal_chore", "chore_id": chore_id, "status": verification_status},
         )
 
         # Send verification request notification if pending

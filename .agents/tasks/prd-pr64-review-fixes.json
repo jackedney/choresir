@@ -77,7 +77,7 @@
     {
       "id": "US-002",
       "title": "Add structured logging to webhook_security.py warning logs",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -90,13 +90,13 @@
         "Negative case: Do not include secret or raw_body in extra fields"
       ],
       "startedAt": "2026-02-02T12:20:05.821840+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T12:20:05.822025+00:00"
+      "completedAt": "2026-02-02T12:24:15.176127+00:00",
+      "updatedAt": "2026-02-02T12:24:15.175957+00:00"
     },
     {
       "id": "US-003",
       "title": "Remove PII from personal_verification_service.py logs",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a security engineer, I want phone numbers and chore titles removed from log messages so that PII is not exposed in logs.",
       "acceptanceCriteria": [
@@ -105,7 +105,10 @@
         "Update logger.info at lines 91-94 to replace chore_title with chore_id in extra parameter",
         "Example: Log 'Partner inactive for chore, auto-converting to self-verified' with extra={'chore_id': chore_id, 'reason': 'partner_inactive'}",
         "Negative case: No phone numbers appear anywhere in log messages"
-      ]
+      ],
+      "startedAt": "2026-02-02T12:24:17.262647+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T12:24:17.262883+00:00"
     },
     {
       "id": "US-004",
