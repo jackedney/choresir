@@ -71,7 +71,7 @@ async def add_to_shopping_list(
         }
 
         record = await db_client.create_record(collection="shopping_list", data=item_data)
-        logger.info(f"Added to shopping list: {item_name} (by user: {user_id})")
+        logger.info(f"Added to shopping list: {item_name}", extra={"user_id": user_id})
 
         return record
 

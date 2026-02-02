@@ -531,7 +531,7 @@
     {
       "id": "US-028",
       "title": "Remove PII from webhook.py button payload logs",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want button payload logs in webhook.py to not expose sensitive data.",
       "acceptanceCriteria": [
@@ -541,13 +541,13 @@
         "Negative case: Full payload not logged"
       ],
       "startedAt": "2026-02-02T14:57:13.554542+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T14:57:13.554683+00:00"
+      "completedAt": "2026-02-02T15:03:19.869847+00:00",
+      "updatedAt": "2026-02-02T15:03:19.869692+00:00"
     },
     {
       "id": "US-029",
       "title": "Refactor redundant parsing in webhook.py _handle_webhook_error",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-028"
       ],
@@ -557,19 +557,25 @@
         "Reuse parsed_message variable instead of calling parse again at lines 435 and 456",
         "Example: parsed_message = whatsapp_parser.parse_waha_webhook(params) called once",
         "Negative case: parse_waha_webhook not called more than once per invocation"
-      ]
+      ],
+      "startedAt": "2026-02-02T15:03:21.986377+00:00",
+      "completedAt": "2026-02-02T15:09:55.823844+00:00",
+      "updatedAt": "2026-02-02T15:09:55.823669+00:00"
     },
     {
       "id": "US-030",
       "title": "Use structured logging in pantry_service.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want pantry_service.py to use structured logging with extra parameter for user_id.",
       "acceptanceCriteria": [
         "Update logger.info at line 74 to move user_id to extra parameter",
         "Example: logger.info(f'Added to shopping list: {item_name}', extra={'user_id': user_id})",
         "Negative case: user_id not in message string"
-      ]
+      ],
+      "startedAt": "2026-02-02T15:09:57.922337+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T15:09:57.922600+00:00"
     },
     {
       "id": "US-031",
