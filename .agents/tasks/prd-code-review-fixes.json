@@ -102,8 +102,8 @@
         "All type hints pass ty check"
       ],
       "startedAt": "2026-02-02T17:45:05.884837+00:00",
-      "completedAt": "2026-02-02T20:09:00.000000+00:00",
-      "updatedAt": "2026-02-02T20:09:00.000000+00:00"
+      "completedAt": "2026-02-02T20:12:09.601537+00:00",
+      "updatedAt": "2026-02-02T20:12:09.601295+00:00"
     },
     {
       "id": "US-004",
@@ -125,7 +125,7 @@
     {
       "id": "US-005",
       "title": "Add bounded cache to format_phone_for_waha",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want the phone formatter to use bounded caching to prevent unbounded memory growth.",
       "acceptanceCriteria": [
@@ -135,8 +135,8 @@
         "All type hints pass ty check"
       ],
       "startedAt": "2026-02-02T18:00:03.362271+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T18:00:03.362453+00:00"
+      "completedAt": "2026-02-02T20:08:46.472000+00:00",
+      "updatedAt": "2026-02-02T20:08:46.472000+00:00"
     },
     {
       "id": "US-006",
