@@ -5,7 +5,7 @@ import pytest
 from src.core.config import Settings
 
 
-def test_require_credential_with_valid_value():
+def test_require_credential_with_valid_value() -> None:
     """Test require_credential returns value when credential is set."""
     settings = Settings(house_code="TEST123", house_password="secret")
 
@@ -18,7 +18,7 @@ def test_require_credential_with_valid_value():
     assert result == "TEST123"
 
 
-def test_require_credential_with_none_raises_error():
+def test_require_credential_with_none_raises_error() -> None:
     """Test require_credential raises ValueError when credential is None."""
     settings = Settings(house_code=None, house_password="secret")
 
@@ -26,7 +26,7 @@ def test_require_credential_with_none_raises_error():
         settings.require_credential("house_code", "House code")
 
 
-def test_require_credential_with_empty_string_raises_error():
+def test_require_credential_with_empty_string_raises_error() -> None:
     """Test require_credential raises ValueError when credential is empty."""
     settings = Settings(house_code="", house_password="secret")
 
@@ -34,7 +34,7 @@ def test_require_credential_with_empty_string_raises_error():
         settings.require_credential("house_code", "House code")
 
 
-def test_require_credential_error_message_includes_field_name():
+def test_require_credential_error_message_includes_field_name() -> None:
     """Test error message includes the environment variable name."""
     settings = Settings(house_password=None)
 
@@ -42,7 +42,7 @@ def test_require_credential_error_message_includes_field_name():
         settings.require_credential("house_password", "House password")
 
 
-def test_require_waha_webhook_hmac_key():
+def test_require_waha_webhook_hmac_key() -> None:
     """Test require_credential validates waha_webhook_hmac_key."""
     settings = Settings(waha_webhook_hmac_key="secret123")
 
@@ -51,7 +51,7 @@ def test_require_waha_webhook_hmac_key():
     assert result == "secret123"
 
 
-def test_require_waha_webhook_hmac_key_missing():
+def test_require_waha_webhook_hmac_key_missing() -> None:
     """Test require_credential raises error when waha_webhook_hmac_key is missing."""
     settings = Settings(waha_webhook_hmac_key=None)
 
@@ -59,7 +59,7 @@ def test_require_waha_webhook_hmac_key_missing():
         settings.require_credential("waha_webhook_hmac_key", "WAHA Webhook HMAC")
 
 
-def test_require_waha_webhook_hmac_key_empty():
+def test_require_waha_webhook_hmac_key_empty() -> None:
     """Test require_credential raises error when waha_webhook_hmac_key is empty string."""
     settings = Settings(waha_webhook_hmac_key="")
 
