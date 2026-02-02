@@ -2,11 +2,13 @@
 
 import time
 import uuid
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import BackgroundTasks, HTTPException, Request
 
+from src.agents.base import Deps
 from src.interface import whatsapp_parser
 from src.interface.webhook import _handle_user_status, receive_webhook
 from src.interface.webhook_security import WebhookSecurityResult
@@ -97,7 +99,10 @@ async def test_webhook_rate_limit_passes_when_under_limit() -> None:
 
 
 @pytest.mark.asyncio
-async def test_agent_rate_limit_enforced_per_user() -> None:
+async def test_agent_rate_limit_enforced_per_user(
+    patched_db,
+    pocketbase_client,
+) -> None:
     """Test that agent calls enforce per-user rate limits."""
     mock_message = MagicMock(spec=whatsapp_parser.ParsedMessage)
     mock_message.from_phone = "+1234567890"
@@ -106,10 +111,18 @@ async def test_agent_rate_limit_enforced_per_user() -> None:
     mock_user_record = {
         "status": "active",
         "name": "Test User",
+        "id": "user123",
+        "role": "member",
     }
 
-    mock_db = MagicMock()
-    mock_deps = MagicMock()
+    mock_deps = Deps(
+        db=pocketbase_client,
+        user_id="user123",
+        user_phone="+1234567890",
+        user_name="Test User",
+        user_role="member",
+        current_time=datetime.now(),
+    )
 
     with (
         patch("src.interface.webhook.rate_limiter") as mock_limiter,
@@ -134,7 +147,7 @@ async def test_agent_rate_limit_enforced_per_user() -> None:
         success, _error = await _handle_user_status(
             user_record=mock_user_record,
             message=mock_message,
-            db=mock_db,
+            db=pocketbase_client,
             deps=mock_deps,
         )
 
@@ -149,7 +162,10 @@ async def test_agent_rate_limit_enforced_per_user() -> None:
 
 
 @pytest.mark.asyncio
-async def test_agent_rate_limit_allows_processing_when_under_limit() -> None:
+async def test_agent_rate_limit_allows_processing_when_under_limit(
+    patched_db,
+    pocketbase_client,
+) -> None:
     """Test that agent processes normally when under rate limit."""
     mock_message = MagicMock(spec=whatsapp_parser.ParsedMessage)
     mock_message.from_phone = "+1234567890"
@@ -158,10 +174,18 @@ async def test_agent_rate_limit_allows_processing_when_under_limit() -> None:
     mock_user_record = {
         "status": "active",
         "name": "Test User",
+        "id": "user456",
+        "role": "member",
     }
 
-    mock_db = MagicMock()
-    mock_deps = MagicMock()
+    mock_deps = Deps(
+        db=pocketbase_client,
+        user_id="user456",
+        user_phone="+1234567890",
+        user_name="Test User",
+        user_role="member",
+        current_time=datetime.now(),
+    )
 
     with (
         patch("src.interface.webhook.rate_limiter") as mock_limiter,
@@ -180,7 +204,7 @@ async def test_agent_rate_limit_allows_processing_when_under_limit() -> None:
         success, _error = await _handle_user_status(
             user_record=mock_user_record,
             message=mock_message,
-            db=mock_db,
+            db=pocketbase_client,
             deps=mock_deps,
         )
 
