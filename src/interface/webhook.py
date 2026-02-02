@@ -443,6 +443,9 @@ async def _handle_webhook_error(
     """
     logger.exception("Error processing webhook message")
 
+    if parsed_message is None:
+        parsed_message = whatsapp_parser.parse_waha_webhook(params)
+
     error_category, _ = classify_agent_error(e)
     error_response = classify_error_with_response(e)
 
@@ -458,8 +461,6 @@ async def _handle_webhook_error(
 
     if admin_notifier.should_notify_admins(error_category):
         try:
-            if parsed_message is None:
-                parsed_message = whatsapp_parser.parse_waha_webhook(params)
             user_context = "Unknown user"
             if parsed_message and parsed_message.from_phone:
                 user_context = parsed_message.from_phone
