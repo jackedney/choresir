@@ -2,11 +2,13 @@
 
 import json
 from collections.abc import Generator
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 
+from src.core import db_client as db_module
 from src.interface.webhook import (
     _handle_button_payload,
     process_webhook_message,
@@ -85,13 +87,6 @@ def mock_webhook_request() -> MagicMock:
 def mock_background_tasks() -> MagicMock:
     """Provides mock for FastAPI background tasks."""
     return MagicMock()
-
-
-@pytest.fixture
-def mock_db_client() -> Generator[MagicMock, None, None]:
-    """Provides mock for database client."""
-    with patch("src.interface.webhook.db_client") as mock:
-        yield mock
 
 
 @pytest.fixture
@@ -296,6 +291,7 @@ class TestReceiveWebhook:
         assert exc_info.value.detail == "Security failed"  # type: ignore[attr-defined]
 
 
+@pytest.mark.usefixtures("mock_db_module", "db_client")
 class TestProcessWebhookMessage:
     """Test background webhook message processing."""
 
@@ -303,7 +299,6 @@ class TestProcessWebhookMessage:
     async def test_process_webhook_message_no_text(
         self,
         *,
-        mock_db_client: MagicMock,
         mock_webhook_parser: MagicMock,
     ) -> None:
         """Test processing skips messages without text."""
@@ -315,31 +310,44 @@ class TestProcessWebhookMessage:
 
         # Should parse but not create any records (skip)
         mock_webhook_parser.assert_called_once_with(params)
-        mock_db_client.create_record.assert_not_called()
+        # Verify no records were created in processed_messages collection
+        records = await db_module.list_records(collection="processed_messages")
+        assert len(records) == 0
 
     @pytest.mark.asyncio
     async def test_process_webhook_message_duplicate(
         self,
         *,
-        mock_db_client: MagicMock,
         mock_webhook_parser: MagicMock,
-        mock_webhook_message: MagicMock,
     ) -> None:
         """Test processing skips duplicate messages."""
+        mock_webhook_message = MagicMock()
         mock_webhook_message.button_payload = None
+        mock_webhook_message.message_id = "msg123"
+        mock_webhook_message.from_phone = "+1234567890"
+        mock_webhook_message.text = "Hello"
+        mock_webhook_message.message_type = "text"
         mock_webhook_parser.return_value = mock_webhook_message
 
-        # Simulate existing message log
-        mock_db_client.get_first_record = AsyncMock(return_value={"id": "existing"})
+        # Create existing processed message record to simulate duplicate
+        await db_module.create_record(
+            collection="processed_messages",
+            data={
+                "message_id": "msg123",
+                "from_phone": "+1234567890",
+                "processed_at": datetime.now(UTC).isoformat(),
+                "success": True,
+            },
+        )
 
         params = {}
 
         await process_webhook_message(params)
 
-        # Should check for duplicate
-        mock_db_client.get_first_record.assert_called_once()
-        # Should not create new record
-        mock_db_client.create_record.assert_not_called()
+        # Should not create new record (still just the original)
+        records = await db_module.list_records(collection="processed_messages")
+        assert len(records) == 1
+        assert records[0]["message_id"] == "msg123"
 
     @pytest.mark.asyncio
     async def test_process_webhook_message_unknown_user(
@@ -347,22 +355,16 @@ class TestProcessWebhookMessage:
         *,
         mock_whatsapp_sender: MagicMock,
         mock_choresir_agent: MagicMock,
-        mock_db_client: MagicMock,
         mock_webhook_parser: MagicMock,
-        mock_webhook_message: MagicMock,
     ) -> None:
         """Test processing message from unknown user."""
+        mock_webhook_message = MagicMock()
+        mock_webhook_message.message_id = "msg456"
+        mock_webhook_message.from_phone = "+15551234567"
+        mock_webhook_message.text = "Hello"
+        mock_webhook_message.message_type = "text"
+        mock_webhook_message.button_payload = None
         mock_webhook_parser.return_value = mock_webhook_message
-
-        # No existing message log
-        mock_db_client.get_first_record = AsyncMock(
-            side_effect=[
-                None,  # check duplicate
-                None,  # user lookup
-            ]
-        )
-        mock_db_client.create_record = AsyncMock(return_value={"id": "msg123"})
-        mock_db_client.update_first_matching = AsyncMock(return_value=False)
 
         # build_deps returns None for unknown user
         mock_choresir_agent.build_deps = AsyncMock(return_value=None)
@@ -374,6 +376,11 @@ class TestProcessWebhookMessage:
 
         await process_webhook_message(params)
 
+        # Verify processed message record was created
+        records = await db_module.list_records(collection="processed_messages")
+        assert len(records) == 1
+        assert records[0]["message_id"] == "msg456"
+
         # Should send onboarding message
         mock_choresir_agent.handle_unknown_user.assert_called_once()
         mock_whatsapp_sender.send_text_message.assert_called_once()
@@ -383,30 +390,34 @@ class TestProcessWebhookMessage:
         self,
         *,
         mock_whatsapp_sender: MagicMock,
-        mock_db_client: MagicMock,
         mock_webhook_parser: MagicMock,
-        mock_webhook_message: MagicMock,
     ) -> None:
         """Test error handling in webhook processing."""
+        mock_webhook_message = MagicMock()
+        mock_webhook_message.message_id = "msg789"
+        mock_webhook_message.from_phone = "+15551234567"
+        mock_webhook_message.text = "Hello"
+        mock_webhook_message.message_type = "text"
+        mock_webhook_message.button_payload = None
         mock_webhook_parser.return_value = mock_webhook_message
 
-        # Simulate database error during duplicate check or logging
-        mock_db_client.get_first_record = AsyncMock(side_effect=Exception("DB error"))
+        # Simulate database error during duplicate check
+        with patch("src.core.db_client.get_first_record", side_effect=Exception("DB error")):
+            # Should send error message to user
+            mock_whatsapp_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
 
-        # Should send error message to user
-        mock_whatsapp_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+            params = {}
 
-        params = {}
+            # Should not raise exception
+            await process_webhook_message(params)
 
-        # Should not raise exception
-        await process_webhook_message(params)
-
-        # Should attempt to send error message
-        mock_whatsapp_sender.send_text_message.assert_called()
-        call_args = mock_whatsapp_sender.send_text_message.call_args
-        assert "error" in call_args.kwargs["text"].lower()
+            # Should attempt to send error message
+            mock_whatsapp_sender.send_text_message.assert_called()
+            call_args = mock_whatsapp_sender.send_text_message.call_args
+            assert "error" in call_args.kwargs["text"].lower()
 
 
+@pytest.mark.usefixtures("mock_db_module", "db_client")
 class TestHandleButtonPayload:
     """Test button payload handling."""
 
@@ -415,25 +426,52 @@ class TestHandleButtonPayload:
         self,
         *,
         mock_verification_service: MagicMock,
-        mock_db_client: MagicMock,
         mock_whatsapp_sender: MagicMock,
     ) -> None:
         """Test successful approval via button."""
+        # Create user record
+        user_record = await db_module.create_record(
+            collection="users",
+            data={
+                "phone": "+1234567890",
+                "name": "Alice",
+                "email": "alice@test.local",
+                "role": "member",
+                "status": "active",
+                "password": "test_password",
+                "passwordConfirm": "test_password",
+            },
+        )
+
+        # Create chore record
+        chore_record = await db_module.create_record(
+            collection="chores",
+            data={
+                "title": "Wash dishes",
+                "description": "Clean all dishes",
+                "schedule_cron": "0 20 * * *",
+                "assigned_to": user_record["id"],
+                "current_state": "PENDING_VERIFICATION",
+                "deadline": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
+            },
+        )
+
+        # Create log record
+        log_record = await db_module.create_record(
+            collection="logs",
+            data={
+                "chore_id": chore_record["id"],
+                "user_id": user_record["id"],
+                "action": "completed",
+                "notes": "Task done",
+                "timestamp": datetime.now(UTC).isoformat(),
+            },
+        )
+
         # Create mock message with button payload
         mock_message = MagicMock()
         mock_message.from_phone = "+1234567890"
-        mock_message.button_payload = "VERIFY:APPROVE:log123"
-
-        # Mock user record
-        user_record = {"id": "user123", "name": "Alice"}
-
-        # Mock database responses
-        mock_db_client.get_record = AsyncMock(
-            side_effect=[
-                {"id": "log123", "chore_id": "chore456"},  # log record
-                {"id": "chore456", "title": "Wash dishes"},  # chore record
-            ]
-        )
+        mock_message.button_payload = f"VERIFY:APPROVE:{log_record['id']}"
 
         # Mock sender
         mock_whatsapp_sender.send_text_message = AsyncMock(return_value=MagicMock(success=True, error=None))
