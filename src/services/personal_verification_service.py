@@ -62,7 +62,7 @@ async def log_personal_chore(
                     )
                     verification_status = "SELF_VERIFIED"
                     partner_phone = ""
-            except Exception:
+            except (RuntimeError, KeyError, ConnectionError):
                 # Partner not found, auto-convert to self-verified
                 logger.warning(
                     f"Partner {partner_phone} not found for chore {chore_id}, auto-converting to self-verified"
@@ -106,7 +106,7 @@ async def log_personal_chore(
                     owner_name=owner_name,
                     partner_phone=partner_phone,
                 )
-            except Exception:
+            except (RuntimeError, ConnectionError, KeyError):
                 logger.exception(
                     "Failed to send verification request notification for chore %s",
                     chore_id,
@@ -189,7 +189,7 @@ async def verify_personal_chore(
                 approved=approved,
                 feedback=feedback,
             )
-        except Exception:
+        except (RuntimeError, ConnectionError, KeyError):
             logger.exception(
                 "Failed to send verification result notification for log %s",
                 log_id,
@@ -290,13 +290,13 @@ async def auto_verify_expired_logs() -> int:
                         approved=True,
                         feedback="Auto-verified (partner did not respond within 48 hours)",
                     )
-                except Exception:
+                    logger.info("Auto-verify notification sent successfully for log %s", log["id"])
+                except (RuntimeError, ConnectionError, KeyError):
                     logger.exception(
                         "Failed to send auto-verify notification for log %s",
                         log["id"],
                     )
-
-            except Exception:
+            except (ValueError, KeyError, TypeError, AttributeError):
                 logger.exception("Failed to auto-verify log %s", log["id"])
                 continue
 

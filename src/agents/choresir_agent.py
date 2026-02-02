@@ -176,7 +176,7 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
                     message=message,
                     severity="critical",
                 )
-            except Exception as notify_error:
+            except (RuntimeError, ConnectionError, OSError) as notify_error:
                 logger.error(f"Failed to notify admins of quota exceeded error: {notify_error}")
 
         return user_message
@@ -319,7 +319,7 @@ async def _handle_legacy_join_or_onboard(user_phone: str, message_text: str) -> 
             f"Sorry, I couldn't process your join request: {e}\n\n"
             "Please check your house code and password and try again."
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, KeyError, OSError) as e:
         logger.error(
             "Unexpected error processing join request", extra={"operation": "join_request_error", "error": str(e)}
         )
@@ -514,7 +514,7 @@ async def handle_join_name_step(phone: str, name: str) -> str:
             house_code=settings.house_code,
             password=settings.house_password,
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, KeyError, OSError) as e:
         # Join request failed - delete session anyway (flow is complete)
         logger.error(
             "Failed to create join request", extra={"operation": "join_request_creation_failed", "error": str(e)}

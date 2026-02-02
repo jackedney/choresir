@@ -184,7 +184,7 @@ async def checkout_shopping_list(*, user_id: str) -> tuple[int, list[str]]:
 
                 processed_items.append(item_name)
 
-        except Exception:
+        except (RuntimeError, KeyError, ConnectionError):
             logger.error(
                 "Checkout failed midway for user %s. Successfully processed %d/%d items: %s. "
                 "Data may be inconsistent - some items updated in pantry but still on shopping list.",

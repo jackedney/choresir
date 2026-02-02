@@ -101,7 +101,7 @@ class PocketBaseConnectionPool:
             # Using admins.auth_refresh as a lightweight health check
             client.admins.auth_refresh()
             return True
-        except Exception:
+        except (ConnectionError, ClientResponseError, KeyError):
             logger.exception("PocketBase health check failed")
             return False
 
@@ -125,7 +125,7 @@ class PocketBaseConnectionPool:
                     extra={"attempt": attempt + 1, "max_retries": self._max_retries},
                 )
                 return client
-            except Exception as e:
+            except (ConnectionError, ClientResponseError, KeyError) as e:
                 logger.error(
                     "PocketBase connection attempt failed",
                     extra={"attempt": attempt + 1, "max_retries": self._max_retries, "error": str(e)},

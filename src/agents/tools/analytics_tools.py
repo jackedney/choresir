@@ -154,7 +154,7 @@ async def tool_get_analytics(_ctx: RunContext[Deps], params: GetAnalytics) -> st
 
             return f"Error: Unknown metric '{params.metric}'."
 
-    except Exception as e:
+    except (RuntimeError, KeyError, ConnectionError) as e:
         logger.error("Unexpected error in tool_get_analytics", extra={"error": str(e)})
         return "Error: Unable to retrieve analytics. Please try again."
 
@@ -246,7 +246,7 @@ async def tool_get_stats(ctx: RunContext[Deps], params: GetStats) -> str:
 
             return _format_user_stats(stats, params.period_days)
 
-    except Exception as e:
+    except (RuntimeError, KeyError, ConnectionError) as e:
         logger.error("Unexpected error in tool_get_stats", extra={"error": str(e)})
         return "Error: Unable to retrieve your stats. Please try again."
 

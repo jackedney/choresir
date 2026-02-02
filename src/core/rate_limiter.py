@@ -93,7 +93,7 @@ class RateLimiter:
 
         except HTTPException:
             raise
-        except Exception:
+        except (RuntimeError, ConnectionError, OSError):
             logger.exception("rate_limit_check_error")
             # Fail open - don't block requests if rate limiting fails
             return
@@ -117,7 +117,7 @@ class RateLimiter:
             scope="agent",
             identifier=user_id,
             limit=Constants.MAX_AGENT_CALLS_PER_USER_PER_HOUR,
-            window_seconds=Constants.RATE_LIMIT_AGENT_WINDOW_SECONDS,
+            window_seconds=3600,
         )
 
 

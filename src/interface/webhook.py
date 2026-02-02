@@ -1,5 +1,6 @@
 """WhatsApp webhook endpoints."""
 
+import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -76,7 +77,7 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
 
     try:
         payload = await request.json()
-    except Exception as e:
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from e
 
     # Parse message for security validation

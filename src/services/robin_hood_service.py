@@ -62,7 +62,7 @@ async def get_weekly_takeover_count(user_id: str) -> int:
             return records[0].get("takeover_count", 0)
         return 0
 
-    except Exception:
+    except (RuntimeError, ConnectionError, KeyError):
         logger.exception("Failed to get weekly takeover count for user %s", user_id)
         # Fail safe: return 0 to allow operation if DB query fails
         return 0
@@ -114,7 +114,7 @@ async def increment_weekly_takeover_count(user_id: str) -> int:
         logger.info(f"Created new takeover record for user {user_id}")
         return 1
 
-    except Exception as e:
+    except (RuntimeError, KeyError, ConnectionError) as e:
         error_msg = f"Failed to increment weekly takeover count for user {user_id}: {e}"
         logger.error(error_msg)
         raise RuntimeError(error_msg) from e

@@ -71,9 +71,9 @@ async def invalidate_leaderboard_cache() -> None:
                 logger.warning(f"Failed to invalidate {len(keys)} cache entries, queued for retry")
         else:
             logger.debug("No leaderboard cache entries to invalidate")
-    except Exception as e:
+    except (RuntimeError, ConnectionError, KeyError):
         # Log warning but don't raise - cache invalidation failure shouldn't break app
-        logger.warning(f"Failed to invalidate leaderboard cache: {e}")
+        logger.warning("Failed to invalidate leaderboard cache")
 
 
 async def _fetch_chores_map(chore_ids: list[str]) -> dict[str, dict]:
@@ -147,7 +147,7 @@ def _determine_user_to_award(
 
         # On-time: award to original assignee, Overdue: award to actual completer
         user_to_award = original_assignee_id if approval_dt <= deadline_dt else actual_completer_id
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError) as e:
         logger.warning(f"Failed to parse timestamps for Robin Hood attribution: {e}")
 
     return user_to_award
@@ -205,8 +205,8 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
                 return leaderboard_entries
             except (json.JSONDecodeError, ValidationError) as e:
                 logger.warning(f"Failed to deserialize cached leaderboard: {e}")
-    except Exception as e:
-        logger.warning(f"Failed to retrieve cached leaderboard from Redis: {e}")
+    except (RuntimeError, ConnectionError, KeyError):
+        logger.warning("Failed to retrieve cached leaderboard from Redis")
 
     with span("analytics_service.get_leaderboard"):
         # Calculate cutoff date
@@ -255,8 +255,8 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
         try:
             cache_value = json.dumps([entry.model_dump() for entry in leaderboard_data])
             await redis_client.set(cache_key, cache_value, Constants.CACHE_TTL_LEADERBOARD_SECONDS)
-        except Exception as e:
-            logger.warning(f"Failed to cache leaderboard in Redis: {e}")
+        except (RuntimeError, ConnectionError, KeyError):
+            logger.warning("Failed to cache leaderboard in Redis")
 
         return leaderboard_data
 
@@ -442,7 +442,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
             error_msg = f"Database error fetching leaderboard: {e}"
             logger.error(error_msg)
             result_data["rank_error"] = error_msg
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             error_msg = f"Unexpected error fetching leaderboard: {e}"
             logger.error(error_msg)
             result_data["rank_error"] = error_msg
@@ -549,7 +549,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                                     logger.error(error_msg)
                                     # Continue with next chunk, don't fail entire operation
                                     break
-                                except Exception as e:
+                                except (ValueError, KeyError, TypeError, AttributeError) as e:
                                     error_msg = (
                                         f"Unexpected error fetching claims chunk at offset {i}, page {page}: {e}"
                                     )
@@ -557,18 +557,18 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                                     # Continue with next chunk, don't fail entire operation
                                     break
 
-                            total_logs_fetched += chunk_logs_fetched
-                            chunks_processed += 1
+                                total_logs_fetched += chunk_logs_fetched
+                                chunks_processed += 1
 
-                            logger.debug(
-                                "Processed chunk",
-                                extra={
-                                    "chunk_index": chunk_index,
-                                    "chunk_size": len(chunk),
-                                    "logs_fetched": chunk_logs_fetched,
-                                    "claims_in_chunk": chunk_claims,
-                                },
-                            )
+                                logger.debug(
+                                    "Processed chunk",
+                                    extra={
+                                        "chunk_index": chunk_index,
+                                        "chunk_size": len(chunk),
+                                        "logs_fetched": chunk_logs_fetched,
+                                        "claims_in_chunk": chunk_claims,
+                                    },
+                                )
 
                             # Log if chunk size is unusually large (indicates potential data anomaly)
                             if chunk_claims > Constants.ANALYTICS_CHUNK_SIZE * 1.5:
@@ -613,11 +613,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
             overdue_chores = await get_overdue_chores(user_id=user_id)
             result_data["overdue_chores"] = len(overdue_chores)
             logger.info(f"User {user_id} has {result_data['overdue_chores']} overdue chores")
-        except RuntimeError as e:
-            error_msg = f"Database error fetching overdue chores: {e}"
-            logger.error(error_msg)
-            result_data["overdue_chores_error"] = error_msg
-        except Exception as e:
+        except (ValueError, KeyError, TypeError, AttributeError, ConnectionError) as e:
             error_msg = f"Unexpected error fetching overdue chores: {e}"
             logger.error(error_msg)
             result_data["overdue_chores_error"] = error_msg

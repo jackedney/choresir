@@ -1,5 +1,6 @@
 """Tests for WhatsApp webhook endpoints."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -142,7 +143,7 @@ class TestReceiveWebhook:
         mock_request = MagicMock()
         mock_request.body = AsyncMock(return_value=b'{"invalid": json}')
         mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
-        mock_request.json = AsyncMock(side_effect=Exception("Invalid JSON"))
+        mock_request.json = AsyncMock(side_effect=json.JSONDecodeError("Invalid JSON", "", 0))
         mock_background_tasks = MagicMock()
 
         with pytest.raises(HTTPException) as exc_info:

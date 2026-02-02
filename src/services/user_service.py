@@ -61,7 +61,7 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         # Validate name using User model validator
         try:
             User(id="temp", phone=phone, name=name)
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             msg = str(e)
             logger.warning(
                 "Invalid name for join request", extra={"operation": "join_request_invalid_name", "reason": msg}
@@ -178,7 +178,7 @@ async def ban_user(*, admin_user_id: str, target_user_id: str) -> dict[str, Any]
             data={"status": UserStatus.BANNED},
         )
 
-        logger.info(f"Banned user {target_user_id} by admin {admin_user_id}")
+        logger.info("Banned user %s by admin %s", target_user_id, admin_user_id)
 
         return updated_record
 

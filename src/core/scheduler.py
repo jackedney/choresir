@@ -72,7 +72,7 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) ->
     except KeyError:
         logger.warning(f"User {user_id} not found for overdue reminders")
         return False
-    except Exception:
+    except (RuntimeError, ConnectionError, PermissionError):
         logger.exception("Error sending reminder to user %s", user_id)
         return False
 
@@ -165,7 +165,7 @@ async def send_daily_report() -> None:
                 else:
                     logger.warning(f"Failed to send daily report to {user['name']}: {result.error}")
 
-            except Exception:
+            except (RuntimeError, ConnectionError, KeyError):
                 logger.exception("Error sending daily report to user %s", user["id"])
                 continue
 
@@ -331,7 +331,7 @@ async def send_weekly_leaderboard() -> None:
                 else:
                     logger.warning(f"Failed to send weekly leaderboard to {user['name']}: {result.error}")
 
-            except Exception:
+            except (RuntimeError, ConnectionError, KeyError):
                 logger.exception("Error sending weekly leaderboard to user %s", user["id"])
                 continue
 
@@ -368,7 +368,7 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
                 return datetime.fromisoformat(completed_at_str).date()
 
         return None
-    except Exception as e:
+    except (RuntimeError, KeyError, ValueError, ConnectionError) as e:
         logger.warning(f"Error fetching last completion for chore {chore_id}: {e}")
         return None
 
@@ -400,7 +400,7 @@ def _is_recurring_chore_due_today(recurrence: str, last_completion: date | None,
         logger.warning(f"Could not parse recurrence pattern: {recurrence}")
         return False
 
-    except Exception as e:
+    except (ValueError, AttributeError, RuntimeError) as e:
         logger.warning(f"Error checking recurrence pattern '{recurrence}': {e}")
         return False
 
@@ -562,7 +562,7 @@ async def send_personal_chore_reminders() -> None:
             try:
                 if await _send_personal_chore_reminder_to_user(user, today):
                     sent_count += 1
-            except Exception:
+            except (RuntimeError, ConnectionError, KeyError):
                 logger.exception("Error sending reminder to user %s", user["id"])
                 continue
 

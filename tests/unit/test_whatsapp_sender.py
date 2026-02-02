@@ -206,7 +206,7 @@ class TestSendTextMessage:
     async def test_send_text_message_unexpected_error(self):
         """Test handling of unexpected errors."""
         with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_post.side_effect = Exception("Unexpected error")
+            mock_post.side_effect = httpx.HTTPError("Unexpected error")
 
             result = await send_text_message(
                 to_phone="+1234567890",

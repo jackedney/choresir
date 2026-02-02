@@ -90,7 +90,7 @@ async def tool_add_to_shopping_list(ctx: RunContext[Deps], params: AddToShopping
             notes_msg = f" - {params.notes}" if params.notes else ""
             return f"Added '{params.item_name}'{qty_msg} to the shopping list{notes_msg}."
 
-    except Exception as e:
+    except (RuntimeError, KeyError, ConnectionError) as e:
         logger.error("Failed to add to shopping list", extra={"error": str(e)})
         return f"Error: Unable to add item to shopping list. {e!s}"
 
@@ -135,7 +135,7 @@ async def tool_get_shopping_list(_ctx: RunContext[Deps]) -> str:
 
             return "\n".join(lines)
 
-    except Exception as e:
+    except (RuntimeError, KeyError, ConnectionError) as e:
         logger.error("Failed to get shopping list", extra={"error": str(e)})
         return f"Error: Unable to retrieve shopping list. {e!s}"
 
@@ -173,7 +173,7 @@ async def tool_checkout_shopping_list(ctx: RunContext[Deps]) -> str:
 
             return f"Checked out {count} item(s): {items_str}. Pantry updated."
 
-    except Exception as e:
+    except (RuntimeError, KeyError, ConnectionError) as e:
         logger.error("Failed to checkout shopping list", extra={"error": str(e)})
         return f"Error: Unable to checkout shopping list. {e!s}"
 
@@ -202,7 +202,7 @@ async def tool_remove_from_shopping_list(_ctx: RunContext[Deps], params: RemoveF
                 return f"Removed '{params.item_name}' from the shopping list."
             return f"'{params.item_name}' was not found on the shopping list."
 
-    except Exception as e:
+    except (RuntimeError, KeyError, ConnectionError) as e:
         logger.error("Failed to remove from shopping list", extra={"error": str(e)})
         return f"Error: Unable to remove item from shopping list. {e!s}"
 
@@ -242,7 +242,7 @@ async def tool_mark_item_out(ctx: RunContext[Deps], params: MarkItemStatus) -> s
 
             return status_msg
 
-    except Exception as e:
+    except (RuntimeError, KeyError, ConnectionError) as e:
         logger.error("Failed to mark item status", extra={"error": str(e)})
         return f"Error: Unable to update item status. {e!s}"
 
@@ -287,7 +287,7 @@ async def tool_get_pantry_status(_ctx: RunContext[Deps]) -> str:
 
             return "\n".join(lines)
 
-    except Exception as e:
+    except (RuntimeError, KeyError, ConnectionError) as e:
         logger.error("Failed to get pantry status", extra={"error": str(e)})
         return f"Error: Unable to retrieve pantry status. {e!s}"
 

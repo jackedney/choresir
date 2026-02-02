@@ -181,7 +181,7 @@
     {
       "id": "US-008",
       "title": "Use match statements for complex conditional chains",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-003"
       ],
@@ -194,8 +194,8 @@
         "All tests pass"
       ],
       "startedAt": "2026-02-02T09:52:58.889790+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T09:52:58.889990+00:00"
+      "completedAt": "2026-02-02T09:57:59.383031+00:00",
+      "updatedAt": "2026-02-02T09:57:59.382867+00:00"
     },
     {
       "id": "US-009",
@@ -219,7 +219,7 @@
     {
       "id": "US-010",
       "title": "Narrow broad exception handlers to specific types",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-005"
       ],
@@ -231,7 +231,10 @@
         "Example: `except httpx.TimeoutException: ...` instead of `except Exception:`",
         "Negative case: Top-level FastAPI exception handlers may legitimately catch Exception",
         "All tests pass"
-      ]
+      ],
+      "startedAt": "2026-02-02T10:50:49.596327+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T10:50:49.596596+00:00"
     },
     {
       "id": "US-011",

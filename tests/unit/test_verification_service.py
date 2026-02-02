@@ -100,7 +100,7 @@ class TestRequestVerification:
         self, mock_notify, patched_verification_db, todo_chore
     ):
         """Claim should succeed even if notifications fail."""
-        mock_notify.send_verification_request = AsyncMock(side_effect=Exception("Twilio error"))
+        mock_notify.send_verification_request = AsyncMock(side_effect=RuntimeError("Twilio error"))
 
         # Should not raise
         result = await verification_service.request_verification(
@@ -410,7 +410,7 @@ class TestVerificationCacheInvalidation:
     async def test_verification_succeeds_if_cache_invalidation_fails(self, mock_redis_keys, patched_verification_db):
         """Verify verification succeeds even if cache invalidation fails."""
         # Mock Redis to fail - this tests the internal exception handling in invalidate_leaderboard_cache
-        mock_redis_keys.side_effect = Exception("Redis connection error")
+        mock_redis_keys.side_effect = RuntimeError("Redis connection error")
 
         # Create and claim chore
         chore = await chore_service.create_chore(
