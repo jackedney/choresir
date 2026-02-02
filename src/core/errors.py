@@ -72,19 +72,45 @@ _ERROR_PATTERNS: dict[
     dict[str, list[str] | set[str]],
 ] = {
     "quota": {
-        "phrases": ["quota exceeded", "insufficient credits", "credit limit", "credits exhausted", "out of credits"],
+        "phrases": [
+            "quota exceeded",
+            "insufficient credits",
+            "credit limit",
+            "credits exhausted",
+            "out of credits",
+        ],
         "exception_types": set(),
     },
     "rate_limit": {
-        "phrases": ["rate limit", "too many requests", "rate_limit_exceeded", "throttled"],
+        "phrases": [
+            "rate limit",
+            "too many requests",
+            "rate_limit_exceeded",
+            "throttled",
+        ],
         "exception_types": set(),
     },
     "auth": {
-        "phrases": ["authentication failed", "invalid api key", "unauthorized", "invalid token", "api key", "401"],
+        "phrases": [
+            "authentication failed",
+            "invalid api key",
+            "unauthorized",
+            "invalid token",
+            "api key",
+            "401",
+        ],
         "exception_types": {"AuthenticationError", "PermissionError"},
     },
     "network": {
-        "phrases": ["connection", "timeout", "network", "503", "502", "504", "unreachable"],
+        "phrases": [
+            "connection",
+            "timeout",
+            "network",
+            "503",
+            "502",
+            "504",
+            "unreachable",
+        ],
         "exception_types": {"ConnectionError", "TimeoutError"},
     },
     "validation": {"phrases": [], "exception_types": set()},

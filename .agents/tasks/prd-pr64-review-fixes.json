@@ -496,7 +496,7 @@
     {
       "id": "US-026",
       "title": "Use structured logging in errors.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want _match_error_pattern in errors.py to use keyword-only arguments and single-line docstring.",
       "acceptanceCriteria": [
@@ -506,13 +506,13 @@
         "Negative case: No positional arguments allowed"
       ],
       "startedAt": "2026-02-02T14:46:33.881344+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T14:46:33.881504+00:00"
+      "completedAt": "2026-02-02T14:52:20.176106+00:00",
+      "updatedAt": "2026-02-02T14:52:20.175963+00:00"
     },
     {
       "id": "US-027",
       "title": "Format long lists in errors.py for readability",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-026"
       ],
@@ -523,7 +523,10 @@
         "Keep within 120 character line limit",
         "Example: 'phrases': [\\n    'quota exceeded',\\n    'insufficient credits',\\n    ...]",
         "Negative case: No line exceeds 120 characters"
-      ]
+      ],
+      "startedAt": "2026-02-02T14:52:22.266988+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T14:52:22.267170+00:00"
     },
     {
       "id": "US-028",
