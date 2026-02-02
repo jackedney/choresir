@@ -166,4 +166,5 @@ async def send_text_message(
                 )
                 return SendMessageResult(success=False, error=f"Failed after retries: {e}")
 
+    logger.error("WAHA send failed after retries", extra={"max_retries": max_retries})
     return SendMessageResult(success=False, error="Max retries exceeded")
