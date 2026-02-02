@@ -11,7 +11,7 @@ from src.interface.webhook_security import WebhookSecurityResult
 
 
 @pytest.mark.asyncio
-async def test_webhook_rate_limit_enforced():
+async def test_webhook_rate_limit_enforced() -> None:
     """Test that webhook endpoint enforces rate limits."""
     mock_request = MagicMock(spec=Request)
     mock_request.body = AsyncMock(return_value=b'{"payload": {"body": "test"}}')
@@ -51,7 +51,7 @@ async def test_webhook_rate_limit_enforced():
 
 
 @pytest.mark.asyncio
-async def test_webhook_rate_limit_passes_when_under_limit():
+async def test_webhook_rate_limit_passes_when_under_limit() -> None:
     """Test that webhook processes normally when under rate limit."""
     mock_request = MagicMock(spec=Request)
     mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
@@ -98,7 +98,7 @@ async def test_webhook_rate_limit_passes_when_under_limit():
 
 
 @pytest.mark.asyncio
-async def test_agent_rate_limit_enforced_per_user():
+async def test_agent_rate_limit_enforced_per_user() -> None:
     """Test that agent calls enforce per-user rate limits."""
     mock_message = MagicMock(spec=whatsapp_parser.ParsedMessage)
     mock_message.from_phone = "+1234567890"
@@ -150,7 +150,7 @@ async def test_agent_rate_limit_enforced_per_user():
 
 
 @pytest.mark.asyncio
-async def test_agent_rate_limit_allows_processing_when_under_limit():
+async def test_agent_rate_limit_allows_processing_when_under_limit() -> None:
     """Test that agent processes normally when under rate limit."""
     mock_message = MagicMock(spec=whatsapp_parser.ParsedMessage)
     mock_message.from_phone = "+1234567890"
