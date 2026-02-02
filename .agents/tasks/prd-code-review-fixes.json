@@ -108,7 +108,7 @@
     {
       "id": "US-004",
       "title": "Remove unreachable code in whatsapp_sender.py",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want to remove unreachable code to improve maintainability and avoid confusion.",
       "acceptanceCriteria": [
@@ -117,12 +117,15 @@
         "Example: successful message send still returns SendMessageResult",
         "Example: failed send still handles retries appropriately",
         "All type hints pass ty check"
-      ]
+      ],
+      "updatedAt": "2026-02-02T18:00:01.253785+00:00",
+      "completedAt": "2026-02-02T18:00:01.253926+00:00",
+      "startedAt": "2026-02-02T18:00:01.253928+00:00"
     },
     {
       "id": "US-005",
       "title": "Add bounded cache to format_phone_for_waha",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want the phone formatter to use bounded caching to prevent unbounded memory growth.",
       "acceptanceCriteria": [
@@ -130,7 +133,10 @@
         "Cache still provides same functionality with bounded size",
         "Example: first 1024 unique phone numbers are cached, 1025th evicts oldest",
         "All type hints pass ty check"
-      ]
+      ],
+      "startedAt": "2026-02-02T18:00:03.362271+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T18:00:03.362453+00:00"
     },
     {
       "id": "US-006",

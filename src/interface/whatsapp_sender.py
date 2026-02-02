@@ -69,7 +69,7 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
-@functools.cache
+@functools.lru_cache(maxsize=1024)
 def format_phone_for_waha(phone: str) -> str:
     """Format phone number for WAHA (e.g., '1234567890@c.us')."""
     # Remove 'whatsapp:' prefix if present
