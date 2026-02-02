@@ -20,7 +20,7 @@ class TestValidateWebhookTimestamp:
     """Test webhook timestamp validation."""
 
     @pytest.mark.asyncio
-    async def test_valid_timestamp(self):
+    async def test_valid_timestamp(self) -> None:
         """Test validation passes for recent timestamp."""
         current_timestamp = str(int(datetime.now().timestamp()))
         result = await validate_webhook_timestamp(current_timestamp)
@@ -30,7 +30,7 @@ class TestValidateWebhookTimestamp:
         assert result.http_status_code is None
 
     @pytest.mark.asyncio
-    async def test_expired_timestamp(self):
+    async def test_expired_timestamp(self) -> None:
         """Test validation fails for expired timestamp."""
         old_timestamp = str(int(datetime.now().timestamp()) - 400)
         result = await validate_webhook_timestamp(old_timestamp)
@@ -41,7 +41,7 @@ class TestValidateWebhookTimestamp:
         assert result.http_status_code == 400
 
     @pytest.mark.asyncio
-    async def test_future_timestamp(self):
+    async def test_future_timestamp(self) -> None:
         """Test validation fails for future timestamp."""
         future_timestamp = str(int(datetime.now().timestamp()) + 100)
         result = await validate_webhook_timestamp(future_timestamp)
@@ -52,7 +52,7 @@ class TestValidateWebhookTimestamp:
         assert result.http_status_code == 400
 
     @pytest.mark.asyncio
-    async def test_invalid_timestamp_format(self):
+    async def test_invalid_timestamp_format(self) -> None:
         """Test validation fails for invalid timestamp format."""
         result = await validate_webhook_timestamp("not_a_number")
 
@@ -106,7 +106,7 @@ class TestValidateWebhookNonce:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_first_webhook_accepted(self, mock_redis):
+    async def test_first_webhook_accepted(self, mock_redis) -> None:
         """Test first webhook with message ID is accepted."""
         mock_redis.is_available = True
         mock_redis.set_if_not_exists = AsyncMock(return_value=True)
@@ -118,7 +118,7 @@ class TestValidateWebhookNonce:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_duplicate_webhook_rejected(self, mock_redis):
+    async def test_duplicate_webhook_rejected(self, mock_redis) -> None:
         """Test duplicate webhook is rejected."""
         mock_redis.is_available = True
         mock_redis.set_if_not_exists = AsyncMock(return_value=False)
@@ -132,7 +132,7 @@ class TestValidateWebhookNonce:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_redis_unavailable_allows_webhook(self, mock_redis):
+    async def test_redis_unavailable_allows_webhook(self, mock_redis) -> None:
         """Test webhook allowed when Redis unavailable."""
         mock_redis.is_available = False
 
@@ -146,7 +146,7 @@ class TestValidateWebhookRateLimit:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_within_rate_limit(self, mock_redis):
+    async def test_within_rate_limit(self, mock_redis) -> None:
         """Test webhook accepted within rate limit."""
         mock_redis.is_available = True
         mock_redis.increment = AsyncMock(return_value=5)
@@ -159,7 +159,7 @@ class TestValidateWebhookRateLimit:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_exceeds_rate_limit(self, mock_redis):
+    async def test_exceeds_rate_limit(self, mock_redis) -> None:
         """Test webhook rejected when rate limit exceeded."""
         mock_redis.is_available = True
         mock_redis.increment = AsyncMock(return_value=25)
@@ -173,7 +173,7 @@ class TestValidateWebhookRateLimit:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_first_request_sets_ttl(self, mock_redis):
+    async def test_first_request_sets_ttl(self, mock_redis) -> None:
         """Test TTL set on first request."""
         mock_redis.is_available = True
         mock_redis.increment = AsyncMock(return_value=1)
@@ -185,7 +185,7 @@ class TestValidateWebhookRateLimit:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_redis_unavailable_allows_webhook(self, mock_redis):
+    async def test_redis_unavailable_allows_webhook(self, mock_redis) -> None:
         """Test webhook allowed when Redis unavailable."""
         mock_redis.is_available = False
 
@@ -199,7 +199,7 @@ class TestVerifyWebhookSecurity:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_all_checks_pass(self, mock_redis):
+    async def test_all_checks_pass(self, mock_redis) -> None:
         """Test webhook accepted when all checks pass."""
         mock_redis.is_available = True
         mock_redis.set_if_not_exists = AsyncMock(return_value=True)
@@ -214,7 +214,7 @@ class TestVerifyWebhookSecurity:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_timestamp_failure_stops_further_checks(self, mock_redis):
+    async def test_timestamp_failure_stops_further_checks(self, mock_redis) -> None:
         """Test that timestamp failure prevents further checks."""
         mock_redis.is_available = True
 
@@ -228,7 +228,7 @@ class TestVerifyWebhookSecurity:
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
-    async def test_nonce_failure_stops_rate_limit_check(self, mock_redis):
+    async def test_nonce_failure_stops_rate_limit_check(self, mock_redis) -> None:
         """Test that nonce failure prevents rate limit check."""
         mock_redis.is_available = True
         mock_redis.set_if_not_exists = AsyncMock(return_value=False)

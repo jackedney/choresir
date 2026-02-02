@@ -147,7 +147,7 @@
     {
       "id": "US-006",
       "title": "Fix structured logging in chore_tools.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-005"
       ],
@@ -160,13 +160,13 @@
         "Negative case: No f-string interpolation in log messages for error context"
       ],
       "startedAt": "2026-02-02T12:35:32.636389+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T12:35:32.636563+00:00"
+      "completedAt": "2026-02-02T12:38:04.681587+00:00",
+      "updatedAt": "2026-02-02T12:38:04.681432+00:00"
     },
     {
       "id": "US-007",
       "title": "Add return type hints to test_webhook_security.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want all test methods in test_webhook_security.py to have -> None return type hints for code quality.",
       "acceptanceCriteria": [
@@ -175,7 +175,10 @@
         "Add -> None to test_invalid_hmac_signature method",
         "Example: def test_valid_hmac_signature(self) -> None:",
         "Negative case: No test method without return type hint"
-      ]
+      ],
+      "startedAt": "2026-02-02T12:38:06.794444+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T12:38:06.794632+00:00"
     },
     {
       "id": "US-008",
