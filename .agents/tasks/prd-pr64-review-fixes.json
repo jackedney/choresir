@@ -113,7 +113,7 @@
     {
       "id": "US-004",
       "title": "Add structured logging to rate_limiter.py exception handler",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want the rate limiter exception handler to use structured logging so that debugging is easier.",
       "acceptanceCriteria": [
@@ -123,13 +123,13 @@
         "Negative case: Do not include user identifiers, phone numbers, or emails in extra"
       ],
       "startedAt": "2026-02-02T12:27:42.928740+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T12:27:42.928915+00:00"
+      "completedAt": "2026-02-02T12:31:53.439282+00:00",
+      "updatedAt": "2026-02-02T12:31:53.439118+00:00"
     },
     {
       "id": "US-005",
       "title": "Add PermissionError to exception tuples in chore_tools.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want PermissionError caught in chore_tools.py exception handlers so that permission errors are handled gracefully.",
       "acceptanceCriteria": [
@@ -139,7 +139,10 @@
         "Log with logger.error including extra={'error': str(e)}",
         "Example: PermissionError raised by verification_service.request_verification() is caught and returns graceful error message",
         "Negative case: PermissionError does not propagate unhandled"
-      ]
+      ],
+      "startedAt": "2026-02-02T12:31:55.546376+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T12:31:55.546558+00:00"
     },
     {
       "id": "US-006",

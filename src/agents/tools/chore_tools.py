@@ -105,7 +105,7 @@ async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
     except ValueError as e:
         logger.warning("Chore creation failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except (RuntimeError, KeyError, ConnectionError, PermissionError) as e:
         logger.error("Unexpected error in tool_define_chore", extra={"error": str(e)})
         return "Error: Unable to create chore. Please try again."
 
@@ -241,7 +241,7 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     except ValueError as e:
         logger.warning("Chore logging failed", extra={"error": str(e)})
         return f"Error: {e!s}"
-    except (RuntimeError, KeyError, ConnectionError) as e:
+    except (RuntimeError, KeyError, ConnectionError, PermissionError) as e:
         logger.error("Unexpected error in tool_log_chore", extra={"error": str(e)})
         return "Error: Unable to log chore. Please try again."
 
