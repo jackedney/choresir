@@ -512,7 +512,7 @@
     {
       "id": "US-027",
       "title": "Format long lists in errors.py for readability",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-026"
       ],
@@ -525,13 +525,13 @@
         "Negative case: No line exceeds 120 characters"
       ],
       "startedAt": "2026-02-02T14:52:22.266988+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T14:52:22.267170+00:00"
+      "completedAt": "2026-02-02T14:57:11.487483+00:00",
+      "updatedAt": "2026-02-02T14:57:11.487062+00:00"
     },
     {
       "id": "US-028",
       "title": "Remove PII from webhook.py button payload logs",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want button payload logs in webhook.py to not expose sensitive data.",
       "acceptanceCriteria": [
@@ -539,7 +539,10 @@
         "Update logger.error at line 249 similarly",
         "Example: logger.error('Invalid button payload format', extra={'payload_prefix': payload[:20] if payload else None})",
         "Negative case: Full payload not logged"
-      ]
+      ],
+      "startedAt": "2026-02-02T14:57:13.554542+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T14:57:13.554683+00:00"
     },
     {
       "id": "US-029",

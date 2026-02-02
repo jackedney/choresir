@@ -235,7 +235,7 @@ async def _handle_button_payload(
     # Parse payload: VERIFY:APPROVE:log_id or VERIFY:REJECT:log_id
     parts = payload.split(":")
     if len(parts) != Constants.WEBHOOK_BUTTON_PAYLOAD_PARTS or parts[0] != "VERIFY":
-        logger.error(f"Invalid button payload format: {payload}")
+        logger.error("Invalid button payload format", extra={"payload_prefix": payload[:20] if payload else None})
         result = await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text=ERROR_MSG_BUTTON_PROCESSING_FAILED,
@@ -246,7 +246,9 @@ async def _handle_button_payload(
 
     # Validate decision type
     if decision_str not in ("APPROVE", "REJECT"):
-        logger.error(f"Invalid decision in payload: {decision_str}")
+        logger.error(
+            "Invalid decision in payload", extra={"decision_str_prefix": decision_str[:20] if decision_str else None}
+        )
         result = await whatsapp_sender.send_text_message(
             to_phone=message.from_phone,
             text="Sorry, I couldn't process that button click. Please try typing your response instead.",
