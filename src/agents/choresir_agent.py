@@ -21,8 +21,6 @@ from src.services import session_service, user_service
 logger = logging.getLogger(__name__)
 
 
-logger = logging.getLogger(__name__)
-
 # System prompt template
 SYSTEM_PROMPT_TEMPLATE = """You are choresir, a household chore management assistant. Your role is strictly functional.
 

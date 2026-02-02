@@ -392,7 +392,7 @@
     {
       "id": "US-020",
       "title": "Add module-level logger to whatsapp_sender.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-015"
       ],
@@ -405,13 +405,13 @@
         "Negative case: No phone numbers or message text in log messages"
       ],
       "startedAt": "2026-02-02T13:41:36.021640+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T13:41:36.021831+00:00"
+      "completedAt": "2026-02-02T13:44:20.239404+00:00",
+      "updatedAt": "2026-02-02T13:44:20.239203+00:00"
     },
     {
       "id": "US-021",
       "title": "Remove duplicate logger declaration in choresir_agent.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want duplicate logger declarations removed from choresir_agent.py so that code is clean.",
       "acceptanceCriteria": [
@@ -419,7 +419,10 @@
         "Keep only the declaration at line 21",
         "Example: Single logger declaration in file",
         "Negative case: No duplicate logger declarations"
-      ]
+      ],
+      "startedAt": "2026-02-02T13:44:22.322236+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T13:44:22.322459+00:00"
     },
     {
       "id": "US-022",
