@@ -274,7 +274,7 @@ async def auto_verify_expired_logs() -> int:
                     },
                 )
                 auto_verified_count += 1
-                logger.info(f"Auto-verified personal chore log {log['id']} (48h timeout)")
+                logger.info("Auto-verified personal chore log (48h timeout)", extra={"log_id": log["id"]})
 
                 # Send auto-verify notification to owner
                 try:
@@ -292,7 +292,7 @@ async def auto_verify_expired_logs() -> int:
                         approved=True,
                         feedback="Auto-verified (partner did not respond within 48 hours)",
                     )
-                    logger.info("Auto-verify notification sent successfully for log %s", log["id"])
+                    logger.info("Auto-verify notification sent successfully", extra={"log_id": log["id"]})
                 except (RuntimeError, ConnectionError, KeyError):
                     logger.exception(
                         "Failed to send auto-verify notification for log %s",
@@ -302,7 +302,7 @@ async def auto_verify_expired_logs() -> int:
                 logger.exception("Failed to auto-verify log %s", log["id"])
                 continue
 
-        logger.info(f"Auto-verified {auto_verified_count} personal chore logs")
+        logger.info("Auto-verified personal chore logs", extra={"count": auto_verified_count})
         return auto_verified_count
 
 

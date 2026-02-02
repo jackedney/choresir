@@ -141,19 +141,22 @@
     {
       "id": "US-006",
       "title": "Document type: ignore rationale in config.py",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a maintainer, I want type: ignore directives to have explanatory comments to aid understanding.",
       "acceptanceCriteria": [
         "Add inline comment explaining why type: ignore[arg-type] is needed in src/core/config.py:169-171",
         "Comment explains Settings() may raise ValidationError for missing required fields",
         "All type hints pass ty check"
-      ]
+      ],
+      "updatedAt": "2026-02-02T18:04:43.444642+00:00",
+      "completedAt": "2026-02-02T18:04:43.444815+00:00",
+      "startedAt": "2026-02-02T18:04:43.444817+00:00"
     },
     {
       "id": "US-007",
       "title": "Standardize logging in personal_verification_service.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want consistent structured logging throughout the codebase for better log aggregation.",
       "acceptanceCriteria": [
@@ -163,7 +166,10 @@
         "Line 305: use appropriate structured logging fields",
         "Example: logger.info('Auto-verified personal chore log (48h timeout)', extra={'log_id': log['id']})",
         "All type hints pass ty check"
-      ]
+      ],
+      "startedAt": "2026-02-02T18:04:45.563533+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T18:04:45.563725+00:00"
     },
     {
       "id": "US-008",
