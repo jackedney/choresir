@@ -261,7 +261,7 @@
     {
       "id": "US-012",
       "title": "Add return type hints to test_webhook_rate_limiting.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want all test functions in test_webhook_rate_limiting.py to have -> None return type hints for code quality.",
       "acceptanceCriteria": [
@@ -270,13 +270,13 @@
         "Negative case: No test function without return type hint"
       ],
       "startedAt": "2026-02-02T12:59:38.986087+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T12:59:38.986321+00:00"
+      "completedAt": "2026-02-02T13:04:54.039684+00:00",
+      "updatedAt": "2026-02-02T13:04:54.039505+00:00"
     },
     {
       "id": "US-013",
       "title": "Mock rate_limiter in test_webhook.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-011"
       ],
@@ -286,7 +286,10 @@
         "Mock should return AsyncMock(return_value=None)",
         "Example: @patch('src.interface.webhook.rate_limiter.check_webhook_rate_limit', new_callable=AsyncMock, return_value=None)",
         "Negative case: Test does not call real rate limiter"
-      ]
+      ],
+      "startedAt": "2026-02-02T13:04:56.122222+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T13:04:56.122457+00:00"
     },
     {
       "id": "US-014",

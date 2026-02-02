@@ -107,10 +107,16 @@ class TestReceiveWebhook:
     @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
     @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
     @patch("src.interface.webhook.webhook_security.verify_webhook_security")
+    @patch("src.interface.webhook.rate_limiter.check_webhook_rate_limit", new_callable=AsyncMock, return_value=None)
     @patch("src.interface.webhook.process_webhook_message")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
     async def test_receive_webhook_valid_hmac_proceeds(
-        self, mock_parse: MagicMock, mock_process: MagicMock, mock_security: MagicMock, mock_hmac: MagicMock
+        self,
+        mock_parse: MagicMock,
+        mock_process: MagicMock,
+        mock_rate_limit: AsyncMock,
+        mock_security: MagicMock,
+        mock_hmac: MagicMock,
     ) -> None:
         """Test webhook with valid HMAC proceeds to normal processing."""
         # Mock HMAC validation success
