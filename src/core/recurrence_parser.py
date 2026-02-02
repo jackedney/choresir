@@ -7,17 +7,23 @@ from datetime import datetime, timedelta
 from croniter import croniter
 
 
-@functools.cache
+@functools.lru_cache(maxsize=256)
 def parse_recurrence_to_cron(recurrence: str) -> str:
     """Parse recurrence string to CRON expression or INTERVAL:N:cron format."""
+    # Normalize input by stripping whitespace
+    recurrence_normalized = recurrence.strip()
+
     # Check if already a valid CRON expression
-    if croniter.is_valid(recurrence):
-        return recurrence
+    if croniter.is_valid(recurrence_normalized):
+        return recurrence_normalized
 
     # Parse "every X days" format
-    match = re.match(r"^every\s+(\d+)\s+days?$", recurrence.lower())
+    match = re.match(r"^every\s+(\d+)\s+days?$", recurrence_normalized.lower())
     if match:
         days = int(match.group(1))
+        if days <= 0:
+            msg = f"Invalid interval: {days} days. Interval must be a positive integer"
+            raise ValueError(msg)
         # Encode interval in CRON string: INTERVAL:N:cron_expression
         # This allows us to add N days programmatically instead of using invalid CRON syntax
         return f"INTERVAL:{days}:0 0 * * *"
@@ -38,6 +44,9 @@ def parse_recurrence_for_personal_chore(recurrence: str) -> tuple[str | None, da
     match = re.match(r"^every\s+(\d+)\s+days?$", recurrence_lower)
     if match:
         days = int(match.group(1))
+        if days <= 0:
+            msg = f"Invalid interval: {days} days. Interval must be a positive integer"
+            raise ValueError(msg)
         return (f"INTERVAL:{days}:0 0 * * *", None)
 
     # Parse "every morning"
