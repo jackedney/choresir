@@ -24,7 +24,9 @@ class TestReceiveWebhook:
     @patch("src.interface.webhook.webhook_security.verify_webhook_security")
     @patch("src.interface.webhook.process_webhook_message")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    async def test_receive_webhook_valid(self, mock_parse, mock_process, mock_security, mock_hmac):
+    async def test_receive_webhook_valid(
+        self, mock_parse: MagicMock, mock_process: MagicMock, mock_security: MagicMock, mock_hmac: MagicMock
+    ) -> None:
         """Test webhook receives and validates valid requests."""
         # Mock HMAC validation success
         mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
@@ -62,7 +64,7 @@ class TestReceiveWebhook:
     @pytest.mark.asyncio
     @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
     @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
-    async def test_receive_webhook_missing_hmac_header(self, mock_hmac):
+    async def test_receive_webhook_missing_hmac_header(self, mock_hmac: MagicMock) -> None:
         """Test webhook rejects requests without HMAC header."""
         # Mock HMAC validation failure (missing header)
         mock_hmac.return_value = WebhookSecurityResult(
@@ -83,7 +85,7 @@ class TestReceiveWebhook:
     @pytest.mark.asyncio
     @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
     @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
-    async def test_receive_webhook_invalid_hmac_signature(self, mock_hmac):
+    async def test_receive_webhook_invalid_hmac_signature(self, mock_hmac: MagicMock) -> None:
         """Test webhook rejects requests with invalid HMAC signature."""
         # Mock HMAC validation failure (invalid signature)
         mock_hmac.return_value = WebhookSecurityResult(
@@ -107,7 +109,9 @@ class TestReceiveWebhook:
     @patch("src.interface.webhook.webhook_security.verify_webhook_security")
     @patch("src.interface.webhook.process_webhook_message")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    async def test_receive_webhook_valid_hmac_proceeds(self, mock_parse, mock_process, mock_security, mock_hmac):
+    async def test_receive_webhook_valid_hmac_proceeds(
+        self, mock_parse: MagicMock, mock_process: MagicMock, mock_security: MagicMock, mock_hmac: MagicMock
+    ) -> None:
         """Test webhook with valid HMAC proceeds to normal processing."""
         # Mock HMAC validation success
         mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
@@ -136,7 +140,7 @@ class TestReceiveWebhook:
     @pytest.mark.asyncio
     @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
     @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
-    async def test_receive_webhook_invalid_json(self, mock_hmac):
+    async def test_receive_webhook_invalid_json(self, mock_hmac: MagicMock) -> None:
         """Test webhook rejects invalid JSON."""
         mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
@@ -155,7 +159,7 @@ class TestReceiveWebhook:
     @patch("src.interface.webhook.settings.waha_webhook_hmac_key", "test_secret")
     @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    async def test_receive_webhook_ignored_event(self, mock_parse, mock_hmac):
+    async def test_receive_webhook_ignored_event(self, mock_parse: MagicMock, mock_hmac: MagicMock) -> None:
         """Test webhook ignores non-message events."""
         mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
         mock_parse.return_value = None
@@ -176,7 +180,9 @@ class TestReceiveWebhook:
     @patch("src.interface.webhook.webhook_security.validate_webhook_hmac")
     @patch("src.interface.webhook.webhook_security.verify_webhook_security")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    async def test_receive_webhook_security_failure(self, mock_parse, mock_security, mock_hmac):
+    async def test_receive_webhook_security_failure(
+        self, mock_parse: MagicMock, mock_security: MagicMock, mock_hmac: MagicMock
+    ) -> None:
         """Test webhook fails on security check."""
         mock_hmac.return_value = WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
@@ -209,7 +215,7 @@ class TestProcessWebhookMessage:
     @pytest.mark.asyncio
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
     @patch("src.interface.webhook.db_client")
-    async def test_process_webhook_message_no_text(self, mock_db, mock_parser):
+    async def test_process_webhook_message_no_text(self, mock_db: MagicMock, mock_parser: MagicMock) -> None:
         """Test processing skips messages without text."""
         # Parser returns message without text
         mock_parser.return_value = MagicMock(text=None, message_type="unknown", button_payload=None)
@@ -225,7 +231,7 @@ class TestProcessWebhookMessage:
     @pytest.mark.asyncio
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
     @patch("src.interface.webhook.db_client")
-    async def test_process_webhook_message_duplicate(self, mock_db, mock_parser):
+    async def test_process_webhook_message_duplicate(self, mock_db: MagicMock, mock_parser: MagicMock) -> None:
         """Test processing skips duplicate messages."""
         mock_message = MagicMock()
         mock_message.message_id = "123"
@@ -251,7 +257,9 @@ class TestProcessWebhookMessage:
     @patch("src.interface.webhook.db_client")
     @patch("src.interface.webhook.choresir_agent")
     @patch("src.interface.webhook.whatsapp_sender")
-    async def test_process_webhook_message_unknown_user(self, mock_sender, mock_agent, mock_db, mock_parser):
+    async def test_process_webhook_message_unknown_user(
+        self, mock_sender: MagicMock, mock_agent: MagicMock, mock_db: MagicMock, mock_parser: MagicMock
+    ) -> None:
         """Test processing message from unknown user."""
         mock_message = MagicMock()
         mock_message.message_id = "123"
@@ -289,7 +297,9 @@ class TestProcessWebhookMessage:
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
     @patch("src.interface.webhook.db_client")
     @patch("src.interface.webhook.whatsapp_sender")
-    async def test_process_webhook_message_handles_errors(self, mock_sender, mock_db, mock_parser):
+    async def test_process_webhook_message_handles_errors(
+        self, mock_sender: MagicMock, mock_db: MagicMock, mock_parser: MagicMock
+    ) -> None:
         """Test error handling in webhook processing."""
         mock_message = MagicMock()
         mock_message.message_id = "123"
@@ -323,7 +333,9 @@ class TestHandleButtonPayload:
     @patch("src.interface.webhook.whatsapp_sender")
     @patch("src.interface.webhook.db_client")
     @patch("src.services.verification_service")
-    async def test_approve_button_success(self, mock_verification, mock_db, mock_sender):
+    async def test_approve_button_success(
+        self, mock_verification: MagicMock, mock_db: MagicMock, mock_sender: MagicMock
+    ) -> None:
         """Test successful approval via button."""
         # Create mock message with button payload
         mock_message = MagicMock()
