@@ -443,9 +443,9 @@ async def _handle_webhook_error(
 
     if admin_notifier.should_notify_admins(error_category):
         try:
-            user_context = "Unknown user"
-            if parsed_message and parsed_message.from_phone:
-                user_context = parsed_message.from_phone
+            user_context = "Unknown message_id"
+            if parsed_message and parsed_message.message_id:
+                user_context = f"message_id: {parsed_message.message_id}"
 
             timestamp = datetime.now().isoformat()
             error_preview = str(e)[: Constants.ERROR_PREVIEW_MAX_LENGTH]
