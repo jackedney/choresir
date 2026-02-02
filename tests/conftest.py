@@ -1,5 +1,11 @@
 """Pytest configuration and shared fixtures."""
 
+import os
+
+
+# Set required environment variables before importing config
+os.environ["WAHA_WEBHOOK_HMAC_KEY"] = "test_hmac_key"
+
 import asyncio
 import contextlib
 import logging

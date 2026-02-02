@@ -411,7 +411,7 @@
     {
       "id": "US-021",
       "title": "Remove duplicate logger declaration in choresir_agent.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want duplicate logger declarations removed from choresir_agent.py so that code is clean.",
       "acceptanceCriteria": [
@@ -421,13 +421,13 @@
         "Negative case: No duplicate logger declarations"
       ],
       "startedAt": "2026-02-02T13:44:22.322236+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T13:44:22.322459+00:00"
+      "completedAt": "2026-02-02T13:47:35.520968+00:00",
+      "updatedAt": "2026-02-02T13:47:35.520809+00:00"
     },
     {
       "id": "US-022",
       "title": "Audit all files for duplicate logger declarations",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-021"
       ],
@@ -437,12 +437,15 @@
         "Remove any duplicates found",
         "Example: Each file has at most one logger declaration",
         "Negative case: No file has duplicate logger declarations"
-      ]
+      ],
+      "startedAt": "2026-02-02T13:47:37.606100+00:00",
+      "completedAt": "2026-02-02T13:56:26.640668+00:00",
+      "updatedAt": "2026-02-02T13:56:26.640488+00:00"
     },
     {
       "id": "US-023",
       "title": "Make waha_webhook_hmac_key required in Pydantic config",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want waha_webhook_hmac_key to be a required field in Pydantic config so that missing configuration fails fast.",
       "acceptanceCriteria": [
@@ -451,12 +454,15 @@
         "Remove default=None",
         "Example: waha_webhook_hmac_key: str = Field(description='WAHA Webhook HMAC key for payload validation')",
         "Negative case: Configuration initialization fails if field is not set"
-      ]
+      ],
+      "startedAt": "2026-02-02T13:56:28.723768+00:00",
+      "completedAt": "2026-02-02T14:33:34.530181+00:00",
+      "updatedAt": "2026-02-02T14:33:34.529992+00:00"
     },
     {
       "id": "US-024",
       "title": "Convert docstrings to single-line in recurrence_parser.py",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want verbose docstrings in recurrence_parser.py converted to single-line format per style guide.",
       "acceptanceCriteria": [
@@ -464,12 +470,15 @@
         "Convert parse_recurrence_for_personal_chore docstring (lines 44-63) to single line",
         "Example: \"\"\"Parse recurrence string to CRON expression or INTERVAL:N:cron format.\"\"\"",
         "Negative case: No multi-line docstrings in these functions"
-      ]
+      ],
+      "startedAt": "2026-02-02T14:33:36.622721+00:00",
+      "completedAt": "2026-02-02T14:40:22.544914+00:00",
+      "updatedAt": "2026-02-02T14:40:22.544746+00:00"
     },
     {
       "id": "US-025",
       "title": "Fix structured logging in robin_hood_service.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want robin_hood_service.py to use structured logging with extra parameter consistently.",
       "acceptanceCriteria": [
@@ -479,7 +488,10 @@
         "Update logger.error at lines 117-120 to use extra={'user_id': user_id, 'error': str(e)}",
         "Example: logger.info('Incremented takeover count', extra={'user_id': user_id, 'new_count': new_count})",
         "Negative case: No f-string interpolation for context fields in log messages"
-      ]
+      ],
+      "startedAt": "2026-02-02T14:40:24.619492+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T14:40:24.619685+00:00"
     },
     {
       "id": "US-026",

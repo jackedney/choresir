@@ -1,6 +1,9 @@
 """Tests for configuration validation."""
 
+import os
+
 import pytest
+from pydantic import ValidationError
 
 from src.core.config import Settings
 
@@ -52,11 +55,17 @@ def test_require_waha_webhook_hmac_key() -> None:
 
 
 def test_require_waha_webhook_hmac_key_missing() -> None:
-    """Test require_credential raises error when waha_webhook_hmac_key is missing."""
-    settings = Settings(waha_webhook_hmac_key=None)
+    """Test Settings initialization fails when waha_webhook_hmac_key is missing."""
 
-    with pytest.raises(ValueError, match="WAHA Webhook HMAC credential not configured"):
-        settings.require_credential("waha_webhook_hmac_key", "WAHA Webhook HMAC")
+    # Temporarily unset the environment variable
+    original_value = os.environ.pop("WAHA_WEBHOOK_HMAC_KEY", None)
+    try:
+        with pytest.raises(ValidationError, match=r"waha_webhook_hmac_key"):
+            Settings()
+    finally:
+        # Restore the original value
+        if original_value is not None:
+            os.environ["WAHA_WEBHOOK_HMAC_KEY"] = original_value
 
 
 def test_require_waha_webhook_hmac_key_empty() -> None:

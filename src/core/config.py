@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # WAHA Configuration
     waha_base_url: str = Field(default="http://waha:3000", description="WAHA Base URL")
     waha_api_key: str | None = Field(default=None, description="WAHA API Key (optional)")
-    waha_webhook_hmac_key: str | None = Field(default=None, description="WAHA Webhook HMAC key for payload validation")
+    waha_webhook_hmac_key: str = Field(description="WAHA Webhook HMAC key for payload validation")
 
     # Pydantic Logfire Configuration (optional)
     logfire_token: str | None = Field(default=None, description="Pydantic Logfire token for observability")

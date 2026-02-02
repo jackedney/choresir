@@ -63,7 +63,7 @@ async def get_weekly_takeover_count(user_id: str) -> int:
         return 0
 
     except (RuntimeError, ConnectionError, KeyError):
-        logger.exception("Failed to get weekly takeover count for user %s", user_id)
+        logger.exception("Failed to get weekly takeover count", extra={"user_id": user_id})
         # Fail safe: return 0 to allow operation if DB query fails
         return 0
 
@@ -100,7 +100,7 @@ async def increment_weekly_takeover_count(user_id: str) -> int:
                 record_id=record["id"],
                 data={"takeover_count": new_count},
             )
-            logger.info(f"Incremented takeover count for user {user_id} to {new_count}")
+            logger.info("Incremented takeover count", extra={"user_id": user_id, "new_count": new_count})
             return new_count
         # Create new record for this week
         await db_client.create_record(
@@ -111,13 +111,12 @@ async def increment_weekly_takeover_count(user_id: str) -> int:
                 "takeover_count": 1,
             },
         )
-        logger.info(f"Created new takeover record for user {user_id}")
+        logger.info("Created new takeover record", extra={"user_id": user_id})
         return 1
 
     except (RuntimeError, KeyError, ConnectionError) as e:
-        error_msg = f"Failed to increment weekly takeover count for user {user_id}: {e}"
-        logger.error(error_msg)
-        raise RuntimeError(error_msg) from e
+        logger.error("Failed to increment weekly takeover count", extra={"user_id": user_id, "error": str(e)})
+        raise RuntimeError("Failed to increment weekly takeover count") from e
 
 
 async def can_perform_takeover(user_id: str) -> tuple[bool, str | None]:
