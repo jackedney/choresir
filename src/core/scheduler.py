@@ -205,15 +205,17 @@ def _get_dynamic_title(rank: int, total_users: int, completions: int) -> str:
     Returns:
         Dynamic title string
     """
-    if rank == Constants.LEADERBOARD_RANK_FIRST and completions >= Constants.LEADERBOARD_COMPLETIONS_CARRYING_TEAM:
-        return '"Carrying the team!"'
-    if rank == Constants.LEADERBOARD_RANK_FIRST:
-        return '"MVP!"'
-    if rank == total_users and completions == 0:
-        return '"The Observer"'
-    if rank == total_users and completions <= Constants.LEADERBOARD_COMPLETIONS_NEEDS_IMPROVEMENT:
-        return '"Room for improvement"'
-    return ""
+    match (rank, completions):
+        case (Constants.LEADERBOARD_RANK_FIRST, c) if c >= Constants.LEADERBOARD_COMPLETIONS_CARRYING_TEAM:
+            return '"Carrying the team!"'
+        case (Constants.LEADERBOARD_RANK_FIRST, _):
+            return '"MVP!"'
+        case (r, c) if r == total_users and c == 0:
+            return '"The Observer"'
+        case (r, c) if r == total_users and c <= Constants.LEADERBOARD_COMPLETIONS_NEEDS_IMPROVEMENT:
+            return '"Room for improvement"'
+        case _:
+            return ""
 
 
 def _format_weekly_leaderboard(leaderboard: list[LeaderboardEntry], overdue: list[OverdueChore]) -> str:

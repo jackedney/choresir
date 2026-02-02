@@ -184,14 +184,15 @@ def _format_user_stats(stats: UserStatistics, period_days: int) -> str:
     overdue = stats.overdue_chores
 
     # Build dynamic title based on performance
-    if completions >= TITLE_THRESHOLD_MACHINE:
-        title = "🏆 The Machine"
-    elif completions >= TITLE_THRESHOLD_CONTRIBUTOR:
-        title = "💪 Solid Contributor"
-    elif completions >= TITLE_THRESHOLD_STARTER:
-        title = "👍 Getting Started"
-    else:
-        title = "😴 The Observer"
+    match completions:
+        case c if c >= TITLE_THRESHOLD_MACHINE:
+            title = "🏆 The Machine"
+        case c if c >= TITLE_THRESHOLD_CONTRIBUTOR:
+            title = "💪 Solid Contributor"
+        case c if c >= TITLE_THRESHOLD_STARTER:
+            title = "👍 Getting Started"
+        case _:
+            title = "😴 The Observer"
 
     if period_days == PERIOD_WEEKLY_DAYS:
         period_label = "This Week"

@@ -162,7 +162,7 @@
     {
       "id": "US-007",
       "title": "Replace magic numbers and strings with constants",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -175,13 +175,13 @@
         "All tests pass"
       ],
       "startedAt": "2026-02-01T23:00:03.339038+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T09:39:40.230241+00:00"
+      "completedAt": "2026-02-02T09:52:56.786302+00:00",
+      "updatedAt": "2026-02-02T09:52:56.786069+00:00"
     },
     {
       "id": "US-008",
       "title": "Use match statements for complex conditional chains",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-003"
       ],
@@ -192,7 +192,10 @@
         "Example: `match (rank, completions): case (1, c) if c >= THRESHOLD: return 'Carrying the team!'`",
         "Negative case: Keep simple if-else for 2-3 conditions where match adds verbosity",
         "All tests pass"
-      ]
+      ],
+      "startedAt": "2026-02-02T09:52:58.889790+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T09:52:58.889990+00:00"
     },
     {
       "id": "US-009",
