@@ -5,7 +5,7 @@ import pytest
 from src.interface.whatsapp_parser import parse_waha_webhook
 
 
-def test_parse_simple_text_message():
+def test_parse_simple_text_message() -> None:
     """Test parsing a standard text message."""
     data = {
         "event": "message",
@@ -26,7 +26,7 @@ def test_parse_simple_text_message():
     assert result.button_payload is None
 
 
-def test_parse_direct_payload():
+def test_parse_direct_payload() -> None:
     """Test parsing a payload that is not wrapped in event."""
     data = {
         "id": "true_1234567890@c.us_ABC",
@@ -41,14 +41,14 @@ def test_parse_direct_payload():
     assert result.from_phone == "+1234567890"
 
 
-def test_parse_ignore_status_broadcast():
+def test_parse_ignore_status_broadcast() -> None:
     """Test ignoring status@broadcast messages."""
     data = {"payload": {"id": "...", "from": "status@broadcast", "body": "status", "timestamp": 123}}
     result = parse_waha_webhook(data)
     assert result is None
 
 
-def test_parse_button_response_selected_id_root():
+def test_parse_button_response_selected_id_root() -> None:
     """Test parsing button response where selectedButtonId is in payload root (WAHA Plus/Some engines)."""
     data = {
         "payload": {
@@ -66,7 +66,7 @@ def test_parse_button_response_selected_id_root():
     assert result.button_payload == "VERIFY:APPROVE:1"
 
 
-def test_parse_button_response_selected_id_data():
+def test_parse_button_response_selected_id_data() -> None:
     """Test parsing button response where selectedButtonId is in _data (Standard WebJS)."""
     data = {
         "payload": {
@@ -84,7 +84,7 @@ def test_parse_button_response_selected_id_data():
     assert result.button_payload == "VERIFY:APPROVE:1"
 
 
-def test_parse_list_response():
+def test_parse_list_response() -> None:
     """Test parsing list response."""
     data = {
         "payload": {
@@ -102,14 +102,14 @@ def test_parse_list_response():
     assert result.button_payload == "OPTION_1"
 
 
-def test_parse_invalid_data():
+def test_parse_invalid_data() -> None:
     """Test parsing invalid data returns None."""
     assert parse_waha_webhook({}) is None
     assert parse_waha_webhook({"payload": {}}) is None
     assert parse_waha_webhook({"payload": {"id": "1"}}) is None  # Missing 'from'
 
 
-def test_parse_missing_timestamp():
+def test_parse_missing_timestamp() -> None:
     """Test parsing webhook with no timestamp field raises ValueError."""
     data = {
         "event": "message",
@@ -124,7 +124,7 @@ def test_parse_missing_timestamp():
         parse_waha_webhook(data)
 
 
-def test_parse_empty_timestamp():
+def test_parse_empty_timestamp() -> None:
     """Test parsing webhook with empty timestamp string raises ValueError."""
     data = {
         "event": "message",
@@ -140,7 +140,7 @@ def test_parse_empty_timestamp():
         parse_waha_webhook(data)
 
 
-def test_parse_valid_timestamp():
+def test_parse_valid_timestamp() -> None:
     """Test parsing webhook with valid timestamp."""
     data = {
         "event": "message",
