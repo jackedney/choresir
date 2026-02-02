@@ -183,7 +183,9 @@ async def cast_vote(
             },
         )
 
-        logger.info(f"User {voter_user_id} voted {choice} on chore {chore_id}")
+        logger.info(
+            "User voted on chore", extra={"user_id": voter_user_id, "choice": str(choice), "chore_id": chore_id}
+        )
 
         # Check if all votes are in
         # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
@@ -200,7 +202,7 @@ async def cast_vote(
         ]
 
         if not pending_votes:
-            logger.info(f"All votes received for chore {chore_id}, ready to tally")
+            logger.info("All votes received, ready to tally", extra={"chore_id": chore_id})
             # Note: Automatic tally triggering not yet implemented
 
         return updated_vote

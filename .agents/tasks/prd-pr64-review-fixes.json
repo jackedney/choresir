@@ -565,7 +565,7 @@
     {
       "id": "US-030",
       "title": "Use structured logging in pantry_service.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want pantry_service.py to use structured logging with extra parameter for user_id.",
       "acceptanceCriteria": [
@@ -574,13 +574,13 @@
         "Negative case: user_id not in message string"
       ],
       "startedAt": "2026-02-02T15:09:57.922337+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T15:09:57.922600+00:00"
+      "completedAt": "2026-02-02T15:14:55.273646+00:00",
+      "updatedAt": "2026-02-02T15:14:55.273430+00:00"
     },
     {
       "id": "US-031",
       "title": "Use structured logging in chore_service.py",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want chore_service.py to use structured logging and avoid logging user-provided chore titles.",
       "acceptanceCriteria": [
@@ -588,12 +588,15 @@
         "Use extra parameter for chore_id and assigned_to",
         "Example: logger.info('Created chore', extra={'chore_id': record['id'], 'assigned_to': assigned_to or 'unassigned'})",
         "Negative case: Chore title not in log message"
-      ]
+      ],
+      "startedAt": "2026-02-02T15:14:57.380035+00:00",
+      "completedAt": "2026-02-02T15:22:02.907079+00:00",
+      "updatedAt": "2026-02-02T15:22:02.906951+00:00"
     },
     {
       "id": "US-032",
       "title": "Use structured logging in conflict_service.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want conflict_service.py to use structured logging consistently.",
       "acceptanceCriteria": [
@@ -601,7 +604,10 @@
         "Update logger.info at line 203 to use extra parameter",
         "Example: logger.info('User voted on chore', extra={'user_id': voter_user_id, 'choice': str(choice), 'chore_id': chore_id})",
         "Negative case: No f-string interpolation for context fields"
-      ]
+      ],
+      "startedAt": "2026-02-02T15:22:04.992153+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T15:22:04.992388+00:00"
     },
     {
       "id": "US-033",
