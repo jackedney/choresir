@@ -103,7 +103,9 @@ async def send_verification_request(
                     "Verification request sent", extra={"operation": "verification_request_sent", "user_id": user_id}
                 )
             else:
-                logger.error(f"Failed to send verification request to user={user_id} error={send_result.error}")
+                logger.error(
+                    "Failed to send verification request", extra={"user_id": user_id, "error": send_result.error}
+                )
 
         # 5. Return results
         logger.info(
@@ -194,7 +196,7 @@ async def send_personal_verification_request(
                 extra={"operation": "personal_verification_request_sent"},
             )
         else:
-            logger.error(f"Failed to send personal verification request: {result.error}")
+            logger.error("Failed to send personal verification request", extra={"error": result.error})
 
     except (RuntimeError, ConnectionError):
         logger.exception("Error sending personal verification request for chore '%s'", chore_title)
@@ -248,7 +250,7 @@ async def send_personal_verification_result(
                 extra={"operation": "personal_verification_result_sent"},
             )
         else:
-            logger.error(f"Failed to send personal verification result: {result.error}")
+            logger.error("Failed to send personal verification result", extra={"error": result.error})
 
     except (RuntimeError, ConnectionError):
         logger.exception("Error sending personal verification result for chore '%s'", chore_title)
