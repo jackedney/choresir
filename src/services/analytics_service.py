@@ -590,7 +590,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                     error_msg = f"Database error fetching pending claims: {e}"
                     logger.error(error_msg)
                     result_data["claims_pending_error"] = error_msg
-                except Exception as e:
+                except (ValueError, KeyError, TypeError, ValidationError) as e:
                     error_msg = f"Unexpected error fetching pending claims: {e}"
                     logger.error(error_msg)
                     result_data["claims_pending_error"] = error_msg
@@ -603,7 +603,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
             error_msg = f"Database error fetching pending verification chores: {e}"
             logger.error(error_msg)
             result_data["claims_pending_error"] = error_msg
-        except Exception as e:
+        except (ValueError, KeyError, TypeError, ValidationError) as e:
             error_msg = f"Unexpected error fetching pending verification chores: {e}"
             logger.error(error_msg)
             result_data["claims_pending_error"] = error_msg
@@ -613,7 +613,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
             overdue_chores = await get_overdue_chores(user_id=user_id)
             result_data["overdue_chores"] = len(overdue_chores)
             logger.info(f"User {user_id} has {result_data['overdue_chores']} overdue chores")
-        except (ValueError, KeyError, TypeError, AttributeError, ConnectionError) as e:
+        except (ValueError, KeyError, TypeError, ValidationError) as e:
             error_msg = f"Unexpected error fetching overdue chores: {e}"
             logger.error(error_msg)
             result_data["overdue_chores_error"] = error_msg
