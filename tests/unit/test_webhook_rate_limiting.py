@@ -16,7 +16,7 @@ async def test_webhook_rate_limit_enforced():
     mock_request = MagicMock(spec=Request)
     mock_request.body = AsyncMock(return_value=b'{"payload": {"body": "test"}}')
     mock_request.json = AsyncMock(return_value={"payload": {"body": "test"}})
-    mock_request.headers = {"X-Webhook-Hmac": "test_signature"}
+    mock_request.headers = {"X-Hub-Signature-256": "test_signature"}
 
     mock_bg_tasks = MagicMock(spec=BackgroundTasks)
 
@@ -55,7 +55,7 @@ async def test_webhook_rate_limit_passes_when_under_limit():
     """Test that webhook processes normally when under rate limit."""
     mock_request = MagicMock(spec=Request)
     mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
-    mock_request.headers = {"X-Webhook-Hmac": "test_signature"}
+    mock_request.headers = {"X-Hub-Signature-256": "test_signature"}
     mock_request.json = AsyncMock(
         return_value={
             "event": "message",

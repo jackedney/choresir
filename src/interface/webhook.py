@@ -53,7 +53,7 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
     raw_body = await request.body()
 
     # Extract HMAC signature from header
-    hmac_signature = request.headers.get("X-Webhook-Hmac")
+    hmac_signature = request.headers.get("X-Hub-Signature-256")
 
     # Validate HMAC signature before any other processing
     # This is safe because startup validation ensures waha_webhook_hmac_key is set

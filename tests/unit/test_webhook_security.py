@@ -65,11 +65,11 @@ class TestValidateWebhookTimestamp:
 class TestValidateWebhookHmac:
     """Test webhook HMAC validation."""
 
-    def test_valid_hmac_signature(self):
+    def test_valid_hmac_signature(self) -> None:
         """Test validation passes for valid HMAC signature."""
         secret = "test_secret_key_123"
         body = b'{"message": "test"}'
-        signature = hmac.new(secret.encode(), body, hashlib.sha512).hexdigest()
+        signature = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
         result = validate_webhook_hmac(raw_body=body, signature=signature, secret=secret)
 
@@ -77,7 +77,7 @@ class TestValidateWebhookHmac:
         assert result.error_message is None
         assert result.http_status_code is None
 
-    def test_missing_hmac_header(self):
+    def test_missing_hmac_header(self) -> None:
         """Test validation fails with 401 when header is missing."""
         secret = "test_secret_key_123"
         body = b'{"message": "test"}'
@@ -88,7 +88,7 @@ class TestValidateWebhookHmac:
         assert result.error_message == "Missing webhook signature"
         assert result.http_status_code == 401
 
-    def test_invalid_hmac_signature(self):
+    def test_invalid_hmac_signature(self) -> None:
         """Test validation fails with 401 for invalid signature."""
         secret = "test_secret_key_123"
         body = b'{"message": "test"}'

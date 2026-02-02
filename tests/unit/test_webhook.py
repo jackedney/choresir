@@ -40,7 +40,7 @@ class TestReceiveWebhook:
         # Create mock request with JSON data
         mock_request = MagicMock()
         mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
-        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
+        mock_request.headers = {"X-Hub-Signature-256": "valid_signature"}
         mock_request.json = AsyncMock(return_value={"event": "message", "payload": {}})
 
         mock_background_tasks = MagicMock()
@@ -92,7 +92,7 @@ class TestReceiveWebhook:
 
         mock_request = MagicMock()
         mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
-        mock_request.headers = {"X-Webhook-Hmac": "invalid_signature"}
+        mock_request.headers = {"X-Hub-Signature-256": "invalid_signature"}
         mock_background_tasks = MagicMock()
 
         with pytest.raises(HTTPException) as exc_info:
@@ -123,7 +123,7 @@ class TestReceiveWebhook:
         mock_request = MagicMock()
         body = b'{"event": "message", "payload": {"from": "1234567890"}}'
         mock_request.body = AsyncMock(return_value=body)
-        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
+        mock_request.headers = {"X-Hub-Signature-256": "valid_signature"}
         mock_request.json = AsyncMock(return_value={"event": "message", "payload": {}})
 
         mock_background_tasks = MagicMock()
@@ -142,7 +142,7 @@ class TestReceiveWebhook:
 
         mock_request = MagicMock()
         mock_request.body = AsyncMock(return_value=b'{"invalid": json}')
-        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
+        mock_request.headers = {"X-Hub-Signature-256": "valid_signature"}
         mock_request.json = AsyncMock(side_effect=json.JSONDecodeError("Invalid JSON", "", 0))
         mock_background_tasks = MagicMock()
 
@@ -162,7 +162,7 @@ class TestReceiveWebhook:
 
         mock_request = MagicMock()
         mock_request.body = AsyncMock(return_value=b'{"event": "status"}')
-        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
+        mock_request.headers = {"X-Hub-Signature-256": "valid_signature"}
         mock_request.json = AsyncMock(return_value={"event": "status"})
         mock_background_tasks = MagicMock()
 
@@ -192,7 +192,7 @@ class TestReceiveWebhook:
 
         mock_request = MagicMock()
         mock_request.body = AsyncMock(return_value=b'{"event": "message"}')
-        mock_request.headers = {"X-Webhook-Hmac": "valid_signature"}
+        mock_request.headers = {"X-Hub-Signature-256": "valid_signature"}
         mock_request.json = AsyncMock(return_value={})
         mock_background_tasks = MagicMock()
 

@@ -106,19 +106,19 @@ async def validate_webhook_nonce(message_id: str) -> WebhookSecurityResult:
 def validate_webhook_hmac(*, raw_body: bytes, signature: str | None, secret: str) -> WebhookSecurityResult:
     """Validate webhook HMAC signature.
 
-    Computes SHA512 HMAC of raw request body using secret key and compares
+    Computes SHA256 HMAC of raw request body using secret key and compares
     with the provided signature header using constant-time comparison.
 
     Args:
         raw_body: Raw bytes of the request body
-        signature: X-Webhook-Hmac header value (hex-encoded HMAC)
+        signature: X-Hub-Signature-256 header value (hex-encoded HMAC)
         secret: Secret key used to compute HMAC
 
     Returns:
         WebhookSecurityResult indicating if signature is valid
     """
     if signature is None:
-        logger.warning("Missing X-Webhook-Hmac header")
+        logger.warning("Missing X-Hub-Signature-256 header")
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Missing webhook signature",
@@ -128,7 +128,7 @@ def validate_webhook_hmac(*, raw_body: bytes, signature: str | None, secret: str
     expected_signature = hmac.new(
         secret.encode(),
         raw_body,
-        hashlib.sha512,
+        hashlib.sha256,
     ).hexdigest()
 
     if not hmac.compare_digest(expected_signature, signature):
