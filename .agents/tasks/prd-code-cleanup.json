@@ -239,7 +239,7 @@
     {
       "id": "US-011",
       "title": "Remove unused dependencies from pyproject.toml",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-010"
       ],
@@ -253,13 +253,13 @@
         "All tests pass with the reduced dependency set"
       ],
       "startedAt": "2026-02-02T11:05:54.456158+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T11:05:54.456330+00:00"
+      "completedAt": "2026-02-02T11:19:46.483375+00:00",
+      "updatedAt": "2026-02-02T11:19:46.483108+00:00"
     },
     {
       "id": "US-012",
       "title": "Final cleanup pass with ruff and remove commented code",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-011"
       ],
@@ -271,7 +271,10 @@
         "Example: Remove `# old_function()` or `# TODO: delete this` dead code",
         "Negative case: Keep legitimate TODO comments that reference future work with issue numbers",
         "All quality gates pass: ruff check, ruff format, pytest"
-      ]
+      ],
+      "startedAt": "2026-02-02T11:19:48.561942+00:00",
+      "completedAt": "2026-02-02T11:25:05.346748+00:00",
+      "updatedAt": "2026-02-02T11:25:05.346519+00:00"
     }
   ]
 }
