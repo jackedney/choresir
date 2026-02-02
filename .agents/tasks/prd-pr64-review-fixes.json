@@ -129,7 +129,7 @@
     {
       "id": "US-005",
       "title": "Add PermissionError to exception tuples in chore_tools.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want PermissionError caught in chore_tools.py exception handlers so that permission errors are handled gracefully.",
       "acceptanceCriteria": [
@@ -141,13 +141,13 @@
         "Negative case: PermissionError does not propagate unhandled"
       ],
       "startedAt": "2026-02-02T12:31:55.546376+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T12:31:55.546558+00:00"
+      "completedAt": "2026-02-02T12:35:30.533235+00:00",
+      "updatedAt": "2026-02-02T12:35:30.533086+00:00"
     },
     {
       "id": "US-006",
       "title": "Fix structured logging in chore_tools.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-005"
       ],
@@ -158,7 +158,10 @@
         "Change to: logger.error('Failed to increment takeover count', extra={'error': str(e)})",
         "Example: Error logged with error field in extra parameter",
         "Negative case: No f-string interpolation in log messages for error context"
-      ]
+      ],
+      "startedAt": "2026-02-02T12:35:32.636389+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T12:35:32.636563+00:00"
     },
     {
       "id": "US-007",

@@ -133,7 +133,7 @@ async def _handle_robin_hood_swap(ctx: RunContext[Deps], household_match: dict, 
     try:
         await robin_hood_service.increment_weekly_takeover_count(ctx.deps.user_id)
     except RuntimeError as e:
-        logger.error(f"Failed to increment takeover count: {e}")
+        logger.error("Failed to increment takeover count", extra={"error": str(e)})
         return "Error: Unable to process Robin Hood swap. Please try again."
 
     return None
