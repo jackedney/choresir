@@ -259,7 +259,7 @@
     {
       "id": "US-013",
       "title": "Refactor test_webhook.py to reduce positional params",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want test signatures to use \u22642 parameters per keyword-only argument guidelines.",
       "acceptanceCriteria": [
@@ -270,7 +270,7 @@
         "All type hints pass ty check"
       ],
       "startedAt": "2026-02-02T18:20:54.341551+00:00",
-      "completedAt": null,
+      "completedAt": "2026-02-02T17:45:03.610935+00:00",
       "updatedAt": "2026-02-02T18:20:54.341728+00:00"
     },
     {
