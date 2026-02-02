@@ -30,25 +30,7 @@ ERROR_MSG_BUTTON_PROCESSING_FAILED = (
 
 @router.post("")
 async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -> dict[str, str]:
-    """Receive and validate WAHA webhook POST requests.
-
-    This endpoint:
-    1. Validates HMAC signature before any processing
-    2. Parses JSON payload
-    3. Performs security checks (timestamp, nonce, rate limit)
-    4. Returns 200 OK immediately
-    5. Dispatches message processing to background tasks
-
-    Args:
-        request: FastAPI request object containing JSON data
-        background_tasks: FastAPI BackgroundTasks for async processing
-
-    Returns:
-        Success status dictionary
-
-    Raises:
-        HTTPException: If payload is invalid or security checks fail
-    """
+    """Receive and validate WAHA webhook POST requests."""
     # Read raw body for HMAC validation before JSON parsing
     raw_body = await request.body()
 

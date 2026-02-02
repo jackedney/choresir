@@ -645,7 +645,7 @@
     {
       "id": "US-035",
       "title": "Add logging for retry attempts in whatsapp_sender.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-020"
       ],
@@ -657,20 +657,23 @@
         "Negative case: No sensitive data in retry logs"
       ],
       "startedAt": "2026-02-02T15:39:44.111653+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T15:39:44.111971+00:00"
+      "completedAt": "2026-02-02T15:50:11.937537+00:00",
+      "updatedAt": "2026-02-02T15:50:11.937158+00:00"
     },
     {
       "id": "US-036",
       "title": "Simplify webhook.py docstring",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want the receive_webhook docstring in webhook.py simplified to single line per style guide.",
       "acceptanceCriteria": [
         "Convert verbose docstring at lines 32-49 to single line",
         "Example: \"\"\"Receive and validate WAHA webhook POST requests.\"\"\"",
         "Negative case: No multi-line docstring for receive_webhook"
-      ]
+      ],
+      "startedAt": "2026-02-02T15:50:14.038080+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T15:50:14.038298+00:00"
     },
     {
       "id": "US-037",
