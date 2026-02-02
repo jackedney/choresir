@@ -22,7 +22,7 @@ def mock_asyncio_sleep():
 class TestRateLimiter:
     """Test rate limiting functionality."""
 
-    def test_can_send_when_under_limit(self):
+    def test_can_send_when_under_limit(self) -> None:
         """Test that sending is allowed when under rate limit."""
         limiter = RateLimiter()
         phone = "+1234567890"
@@ -37,7 +37,7 @@ class TestRateLimiter:
         # Should still allow
         assert limiter.can_send(phone) is True
 
-    def test_cannot_send_when_at_limit(self):
+    def test_cannot_send_when_at_limit(self) -> None:
         """Test that sending is blocked when at rate limit."""
         limiter = RateLimiter()
         phone = "+1234567890"
@@ -50,7 +50,7 @@ class TestRateLimiter:
         # Should block
         assert limiter.can_send(phone) is False
 
-    def test_rate_limit_per_phone(self):
+    def test_rate_limit_per_phone(self) -> None:
         """Test that rate limits are tracked per phone number."""
         limiter = RateLimiter()
         phone1 = "+1234567890"
@@ -87,7 +87,7 @@ class TestSendTextMessage:
     """Test sending text messages via WAHA."""
 
     @pytest.mark.asyncio
-    async def test_send_text_message_success(self):
+    async def test_send_text_message_success(self) -> None:
         """Test successful message sending."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 200
@@ -118,7 +118,7 @@ class TestSendTextMessage:
             assert payload["session"] == "default"
 
     @pytest.mark.asyncio
-    async def test_send_text_message_client_error(self):
+    async def test_send_text_message_client_error(self) -> None:
         """Test handling of 4xx client errors (no retry)."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 400
@@ -140,7 +140,7 @@ class TestSendTextMessage:
             assert mock_post.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_send_text_message_server_error_with_retry(self):
+    async def test_send_text_message_server_error_with_retry(self) -> None:
         """Test retry logic on 5xx server errors."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 500
@@ -169,7 +169,7 @@ class TestSendTextMessage:
 
     @pytest.mark.asyncio
     @patch("src.interface.whatsapp_sender.rate_limiter")
-    async def test_send_text_message_rate_limited(self, mock_rate_limiter):
+    async def test_send_text_message_rate_limited(self, mock_rate_limiter) -> None:
         """Test that rate limiting blocks message sending."""
         # Mock rate limiter to deny request
         mock_rate_limiter.can_send.return_value = False
@@ -183,7 +183,7 @@ class TestSendTextMessage:
 
     @pytest.mark.asyncio
     @patch("src.interface.whatsapp_sender.rate_limiter")
-    async def test_rate_limiter_records_request(self, mock_rate_limiter):
+    async def test_rate_limiter_records_request(self, mock_rate_limiter) -> None:
         """Test that rate limiter records successful requests."""
         mock_rate_limiter.can_send.return_value = True
 
@@ -203,7 +203,7 @@ class TestSendTextMessage:
             mock_rate_limiter.record_request.assert_called_once_with(phone)
 
     @pytest.mark.asyncio
-    async def test_send_text_message_unexpected_error(self):
+    async def test_send_text_message_unexpected_error(self) -> None:
         """Test handling of unexpected errors."""
         with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = httpx.HTTPError("Unexpected error")

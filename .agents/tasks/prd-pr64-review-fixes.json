@@ -201,13 +201,13 @@
         "Negative case: No test function without return type hint"
       ],
       "startedAt": "2026-02-02T12:43:12.911333+00:00",
-      "completedAt": "2026-02-02T12:43:12.911333+00:00",
-      "updatedAt": "2026-02-02T12:43:12.911534+00:00"
+      "completedAt": "2026-02-02T12:46:22.530809+00:00",
+      "updatedAt": "2026-02-02T12:46:22.530663+00:00"
     },
     {
       "id": "US-009",
       "title": "Add return type hints to test_whatsapp_sender.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want all test methods in test_whatsapp_sender.py to have -> None return type hints for code quality.",
       "acceptanceCriteria": [
@@ -215,7 +215,10 @@
         "Add -> None to TestSendTextMessage async methods: test_send_text_message_success, test_send_text_message_client_error, test_send_text_message_server_error_with_retry, test_send_text_message_rate_limited, test_rate_limiter_records_request, test_send_text_message_unexpected_error",
         "Example: async def test_send_text_message_success(self) -> None:",
         "Negative case: No test method without return type hint"
-      ]
+      ],
+      "startedAt": "2026-02-02T12:46:24.643581+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T12:46:24.643779+00:00"
     },
     {
       "id": "US-010",
