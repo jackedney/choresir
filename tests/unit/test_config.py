@@ -16,10 +16,6 @@ def test_require_credential_with_valid_value() -> None:
 
     assert result == "TEST123"
 
-    result = settings.require_credential("house_code", "House code")
-
-    assert result == "TEST123"
-
 
 def test_require_credential_with_none_raises_error() -> None:
     """Test require_credential raises ValueError when credential is None."""
