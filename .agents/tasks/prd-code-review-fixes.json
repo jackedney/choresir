@@ -243,7 +243,7 @@
     {
       "id": "US-012",
       "title": "Remove duplicate assertion in test_config.py",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want to remove duplicate test code to improve clarity and maintainability.",
       "acceptanceCriteria": [
@@ -253,13 +253,13 @@
         "All type hints pass ty check"
       ],
       "startedAt": "2026-02-02T18:18:50.912746+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T18:18:50.912950+00:00"
+      "completedAt": "2026-02-02T18:20:52.224038+00:00",
+      "updatedAt": "2026-02-02T18:20:52.223857+00:00"
     },
     {
       "id": "US-013",
       "title": "Refactor test_webhook.py to reduce positional params",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want test signatures to use \u22642 parameters per keyword-only argument guidelines.",
       "acceptanceCriteria": [
@@ -268,7 +268,10 @@
         "Example: def test_something(*, db_client: MagicMock, message: dict) -> None:",
         "All tests pass with pytest",
         "All type hints pass ty check"
-      ]
+      ],
+      "startedAt": "2026-02-02T18:20:54.341551+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T18:20:54.341728+00:00"
     },
     {
       "id": "US-014",
