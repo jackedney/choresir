@@ -9,21 +9,7 @@ from croniter import croniter
 
 @functools.cache
 def parse_recurrence_to_cron(recurrence: str) -> str:
-    """Parse recurrence string to CRON expression.
-
-    Supports:
-    - Direct CRON expressions (e.g., "0 20 * * *")
-    - Interval format (e.g., "every 3 days")
-
-    Args:
-        recurrence: Recurrence string
-
-    Returns:
-        CRON expression
-
-    Raises:
-        ValueError: If recurrence format is invalid
-    """
+    """Parse recurrence string to CRON expression or INTERVAL:N:cron format."""
     # Check if already a valid CRON expression
     if croniter.is_valid(recurrence):
         return recurrence
@@ -41,26 +27,7 @@ def parse_recurrence_to_cron(recurrence: str) -> str:
 
 
 def parse_recurrence_for_personal_chore(recurrence: str) -> tuple[str | None, datetime | None]:
-    """Parse recurrence string for personal chores.
-
-    Supports:
-    - Direct CRON expressions (e.g., "0 20 * * *")
-    - "every X days" format (e.g., "every 3 days")
-    - "every morning" → 0 8 * * * (daily at 8 AM)
-    - "every Friday" → 0 8 * * 5 (weekly on Friday at 8 AM)
-    - "by Friday" → one-time task with due date (no recurrence)
-
-    Args:
-        recurrence: Recurrence string from user input
-
-    Returns:
-        Tuple of (cron_expression, due_date)
-        - If recurring: (cron_string, None)
-        - If one-time: (None, due_date)
-
-    Raises:
-        ValueError: If recurrence format is invalid
-    """
+    """Parse recurrence string for personal chores supporting CRON, interval, or natural language formats."""
     recurrence_lower = recurrence.lower().strip()
 
     # Check if already a valid CRON expression
