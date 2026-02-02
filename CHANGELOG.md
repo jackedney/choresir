@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Replaced Twilio integration with self-hosted WAHA (WhatsApp HTTP API).
-- Added `waha` service to `docker-compose.yml`.
+- Added `waha` service to `docker-compose.yml` (port 3000).
 - Updated webhook handling to parse generic WAHA JSON payloads.
 - Added `waha_base_url` configuration.
 
