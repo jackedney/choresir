@@ -167,7 +167,7 @@ class Constants:
 
 def get_settings() -> Settings:
     """Get application settings (singleton pattern)."""
-    return Settings()
+    return Settings()  # type: ignore[arg-type]
 
 
 # Global settings instance

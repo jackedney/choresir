@@ -149,6 +149,10 @@ async def send_text_message(
 
         except httpx.HTTPStatusError as e:
             if attempt < max_retries - 1:
+                logger.debug(
+                    "Server error, retrying",
+                    extra={"attempt": attempt + 1, "status_code": e.response.status_code},
+                )
                 await asyncio.sleep(retry_delay * (2**attempt))
             else:
                 logger.error(
@@ -159,6 +163,7 @@ async def send_text_message(
         except (httpx.ConnectError, httpx.NetworkError, httpx.HTTPError) as e:
             # Retry on httpx errors
             if attempt < max_retries - 1:
+                logger.debug("Network error, retrying", extra={"attempt": attempt + 1, "error_type": type(e).__name__})
                 await asyncio.sleep(retry_delay * (2**attempt))
             else:
                 logger.error(

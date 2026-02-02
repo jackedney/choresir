@@ -17,14 +17,14 @@ from src.main import (
 # Legacy credential validation tests
 def test_startup_fails_without_house_code() -> None:
     """Test that application startup fails when house_code is missing."""
-    settings = Settings(house_code=None, house_password="test_password")
+    settings = Settings(house_code=None, house_password="test_password", waha_webhook_hmac_key="test123")
     with pytest.raises(ValueError, match="House onboarding code credential not configured"):
         settings.require_credential("house_code", "House onboarding code")
 
 
 def test_startup_fails_without_house_password() -> None:
     """Test that application startup fails when house_password is missing."""
-    settings = Settings(house_code="TEST123", house_password=None)
+    settings = Settings(house_code="TEST123", house_password=None, waha_webhook_hmac_key="test123")
     with pytest.raises(ValueError, match="House onboarding password credential not configured"):
         settings.require_credential("house_password", "House onboarding password")
 
@@ -36,7 +36,7 @@ def test_startup_fails_without_waha_webhook_hmac_key() -> None:
     original_value = os.environ.pop("WAHA_WEBHOOK_HMAC_KEY", None)
     try:
         with pytest.raises(ValidationError, match=r"waha_webhook_hmac_key"):
-            Settings()
+            Settings()  # type: ignore[arg-type]
     finally:
         # Restore the original value
         if original_value is not None:
@@ -45,7 +45,7 @@ def test_startup_fails_without_waha_webhook_hmac_key() -> None:
 
 def test_startup_fails_with_empty_house_code() -> None:
     """Test that application startup fails when house_code is empty string."""
-    settings = Settings(house_code="", house_password="test_password")
+    settings = Settings(house_code="", house_password="test_password", waha_webhook_hmac_key="test123")
     with pytest.raises(ValueError, match="House onboarding code credential not configured"):
         settings.require_credential("house_code", "House onboarding code")
 

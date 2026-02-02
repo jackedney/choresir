@@ -629,7 +629,7 @@
     {
       "id": "US-034",
       "title": "Remove KeyError from notification_service.py exception handlers",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want unnecessary KeyError removed from notification_service.py exception tuples.",
       "acceptanceCriteria": [
@@ -639,13 +639,13 @@
         "Negative case: KeyError not in exception tuples for send_text_message calls"
       ],
       "startedAt": "2026-02-02T15:33:26.950828+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-02T15:33:26.951139+00:00"
+      "completedAt": "2026-02-02T15:39:42.007611+00:00",
+      "updatedAt": "2026-02-02T15:39:42.007185+00:00"
     },
     {
       "id": "US-035",
       "title": "Add logging for retry attempts in whatsapp_sender.py",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-020"
       ],
@@ -655,7 +655,10 @@
         "Add logger.debug for network error retry with extra={'attempt': attempt + 1, 'error_type': type(e).__name__}",
         "Example: logger.debug('Server error, retrying', extra={'attempt': 2, 'status_code': 503})",
         "Negative case: No sensitive data in retry logs"
-      ]
+      ],
+      "startedAt": "2026-02-02T15:39:44.111653+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-02T15:39:44.111971+00:00"
     },
     {
       "id": "US-036",
