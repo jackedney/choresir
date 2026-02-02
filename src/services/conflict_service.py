@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Any
 
 from src.core import db_client
+from src.core.config import Constants
 from src.core.logging import span
 from src.domain.chore import ChoreState
 from src.domain.user import UserStatus
@@ -58,7 +59,7 @@ async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
-            per_page=500,
+            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,
             sort="",
         )
 
@@ -140,7 +141,7 @@ async def cast_vote(
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
-            per_page=500,
+            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,
             sort="",  # No sort to avoid issues
         )
 
@@ -189,7 +190,7 @@ async def cast_vote(
         all_logs_updated = await db_client.list_records(
             collection="logs",
             filter_query="",  # Get all logs
-            per_page=500,  # Increase page size to avoid pagination issues
+            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,  # Increase page size to avoid pagination issues
             sort="",  # No sort to avoid issues
         )
 
@@ -234,7 +235,7 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
-            per_page=500,
+            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,
             sort="",  # No sort to avoid issues
         )
 
@@ -309,7 +310,7 @@ async def get_vote_status(*, chore_id: str) -> dict[str, Any]:
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
-            per_page=500,
+            per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,
             sort="",  # No sort to avoid issues
         )
 

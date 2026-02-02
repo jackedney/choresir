@@ -134,6 +134,7 @@ class Constants:
 
     # Rate Limiting Windows
     RATE_LIMIT_WINDOW_SECONDS: int = 60  # Window for webhook rate limiting (1 minute)
+    RATE_LIMIT_AGENT_WINDOW_SECONDS: int = 3600  # Window for agent rate limiting (1 hour)
 
     # Pagination Defaults
     DEFAULT_PER_PAGE_LIMIT: int = 100  # Default pagination limit for list queries
@@ -147,6 +148,17 @@ class Constants:
 
     # Job Tracker Configuration
     TRACKER_DEAD_LETTER_QUEUE_MAXLEN: int = 100  # Max items in dead letter queue
+    TRACKER_CURRENT_RUN_TTL_SECONDS: int = 3600  # TTL for current job run tracking (1 hour)
+    TRACKER_JOB_METRICS_TTL_SECONDS: int = 604800  # TTL for job metrics data (7 days)
+    TRACKER_DEAD_LETTER_QUEUE_TTL_SECONDS: int = 2592000  # TTL for dead letter queue entries (30 days)
+    TRACKER_ERROR_MESSAGE_MAX_LENGTH: int = 500  # Max length for stored error messages
+
+    # Pagination
+    DB_PER_PAGE_LARGE_LIMIT: int = 500  # Large pagination limit for bulk queries
+
+    # Display Limits
+    WHATSAPP_OVERDUE_CHORES_DISPLAY_LIMIT: int = 5  # Max overdue chores to display in WhatsApp messages
+    ERROR_PREVIEW_MAX_LENGTH: int = 100  # Max length for error previews in notifications
 
     # Paths
     PROJECT_ROOT: Path = Path(__file__).parent.parent.parent

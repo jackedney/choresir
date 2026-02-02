@@ -462,7 +462,7 @@ async def _handle_webhook_error(
                 user_context = parsed_message.from_phone
 
             timestamp = datetime.now().isoformat()
-            error_preview = str(e)[:100]
+            error_preview = str(e)[: Constants.ERROR_PREVIEW_MAX_LENGTH]
             notification_msg = (
                 f"⚠️ Webhook error: {error_response.code}\n"
                 f"Category: {error_category.value}\n"

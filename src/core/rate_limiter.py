@@ -117,7 +117,7 @@ class RateLimiter:
             scope="agent",
             identifier=user_id,
             limit=Constants.MAX_AGENT_CALLS_PER_USER_PER_HOUR,
-            window_seconds=3600,
+            window_seconds=Constants.RATE_LIMIT_AGENT_WINDOW_SECONDS,
         )
 
 

@@ -243,7 +243,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
             user_completion_counts[user_to_award] = user_completion_counts.get(user_to_award, 0) + 1
 
         # Fetch all users for leaderboard
-        all_users = await db_client.list_records(collection="users", per_page=500)
+        all_users = await db_client.list_records(collection="users", per_page=Constants.DB_PER_PAGE_LARGE_LIMIT)
         users_map = {u["id"]: u for u in all_users}
 
         # Build and sort leaderboard
@@ -453,7 +453,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                 pending_verification_chores = await db_client.list_records(
                     collection="chores",
                     filter_query=f'current_state = "{ChoreState.PENDING_VERIFICATION}"',
-                    per_page=500,
+                    per_page=Constants.DB_PER_PAGE_LARGE_LIMIT,
                 )
 
             # Validate and collect chore IDs

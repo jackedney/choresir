@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
+from src.core.config import Constants
 from src.models.service_models import CompletionRate, LeaderboardEntry, OverdueChore, UserStatistics
 from src.services import analytics_service
 
@@ -100,7 +101,7 @@ def _format_overdue_chores(chores: list[OverdueChore]) -> str:
     now = datetime.now(UTC)
     lines = [f"⚠️ {len(chores)} overdue chore(s):"]
 
-    for chore in chores[:5]:  # Limit to 5 for WhatsApp readability
+    for chore in chores[: Constants.WHATSAPP_OVERDUE_CHORES_DISPLAY_LIMIT]:
         title = chore.title
         deadline = datetime.fromisoformat(chore.deadline)
         # If deadline is naive (no timezone), assume UTC
@@ -117,7 +118,7 @@ def _format_overdue_chores(chores: list[OverdueChore]) -> str:
 
         lines.append(f"• '{title}' ({time_str})")
 
-    max_display = 5
+    max_display = Constants.WHATSAPP_OVERDUE_CHORES_DISPLAY_LIMIT
     if len(chores) > max_display:
         lines.append(f"... and {len(chores) - max_display} more")
 
