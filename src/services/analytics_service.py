@@ -515,9 +515,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                             chunk_logs_fetched = 0
                             while True:
                                 try:
-                                    filter_query = (
-                                        f'user_id = "{db_client.sanitize_param(user_id)}" && action = "claimed_completion" && ({or_clause})'
-                                    )
+                                    filter_query = f'user_id = "{db_client.sanitize_param(user_id)}" && action = "claimed_completion" && ({or_clause})'
                                     logs = await db_client.list_records(
                                         collection="logs",
                                         filter_query=filter_query,

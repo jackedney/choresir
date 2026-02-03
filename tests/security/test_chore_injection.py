@@ -8,7 +8,7 @@ from src.services import analytics_service, chore_service
 @pytest.mark.asyncio
 async def test_get_chores_injection():
     # Mock db_client.list_records
-    with patch('src.core.db_client.list_records', new_callable=AsyncMock) as mock_list:
+    with patch("src.core.db_client.list_records", new_callable=AsyncMock) as mock_list:
         mock_list.return_value = []
 
         # malicious user_id containing filter injection payload
@@ -19,22 +19,22 @@ async def test_get_chores_injection():
         # Check the call arguments
         call_args = mock_list.call_args
         _, kwargs = call_args
-        filter_query = kwargs.get('filter_query')
+        filter_query = kwargs.get("filter_query")
 
-        assert '\\"' in filter_query or '||' not in filter_query, "Filter query appears vulnerable to injection!"
+        assert '\\"' in filter_query or "||" not in filter_query, "Filter query appears vulnerable to injection!"
+
 
 @pytest.mark.asyncio
 async def test_analytics_injection():
     # Mock db_client.list_records
-    with patch('src.core.db_client.list_records', new_callable=AsyncMock) as mock_list:
-
+    with patch("src.core.db_client.list_records", new_callable=AsyncMock) as mock_list:
         # Setup side_effect to return pending chores so the loop runs
         async def list_side_effect(*args, **kwargs):
-            collection = kwargs.get('collection')
-            filter_query = kwargs.get('filter_query', '')
+            collection = kwargs.get("collection")
+            filter_query = kwargs.get("filter_query", "")
 
             # Return pending chores to populate pending_chore_ids
-            if collection == 'chores' and 'PENDING_VERIFICATION' in filter_query:
+            if collection == "chores" and "PENDING_VERIFICATION" in filter_query:
                 return [{"id": "chore1"}, {"id": "chore2"}]
 
             return []
@@ -45,7 +45,7 @@ async def test_analytics_injection():
         malicious_user_id = 'user1" || true || "'
 
         # Mock get_record for user check
-        with patch('src.core.db_client.get_record', new_callable=AsyncMock) as mock_get:
+        with patch("src.core.db_client.get_record", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = {"id": "user1", "name": "User 1"}
 
             # This calls get_user_statistics which uses user_id in filters
@@ -60,14 +60,14 @@ async def test_analytics_injection():
             found_injection = False
             for call in mock_list.mock_calls:
                 _, kwargs = call.args, call.kwargs
-                filter_query = kwargs.get('filter_query', '')
+                filter_query = kwargs.get("filter_query", "")
 
                 # We are looking for the call where user_id is used.
                 # Expected vulnerable query: user_id = "user1" || true || "" ...
-                if 'user_id =' in filter_query and malicious_user_id in filter_query:
-                     # Check if it was NOT sanitized (i.e., quotes are not escaped)
-                     if '\\"' not in filter_query:
-                         if '||' in filter_query and 'true' in filter_query:
-                             found_injection = True
+                if "user_id =" in filter_query and malicious_user_id in filter_query:
+                    # Check if it was NOT sanitized (i.e., quotes are not escaped)
+                    if '\\"' not in filter_query:
+                        if "||" in filter_query and "true" in filter_query:
+                            found_injection = True
 
             assert not found_injection, "Analytics service vulnerable to injection!"
