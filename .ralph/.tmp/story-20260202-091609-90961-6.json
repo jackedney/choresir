@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "total": 12,
+  "remaining": 3,
+  "quality_gates": [
+    "uv run ruff check --fix src tests && uv run ruff format src tests && uv run pytest"
+  ],
+  "id": "US-010",
+  "title": "Narrow broad exception handlers to specific types"
+}

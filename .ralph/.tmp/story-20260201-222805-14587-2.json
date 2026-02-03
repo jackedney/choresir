@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "total": 12,
+  "remaining": 11,
+  "quality_gates": [
+    "uv run ruff check --fix src tests && uv run ruff format src tests && uv run pytest"
+  ],
+  "id": "US-002",
+  "title": "Consolidate error classification duplication in errors.py"
+}

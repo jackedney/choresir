@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 15,
+  "remaining": 13,
+  "quality_gates": [
+    "uv run ruff format .",
+    "uv run ruff check . --fix",
+    "uv run ty check src",
+    "uv run pytest"
+  ],
+  "id": "US-003",
+  "title": "Narrow exception catch in webhook admin notifications"
+}

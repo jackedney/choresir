@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 15,
+  "remaining": 4,
+  "quality_gates": [
+    "uv run ruff format .",
+    "uv run ruff check . --fix",
+    "uv run ty check src",
+    "uv run pytest"
+  ],
+  "id": "US-014",
+  "title": "Replace DB mocks with ephemeral PocketBase in test_webhook.py"
+}
