@@ -244,3 +244,55 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Gotcha: Site directory (mkdocs build output) should be committed for documentation deployment
 
 ---
+
+## [Tue 3 Feb 2026 14:35:00 GMT] - US-008: Migrate ADRs to MkDocs format
+Thread: 
+Run: 20260203-130456-26463 (iteration 8)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-130456-26463-iter-8.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-130456-26463-iter-8.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 15ba2c5 docs: migrate ADRs to MkDocs format (US-008)
+- Post-commit status: clean (except PRD JSON modified by loop and temporary ralph files)
+- Verification:
+  - Command: uv run mkdocs build -> PASS
+  - Command: uv run markdownlint docs/adr/ 2>&1 | grep -c "MD040" -> 0 (code block errors fixed)
+- Files changed:
+  - docs/adr/001-stack.md (migrated from docs/decisions/)
+  - docs/adr/002-agent-framework.md (migrated from docs/decisions/)
+  - docs/adr/003-verification.md (migrated from docs/decisions/)
+  - docs/adr/004-conflict.md (migrated from docs/decisions/)
+  - docs/adr/005-models.md (migrated from docs/decisions/)
+  - docs/adr/006-standards.md (migrated from docs/decisions/)
+  - docs/adr/007-operations.md (migrated from docs/decisions/)
+  - docs/adr/008-gamification.md (migrated from docs/decisions/)
+  - docs/adr/009-interactive-verification.md (migrated from docs/decisions/)
+  - docs/adr/010-smart-pantry.md (migrated from docs/decisions/)
+  - docs/adr/011-version-management.md (migrated from docs/decisions/)
+  - docs/adr/012-nlp-approach.md (migrated from docs/decisions/)
+  - docs/adr/013-redis-caching.md (migrated from docs/decisions/)
+  - docs/adr/014-robin-hood-protocol.md (migrated from docs/decisions/)
+  - docs/adr/015-type-safety.md (migrated from docs/decisions/)
+  - docs/adr/016-conversational-house-joining.md (migrated from docs/decisions/)
+  - docs/adr/019-personal-chores.md (migrated from docs/decisions/)
+  - docs/adr/index.md (created chronological ADR list)
+  - docs/adr/template.md (created ADR template)
+- What was implemented:
+  - Migrated all 16 existing ADRs from docs/decisions/ to docs/adr/
+  - Converted ADRs to MkDocs Markdown format with proper headings, code blocks with language specifiers
+  - Created ADR index page with chronological list organized by category (Core Architecture 001-010, Infrastructure 011-016, Personal Features 017+)
+  - Created ADR template for new decisions with all required sections
+  - Fixed code block language specifications (added language to all fenced code blocks)
+  - Fixed broken internal links (corrected link in ADR-014)
+  - Fixed heading format in ADR-016 (Phase headings now use #### instead of **)
+  - All internal links verified to work correctly
+  - MkDocs build succeeds with 0.58s build time
+- **Learnings for future iterations:**
+  - MkDocs requires proper markdown formatting - code blocks need language specification (e.g., ```text or ```python)
+  - Long lines (>120 chars) in ADR content cause markdownlint warnings but don't prevent build
+  - Navigation structure: When organizing large numbers of files, it's better to use an index page with links rather than listing all files in mkdocs.yml nav
+  - Internal links in MkDocs should use relative paths without leading ../ (e.g., adr/001-stack.md not ../adr/001-stack.md)
+  - Heading format: Use proper heading levels (## for sections, ### for subsections, #### for minor sections) not **emphasis** for headings
+  - Code block content can be empty (e.g., for examples), but still needs language spec for markdownlint
+  - Template files can contain placeholder links (xxx-name.md, yyy-name.md) that trigger markdownlint warnings - this is acceptable
+---

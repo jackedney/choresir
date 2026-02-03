@@ -208,7 +208,7 @@
     {
       "id": "US-006",
       "title": "Create Architecture documentation",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-002"
       ],
@@ -224,13 +224,13 @@
         "Include diagrams using text-based format (ASCII or Mermaid if supported)"
       ],
       "startedAt": "2026-02-03T13:51:59.855275+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-03T13:51:59.855464+00:00"
+      "completedAt": "2026-02-03T14:02:06.944667+00:00",
+      "updatedAt": "2026-02-03T14:02:06.944543+00:00"
     },
     {
       "id": "US-007",
       "title": "Create Agent implementation guides",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-002"
       ],
@@ -244,12 +244,15 @@
         "Include example agent with tools",
         "Example: 'tool_log_chore' takes LogChoreParams model, returns 'Error: Chore not found' on failure",
         "Negative case: Raising exception in tool -> document return error string pattern instead"
-      ]
+      ],
+      "startedAt": "2026-02-03T14:02:09.024564+00:00",
+      "completedAt": "2026-02-03T14:20:35.579063+00:00",
+      "updatedAt": "2026-02-03T14:20:35.578861+00:00"
     },
     {
       "id": "US-008",
       "title": "Migrate ADRs to MkDocs format",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-002"
       ],
@@ -262,12 +265,15 @@
         "Example: ADR-017 on type checking becomes docs/adr/017-type-safety.md",
         "Negative case: Broken internal link after migration -> verify all links work",
         "Include ADR template for new decisions"
-      ]
+      ],
+      "startedAt": "2026-02-03T14:20:37.645252+00:00",
+      "completedAt": "2026-02-03T14:37:03.201941+00:00",
+      "updatedAt": "2026-02-03T14:37:03.201819+00:00"
     },
     {
       "id": "US-009",
       "title": "Migrate AGENTS.md to Contributors section",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-005"
       ],
@@ -280,7 +286,10 @@
         "Example: 'Toolchain & Style' section goes to docs/contributors/toolchain.md",
         "Negative case: Missing convention in MkDocs -> compare against AGENTS.md to ensure completeness",
         "Verify internal consistency across all pages"
-      ]
+      ],
+      "startedAt": "2026-02-03T14:37:05.291157+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-03T14:37:05.291336+00:00"
     },
     {
       "id": "US-010",

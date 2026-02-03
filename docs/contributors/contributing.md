@@ -4,7 +4,7 @@ This guide covers contributing to WhatsApp Home Boss, including commit standards
 
 ## Getting Started
 
-1. Read the [AGENTS.md](../../AGENTS.md) file for coding standards and architectural patterns
+1. Read the [Project Context](context.md) and [Toolchain & Style](toolchain.md) for coding standards and architectural patterns
 2. Follow the [Development Workflow](development.md) for local setup
 3. Ensure your code passes all [Code Quality](code-quality.md) checks
 
@@ -109,7 +109,7 @@ commit standards, PR process, and code review checklist.
 
 Before committing, verify:
 
-- [ ] Code follows AGENTS.md conventions
+- [ ] Code follows [Toolchain & Style](toolchain.md) and [Code Quality](code-quality.md) conventions
 - [ ] All code quality checks pass (`ruff format .`, `ruff check . --fix`, `ty check src`)
 - [ ] All tests pass (`pytest`)
 - [ ] Commit message follows conventional commits format
@@ -204,7 +204,7 @@ Closes #123
 
 ### For Reviewers
 
-- Check code follows AGENTS.md conventions
+- Check code follows [Toolchain & Style](toolchain.md) and [Code Quality](code-quality.md) conventions
 - Verify tests cover new functionality
 - Look for security issues
 - Check for performance regressions
@@ -261,7 +261,7 @@ Releases are managed by maintainers:
 
 ## Questions?
 
-- Check [AGENTS.md](../../AGENTS.md) for coding standards
+- Check [Project Context](context.md) and [Toolchain & Style](toolchain.md) for coding standards
 - Review [Development Workflow](development.md) for setup
 - See existing PRs for examples
 - Open an issue to discuss major changes
