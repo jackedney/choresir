@@ -36,6 +36,7 @@ Before committing your changes, verify:
 - [ ] No linting errors (`uv run ruff check .`)
 - [ ] Type checking passes (`uv run ty check src`)
 - [ ] All tests pass (`uv run pytest`)
+- [ ] Documentation checks pass (`npm run lint:docs`) if docs were changed
 - [ ] No uncommitted changes remain
 
 ## Quality Gates
@@ -79,6 +80,7 @@ The following checks must pass before any code is merged:
 2. **Linting:** `ruff check` must return zero errors
 3. **Type Checking:** `ty check src` must return zero errors
 4. **Tests:** `pytest` must pass all tests
+5. **Documentation:** `npm run lint:docs` must pass if documentation changed
 
 ## Ruff Configuration
 
@@ -284,12 +286,14 @@ npm run lint:docs
 ### What the checks validate
 
 **markdownlint** validates Markdown formatting:
+
 - Line length (120 characters)
 - Proper list spacing and indentation
 - Code block formatting
 - Heading spacing
 
 **textlint** validates writing quality:
+
 - **write-good rule**: Passive voice, wordiness, weak words
 - **terminology rule**: Correct terminology (e.g., "function parameter" not "function argument", "Git" not "git")
 
