@@ -504,3 +504,36 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Context: All external links in new documentation (getting-started/, user-guide/, contributors/, architecture/, agents/, adr/) are accessible
   - Gotcha: When fixing links, verify exact text match including spaces and punctuation to avoid "oldString not found" errors
 ---
+
+## [Tue 3 Feb 2026 15:45:00 GMT] - US-012: Create README with documentation link
+Thread:
+Run: 20260203-153746-59932 (iteration 4)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-153746-59932-iter-4.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-153746-59932-iter-4.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 6e9cf01 docs: Update README with MkDocs documentation link
+- Post-commit status: clean
+- Verification:
+  - Command: uv run mkdocs build -> PASS (build time 0.69s)
+  - Command: ls docs/getting-started/ docs/contributors/ docs/architecture/ docs/agents/ docs/user-guide/ -> PASS (all directories exist)
+- Files changed:
+  - README.md
+- What was implemented:
+  Updated project README to reference MkDocs documentation instead of old docs files:
+  - Replaced Documentation section table with concise Markdown format
+  - Added instructions for building documentation locally (mkdocs serve command)
+  - Added quick links to key sections (Getting Started, Contributors, Architecture, Agent Development, User Guide)
+  - Updated all references from docs/QUICK_START.md, docs/SETUP.md, docs/DEPLOYMENT.md to docs/getting-started/
+  - Updated references from docs/decisions/ and AGENTS.md to docs/ architecture/ and docs/contributors/
+  - Updated final call-to-action links to point to docs/getting-started/ and docs/
+  - Kept README concise with reference to full documentation for detailed information
+  - Verified all linked documentation directories exist (getting-started/, contributors/, architecture/, agents/, user-guide/)
+  - Verified documentation builds successfully with mkdocs build
+- **Learnings for future iterations:**
+  - Pattern: README serves as entry point - keep it concise with links to comprehensive documentation
+  - Pattern: Documentation build command is available via uv run mkdocs build
+  - Context: All old doc references in README have been migrated to MkDocs format
+  - Context: Documentation structure is complete with all major sections (getting-started, user-guide, contributors, architecture, agents, adr)
+  - Gotcha: PRD JSON status updates are handled by the loop - do not modify .agents/tasks/prd-documentation-overhaul.json manually
+---

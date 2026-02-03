@@ -85,8 +85,8 @@ List the alternatives that were considered and explain why they were rejected.
 
 List related ADRs with links:
 
-- [ADR XXX: Title](xxx-name.md) - Relationship description
-- [ADR YYY: Title](yyy-name.md) - Relationship description
+- [ADR 001: Technology Stack](001-stack.md) - Example relationship
+- [ADR 002: Agent Framework and Prompt Design](002-agent-framework.md) - Example relationship
 
 ## References
 

@@ -339,12 +339,12 @@
       ],
       "startedAt": "2026-02-03T15:53:30.545229+00:00",
       "completedAt": null,
-      "updatedAt": "2026-02-03T15:53:30.545485+00:00"
+      "updatedAt": "2026-02-03T16:15:16.090118+00:00"
     },
     {
       "id": "US-012",
       "title": "Create README with documentation link",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-011"
       ],
@@ -356,7 +356,10 @@
         "Example: 'For full documentation, run `mkdocs serve` and visit http://127.0.0.1:8000'",
         "Negative case: Outdated link -> broken link in README",
         "Keep README concise with reference to full docs"
-      ]
+      ],
+      "updatedAt": "2026-02-03T16:05:51.855639+00:00",
+      "completedAt": "2026-02-03T16:05:51.855799+00:00",
+      "startedAt": "2026-02-03T16:05:51.855801+00:00"
     }
   ]
 }
