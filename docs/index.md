@@ -9,16 +9,16 @@ It helps you manage chores, tasks, and household operations directly through you
 
 ## Quick Start
 
-To get started with WhatsApp Home Boss, see the [Getting Started](getting-started/) guide.
+To get started with WhatsApp Home Boss, see the [Getting Started](getting-started/index.md) guide.
 
 ## Documentation
 
-- [Getting Started](getting-started/) - Installation and setup instructions
-- [User Guide](user-guide/) - Features and usage instructions
-- [Contributors](contributors/) - Development and contribution guidelines
-- [Architecture](architecture/) - System design and patterns
-- [Agents](agents/) - Agent implementation guides
-- [ADRs](adr/) - Architectural Decision Records
+- [Getting Started](getting-started/index.md) - Installation and setup instructions
+- [User Guide](user-guide/index.md) - Features and usage instructions
+- [Contributors](contributors/index.md) - Development and contribution guidelines
+- [Architecture](architecture/index.md) - System design and patterns
+- [Agents](agents/index.md) - Agent implementation guides
+- [ADRs](adr/index.md) - Architectural Decision Records
 
 ## Stack
 

@@ -36,3 +36,30 @@ markdown_extensions:
 plugins: []
 nav:
   - Home: index.md
+  - Getting Started:
+      - Overview: getting-started/index.md
+      - Installation: getting-started/installation.md
+      - Configuration: getting-started/configuration.md
+      - First Run: getting-started/first-run.md
+  - User Guide:
+      - Overview: user-guide/index.md
+  - Contributors:
+      - Overview: contributors/index.md
+      - Development Workflow: contributors/development.md
+      - Code Quality: contributors/code-quality.md
+      - Contribution Guidelines: contributors/contributing.md
+  - Architecture:
+      - Overview: architecture/index.md
+      - System Architecture: architecture/system.md
+      - Directory Structure: architecture/directory.md
+      - Engineering Patterns: architecture/patterns.md
+      - Database Patterns: architecture/database.md
+      - Async & Concurrency: architecture/async.md
+  - Agents:
+      - Overview: agents/index.md
+      - Naming Conventions: agents/naming.md
+      - Dependency Injection: agents/dependency-injection.md
+      - Tool Design: agents/tool-design.md
+      - Creating an Agent: agents/creating-agent.md
+  - ADR:
+      - Overview: adr/index.md
