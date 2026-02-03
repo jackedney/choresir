@@ -246,7 +246,13 @@ def test_settings(pocketbase_server: str) -> Settings:
 @pytest.fixture(scope="session")
 def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBase:
     """Initialize PocketBase schema and return authenticated client."""
-    asyncio.run(sync_schema(pocketbase_url=pocketbase_server))
+    asyncio.run(
+        sync_schema(
+            admin_email="admin@test.local",
+            admin_password="testpassword123",
+            pocketbase_url=pocketbase_server,
+        )
+    )
 
     # Create authenticated client for tests
     client = PocketBase(pocketbase_server)

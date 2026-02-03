@@ -58,6 +58,7 @@ class TestReceiveWebhook:
         with pytest.raises(HTTPException) as exc_info:
             await receive_webhook(mock_request, mock_background_tasks)
 
+        assert isinstance(exc_info.value, HTTPException)
         assert exc_info.value.status_code == 400
 
     @pytest.mark.asyncio
@@ -97,6 +98,7 @@ class TestReceiveWebhook:
         with pytest.raises(HTTPException) as exc_info:
             await receive_webhook(mock_request, mock_background_tasks)
 
+        assert isinstance(exc_info.value, HTTPException)
         assert exc_info.value.status_code == 400
         assert exc_info.value.detail == "Security failed"
 
