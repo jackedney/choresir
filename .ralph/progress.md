@@ -296,3 +296,136 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Code block content can be empty (e.g., for examples), but still needs language spec for markdownlint
   - Template files can contain placeholder links (xxx-name.md, yyy-name.md) that trigger markdownlint warnings - this is acceptable
 ---
+
+---
+## [Tue 3 Feb 2026 14:50:00 GMT] - US-009: Migrate AGENTS.md to Contributors section
+Thread:
+Run: 20260203-130456-26463 (iteration 9)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-130456-26463-iter-9.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-130456-26463-iter-9.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 5cd4fbc docs(contributors): migrate AGENTS.md content to MkDocs
+- Post-commit status: clean
+- Verification:
+  - Command: uv run markdownlint AGENTS.md docs/contributors/context.md docs/contributors/toolchain.md docs/contributors/logging.md -> PASS
+  - Command: uv run mkdocs build -> PASS
+- Files changed:
+  - AGENTS.md
+  - docs/contributors/context.md
+  - docs/contributors/toolchain.md
+  - docs/contributors/logging.md
+  - docs/contributors/index.md
+  - docs/contributors/contributing.md
+  - mkdocs.yml
+- What was implemented:
+  Created comprehensive MkDocs documentation for content previously in AGENTS.md:
+  - docs/contributors/context.md: Project Context section from AGENTS.md - covers project overview, technology stack (Python 3.12+, FastAPI, PocketBase, Pydantic AI), philosophy (maintainability over scalability), external integrations (WAHA, OpenRouter), architecture layers, key features, and development goals
+  - docs/contributors/toolchain.md: Toolchain & Style section from AGENTS.md - covers Astral Stack tools (uv, ruff, ty), formatting rules (line length 120, double quotes, trailing commas), import grouping, coding conventions (functional preference, keyword-only arguments, DTOs only, no custom exceptions, no TODOs, minimalist docs, strict typing), with code examples for each pattern
+  - docs/contributors/logging.md: Logging & Observability section from AGENTS.md - covers standard logging pattern (logging.getLogger(__name__)), Logfire integration, structured logging with extra parameter, logging utilities, log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL), best practices (consistent context, no sensitive data, actionable messages), and logging patterns for services, background tasks, and agents
+  Updated AGENTS.md to reference MkDocs documentation instead of containing full content - now serves as quick reference with links to comprehensive documentation
+  Updated mkdocs.yml navigation to include new pages (context.md, toolchain.md, logging.md) in Contributors section
+  Updated docs/contributors/index.md to reference new pages in topics list
+  Updated docs/contributors/contributing.md to reference MkDocs pages instead of AGENTS.md directly
+  Fixed all markdownlint formatting issues (line length, blank lines around headings, fenced code block spacing, no bare URLs)
+- **Learnings for future iterations:**
+  - Pattern: AGENTS.md serves as quick reference for AI agents, but full documentation belongs in MkDocs for better organization and navigation
+  - Pattern: When migrating content, ensure all links are updated to point to new location (e.g., AGENTS.md references now point to docs/contributors/*.md)
+  - Gotcha: markdownlint requires specific formatting - headings need blank lines before AND after them, fenced code blocks need language specification and blank lines around them, emphasis should not be used as headings (use ### instead of **text**)
+  - Gotcha: Emphasis-as-heading error occurs when using **text** format without proper heading syntax - convert to ### text to fix
+  - Gotcha: Line length violations in AGENTS.md need to be split into multiple lines to stay under 120 characters
+  - Gotcha: Site directory (mkdocs build output) should be committed after content changes to ensure documentation is up-to-date
+  - Context: Project already has comprehensive architecture and agent documentation from previous stories (US-006, US-007), so US-009 only needed to migrate remaining sections from AGENTS.md
+   - Context: Quality gates (markdownlint, mkdocs build) should be run before committing to ensure documentation is valid
+---
+
+## [Tue 3 Feb 2026 15:05:00 GMT] - US-010: Add spelling and lint checks
+Thread:
+Run: 20260203-130456-26463 (iteration 10)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-130456-26463-iter-10.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-130456-26463-iter-10.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: e4f0e7e feat: add documentation quality checks with markdownlint and textlint
+- Post-commit status: M .ralph/progress.md (only uncommitted file)
+- Verification:
+  - Command: npx markdownlint --version -> PASS (v0.43.0)
+  - Command: npx textlint --version -> PASS (v15.5.1)
+  - Command: npm run lint:md -> PASS (catches formatting issues)
+  - Command: npm run lint:text -> PASS (catches writing quality issues)
+  - Command: npm run lint:docs -> PASS (runs both checks)
+- Files changed:
+  - package.json (created npm scripts: lint:md, lint:text, lint:docs)
+  - .textlintrc.json (textlint configuration with write-good and terminology rules)
+  - .gitignore (added node_modules/ and package-lock.json)
+  - AGENTS.md (updated Documentation Quality Checks section)
+  - docs/contributors/code-quality.md (updated Documentation Quality section with detailed explanation)
+- What was implemented:
+  Installed and configured documentation quality tools:
+  - markdownlint-cli for Markdown formatting validation (already configured in .markdownlint.json)
+  - textlint with write-good rule for writing style (passive voice, wordiness, weak words)
+  - textlint with terminology rule for correct terminology usage
+  - Created package.json with npm scripts for easy execution
+  - Updated .gitignore to exclude node_modules/ and package-lock.json
+  - Updated AGENTS.md and code-quality.md with quality gate documentation
+  - Documented what each tool validates (markdownlint: line length, lists, code blocks; textlint: passive voice, wordiness, terminology)
+  - Verified tools work correctly:
+    - markdownlint catches line length violations (tested with /tmp/test-line-length.md)
+    - textlint catches terminology errors (tested with /tmp/test-term.md - "function argument" → "function parameter")
+    - npm scripts work (lint:md, lint:text, lint:docs)
+- **Learnings for future iterations:**
+  - Pattern: markdownlint is already installed globally via Homebrew (/opt/homebrew/bin/markdownlint) - works via uv run
+  - Pattern: textlint must be run via npx or npm run (not directly) to properly load .textlintrc.json configuration
+  - Pattern: npm scripts (package.json) provide convenient wrappers for running quality checks
+  - Pattern: textlint doesn't do dictionary-based spell checking - it checks writing style (write-good) and terminology consistency (terminology rule)
+  - Pattern: The terminology rule catches specific term errors (e.g., "function argument" → "function parameter", "git" → "Git")
+  - Pattern: Quality gates should be documented with examples of what they catch (formatting issues for markdownlint, terminology errors for textlint)
+  - Context: markdownlint-cli and textlint are npm packages, not Python/uv packages - must use npm/npx to run them
+  - Context: write-good rule checks for passive voice, wordiness, and weak words - not actual spelling errors
+  - Context: terminology rule uses default term dictionary plus custom exclusions - configured in .textlintrc.json
+---
+---
+## [Tue 3 Feb 2026 15:37:46 GMT] - US-009: Migrate AGENTS.md to Contributors section
+Thread:
+Run: 20260203-153746-59932 (iteration 1)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-153746-59932-iter-1.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260203-153746-59932-iter-1.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: f41b9d4 docs(style): fix markdownlint formatting in AGENTS.md
+- Post-commit status: clean
+- Verification:
+  - Command: uv run markdownlint AGENTS.md -> PASS
+  - Command: uv run mkdocs build -> PASS
+- Files changed:
+  - AGENTS.md (added blank lines for markdownlint compliance)
+  - site/contributors/code-quality/index.html (updated from mkdocs build)
+- What was implemented:
+  The core migration work for US-009 was completed in previous iteration (commit 5cd4fbc). This iteration fixed remaining markdownlint issues in AGENTS.md:
+  - Added blank lines before lists at lines 175 and 181 to satisfy MD032 rule (lists should be surrounded by blank lines)
+  - Ran mkdocs build to update site/ directory with latest documentation
+  - Verified all AGENTS.md content is available in MkDocs documentation:
+    - Project Context -> docs/contributors/context.md
+    - Development Workflow -> docs/contributors/development.md
+    - Toolchain & Style -> docs/contributors/toolchain.md
+    - Code Quality -> docs/contributors/code-quality.md
+    - Logging & Observability -> docs/contributors/logging.md
+    - Architecture -> docs/architecture/index.md
+    - Agent Development -> docs/agents/index.md
+    - ADRs -> docs/adr/index.md
+    - Directory Structure -> docs/architecture/directory.md
+    - Database Interaction -> docs/architecture/database.md
+    - Async & Concurrency -> docs/architecture/async.md
+    - Testing -> docs/contributors/code-quality.md
+    - Pre-Commit Checklist -> docs/contributors/code-quality.md
+    - Documentation Quality Checks -> docs/contributors/code-quality.md
+  - All coding standards and conventions are maintained in MkDocs pages
+  - AGENTS.md now serves as concise reference pointing to comprehensive MkDocs documentation
+- **Learnings for future iterations:**
+  - Pattern: Migration work may be completed across multiple iterations - always check if work is already done before starting
+  - Pattern: Previous iteration (run 20260203-130456-26463-iter-9) completed the main migration, this iteration only fixed minor markdownlint issues
+  - Gotcha: PRD story status may not be updated even if work is completed - need to verify by reviewing git commits and progress log
+  - Pattern: When resuming work on a story, review previous iterations' progress logs to understand what was already done
+  - Context: Quality gates (markdownlint, mkdocs build) should be run on modified files to ensure compliance
+  - Context: MkDocs site/ directory is tracked in git and should be committed after content changes
+---
