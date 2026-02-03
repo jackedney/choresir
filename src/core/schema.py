@@ -492,6 +492,7 @@ async def _update_collection(
 async def sync_schema(
     admin_email: str,
     admin_password: str,
+    *,
     pocketbase_url: str | None = None,
 ) -> None:
     """Sync PocketBase schema with domain models (idempotent).
