@@ -1,32 +1,34 @@
 # WhatsApp Home Boss
 
-A household operating system living in WhatsApp.
+A WhatsApp-powered household management bot. Python + FastAPI + Pydantic AI + PocketBase.
 
-## Overview
+## Commands
 
-WhatsApp Home Boss is a WhatsApp-powered household management bot built with Python and FastAPI.
-It helps you manage chores, tasks, and household operations directly through your WhatsApp chat.
+| Action | Example | Notes |
+|--------|---------|-------|
+| Log chore | "Done dishes" | Triggers verification request |
+| Create chore | "Create chore 'Water plants' every 3 days" | Admin only |
+| View stats | "Stats" | Personal ranking + household leaderboard |
+| Add to shopping list | "Add eggs to list" | Shared household list |
+| View shopping list | "What's on the list?" | |
+| Personal task | `/personal add go to gym` | Private, not on leaderboard |
+| Complete personal | `/personal done gym` | Self-verified or partner-verified |
+| Join household | `/house join MyHouse` | Starts onboarding flow |
 
-## Quick Start
+## Concepts
 
-To get started with WhatsApp Home Boss, see the [Getting Started](getting-started/index.md) guide.
+**Household chores** are shared, visible to all members, require peer verification, and count toward the leaderboard.
 
-## Documentation
+**Personal chores** are private (only you see them), optionally verified by an accountability partner, and excluded from household stats.
 
-- [Getting Started](getting-started/index.md) - Installation and setup instructions
-- [User Guide](user-guide/index.md) - Features and usage instructions
-- [Contributors](contributors/index.md) - Development and contribution guidelines
-- [Architecture](architecture/index.md) - System design and patterns
-- [Agents](agents/index.md) - Agent implementation guides
-- [ADRs](adr/index.md) - Architectural Decision Records
+**Verification**: When you log a household chore, another member must approve it before you get credit.
+
+**Robin Hood**: Take over someone else's overdue chore to help them out.
 
 ## Stack
 
-- **Runtime:** Python 3.12+
-- **Framework:** FastAPI
-- **Database:** PocketBase (SQLite mode)
-- **Agent Framework:** Pydantic AI
-
-## License
-
-See LICENSE.md for details.
+- Python 3.12+ / FastAPI
+- PocketBase (SQLite)
+- Pydantic AI agents
+- WAHA (WhatsApp HTTP API)
+- OpenRouter (LLM)

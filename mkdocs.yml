@@ -36,57 +36,24 @@ markdown_extensions:
 plugins: []
 nav:
   - Home: index.md
-  - Getting Started:
-      - Overview: getting-started/index.md
-      - Installation: getting-started/installation.md
-      - Configuration: getting-started/configuration.md
-      - First Run: getting-started/first-run.md
-  - User Guide:
-      - Overview: user-guide/index.md
-      - Getting Started: user-guide/onboarding.md
-      - Household Chores: user-guide/chores.md
-      - Personal Chores: user-guide/personal-chores.md
-      - Pantry & Shopping: user-guide/pantry.md
-      - Analytics & Stats: user-guide/analytics.md
-      - Verification System: user-guide/verification.md
-      - FAQ: user-guide/faq.md
-  - Contributors:
-      - Overview: contributors/index.md
-      - Project Context: contributors/context.md
-      - Development Workflow: contributors/development.md
-      - Toolchain & Style: contributors/toolchain.md
-      - Code Quality: contributors/code-quality.md
-      - Logging & Observability: contributors/logging.md
-      - Contribution Guidelines: contributors/contributing.md
-  - Architecture:
-      - Overview: architecture/index.md
-      - System Architecture: architecture/system.md
-      - Directory Structure: architecture/directory.md
-      - Engineering Patterns: architecture/patterns.md
-      - Database Patterns: architecture/database.md
-      - Async & Concurrency: architecture/async.md
-  - Agents:
-      - Overview: agents/index.md
-      - Naming Conventions: agents/naming.md
-      - Dependency Injection: agents/dependency-injection.md
-      - Tool Design: agents/tool-design.md
-      - Creating an Agent: agents/creating-agent.md
+  - Architecture: architecture.md
+  - Agents: agents.md
   - ADR:
       - Overview: adr/index.md
       - Technology Stack: adr/001-stack.md
-      - Agent Framework and Prompt Design: adr/002-agent-framework.md
-      - Human-in-the-Loop Verification Protocol: adr/003-verification.md
-      - Deterministic Conflict Resolution: adr/004-conflict.md
-      - Model Selection via OpenRouter: adr/005-models.md
-      - Repository Standards & Engineering Practices: adr/006-standards.md
-      - Operational Strategy & Data Schema: adr/007-operations.md
-      - Gamification & Analytics: adr/008-gamification.md
-      - Interactive Button-Based Verification: adr/009-interactive-verification.md
-      - Smart Pantry & Grocery Management: adr/010-smart-pantry.md
-      - Version Management Strategy: adr/011-version-management.md
-      - Natural Language Processing Approach: adr/012-nlp-approach.md
-      - Redis Caching for Leaderboard Performance: adr/013-redis-caching.md
+      - Agent Framework: adr/002-agent-framework.md
+      - Verification Protocol: adr/003-verification.md
+      - Conflict Resolution: adr/004-conflict.md
+      - Model Selection: adr/005-models.md
+      - Repository Standards: adr/006-standards.md
+      - Operations & Schema: adr/007-operations.md
+      - Gamification: adr/008-gamification.md
+      - Button Verification: adr/009-interactive-verification.md
+      - Smart Pantry: adr/010-smart-pantry.md
+      - Version Management: adr/011-version-management.md
+      - NLP Approach: adr/012-nlp-approach.md
+      - Redis Caching: adr/013-redis-caching.md
       - Robin Hood Protocol: adr/014-robin-hood-protocol.md
-      - Type Safety and Type Checking: adr/015-type-safety.md
-      - Conversational House Joining Flow: adr/016-conversational-house-joining.md
-      - Personal Chores System: adr/019-personal-chores.md
+      - Type Safety: adr/015-type-safety.md
+      - House Joining Flow: adr/016-conversational-house-joining.md
+      - Personal Chores: adr/019-personal-chores.md
