@@ -1209,6 +1209,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Documentation Quality">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-checks-validate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the checks validate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -2131,6 +2148,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Documentation Quality">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-checks-validate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the checks validate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
     </ul>
@@ -2354,11 +2388,30 @@ up after each test run.</p>
 <h2 id="documentation-quality">Documentation Quality</h2>
 <p>For documentation files, run these checks:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Check Markdown formatting</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>uv<span class="w"> </span>run<span class="w"> </span>markdownlint<span class="w"> </span>docs/
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>npx<span class="w"> </span>markdownlint<span class="w"> </span>docs/
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Check spelling and grammar</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>uv<span class="w"> </span>run<span class="w"> </span>textlint<span class="w"> </span>docs/
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Check writing style and terminology</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>npx<span class="w"> </span>textlint<span class="w"> </span>docs/
 </span></code></pre></div>
+<p>Or use npm scripts:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Check Markdown formatting</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>npm<span class="w"> </span>run<span class="w"> </span>lint:md
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># Check writing style and terminology</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>npm<span class="w"> </span>run<span class="w"> </span>lint:text
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># Run both checks</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>npm<span class="w"> </span>run<span class="w"> </span>lint:docs
+</span></code></pre></div>
+<h3 id="what-the-checks-validate">What the checks validate</h3>
+<p><strong>markdownlint</strong> validates Markdown formatting:
+- Line length (120 characters)
+- Proper list spacing and indentation
+- Code block formatting
+- Heading spacing</p>
+<p><strong>textlint</strong> validates writing quality:
+- <strong>write-good rule</strong>: Passive voice, wordiness, weak words
+- <strong>terminology rule</strong>: Correct terminology (e.g., "function parameter" not "function argument", "Git" not "git")</p>
 <p>These checks must pass before documentation changes can be merged.</p>
 
 
