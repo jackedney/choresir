@@ -75,3 +75,7 @@ ngrok.yml
 
 # pb_migrations
 pb_migrations/
+
+# Node
+node_modules/
+package-lock.json

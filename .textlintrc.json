@@ -1,0 +1,14 @@
+{
+  "plugins": {
+    "@textlint/markdown": {
+      "extensions": [".md", ".markdown"]
+    }
+  },
+  "rules": {
+    "write-good": true,
+    "terminology": {
+      "defaultTerms": true,
+      "excludeTerms": []
+    }
+  }
+}

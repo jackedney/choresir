@@ -142,6 +142,7 @@ Before committing your changes, verify:
 - [ ] No uncommitted changes remain
 - [ ] No TODO comments in code
 - [ ] All functions have type hints
+- [ ] Documentation checks pass (`npm run lint:docs` if docs were changed)
 
 ## Documentation Quality Checks
 
@@ -149,11 +150,36 @@ For documentation files, run these checks:
 
 ```bash
 # Check Markdown formatting
-uv run markdownlint docs/
+npx markdownlint docs/
 
-# Check spelling and grammar
-uv run textlint docs/
+# Check writing style and terminology
+npx textlint docs/
 ```
+
+Or use npm scripts:
+
+```bash
+# Check Markdown formatting
+npm run lint:md
+
+# Check writing style and terminology
+npm run lint:text
+
+# Run both checks
+npm run lint:docs
+```
+
+### What the checks validate
+
+**markdownlint** validates Markdown formatting:
+- Line length (120 characters)
+- Proper list spacing and indentation
+- Code block formatting
+- Heading spacing
+
+**textlint** validates writing quality:
+- **write-good rule**: Passive voice, wordiness, weak words
+- **terminology rule**: Correct terminology (e.g., "function parameter" not "function argument", "Git" not "git")
 
 These checks must pass before documentation changes can be merged.
 
