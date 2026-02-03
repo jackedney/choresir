@@ -996,13 +996,63 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#components" class="md-nav__link">
+  <a href="#overview" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Components
+        Overview
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Diagram
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#message-processing-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Processing Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Design Decisions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1451,13 +1501,63 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#components" class="md-nav__link">
+  <a href="#overview" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Components
+        Overview
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-diagram" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture Diagram
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#message-processing-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Processing Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Design Decisions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1480,8 +1580,138 @@
 
 <h1 id="system-architecture">System Architecture</h1>
 <p>This page describes the overall system architecture of WhatsApp Home Boss.</p>
-<h2 id="components">Components</h2>
-<p>TODO: Add system architecture diagram and description</p>
+<h2 id="overview">Overview</h2>
+<p>WhatsApp Home Boss is a household operating system that lives within WhatsApp. It uses
+a "clean architecture" approach with clear separation of concerns:</p>
+<ul>
+<li><strong>Interface Layer</strong>: FastAPI routes that receive webhooks from WhatsApp</li>
+<li><strong>Agent Layer</strong>: Pydantic AI agents that interpret natural language commands</li>
+<li><strong>Service Layer</strong>: Functional business logic that manages domain operations</li>
+<li><strong>Domain Layer</strong>: Data transfer objects and business entities</li>
+<li><strong>Infrastructure Layer</strong>: Database, logging, configuration, and scheduling</li>
+</ul>
+<h2 id="architecture-diagram">Architecture Diagram</h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│                         External Systems                              │
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│  ┌─────────────┐              ┌─────────────┐                      │
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│  │   WhatsApp  │              │  OpenRouter  │                      │
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│  │   (WAHA)    │              │   (LLM API)  │                      │
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│  └──────┬──────┘              └──────┬──────┘                      │
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│         │                             │                              │
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>└─────────┼─────────────────────────────┼──────────────────────────────┘
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>          │                             │
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>          │ Webhook                     │ API Requests
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>          ▼                             ▼
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>┌─────────────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│                         Interface Layer                              │
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>│  ┌──────────────────────────────────────────────────────────────────┐  │
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│  │  FastAPI Router (webhook.py)                                   │  │
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│  │  - Parse webhook payload                                        │  │
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│  │  - Security validation (timestamp, nonce, rate limit)            │  │
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│  │  - Route to background tasks                                   │  │
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│  └──────────────────────────────────────────────────────────────────┘  │
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>│  ┌──────────────────────────────────────────────────────────────────┐  │
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>│  │  WhatsApp Adapters (whatsapp_parser.py, whatsapp_sender.py)      │  │
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>│  │  - Parse message format                                         │  │
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>│  │  - Send responses to WhatsApp                                  │  │
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>│  └──────────────────────────────────────────────────────────────────┘  │
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>└─────────────────────────────────────────────────────────────────────────┘
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>                                │
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a>                                │ Background Task
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a>                                ▼
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a>┌─────────────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-30"><a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>│                          Agent Layer                                 │
+</span><span id="__span-0-31"><a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a>│  ┌──────────────────────────────────────────────────────────────────┐  │
+</span><span id="__span-0-32"><a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a>│  │  Pydantic AI Agent (choresir_agent.py)                         │  │
+</span><span id="__span-0-33"><a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a>│  │  - Build user context (Deps)                                    │  │
+</span><span id="__span-0-34"><a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a>│  │  - Call agent with LLM                                          │  │
+</span><span id="__span-0-35"><a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a>│  │  - Execute tools based on LLM decisions                         │  │
+</span><span id="__span-0-36"><a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a>│  └──────────────────────────────────────────────────────────────────┘  │
+</span><span id="__span-0-37"><a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a>│  ┌──────────────────────────────────────────────────────────────────┐  │
+</span><span id="__span-0-38"><a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a>│  │  Tools (tools/*.py)                                            │  │
+</span><span id="__span-0-39"><a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a>│  │  - onboarding_tools.py (join requests)                          │  │
+</span><span id="__span-0-40"><a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>│  │  - chore_tools.py (manage chores)                               │  │
+</span><span id="__span-0-41"><a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a>│  │  - verification_tools.py (verify completions)                    │  │
+</span><span id="__span-0-42"><a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>│  │  - pantry_tools.py (inventory management)                       │  │
+</span><span id="__span-0-43"><a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a>│  │  - analytics_tools.py (stats and reports)                       │  │
+</span><span id="__span-0-44"><a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a>│  │  - personal_chore_tools.py (private tasks)                      │  │
+</span><span id="__span-0-45"><a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a>│  └──────────────────────────────────────────────────────────────────┘  │
+</span><span id="__span-0-46"><a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a>└─────────────────────────────────────────────────────────────────────────┘
+</span><span id="__span-0-47"><a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>                                │
+</span><span id="__span-0-48"><a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a>                                │ Tool Execution
+</span><span id="__span-0-49"><a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a>                                ▼
+</span><span id="__span-0-50"><a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a>┌─────────────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-51"><a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a>│                          Service Layer                                │
+</span><span id="__span-0-52"><a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────┐ │
+</span><span id="__span-0-53"><a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a>│  │ chore_service.py │  │ user_service.py  │  │ pantry_service.py     │ │
+</span><span id="__span-0-54"><a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>│  │ - CRUD operations│  │ - User mgmt     │  │ - Inventory tracking  │ │
+</span><span id="__span-0-55"><a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a>│  │ - State machine │  │ - Join requests  │  │ - Shopping list       │ │
+</span><span id="__span-0-56"><a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>│  └──────────────────┘  └──────────────────┘  └──────────────────────┘ │
+</span><span id="__span-0-57"><a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a>│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────┐ │
+</span><span id="__span-0-58"><a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>│  │verification_     │  │session_service.  │  │ analytics_service.   │ │
+</span><span id="__span-0-59"><a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a>│  │service.py        │  │py               │  │py                    │ │
+</span><span id="__span-0-60"><a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a>│  │ - Verify claims │  │ - Join flow     │  │ - Stats &amp; reports    │ │
+</span><span id="__span-0-61"><a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a>│  └──────────────────┘  └──────────────────┘  └──────────────────────┘ │
+</span><span id="__span-0-62"><a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a>└─────────────────────────────────────────────────────────────────────────┘
+</span><span id="__span-0-63"><a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a>                                │
+</span><span id="__span-0-64"><a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a>                                │ Data Access
+</span><span id="__span-0-65"><a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a>                                ▼
+</span><span id="__span-0-66"><a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a>┌─────────────────────────────────────────────────────────────────────────┐
+</span><span id="__span-0-67"><a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a>│                       Infrastructure Layer                             │
+</span><span id="__span-0-68"><a id="__codelineno-0-68" name="__codelineno-0-68" href="#__codelineno-0-68"></a>│  ┌──────────────────────────────────────────────────────────────────┐  │
+</span><span id="__span-0-69"><a id="__codelineno-0-69" name="__codelineno-0-69" href="#__codelineno-0-69"></a>│  │  Database Client (db_client.py)                                 │  │
+</span><span id="__span-0-70"><a id="__codelineno-0-70" name="__codelineno-0-70" href="#__codelineno-0-70"></a>│  │  - Connection pooling with health checks                         │  │
+</span><span id="__span-0-71"><a id="__codelineno-0-71" name="__codelineno-0-71" href="#__codelineno-0-71"></a>│  │  - Automatic reconnection                                       │  │
+</span><span id="__span-0-72"><a id="__codelineno-0-72" name="__codelineno-0-72" href="#__codelineno-0-72"></a>│  │  - CRUD functions (create_record, get_record, etc.)             │  │
+</span><span id="__span-0-73"><a id="__codelineno-0-73" name="__codelineno-0-73" href="#__codelineno-0-73"></a>│  └──────────────────────────────────────────────────────────────────┘  │
+</span><span id="__span-0-74"><a id="__codelineno-0-74" name="__codelineno-0-74" href="#__codelineno-0-74"></a>│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────────┐ │
+</span><span id="__span-0-75"><a id="__codelineno-0-75" name="__codelineno-0-75" href="#__codelineno-0-75"></a>│  │ PocketBase DB    │  │ Scheduler        │  │ Redis (Optional)      │ │
+</span><span id="__span-0-76"><a id="__codelineno-0-76" name="__codelineno-0-76" href="#__codelineno-0-76"></a>│  │ - users          │  │ - Cron jobs     │  │ - Rate limiting       │ │
+</span><span id="__span-0-77"><a id="__codelineno-0-77" name="__codelineno-0-77" href="#__codelineno-0-77"></a>│  │ - chores         │  │ - Reminders     │  │ - Caching            │ │
+</span><span id="__span-0-78"><a id="__codelineno-0-78" name="__codelineno-0-78" href="#__codelineno-0-78"></a>│  │ - logs           │  │ - Reports       │  │                      │ │
+</span><span id="__span-0-79"><a id="__codelineno-0-79" name="__codelineno-0-79" href="#__codelineno-0-79"></a>│  └──────────────────┘  └──────────────────┘  └──────────────────────┘ │
+</span><span id="__span-0-80"><a id="__codelineno-0-80" name="__codelineno-0-80" href="#__codelineno-0-80"></a>└─────────────────────────────────────────────────────────────────────────┘
+</span></code></pre></div>
+<h2 id="data-flow">Data Flow</h2>
+<h3 id="message-processing-flow">Message Processing Flow</h3>
+<ol>
+<li><strong>WhatsApp → WAHA</strong>: User sends message to WhatsApp number</li>
+<li><strong>WAHA → FastAPI</strong>: Webhook POST request to <code>/webhook</code></li>
+<li><strong>FastAPI Validation</strong>: Security checks (timestamp, nonce, rate limit)</li>
+<li><strong>Immediate Response</strong>: Return <code>200 OK</code> immediately</li>
+<li><strong>Background Task</strong>: Dispatch to <code>process_webhook_message()</code></li>
+<li><strong>Parse Message</strong>: Extract text, phone number, message ID</li>
+<li><strong>Duplicate Check</strong>: Query <code>processed_messages</code> collection</li>
+<li><strong>User Lookup</strong>: Fetch user record from <code>users</code> collection</li>
+<li><strong>Agent Execution</strong>: Build <code>Deps</code> and run Pydantic AI agent</li>
+<li><strong>Tool Calls</strong>: Agent executes tools (chore tools, verification tools, etc.)</li>
+<li><strong>Service Operations</strong>: Tools call service functions for business logic</li>
+<li><strong>Database Operations</strong>: Services use <code>db_client</code> functions for CRUD</li>
+<li><strong>Response</strong>: Send WhatsApp message back to user</li>
+<li><strong>Log Status</strong>: Update <code>processed_messages</code> with success/error</li>
+</ol>
+<h3 id="key-design-decisions">Key Design Decisions</h3>
+<p><strong>Why return <code>200 OK</code> immediately?</strong></p>
+<ul>
+<li>WhatsApp webhooks require quick responses (&lt; 30s)</li>
+<li>AI processing can take 5-30+ seconds</li>
+<li>Background tasks prevent webhook timeouts</li>
+<li>Idempotency via <code>processed_messages</code> prevents double-processing</li>
+</ul>
+<p><strong>Why functional services instead of classes?</strong></p>
+<ul>
+<li>Simpler testing (pure functions are easy to mock)</li>
+<li>Easier to reason about (no hidden state)</li>
+<li>Fits Python's functional programming style</li>
+<li>No need for dependency injection frameworks</li>
+</ul>
+<p><strong>Why Pydantic AI agents?</strong></p>
+<ul>
+<li>Type-safe tool definitions (Pydantic models)</li>
+<li>Automatic LLM schema generation</li>
+<li>Built-in retry logic</li>
+<li>Structured dependency injection via <code>RunContext[Deps]</code></li>
+</ul>
 
 
 

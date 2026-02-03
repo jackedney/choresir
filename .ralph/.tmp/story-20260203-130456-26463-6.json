@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "total": 12,
+  "remaining": 7,
+  "quality_gates": [
+    "uv run markdownlint docs/",
+    "uv run textlint docs/"
+  ],
+  "id": "US-006",
+  "title": "Create Architecture documentation"
+}
