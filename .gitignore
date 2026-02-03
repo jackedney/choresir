@@ -79,3 +79,9 @@ pb_migrations/
 # Node
 node_modules/
 package-lock.json
+
+# AI/Agent Tool Directories
+.claude/
+.opencode/
+.ralph/
+.agents/
