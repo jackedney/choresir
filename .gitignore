@@ -85,3 +85,7 @@ package-lock.json
 .opencode/
 .ralph/
 .agents/
+
+# Architecture Decision Records
+docs/adr/
+site/adr/
