@@ -1233,6 +1233,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Agents">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent Rationale
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1244,6 +1272,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tool-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool Rationale
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1254,6 +1310,45 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Models">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#model-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Rationale
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#negative-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Negative Case
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1481,6 +1576,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Agents">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agent-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent Rationale
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1492,6 +1615,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Tools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tool-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool Rationale
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1502,6 +1653,45 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Models">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#model-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#model-rationale" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model Rationale
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#negative-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Negative Case
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1525,11 +1715,61 @@
 <h1 id="naming-conventions">Naming Conventions</h1>
 <p>This page describes naming conventions for Pydantic AI agents in WhatsApp Home Boss.</p>
 <h2 id="agents">Agents</h2>
-<p>Use snake case (e.g., <code>household_manager</code>).</p>
+<p>Use snake case for agent variable names and function references (e.g., <code>household_manager</code>).</p>
+<h3 id="agent-examples">Agent Examples</h3>
+<ul>
+<li><code>choresir_agent</code> - Main household management agent</li>
+<li><code>onboarding_agent</code> - User onboarding agent</li>
+<li><code>analytics_agent</code> - Data analytics agent</li>
+</ul>
+<h3 id="agent-rationale">Agent Rationale</h3>
+<p>Snake case is used for agents to follow Python naming conventions for variables and
+functions. This makes agent instances easier to reference in code and improves
+readability.</p>
 <h2 id="tools">Tools</h2>
-<p>Use snake case, prefixed with <code>tool_</code> (e.g., <code>tool_log_chore</code>).</p>
+<p>Use snake case, prefixed with <code>tool_</code> for tool functions (e.g., <code>tool_log_chore</code>).</p>
+<h3 id="tool-examples">Tool Examples</h3>
+<ul>
+<li><code>tool_log_chore</code> - Log a chore completion</li>
+<li><code>tool_define_chore</code> - Create a new chore</li>
+<li><code>tool_request_join</code> - Request to join household</li>
+<li><code>tool_approve_member</code> - Approve a pending member</li>
+</ul>
+<h3 id="tool-rationale">Tool Rationale</h3>
+<p>The <code>tool_</code> prefix makes it clear which functions are registered as tools with the
+Pydantic AI agent. This convention helps distinguish tool functions from regular
+utility functions in the same module.</p>
 <h2 id="models">Models</h2>
-<p>Use PascalCase Pydantic models (e.g., <code>LogChoreParams</code>).</p>
+<p>Use PascalCase for Pydantic model classes used as tool parameters (e.g.,
+<code>LogChore</code>).</p>
+<h3 id="model-examples">Model Examples</h3>
+<ul>
+<li><code>LogChore</code> - Parameters for logging a chore completion</li>
+<li><code>DefineChore</code> - Parameters for defining a new chore</li>
+<li><code>RequestJoin</code> - Parameters for joining the household</li>
+<li><code>ApproveMember</code> - Parameters for approving a member</li>
+</ul>
+<h3 id="model-rationale">Model Rationale</h3>
+<p>PascalCase (also known as UpperCamelCase) is the standard Python convention for
+class names. Using PascalCase for Pydantic models makes them instantly recognizable
+as data structures rather than functions or variables.</p>
+<h3 id="negative-case">Negative Case</h3>
+<p>Incorrect model naming that should be avoided:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Bad - uses snake case for model class</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">log_chore</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Bad naming convention.&quot;&quot;&quot;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="k">pass</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Bad - no descriptive name</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">Params1</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Non-descriptive naming.&quot;&quot;&quot;</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="k">pass</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># Good - uses PascalCase with descriptive name</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="k">class</span><span class="w"> </span><span class="nc">LogChore</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Correct naming convention.&quot;&quot;&quot;</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="k">pass</span>
+</span></code></pre></div>
 
 
 
