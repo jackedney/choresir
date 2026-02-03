@@ -1,3 +1,4 @@
+import contextlib
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -49,12 +50,8 @@ async def test_analytics_injection():
             mock_get.return_value = {"id": "user1", "name": "User 1"}
 
             # This calls get_user_statistics which uses user_id in filters
-            try:
+            with contextlib.suppress(Exception):
                 await analytics_service.get_user_statistics(user_id=malicious_user_id)
-            except Exception:
-                # We expect failures due to mocks not returning everything needed for full execution
-                # but we only care about the calls to list_records being made
-                pass
 
             # Check calls to list_records
             found_injection = False
@@ -64,10 +61,13 @@ async def test_analytics_injection():
 
                 # We are looking for the call where user_id is used.
                 # Expected vulnerable query: user_id = "user1" || true || "" ...
-                if "user_id =" in filter_query and malicious_user_id in filter_query:
-                    # Check if it was NOT sanitized (i.e., quotes are not escaped)
-                    if '\\"' not in filter_query:
-                        if "||" in filter_query and "true" in filter_query:
-                            found_injection = True
+                if (
+                    "user_id =" in filter_query
+                    and malicious_user_id in filter_query
+                    and '\\"' not in filter_query
+                    and "||" in filter_query
+                    and "true" in filter_query
+                ):
+                    found_injection = True
 
             assert not found_injection, "Analytics service vulnerable to injection!"
