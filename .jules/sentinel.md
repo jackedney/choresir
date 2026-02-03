@@ -27,3 +27,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The user onboarding process (`user_service.request_join`) used a hardcoded string (`"temp_password_will_be_set_on_activation"`) as the initial password for pending user accounts.
 **Learning:** Hardcoding credentials, even for temporary or pending accounts, creates a persistent vulnerability. If the pending account status is bypassed or if the user becomes active without changing the password, the account remains compromised.
 **Prevention:** Use `secrets.token_urlsafe(32)` to generate a cryptographically secure random password for all new accounts, ensuring that even initial/pending accounts are protected against default credential attacks.
+
+## 2026-03-05 - [Filter Injection in Manual Queries]
+**Vulnerability:** Several services (`chore_service`, `analytics_service`, `robin_hood_service`) constructed PocketBase filter queries using f-strings with unsanitized user inputs (e.g., `f'assigned_to = "{user_id}"'`). This allows attackers to bypass filters using injection payloads like `" || true || "`.
+**Learning:** Even with an ORM or SDK, manual query string construction is risky. Also, unit tests for injection must ensure that the vulnerable code path (e.g., loops iterating over DB results) is actually executed by providing mock data.
+**Prevention:** Always use `db_client.sanitize_param()` when embedding variables into filter strings. Ensure tests verify the exact constructed query string.
