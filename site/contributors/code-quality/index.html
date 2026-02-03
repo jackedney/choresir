@@ -2214,6 +2214,7 @@
 <li>[ ] No linting errors (<code>uv run ruff check .</code>)</li>
 <li>[ ] Type checking passes (<code>uv run ty check src</code>)</li>
 <li>[ ] All tests pass (<code>uv run pytest</code>)</li>
+<li>[ ] Documentation checks pass (<code>npm run lint:docs</code>) if docs were changed</li>
 <li>[ ] No uncommitted changes remain</li>
 </ul>
 <h2 id="quality-gates">Quality Gates</h2>
@@ -2244,6 +2245,7 @@
 <li><strong>Linting:</strong> <code>ruff check</code> must return zero errors</li>
 <li><strong>Type Checking:</strong> <code>ty check src</code> must return zero errors</li>
 <li><strong>Tests:</strong> <code>pytest</code> must pass all tests</li>
+<li><strong>Documentation:</strong> <code>npm run lint:docs</code> must pass if documentation changed</li>
 </ol>
 <h2 id="ruff-configuration">Ruff Configuration</h2>
 <p>Ruff is configured in <code>pyproject.toml</code> with these settings:</p>
@@ -2404,14 +2406,18 @@ up after each test run.</p>
 </span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>npm<span class="w"> </span>run<span class="w"> </span>lint:docs
 </span></code></pre></div>
 <h3 id="what-the-checks-validate">What the checks validate</h3>
-<p><strong>markdownlint</strong> validates Markdown formatting:
-- Line length (120 characters)
-- Proper list spacing and indentation
-- Code block formatting
-- Heading spacing</p>
-<p><strong>textlint</strong> validates writing quality:
-- <strong>write-good rule</strong>: Passive voice, wordiness, weak words
-- <strong>terminology rule</strong>: Correct terminology (e.g., "function parameter" not "function argument", "Git" not "git")</p>
+<p><strong>markdownlint</strong> validates Markdown formatting:</p>
+<ul>
+<li>Line length (120 characters)</li>
+<li>Proper list spacing and indentation</li>
+<li>Code block formatting</li>
+<li>Heading spacing</li>
+</ul>
+<p><strong>textlint</strong> validates writing quality:</p>
+<ul>
+<li><strong>write-good rule</strong>: Passive voice, wordiness, weak words</li>
+<li><strong>terminology rule</strong>: Correct terminology (e.g., "function parameter" not "function argument", "Git" not "git")</li>
+</ul>
 <p>These checks must pass before documentation changes can be merged.</p>
 
 

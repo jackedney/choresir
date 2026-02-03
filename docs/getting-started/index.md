@@ -132,7 +132,7 @@ After completing setup:
 If you need additional help:
 
 1. Check the [Troubleshooting](#troubleshooting) section in each guide
-2. Review [Architecture Documentation](../architecture/) to understand the system
+2. Review [Architecture Documentation](../architecture/index.md) to understand the system
 3. Check logs:
 
    - FastAPI: `fastapi.log` (or terminal output)

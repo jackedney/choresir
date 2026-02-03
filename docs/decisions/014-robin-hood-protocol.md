@@ -17,7 +17,7 @@ Partially Implemented
 - **WhatsApp interface**: No user-facing commands for initiating or managing takeovers
 - **Reciprocal exchange**: Optional swap mechanism is not implemented
 
-See [task 003-complete-robin-hood-protocol.md](../../.context/003-complete-robin-hood-protocol.md) for completion roadmap.
+See completion roadmap in project task tracking for details on remaining implementation items.
 
 ## Context
 
