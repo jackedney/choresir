@@ -239,6 +239,8 @@ def test_settings(pocketbase_server: str) -> Settings:
     """Override settings for testing."""
     return Settings(
         pocketbase_url=pocketbase_server,
+        pocketbase_admin_email="admin@test.local",
+        pocketbase_admin_password="testpassword123",
         openrouter_api_key="test_key",
         twilio_account_sid="test_account_sid",
         twilio_auth_token="test_auth_token",
@@ -253,7 +255,13 @@ def test_settings(pocketbase_server: str) -> Settings:
 @pytest.fixture(scope="session")
 def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBase:
     """Initialize PocketBase schema and return authenticated client."""
-    asyncio.run(sync_schema(pocketbase_url=pocketbase_server))
+    asyncio.run(
+        sync_schema(
+            pocketbase_url=pocketbase_server,
+            admin_email="admin@test.local",
+            admin_password="testpassword123",
+        )
+    )
 
     # Create authenticated client for tests
     client = PocketBase(pocketbase_server)

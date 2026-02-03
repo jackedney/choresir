@@ -27,3 +27,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The user onboarding process (`user_service.request_join`) used a hardcoded string (`"temp_password_will_be_set_on_activation"`) as the initial password for pending user accounts.
 **Learning:** Hardcoding credentials, even for temporary or pending accounts, creates a persistent vulnerability. If the pending account status is bypassed or if the user becomes active without changing the password, the account remains compromised.
 **Prevention:** Use `secrets.token_urlsafe(32)` to generate a cryptographically secure random password for all new accounts, ensuring that even initial/pending accounts are protected against default credential attacks.
+
+## 2026-03-01 - [Insecure Defaults in Configuration]
+**Vulnerability:** The `Settings` class included a hardcoded default value ("testpassword123") for `pocketbase_admin_password`. This meant that if the environment variable was missing in production, the application would silently default to a known weak password instead of failing.
+**Learning:** "Zero-config" developer experience often conflicts with "Secure by default". Defaults intended for local development (like test passwords) are dangerous when baked into the application code because they bypass runtime configuration checks.
+**Prevention:** Sensitive configuration fields must have `default=None` (or be required fields without defaults). Use a dedicated `require_credential()` method or Pydantic validation to enforce presence at runtime, ensuring the application crashes rather than running with insecure defaults.

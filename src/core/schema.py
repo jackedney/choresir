@@ -490,16 +490,17 @@ async def _update_collection(
 
 
 async def sync_schema(
+    *,
     pocketbase_url: str | None = None,
-    admin_email: str = "admin@test.local",
-    admin_password: str = "testpassword123",  # noqa: S107
+    admin_email: str,
+    admin_password: str,
 ) -> None:
     """Sync PocketBase schema with domain models (idempotent).
 
     Args:
         pocketbase_url: Optional PocketBase URL. If not provided, uses settings.pocketbase_url.
-        admin_email: Admin email for authentication (default for tests).
-        admin_password: Admin password for authentication (default for tests).
+        admin_email: Admin email for authentication.
+        admin_password: Admin password for authentication.
     """
     logger.info("Starting PocketBase schema sync...")
 

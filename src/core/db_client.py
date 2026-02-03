@@ -192,6 +192,12 @@ def get_client() -> PocketBase:
     global _connection_pool  # noqa: PLW0603
 
     if _connection_pool is None:
+        if not settings.pocketbase_admin_email or not settings.pocketbase_admin_password:
+            raise ValueError(
+                "PocketBase admin credentials not set. "
+                "Please set POCKETBASE_ADMIN_EMAIL and POCKETBASE_ADMIN_PASSWORD environment variables."
+            )
+
         _connection_pool = PocketBaseConnectionPool(
             url=settings.pocketbase_url,
             admin_email=settings.pocketbase_admin_email,
