@@ -13,7 +13,7 @@
       
       
       
-        <link rel="prev" href="../code-quality/">
+        <link rel="prev" href="../logging/">
       
       
         <link rel="next" href="../../architecture/">
@@ -763,6 +763,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../development/" class="md-nav__link">
         
   
@@ -791,6 +819,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../toolchain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Toolchain & Style
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../code-quality/" class="md-nav__link">
         
   
@@ -799,6 +855,34 @@
     
   
     Code Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging & Observability
   
 
     
@@ -1970,7 +2054,7 @@
 <p>This guide covers contributing to WhatsApp Home Boss, including commit standards and the PR process.</p>
 <h2 id="getting-started">Getting Started</h2>
 <ol>
-<li>Read the <a href="../../AGENTS.md">AGENTS.md</a> file for coding standards and architectural patterns</li>
+<li>Read the <a href="../context/">Project Context</a> and <a href="../toolchain/">Toolchain &amp; Style</a> for coding standards and architectural patterns</li>
 <li>Follow the <a href="../development/">Development Workflow</a> for local setup</li>
 <li>Ensure your code passes all <a href="../code-quality/">Code Quality</a> checks</li>
 </ol>
@@ -2051,7 +2135,7 @@
 <h3 id="commit-checklist">Commit Checklist</h3>
 <p>Before committing, verify:</p>
 <ul>
-<li>[ ] Code follows AGENTS.md conventions</li>
+<li>[ ] Code follows <a href="../toolchain/">Toolchain &amp; Style</a> and <a href="../code-quality/">Code Quality</a> conventions</li>
 <li>[ ] All code quality checks pass (<code>ruff format .</code>, <code>ruff check . --fix</code>, <code>ty check src</code>)</li>
 <li>[ ] All tests pass (<code>pytest</code>)</li>
 <li>[ ] Commit message follows conventional commits format</li>
@@ -2145,7 +2229,7 @@
 </ul>
 <h3 id="for-reviewers">For Reviewers</h3>
 <ul>
-<li>Check code follows AGENTS.md conventions</li>
+<li>Check code follows <a href="../toolchain/">Toolchain &amp; Style</a> and <a href="../code-quality/">Code Quality</a> conventions</li>
 <li>Verify tests cover new functionality</li>
 <li>Look for security issues</li>
 <li>Check for performance regressions</li>
@@ -2191,7 +2275,7 @@
 </ol>
 <h2 id="questions">Questions?</h2>
 <ul>
-<li>Check <a href="../../AGENTS.md">AGENTS.md</a> for coding standards</li>
+<li>Check <a href="../context/">Project Context</a> and <a href="../toolchain/">Toolchain &amp; Style</a> for coding standards</li>
 <li>Review <a href="../development/">Development Workflow</a> for setup</li>
 <li>See existing PRs for examples</li>
 <li>Open an issue to discuss major changes</li>

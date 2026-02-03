@@ -761,6 +761,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../contributors/context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../contributors/development/" class="md-nav__link">
         
   
@@ -789,6 +817,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../contributors/toolchain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Toolchain & Style
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../contributors/code-quality/" class="md-nav__link">
         
   
@@ -797,6 +853,34 @@
     
   
     Code Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributors/logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging & Observability
   
 
     
@@ -1396,10 +1480,82 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#topics" class="md-nav__link">
+  <a href="#chronological-index" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Topics
+        Chronological Index
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Chronological Index">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-architecture-001-010" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Architecture (001-010)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#infrastructure-integration-011-016" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Infrastructure &amp; Integration (011-016)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#personal-features-017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Personal Features (017+)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR Format
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-new-adrs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating New ADRs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes
       
     </span>
   </a>
@@ -1449,10 +1605,82 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#topics" class="md-nav__link">
+  <a href="#chronological-index" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Topics
+        Chronological Index
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Chronological Index">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-architecture-001-010" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Architecture (001-010)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#infrastructure-integration-011-016" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Infrastructure &amp; Integration (011-016)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#personal-features-017" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Personal Features (017+)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adr-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ADR Format
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-new-adrs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating New ADRs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes
       
     </span>
   </a>
@@ -1478,9 +1706,60 @@
 
 <h1 id="architectural-decision-records">Architectural Decision Records</h1>
 <p>This section contains all Architectural Decision Records (ADRs) for WhatsApp Home Boss.</p>
-<p>ADRs document significant architectural decisions made throughout the project's development.</p>
-<h2 id="topics">Topics</h2>
-<p>TODO: Migrate ADRs from docs/decisions/ (US-008)</p>
+<p>ADRs document significant architectural decisions made throughout the project's development, including the context, decision, consequences, and alternatives considered.</p>
+<h2 id="chronological-index">Chronological Index</h2>
+<h3 id="core-architecture-001-010">Core Architecture (001-010)</h3>
+<ul>
+<li><a href="001-stack/">ADR 001: Technology Stack</a> - Adoption of "Indie Stack" (Python + PocketBase + Twilio WhatsApp)</li>
+<li><a href="002-agent-framework/">ADR 002: Agent Framework and Prompt Design</a> - Pydantic AI agent architecture and system prompt engineering</li>
+<li><a href="003-verification/">ADR 003: Human-in-the-Loop Verification Protocol</a> - Mandatory verification state machine for chore completion</li>
+<li><a href="004-conflict/">ADR 004: Deterministic Conflict Resolution</a> - Math-based jury system for dispute resolution</li>
+<li><a href="005-models/">ADR 005: Model Selection via OpenRouter</a> - LLM model selection and gateway strategy</li>
+<li><a href="006-standards/">ADR 006: Repository Standards &amp; Engineering Practices</a> - Astral stack (ruff, uv, ty) and coding conventions</li>
+<li><a href="007-operations/">ADR 007: Operational Strategy &amp; Data Schema</a> - Onboarding, data models, WhatsApp integration, testing strategy</li>
+<li><a href="008-gamification/">ADR 008: Gamification &amp; Analytics</a> - Weekly leaderboards, personal stats, and engagement features</li>
+<li><a href="009-interactive-verification/">ADR 009: Interactive Button-Based Verification</a> - WhatsApp quick reply buttons for verification</li>
+<li><a href="010-smart-pantry/">ADR 010: Smart Pantry &amp; Grocery Management</a> - Inventory tracking and shared shopping lists</li>
+</ul>
+<h3 id="infrastructure-integration-011-016">Infrastructure &amp; Integration (011-016)</h3>
+<ul>
+<li><a href="011-version-management/">ADR 011: Version Management Strategy</a> - Environment parity and coordinated dependency upgrades</li>
+<li><a href="012-nlp-approach/">ADR 012: Natural Language Processing Approach</a> - Pydantic AI with OpenRouter for command interpretation</li>
+<li><a href="013-redis-caching/">ADR 013: Redis Caching for Leaderboard Performance</a> - Caching strategy for analytics performance</li>
+<li><a href="014-robin-hood-protocol/">ADR 014: Robin Hood Protocol</a> - Chore takeover system with optional reciprocal exchange</li>
+<li><a href="015-type-safety/">ADR 015: Type Safety and Type Checking</a> - Using <code>ty</code> for static type checking</li>
+<li><a href="016-conversational-house-joining/">ADR 016: Conversational House Joining Flow</a> - Multi-step conversational onboarding (proposed)</li>
+</ul>
+<h3 id="personal-features-017">Personal Features (017+)</h3>
+<ul>
+<li><a href="019-personal-chores/">ADR 019: Personal Chores System</a> - Privacy-respecting personal goal tracking with optional partner verification</li>
+</ul>
+<h2 id="adr-format">ADR Format</h2>
+<p>Each ADR follows this structure:</p>
+<ul>
+<li><strong>Status</strong>: Proposed, Accepted, Deprecated, Superseded, Partially Implemented</li>
+<li><strong>Date</strong>: When the decision was made</li>
+<li><strong>Context</strong>: The problem and constraints</li>
+<li><strong>Decision</strong>: What was decided</li>
+<li><strong>Consequences</strong>: Positive, negative, and neutral impacts</li>
+<li><strong>Related ADRs</strong>: Links to related architectural decisions</li>
+<li><strong>References</strong>: External documentation or implementation links</li>
+</ul>
+<h2 id="creating-new-adrs">Creating New ADRs</h2>
+<p>To create a new ADR:</p>
+<ol>
+<li>Use the <a href="template/">ADR Template</a> as a starting point</li>
+<li>Use the next available number (020, 021, etc.)</li>
+<li>Follow the naming convention: <code>NNN-descriptive-name.md</code></li>
+<li>Include all required sections</li>
+<li>Update this index with a link to the new ADR</li>
+</ol>
+<h2 id="notes">Notes</h2>
+<ul>
+<li>ADR-001 consolidates the original stack decision with the WhatsApp provider selection (formerly separate ADR-011)</li>
+<li>ADR-002 is the comprehensive agent framework document (supersedes the original brief Pydantic AI selection doc)</li>
+<li>Some ADRs may have status "Partially Implemented" or "Proposed" if they are still in progress</li>
+</ul>
 
 
 
