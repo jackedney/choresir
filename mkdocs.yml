@@ -52,8 +52,11 @@ nav:
       - FAQ: user-guide/faq.md
   - Contributors:
       - Overview: contributors/index.md
+      - Project Context: contributors/context.md
       - Development Workflow: contributors/development.md
+      - Toolchain & Style: contributors/toolchain.md
       - Code Quality: contributors/code-quality.md
+      - Logging & Observability: contributors/logging.md
       - Contribution Guidelines: contributors/contributing.md
   - Architecture:
       - Overview: architecture/index.md
