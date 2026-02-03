@@ -146,8 +146,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
     instrument_pydantic_ai()
     await sync_schema(
-        admin_email=settings.pocketbase_admin_email,
-        admin_password=settings.pocketbase_admin_password,
+        admin_email=settings.require_credential("pocketbase_admin_email", "PocketBase admin email"),
+        admin_password=settings.require_credential("pocketbase_admin_password", "PocketBase admin password"),
     )
     start_scheduler()
     yield
