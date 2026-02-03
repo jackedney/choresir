@@ -150,16 +150,6 @@ For documentation files, run these checks:
 
 ```bash
 # Check Markdown formatting
-npx markdownlint docs/
-
-# Check writing style and terminology
-npx textlint docs/
-```
-
-Or use npm scripts:
-
-```bash
-# Check Markdown formatting
 npm run lint:md
 
 # Check writing style and terminology
@@ -168,6 +158,10 @@ npm run lint:text
 # Run both checks
 npm run lint:docs
 ```
+
+Both markdownlint and textlint are installed via npm and configured for this project.
+
+Alternative: You can also use `uv run markdownlint docs/` for markdownlint checks. Textlint should be run via npm scripts.
 
 ### What the checks validate
 

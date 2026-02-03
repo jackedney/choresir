@@ -1,6 +1,6 @@
 {
   "plugins": {
-    "@textlint/markdown": {
+    "@textlint/textlint-plugin-markdown": {
       "extensions": [".md", ".markdown"]
     }
   },

@@ -273,7 +273,7 @@
     {
       "id": "US-009",
       "title": "Migrate AGENTS.md to Contributors section",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-005"
       ],
@@ -288,13 +288,13 @@
         "Verify internal consistency across all pages"
       ],
       "startedAt": "2026-02-03T14:37:05.291157+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-03T14:37:05.291336+00:00"
+      "completedAt": "2026-02-03T15:44:33.427098+00:00",
+      "updatedAt": "2026-02-03T15:44:33.426951+00:00"
     },
     {
       "id": "US-010",
       "title": "Add spelling and lint checks",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001"
       ],
@@ -308,7 +308,10 @@
         "Example: 'uv run markdownlint docs/' catches formatting issues",
         "Negative case: Typo in documentation -> textlint catches spelling error",
         "Document quality gate commands in Contributors guide"
-      ]
+      ],
+      "startedAt": "2026-02-03T15:44:35.513439+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-03T15:44:35.513646+00:00"
     },
     {
       "id": "US-011",

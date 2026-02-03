@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "total": 12,
+  "remaining": 5,
+  "quality_gates": [
+    "uv run markdownlint docs/",
+    "uv run textlint docs/"
+  ],
+  "id": "US-008",
+  "title": "Migrate ADRs to MkDocs format"
+}
