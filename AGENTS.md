@@ -172,12 +172,14 @@ npm run lint:docs
 ### What the checks validate
 
 **markdownlint** validates Markdown formatting:
+
 - Line length (120 characters)
 - Proper list spacing and indentation
 - Code block formatting
 - Heading spacing
 
 **textlint** validates writing quality:
+
 - **write-good rule**: Passive voice, wordiness, weak words
 - **terminology rule**: Correct terminology (e.g., "function parameter" not "function argument", "Git" not "git")
 
