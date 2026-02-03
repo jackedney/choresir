@@ -1,3 +1,22 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- Replaced Twilio integration with self-hosted WAHA (WhatsApp HTTP API).
+- Added `waha` service to `docker-compose.yml` (port 3000).
+- Updated webhook handling to parse generic WAHA JSON payloads.
+- Added `waha_base_url` configuration.
+
+### Removed
+- Removed Twilio dependency and configuration (`twilio_account_sid`, `twilio_auth_token`, `twilio_whatsapp_number`).
+- Removed `src/interface/whatsapp_templates.py`.
+
 ## v0.23.4
 
 - Fixed `autodate` fields not refreshing when calling `Save` multiple times on the same `Record` instance ([#6000](https://github.com/pocketbase/pocketbase/issues/6000)).

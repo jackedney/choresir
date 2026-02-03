@@ -126,8 +126,8 @@ Track your personal tasks privately within the same WhatsApp interface:
 </tr>
 <tr>
 <td>💬 <strong>Interface</strong></td>
-<td><img src="https://img.shields.io/badge/WhatsApp_via_Twilio-25D366?style=flat&logo=whatsapp&logoColor=white" alt="WhatsApp"></td>
-<td>WhatsApp via Twilio Business API</td>
+<td><img src="https://img.shields.io/badge/WhatsApp-25D366?style=flat&logo=whatsapp&logoColor=white" alt="WhatsApp"></td>
+<td>WhatsApp via WAHA (Self-Hosted)</td>
 </tr>
 </tbody>
 </table>
@@ -142,13 +142,12 @@ Track your personal tasks privately within the same WhatsApp interface:
 <td width="80%">
 
 ### ⚡ Quick Start
-*Already have Meta/WhatsApp & OpenRouter accounts?*
+*Already have OpenRouter account?*
 
 **→ [Quick Start Guide](./docs/QUICK_START.md)**
 
 **Required Accounts:**
 - [OpenRouter](https://openrouter.ai) - AI model access (~$3/month)
-- [Meta Developer](https://developers.facebook.com) - WhatsApp API (free)
 - [ngrok](https://ngrok.com) - Local webhook tunnel (free)
 
 </td>
@@ -189,12 +188,20 @@ docker-compose up -d redis
 
 # 4️⃣ Configure environment
 cp .env.example .env
-# Edit .env with your tokens (OpenRouter API key, WhatsApp credentials, etc.)
+# Edit .env with your tokens (OpenRouter API key, etc.)
 
-# 5️⃣ Start services (requires 3 terminals)
-./pocketbase serve                    # Terminal 1: Database
-uv run fastapi dev src/main.py        # Terminal 2: API Server
-ngrok http 8000                       # Terminal 3: Public Webhook
+# 5️⃣ Start services
+# Option A: Full Docker (Recommended)
+docker-compose up -d
+
+# Option B: Dev Mode (requires 3 terminals)
+docker-compose up -d redis waha      # Start dependencies
+./pocketbase serve                   # Terminal 1: Database
+uv run fastapi dev src/main.py       # Terminal 2: API Server
+ngrok http 8000                      # Terminal 3: Public Webhook (if not using local WAHA)
+
+# 6️⃣ Scan QR Code
+# Open http://localhost:3000/dashboard to scan the WAHA QR code with your WhatsApp app.
 ```
 
 <div align="center">

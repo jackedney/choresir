@@ -1,12 +1,11 @@
-"""WhatsApp message sender with rate limiting and retry logic."""
+"""WhatsApp message sender with rate limiting and retry logic using WAHA."""
 
 import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta
 
+import httpx
 from pydantic import BaseModel, Field
-from twilio.base.exceptions import TwilioRestException
-from twilio.rest import Client
 
 from src.core.config import constants, settings
 
@@ -65,32 +64,14 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
-class _TwilioClientSingleton:
-    """Singleton wrapper for Twilio client to avoid global statement."""
-
-    _instance: Client | None = None
-
-    @classmethod
-    def get_client(cls) -> Client:
-        """Get or create the Twilio client instance.
-
-        Returns:
-            Initialized Twilio client
-        """
-        if cls._instance is None:
-            account_sid = settings.require_credential("twilio_account_sid", "Twilio Account SID")
-            auth_token = settings.require_credential("twilio_auth_token", "Twilio Auth Token")
-            cls._instance = Client(account_sid, auth_token)
-        return cls._instance
-
-
-def get_twilio_client() -> Client:
-    """Get or create the Twilio client instance.
-
-    Returns:
-        Initialized Twilio client
-    """
-    return _TwilioClientSingleton.get_client()
+def format_phone_for_waha(phone: str) -> str:
+    """Format phone number for WAHA (e.g., '1234567890@c.us')."""
+    # Remove 'whatsapp:' prefix if present
+    clean_phone = phone.replace("whatsapp:", "").replace("+", "").strip()
+    # Add suffix if missing
+    if not clean_phone.endswith("@c.us"):
+        clean_phone = f"{clean_phone}@c.us"
+    return clean_phone
 
 
 async def send_text_message(
@@ -100,7 +81,7 @@ async def send_text_message(
     max_retries: int = 3,
     retry_delay: float = 1.0,
 ) -> SendMessageResult:
-    """Send a text message via Twilio WhatsApp API with retry logic.
+    """Send a text message via WAHA API with retry logic.
 
     Args:
         to_phone: Recipient phone number in E.164 format (e.g., "1234567890")
@@ -121,32 +102,45 @@ async def send_text_message(
     # Record request for rate limiting (before attempting API call)
     rate_limiter.record_request(to_phone)
 
-    # Format phone number for Twilio WhatsApp
-    to_whatsapp = f"whatsapp:{to_phone}" if not to_phone.startswith("whatsapp:") else to_phone
+    chat_id = format_phone_for_waha(to_phone)
+    url = f"{settings.waha_base_url}/api/sendText"
+    payload = {
+        "session": "default",
+        "chatId": chat_id,
+        "text": text,
+    }
+    headers = {"Content-Type": "application/json"}
+    if settings.waha_api_key:
+        headers["X-Api-Key"] = settings.waha_api_key
 
     # Retry logic
     for attempt in range(max_retries):
         try:
-            client = get_twilio_client()
-            message = client.messages.create(
-                from_=settings.twilio_whatsapp_number,
-                to=to_whatsapp,
-                body=text,
-            )
-            return SendMessageResult(success=True, message_id=message.sid)
+            async with httpx.AsyncClient(timeout=constants.API_TIMEOUT_SECONDS) as client:
+                response = await client.post(url, json=payload, headers=headers)
 
-        except TwilioRestException as e:
-            # Don't retry on client errors (4xx)
-            if e.status >= HTTP_CLIENT_ERROR_START and e.status < HTTP_CLIENT_ERROR_END:
-                return SendMessageResult(success=False, error=f"Client error: {e.msg}")
+                if response.is_success:
+                    data = response.json()
+                    # WAHA returns { "id": "...", ... }
+                    return SendMessageResult(success=True, message_id=data.get("id"))
 
-            # Retry on server errors (5xx)
+                # Client error (4xx) - don't retry
+                if HTTP_CLIENT_ERROR_START <= response.status_code < HTTP_CLIENT_ERROR_END:
+                    return SendMessageResult(success=False, error=f"Client error: {response.text}")
+
+                # Server error (5xx) - allow retry
+                raise httpx.HTTPStatusError(
+                    f"Server error: {response.status_code}", request=response.request, response=response
+                )
+
+        except httpx.HTTPStatusError:
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
-
-        except Exception:
+        except Exception as e:
             # Retry on unexpected errors
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
+            else:
+                return SendMessageResult(success=False, error=f"Failed after retries: {e!s}")
 
     return SendMessageResult(success=False, error="Max retries exceeded")

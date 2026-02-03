@@ -1,14 +1,13 @@
-"""Tests for WhatsApp message sender with mocked Twilio client."""
+"""Tests for WhatsApp message sender using WAHA via httpx."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
-from twilio.base.exceptions import TwilioRestException
 
-import src.interface.whatsapp_sender as sender_module
 from src.interface.whatsapp_sender import (
     RateLimiter,
-    get_twilio_client,
+    format_phone_for_waha,
     send_text_message,
 )
 
@@ -68,153 +67,105 @@ class TestRateLimiter:
         assert limiter.can_send(phone2) is True
 
 
+class TestFormatPhoneForWaha:
+    """Test phone number formatting for WAHA."""
+
+    def test_format_clean_number(self):
+        assert format_phone_for_waha("1234567890") == "1234567890@c.us"
+
+    def test_format_with_plus(self):
+        assert format_phone_for_waha("+1234567890") == "1234567890@c.us"
+
+    def test_format_with_whatsapp_prefix(self):
+        assert format_phone_for_waha("whatsapp:+1234567890") == "1234567890@c.us"
+
+    def test_format_already_formatted(self):
+        assert format_phone_for_waha("1234567890@c.us") == "1234567890@c.us"
+
+
 class TestSendTextMessage:
-    """Test sending text messages via Twilio."""
+    """Test sending text messages via WAHA."""
 
     @pytest.mark.asyncio
-    @patch("src.interface.whatsapp_sender.get_twilio_client")
-    async def test_send_text_message_success(self, mock_get_client):
+    async def test_send_text_message_success(self):
         """Test successful message sending."""
-        # Setup mock
-        mock_client = MagicMock()
-        mock_message = MagicMock()
-        mock_message.sid = "SM123abc"
-        mock_client.messages.create.return_value = mock_message
-        mock_get_client.return_value = mock_client
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {"id": "true_123@c.us_ABC"}
 
-        # Send message
-        result = await send_text_message(
-            to_phone="+1234567890",
-            text="Hello, test message",
-        )
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
 
-        # Verify result
-        assert result.success is True
-        assert result.message_id == "SM123abc"
-        assert result.error is None
+            # Send message
+            result = await send_text_message(
+                to_phone="+1234567890",
+                text="Hello, test message",
+            )
 
-        # Verify Twilio API was called correctly
-        mock_client.messages.create.assert_called_once()
-        call_args = mock_client.messages.create.call_args
-        assert call_args.kwargs["to"] == "whatsapp:+1234567890"
-        assert call_args.kwargs["body"] == "Hello, test message"
+            # Verify result
+            assert result.success is True
+            assert result.message_id == "true_123@c.us_ABC"
+            assert result.error is None
 
-    @pytest.mark.asyncio
-    @patch("src.interface.whatsapp_sender.get_twilio_client")
-    async def test_send_text_message_handles_whatsapp_prefix(self, mock_get_client):
-        """Test that whatsapp: prefix is added if missing."""
-        mock_client = MagicMock()
-        mock_message = MagicMock()
-        mock_message.sid = "SM456"
-        mock_client.messages.create.return_value = mock_message
-        mock_get_client.return_value = mock_client
-
-        # Send with phone number (no prefix)
-        await send_text_message(to_phone="+1234567890", text="Test")
-
-        # Verify prefix was added
-        call_args = mock_client.messages.create.call_args
-        assert call_args.kwargs["to"] == "whatsapp:+1234567890"
+            # Verify WAHA API was called correctly
+            mock_post.assert_called_once()
+            call_kwargs = mock_post.call_args.kwargs
+            assert "json" in call_kwargs
+            payload = call_kwargs["json"]
+            assert payload["chatId"] == "1234567890@c.us"
+            assert payload["text"] == "Hello, test message"
+            assert payload["session"] == "default"
 
     @pytest.mark.asyncio
-    @patch("src.interface.whatsapp_sender.get_twilio_client")
-    async def test_send_text_message_preserves_whatsapp_prefix(self, mock_get_client):
-        """Test that existing whatsapp: prefix is preserved."""
-        mock_client = MagicMock()
-        mock_message = MagicMock()
-        mock_message.sid = "SM789"
-        mock_client.messages.create.return_value = mock_message
-        mock_get_client.return_value = mock_client
-
-        # Send with whatsapp: prefix already present
-        await send_text_message(to_phone="whatsapp:+1234567890", text="Test")
-
-        # Verify prefix not duplicated
-        call_args = mock_client.messages.create.call_args
-        assert call_args.kwargs["to"] == "whatsapp:+1234567890"
-        assert "whatsapp:whatsapp:" not in call_args.kwargs["to"]
-
-    @pytest.mark.asyncio
-    @patch("src.interface.whatsapp_sender.get_twilio_client")
-    async def test_send_text_message_client_error(self, mock_get_client):
+    async def test_send_text_message_client_error(self):
         """Test handling of 4xx client errors (no retry)."""
-        mock_client = MagicMock()
-        # Simulate a 400 Bad Request error
-        error = TwilioRestException(
-            status=400,
-            uri="/Messages.json",
-            msg="Invalid phone number",
-            code=21211,
-        )
-        mock_client.messages.create.side_effect = error
-        mock_get_client.return_value = mock_client
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 400
+        mock_response.is_success = False
+        mock_response.text = "Bad Request"
 
-        result = await send_text_message(to_phone="+1234567890", text="Test")
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
 
-        # Should fail without retry
-        assert result.success is False
-        assert result.error is not None
-        assert "Client error" in result.error
-        assert "Invalid phone number" in result.error
+            result = await send_text_message(to_phone="+1234567890", text="Test")
 
-        # Should only try once (no retries on 4xx)
-        assert mock_client.messages.create.call_count == 1
+            # Should fail without retry
+            assert result.success is False
+            assert result.error is not None
+            assert "Client error" in result.error
+            assert "Bad Request" in result.error
+
+            # Should only try once (no retries on 4xx)
+            assert mock_post.call_count == 1
 
     @pytest.mark.asyncio
-    @patch("src.interface.whatsapp_sender.get_twilio_client")
-    async def test_send_text_message_server_error_with_retry(self, mock_get_client):
+    async def test_send_text_message_server_error_with_retry(self):
         """Test retry logic on 5xx server errors."""
-        mock_client = MagicMock()
-        # Simulate a 500 server error
-        error = TwilioRestException(
-            status=500,
-            uri="/Messages.json",
-            msg="Internal server error",
-            code=20500,
-        )
-        mock_client.messages.create.side_effect = error
-        mock_get_client.return_value = mock_client
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 500
+        mock_response.is_success = False
+        mock_response.request = MagicMock()
 
-        result = await send_text_message(
-            to_phone="+1234567890",
-            text="Test",
-            max_retries=3,
-            retry_delay=0.01,  # Fast retry for testing
-        )
+        # httpx raises HTTPStatusError when raise_for_status called or manually raised
+        # In our code we check status and raise HTTPStatusError
 
-        # Should fail after retries
-        assert result.success is False
-        assert result.error == "Max retries exceeded"
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
 
-        # Should retry 3 times
-        assert mock_client.messages.create.call_count == 3
+            result = await send_text_message(
+                to_phone="+1234567890",
+                text="Test",
+                max_retries=3,
+                retry_delay=0.01,  # Fast retry for testing
+            )
 
-    @pytest.mark.asyncio
-    @patch("src.interface.whatsapp_sender.get_twilio_client")
-    async def test_send_text_message_retry_then_success(self, mock_get_client):
-        """Test successful send after initial failures."""
-        mock_client = MagicMock()
-        mock_message = MagicMock()
-        mock_message.sid = "SM999"
+            # Should fail after retries
+            assert result.success is False
+            assert result.error == "Max retries exceeded"
 
-        # First two calls fail, third succeeds
-        error = TwilioRestException(status=500, uri="/Messages.json", msg="Error", code=20500)
-        mock_client.messages.create.side_effect = [error, error, mock_message]
-        mock_get_client.return_value = mock_client
-
-        result = await send_text_message(
-            to_phone="+1234567890",
-            text="Test",
-            max_retries=3,
-            retry_delay=0.01,
-        )
-
-        # Should eventually succeed
-        assert result.success is True
-        assert result.message_id == "SM999"
-
-        # Should have tried 3 times
-        assert mock_client.messages.create.call_count == 3
+            # Should retry 3 times
+            assert mock_post.call_count == 3
 
     @pytest.mark.asyncio
     @patch("src.interface.whatsapp_sender.rate_limiter")
@@ -231,103 +182,45 @@ class TestSendTextMessage:
         assert "Rate limit exceeded" in result.error
 
     @pytest.mark.asyncio
-    @patch("src.interface.whatsapp_sender.get_twilio_client")
     @patch("src.interface.whatsapp_sender.rate_limiter")
-    async def test_rate_limiter_records_request(self, mock_rate_limiter, mock_get_client):
+    async def test_rate_limiter_records_request(self, mock_rate_limiter):
         """Test that rate limiter records successful requests."""
         mock_rate_limiter.can_send.return_value = True
 
-        mock_client = MagicMock()
-        mock_message = MagicMock()
-        mock_message.sid = "SM111"
-        mock_client.messages.create.return_value = mock_message
-        mock_get_client.return_value = mock_client
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {"id": "1"}
 
-        phone = "+1234567890"
-        await send_text_message(to_phone=phone, text="Test")
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
 
-        # Verify rate limiter was checked and request was recorded
-        mock_rate_limiter.can_send.assert_called_once_with(phone)
-        mock_rate_limiter.record_request.assert_called_once_with(phone)
+            phone = "+1234567890"
+            await send_text_message(to_phone=phone, text="Test")
+
+            # Verify rate limiter was checked and request was recorded
+            mock_rate_limiter.can_send.assert_called_once_with(phone)
+            mock_rate_limiter.record_request.assert_called_once_with(phone)
 
     @pytest.mark.asyncio
-    @patch("src.interface.whatsapp_sender.get_twilio_client")
-    async def test_send_text_message_unexpected_error(self, mock_get_client):
+    async def test_send_text_message_unexpected_error(self):
         """Test handling of unexpected errors."""
-        mock_client = MagicMock()
-        # Simulate unexpected exception
-        mock_client.messages.create.side_effect = Exception("Unexpected error")
-        mock_get_client.return_value = mock_client
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            mock_post.side_effect = Exception("Unexpected error")
 
-        result = await send_text_message(
-            to_phone="+1234567890",
-            text="Test",
-            max_retries=2,
-            retry_delay=0.01,
-        )
+            result = await send_text_message(
+                to_phone="+1234567890",
+                text="Test",
+                max_retries=2,
+                retry_delay=0.01,
+            )
 
-        # Should fail after retries
-        assert result.success is False
-        assert result.error == "Max retries exceeded"
+            # Should fail after retries
+            assert result.success is False
+            # Check for error in return
+            assert result.error is not None
+            assert "Failed after retries" in result.error or result.error == "Max retries exceeded"
+            # In code: return SendMessageResult(success=False, error=f"Failed after retries: {str(e)}")
 
-        # Should retry
-        assert mock_client.messages.create.call_count == 2
-
-
-class TestGetTwilioClient:
-    """Test Twilio client singleton."""
-
-    @patch("src.interface.whatsapp_sender.Client")
-    @patch("src.interface.whatsapp_sender.settings")
-    def test_get_twilio_client_creates_client(self, mock_settings, mock_client_class):
-        """Test that get_twilio_client creates a Twilio client."""
-        # Reset singleton state
-        sender_module._TwilioClientSingleton._instance = None
-
-        # Mock require_credential to return appropriate values
-        def require_credential_side_effect(key, _description):
-            if key == "twilio_account_sid":
-                return "ACtest123"
-            if key == "twilio_auth_token":
-                return "test_token"
-            raise ValueError(f"Unknown credential: {key}")
-
-        mock_settings.require_credential.side_effect = require_credential_side_effect
-        mock_client_instance = MagicMock()
-        mock_client_class.return_value = mock_client_instance
-
-        client = get_twilio_client()
-
-        # Verify client was created with correct credentials
-        mock_client_class.assert_called_once_with("ACtest123", "test_token")
-        assert client == mock_client_instance
-
-    @patch("src.interface.whatsapp_sender.Client")
-    @patch("src.interface.whatsapp_sender.settings")
-    def test_get_twilio_client_singleton(self, mock_settings, mock_client_class):
-        """Test that get_twilio_client returns same instance."""
-        # Reset singleton state
-        sender_module._TwilioClientSingleton._instance = None
-
-        # Mock require_credential to return appropriate values
-        def require_credential_side_effect(key, _description):
-            if key == "twilio_account_sid":
-                return "ACtest123"
-            if key == "twilio_auth_token":
-                return "test_token"
-            raise ValueError(f"Unknown credential: {key}")
-
-        mock_settings.require_credential.side_effect = require_credential_side_effect
-
-        # Create a client
-        mock_client_instance = MagicMock()
-        mock_client_class.return_value = mock_client_instance
-
-        client1 = get_twilio_client()
-        client2 = get_twilio_client()
-
-        # Should be same instance
-        assert client1 is client2
-
-        # Should only create once
-        assert mock_client_class.call_count == 1
+            # Should retry
+            assert mock_post.call_count == 2

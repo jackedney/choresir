@@ -8,7 +8,6 @@ from src.core.config import Settings
 from src.main import (
     check_pocketbase_connectivity,
     check_redis_connectivity,
-    check_twilio_auth,
     validate_startup_configuration,
 )
 
@@ -88,47 +87,6 @@ async def test_check_redis_connectivity_success() -> None:
     with patch("src.main.redis_client", mock_redis):
         await check_redis_connectivity()
         mock_redis.ping.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_check_twilio_auth_success() -> None:
-    """Test successful Twilio authentication check."""
-    mock_account = Mock()
-    mock_account.status = "active"
-
-    mock_account_resource = Mock()
-    mock_account_resource.fetch.return_value = mock_account
-
-    mock_client = Mock()
-    mock_client.api.accounts.return_value = mock_account_resource
-
-    with (
-        patch("src.main.Client", return_value=mock_client),
-        patch("src.main.settings") as mock_settings,
-    ):
-        mock_settings.require_credential.return_value = "test_value"
-        await check_twilio_auth()
-
-
-@pytest.mark.asyncio
-async def test_check_twilio_auth_inactive_account() -> None:
-    """Test Twilio check fails when account is not active."""
-    mock_account = Mock()
-    mock_account.status = "suspended"
-
-    mock_account_resource = Mock()
-    mock_account_resource.fetch.return_value = mock_account
-
-    mock_client = Mock()
-    mock_client.api.accounts.return_value = mock_account_resource
-
-    with (
-        patch("src.main.Client", return_value=mock_client),
-        patch("src.main.settings") as mock_settings,
-    ):
-        mock_settings.require_credential.return_value = "test_value"
-        with pytest.raises(ConnectionError, match="not active"):
-            await check_twilio_auth()
 
 
 @pytest.mark.asyncio

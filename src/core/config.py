@@ -28,12 +28,9 @@ class Settings(BaseSettings):
     # OpenRouter Configuration
     openrouter_api_key: str | None = Field(default=None, description="OpenRouter API key for LLM access")
 
-    # Twilio Configuration
-    twilio_account_sid: str | None = Field(default=None, description="Twilio Account SID")
-    twilio_auth_token: str | None = Field(default=None, description="Twilio Auth Token")
-    twilio_whatsapp_number: str = Field(
-        default="whatsapp:+14155238886", description="Twilio WhatsApp number (format: whatsapp:+14155238886)"
-    )
+    # WAHA Configuration
+    waha_base_url: str = Field(default="http://waha:3000", description="WAHA Base URL")
+    waha_api_key: str | None = Field(default=None, description="WAHA API Key (optional)")
 
     # Pydantic Logfire Configuration (optional)
     logfire_token: str | None = Field(default=None, description="Pydantic Logfire token for observability")
@@ -71,15 +68,6 @@ class Settings(BaseSettings):
     model_id: str = Field(
         default="anthropic/claude-3.5-sonnet",
         description="Model ID for OpenRouter (defaults to Claude 3.5 Sonnet)",
-    )
-
-    # Twilio Content API Template SIDs (optional - set after creating templates in Twilio Console)
-    template_chore_reminder_sid: str | None = Field(default=None, description="Content SID for chore reminder template")
-    template_verification_request_sid: str | None = Field(
-        default=None, description="Content SID for verification request template"
-    )
-    template_conflict_notification_sid: str | None = Field(
-        default=None, description="Content SID for conflict notification template"
     )
 
     # Admin Notification Configuration

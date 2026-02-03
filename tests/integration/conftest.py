@@ -234,9 +234,7 @@ def test_settings(pocketbase_server: str) -> Settings:
     return Settings(
         pocketbase_url=pocketbase_server,
         openrouter_api_key="test_key",
-        twilio_account_sid="test_account_sid",
-        twilio_auth_token="test_auth_token",
-        twilio_whatsapp_number="whatsapp:+14155238886",
+        waha_base_url="http://waha:3000",
         logfire_token="test_logfire",
         house_name="TestHouse",
         house_code="TEST123",
@@ -248,7 +246,13 @@ def test_settings(pocketbase_server: str) -> Settings:
 @pytest.fixture(scope="session")
 def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBase:
     """Initialize PocketBase schema and return authenticated client."""
-    asyncio.run(sync_schema(pocketbase_url=pocketbase_server))
+    asyncio.run(
+        sync_schema(
+            admin_email="admin@test.local",
+            admin_password="testpassword123",
+            pocketbase_url=pocketbase_server,
+        )
+    )
 
     # Create authenticated client for tests
     client = PocketBase(pocketbase_server)
