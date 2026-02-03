@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "total": 12,
+  "remaining": 8,
+  "quality_gates": [
+    "uv run markdownlint docs/",
+    "uv run textlint docs/"
+  ],
+  "id": "US-005",
+  "title": "Create Contributors documentation"
+}
