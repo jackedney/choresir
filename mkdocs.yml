@@ -73,3 +73,20 @@ nav:
       - Creating an Agent: agents/creating-agent.md
   - ADR:
       - Overview: adr/index.md
+      - Technology Stack: adr/001-stack.md
+      - Agent Framework and Prompt Design: adr/002-agent-framework.md
+      - Human-in-the-Loop Verification Protocol: adr/003-verification.md
+      - Deterministic Conflict Resolution: adr/004-conflict.md
+      - Model Selection via OpenRouter: adr/005-models.md
+      - Repository Standards & Engineering Practices: adr/006-standards.md
+      - Operational Strategy & Data Schema: adr/007-operations.md
+      - Gamification & Analytics: adr/008-gamification.md
+      - Interactive Button-Based Verification: adr/009-interactive-verification.md
+      - Smart Pantry & Grocery Management: adr/010-smart-pantry.md
+      - Version Management Strategy: adr/011-version-management.md
+      - Natural Language Processing Approach: adr/012-nlp-approach.md
+      - Redis Caching for Leaderboard Performance: adr/013-redis-caching.md
+      - Robin Hood Protocol: adr/014-robin-hood-protocol.md
+      - Type Safety and Type Checking: adr/015-type-safety.md
+      - Conversational House Joining Flow: adr/016-conversational-house-joining.md
+      - Personal Chores System: adr/019-personal-chores.md
