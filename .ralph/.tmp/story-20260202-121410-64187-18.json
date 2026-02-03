@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 37,
+  "remaining": 20,
+  "quality_gates": [
+    "ruff format --check .",
+    "ruff check .",
+    "ty",
+    "pytest"
+  ],
+  "id": "US-018",
+  "title": "Run ruff format on test_webhook_rate_limiting.py"
+}

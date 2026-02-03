@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 37,
+  "remaining": 14,
+  "quality_gates": [
+    "ruff format --check .",
+    "ruff check .",
+    "ty",
+    "pytest"
+  ],
+  "id": "US-024",
+  "title": "Convert docstrings to single-line in recurrence_parser.py"
+}

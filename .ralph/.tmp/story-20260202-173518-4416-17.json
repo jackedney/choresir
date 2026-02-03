@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "total": 15,
+  "remaining": 3,
+  "quality_gates": [
+    "uv run ruff format .",
+    "uv run ruff check . --fix",
+    "uv run ty check src",
+    "uv run pytest"
+  ]
+}

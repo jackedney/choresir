@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 11,
+  "remaining": 9,
+  "quality_gates": [
+    "pytest",
+    "ruff check",
+    "ruff format --check",
+    "ty check"
+  ],
+  "id": "US-003",
+  "title": "Integrate HMAC validation into webhook endpoint"
+}

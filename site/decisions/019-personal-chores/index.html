@@ -1,0 +1,2046 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Household Operating System living in WhatsApp">
+      
+      
+        <meta name="author" content="Jack Edney">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>ADR 019: Personal Chores System - WhatsApp Home Boss</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#adr-019-personal-chores-system" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="WhatsApp Home Boss" class="md-header__button md-logo" aria-label="WhatsApp Home Boss" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            WhatsApp Home Boss
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              ADR 019: Personal Chores System
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="WhatsApp Home Boss" class="md-nav__button md-logo" aria-label="WhatsApp Home Boss" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    WhatsApp Home Boss
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/first-run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    First Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/chores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Household Chores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/personal-chores/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Personal Chores
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/pantry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pantry & Shopping
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/analytics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analytics & Stats
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributors
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributors/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Workflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributors/code-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributors/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribution Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/directory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Directory Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engineering Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/async/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Async & Concurrency
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/naming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Naming Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/dependency-injection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dependency Injection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/tool-design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/creating-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creating an Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADR
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    ADR
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#date" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Date
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Decisions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-separate-database-collections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Separate Database Collections
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-privacy-first-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Privacy-First Design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-agent-routing-with-personal-prefix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Agent Routing with /personal Prefix
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-optional-accountability-partners" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Optional Accountability Partners
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-reuse-existing-infrastructure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Reuse Existing Infrastructure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-fuzzy-matching-for-user-convenience" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Fuzzy Matching for User Convenience
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-no-leaderboard-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. No Leaderboard Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consequences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consequences
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Consequences">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#positive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#negative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Negative
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#neutral" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Neutral
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alternatives-considered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternatives Considered
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Alternatives Considered">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#alternative-1-use-existing-chores-table-with-is_personal-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 1: Use Existing chores Table with is_personal Flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-2-always-require-accountability-partner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 2: Always Require Accountability Partner
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-3-always-self-verified-no-partner-option" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 3: Always Self-Verified (No Partner Option)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-4-no-auto-verification-indefinite-pending" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 4: No Auto-Verification (Indefinite Pending)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-5-personal-chores-contribute-to-leaderboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 5: Personal Chores Contribute to Leaderboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternative-6-separate-botapp-for-personal-chores" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternative 6: Separate Bot/App for Personal Chores
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#future-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future Considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-adrs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Related ADRs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="adr-019-personal-chores-system">ADR 019: Personal Chores System</h1>
+<h2 id="status">Status</h2>
+<p>Accepted</p>
+<h2 id="date">Date</h2>
+<p>2026-01-19</p>
+<h2 id="context">Context</h2>
+<p>While the household chore system effectively manages shared responsibilities and collaborative accountability, users also have <strong>personal goals and habits</strong> they want to track—such as going to the gym, practicing meditation, or maintaining a study schedule. These personal tasks differ from household chores in fundamental ways:</p>
+<p><strong>Privacy Requirements:</strong>
+- Personal chores should not appear on the public household leaderboard
+- Users may not want to broadcast every personal activity to roommates
+- Completion stats should remain private to the individual</p>
+<p><strong>Verification Needs:</strong>
+- Some users benefit from external accountability (e.g., workout buddy verification)
+- Others prefer self-accountability without involving housemates
+- Auto-verification after a grace period prevents indefinite "pending" states</p>
+<p><strong>System Scope:</strong>
+- Household chore infrastructure (scheduling, agent framework, database) can be reused
+- Personal chores need separate data collections to enforce privacy boundaries
+- Agent routing must distinguish between household vs. personal contexts</p>
+<p>We needed a privacy-respecting system for personal goal tracking that coexists with the household chore system without creating confusion or violating user privacy expectations.</p>
+<h2 id="decisions">Decisions</h2>
+<h3 id="1-separate-database-collections">1. Separate Database Collections</h3>
+<p>We chose to create <strong>distinct database collections</strong> (<code>personal_chores</code>, <code>personal_chore_logs</code>) rather than extending the existing <code>chores</code> and <code>logs</code> tables with a <code>is_personal</code> flag.</p>
+<p><strong>Rationale:</strong>
+- <strong>Privacy Enforcement:</strong> Clear separation prevents accidental leakage of personal data into household reports
+- <strong>Query Simplicity:</strong> No need to filter on <code>is_personal</code> flag in every household query
+- <strong>Schema Clarity:</strong> Personal chores have different fields (no <code>assigned_to</code>, has <code>owner_phone</code>)
+- <strong>Future Flexibility:</strong> Easier to apply different access rules or migrate data if needed</p>
+<p><strong>Schema Design:</strong></p>
+<p><strong><code>personal_chores</code> Collection:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="s2">&quot;owner_phone&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>              <span class="c1"># E.164 format, owner identifier</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>                    <span class="c1"># e.g., &quot;Go to gym&quot;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;recurrence&quot;</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>        <span class="c1"># CRON format, interval, or empty for one-time</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="s2">&quot;due_date&quot;</span><span class="p">:</span> <span class="n">datetime</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>     <span class="c1"># For one-time tasks only</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="s2">&quot;accountability_partner_phone&quot;</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>  <span class="c1"># Optional household member</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;ACTIVE&quot;</span> <span class="o">|</span> <span class="s2">&quot;ARCHIVED&quot;</span><span class="p">,</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="s2">&quot;created_at&quot;</span><span class="p">:</span> <span class="n">datetime</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">}</span>
+</span></code></pre></div></p>
+<p><strong><code>personal_chore_logs</code> Collection:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="s2">&quot;personal_chore_id&quot;</span><span class="p">:</span> <span class="n">relation</span><span class="p">,</span>   <span class="c1"># Link to personal_chores</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="s2">&quot;owner_phone&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>              <span class="c1"># E.164 format</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="s2">&quot;completed_at&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="s2">&quot;verification_status&quot;</span><span class="p">:</span> <span class="s2">&quot;SELF_VERIFIED&quot;</span> <span class="o">|</span> <span class="s2">&quot;PENDING&quot;</span> <span class="o">|</span> <span class="s2">&quot;VERIFIED&quot;</span> <span class="o">|</span> <span class="s2">&quot;REJECTED&quot;</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="s2">&quot;accountability_partner_phone&quot;</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="s2">&quot;partner_feedback&quot;</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="s2">&quot;notes&quot;</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">}</span>
+</span></code></pre></div></p>
+<h3 id="2-privacy-first-design">2. Privacy-First Design</h3>
+<p>Personal chores are <strong>invisible to the household system</strong>.</p>
+<p><strong>Implementation:</strong>
+- Personal chore logs do NOT appear in weekly leaderboards
+- Personal stats are only accessible by the owner
+- No notifications sent to the household about personal chore activity
+- Accountability partner sees only verification requests (not general household stats)</p>
+<p><strong>Exception:</strong> Accountability partners receive verification requests for the specific chores they're assigned to verify, but these are private 1-on-1 interactions, not broadcast to the household.</p>
+<h3 id="3-agent-routing-with-personal-prefix">3. Agent Routing with <code>/personal</code> Prefix</h3>
+<p>We implemented an <strong>explicit command prefix</strong> to distinguish personal from household chores.</p>
+<p><strong>Rationale:</strong>
+- <strong>User Clarity:</strong> Clear signal that this is a different context (<code>/personal add "Go to gym"</code>)
+- <strong>Namespace Separation:</strong> Prevents ambiguity between "Gym" personal chore and "Clean Gym" household chore
+- <strong>Agent Tool Selection:</strong> Agent can route to personal_chore_tools vs. chore_tools based on prefix
+- <strong>Discoverability:</strong> Prefix makes the feature self-documenting</p>
+<p><strong>Trigger Patterns:</strong>
+- <code>/personal add [task]</code> - Create personal chore
+- <code>/personal log [task]</code> - Log completion
+- <code>/personal list</code> - View personal chores
+- <code>/personal remove [task]</code> - Archive personal chore
+- <code>/personal stats</code> - View personal stats (private)</p>
+<p><strong>Agent Instructions Addition:</strong>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>PERSONAL CHORE ROUTING:
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>- Use personal_chore_tools for any message starting with &quot;/personal&quot;
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>- Personal chores are PRIVATE to the user (no leaderboard, no household visibility)
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>- Verification requests go only to the accountability partner (if set)
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>- Auto-verify logs after 48 hours if partner hasn&#39;t responded
+</span></code></pre></div></p>
+<h3 id="4-optional-accountability-partners">4. Optional Accountability Partners</h3>
+<p>We chose a <strong>hybrid accountability model</strong>: self-verified by default, with optional partner verification.</p>
+<p><strong>Rationale:</strong>
+- <strong>User Choice:</strong> Some users need external accountability, others find it demotivating
+- <strong>Household Integration:</strong> Leverages existing household members as accountability partners
+- <strong>Privacy Preserved:</strong> Partner only sees verification requests, not general stats
+- <strong>Graceful Degradation:</strong> Auto-verification after 48 hours prevents indefinite pending states</p>
+<p><strong>Verification Flow:</strong>
+1. User creates personal chore (optionally specifies accountability partner by name)
+2. When user logs completion:
+   - <strong>No partner:</strong> Immediately mark <code>SELF_VERIFIED</code>
+   - <strong>Partner set:</strong> Mark <code>PENDING</code>, notify partner via WhatsApp
+3. Partner verifies or rejects within 48 hours
+4. If no response after 48 hours: Auto-verify (scheduled job)</p>
+<p><strong>Auto-Verification Strategy:</strong>
+- Daily scheduled job checks for logs with <code>status=PENDING</code> and <code>completed_at &gt; 48h ago</code>
+- Updates status to <code>VERIFIED</code> and logs auto-verification action
+- Prevents indefinite "pending" limbo while maintaining accountability incentive</p>
+<h3 id="5-reuse-existing-infrastructure">5. Reuse Existing Infrastructure</h3>
+<p>We reused the <strong>recurrence parsing logic</strong> and <strong>agent framework</strong> from household chores.</p>
+<p><strong>Shared Components:</strong>
+- <strong>Recurrence Parser:</strong> Same CRON/interval parser used for household chores (<code>src/utils/recurrence_parser.py</code>)
+- <strong>Agent Framework:</strong> Personal chore tools registered with same Pydantic AI agent
+- <strong>Scheduler:</strong> APScheduler handles auto-verification job (alongside household reminders)
+- <strong>WhatsApp Integration:</strong> Same Twilio message sending service</p>
+<p><strong>New Service Modules:</strong>
+- <code>src/services/personal_chore_service.py</code> - CRUD operations for personal chores
+- <code>src/services/personal_verification_service.py</code> - Logging, verification, auto-verify, stats
+- <code>src/agents/tools/personal_chore_tools.py</code> - Agent tools for personal chore management</p>
+<h3 id="6-fuzzy-matching-for-user-convenience">6. Fuzzy Matching for User Convenience</h3>
+<p>We implemented <strong>fuzzy string matching</strong> for chore titles to reduce friction.</p>
+<p><strong>Rationale:</strong>
+- <strong>WhatsApp UX:</strong> Typing full exact titles on mobile is tedious
+- <strong>User Expectations:</strong> Users expect "gym" to match "Go to gym"
+- <strong>Error Prevention:</strong> Reduces "chore not found" errors from typos or partial titles</p>
+<p><strong>Implementation:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">fuzzy_match_personal_chore</span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">chores</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">search_term</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Case-insensitive substring matching on chore titles.&quot;&quot;&quot;</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">search_lower</span> <span class="o">=</span> <span class="n">search_term</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="k">for</span> <span class="n">chore</span> <span class="ow">in</span> <span class="n">chores</span><span class="p">:</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>        <span class="k">if</span> <span class="n">search_lower</span> <span class="ow">in</span> <span class="n">chore</span><span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>            <span class="k">return</span> <span class="n">chore</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="k">return</span> <span class="kc">None</span>
+</span></code></pre></div></p>
+<p><strong>Example:</strong>
+- User has personal chore: "Go to gym 3x per week"
+- User types: <code>/personal log gym</code>
+- Fuzzy match finds "Go to gym 3x per week"</p>
+<h3 id="7-no-leaderboard-integration">7. No Leaderboard Integration</h3>
+<p>Personal chores explicitly do <strong>NOT</strong> contribute to household leaderboards or analytics.</p>
+<p><strong>Rationale:</strong>
+- <strong>Privacy Principle:</strong> Personal goals should not be public competition
+- <strong>Different Incentive Model:</strong> Personal chores use intrinsic motivation, not social comparison
+- <strong>User Expectations:</strong> Users expect "personal" to mean "private"
+- <strong>Design Simplicity:</strong> Avoids complex "show personal stats only to me" UX</p>
+<p><strong>Stats Available:</strong>
+- Personal stats command shows private stats (completion rate, pending verifications)
+- Stats are ONLY visible to the chore owner
+- No household-wide aggregation of personal chore data</p>
+<h2 id="consequences">Consequences</h2>
+<h3 id="positive">Positive</h3>
+<ul>
+<li><strong>Privacy Respected:</strong> Personal goals remain private, preventing social pressure or embarrassment</li>
+<li><strong>Accountability Options:</strong> Supports both self-directed and partner-verified workflows</li>
+<li><strong>Reuses Infrastructure:</strong> Leverages existing scheduling, agent, and notification systems</li>
+<li><strong>Clear Mental Model:</strong> <code>/personal</code> prefix makes the feature boundary obvious</li>
+<li><strong>Prevents Limbo:</strong> 48-hour auto-verification ensures logs don't stay pending forever</li>
+<li><strong>WhatsApp-Friendly:</strong> Fuzzy matching reduces typing friction on mobile</li>
+<li><strong>Extensible:</strong> Easy to add badges, streaks, or other personal gamification later</li>
+</ul>
+<h3 id="negative">Negative</h3>
+<ul>
+<li><strong>Schema Duplication:</strong> Separate collections mean some fields are duplicated (e.g., <code>recurrence</code> parsing)</li>
+<li><strong>No Cross-Feature Analytics:</strong> Can't easily compare personal vs. household chore completion rates</li>
+<li><strong>Partner Notification Noise:</strong> Users may get verification requests from multiple people</li>
+<li><strong>No Historical Partner Changes:</strong> If partner is changed, old logs still reference original partner</li>
+<li><strong>Limited Privacy Controls:</strong> All-or-nothing privacy (can't make specific personal chores public)</li>
+</ul>
+<h3 id="neutral">Neutral</h3>
+<ul>
+<li><strong>Two Parallel Systems:</strong> Users must remember <code>/personal</code> vs. household chore commands</li>
+<li><strong>Agent Complexity:</strong> Agent must route between two similar but distinct tool sets</li>
+<li><strong>Auto-Verification Latency:</strong> 48-hour grace period may feel too long or too short (configurable)</li>
+</ul>
+<h2 id="implementation-notes">Implementation Notes</h2>
+<p><strong>Files Created:</strong>
+- <code>src/services/personal_chore_service.py</code> - CRUD operations (create, get, delete, fuzzy_match)
+- <code>src/services/personal_verification_service.py</code> - Logging, verification, stats, auto-verify job
+- <code>src/agents/tools/personal_chore_tools.py</code> - 6 agent tools for personal chore management
+- Schema additions in <code>src/core/schema.py</code> - Two new collections with indexes</p>
+<p><strong>Configuration:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Future: Make auto-verification period configurable</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">PERSONAL_CHORE_AUTO_VERIFY_HOURS</span> <span class="o">=</span> <span class="mi">48</span>
+</span></code></pre></div></p>
+<p><strong>Scheduled Jobs:</strong>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># src/core/scheduler.py</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">scheduler</span><span class="o">.</span><span class="n">add_job</span><span class="p">(</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">func</span><span class="o">=</span><span class="n">auto_verify_expired_personal_chores</span><span class="p">,</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">trigger</span><span class="o">=</span><span class="n">CronTrigger</span><span class="p">(</span><span class="n">hour</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">minute</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>  <span class="c1"># Daily at midnight</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="nb">id</span><span class="o">=</span><span class="s2">&quot;auto_verify_personal_chores&quot;</span><span class="p">,</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Auto-verify expired personal chore logs&quot;</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="p">)</span>
+</span></code></pre></div></p>
+<p><strong>Agent Tools:</strong>
+1. <code>tool_create_personal_chore(title, recurrence, accountability_partner_name)</code>
+2. <code>tool_log_personal_chore(chore_title_fuzzy, notes)</code>
+3. <code>tool_verify_personal_chore(log_id, approved, feedback)</code>
+4. <code>tool_get_personal_stats(period_days)</code>
+5. <code>tool_list_personal_chores(filter_type)</code>
+6. <code>tool_remove_personal_chore(chore_title_fuzzy)</code></p>
+<p><strong>Database Indexes:</strong>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1">-- personal_chores</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_personal_owner</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">personal_chores</span><span class="w"> </span><span class="p">(</span><span class="n">owner_phone</span><span class="p">)</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_personal_status</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">personal_chores</span><span class="w"> </span><span class="p">(</span><span class="n">status</span><span class="p">)</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1">-- personal_chore_logs</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_pcl_chore</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">personal_chore_logs</span><span class="w"> </span><span class="p">(</span><span class="n">personal_chore_id</span><span class="p">)</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_pcl_owner</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">personal_chore_logs</span><span class="w"> </span><span class="p">(</span><span class="n">owner_phone</span><span class="p">)</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_pcl_verification</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">personal_chore_logs</span><span class="w"> </span><span class="p">(</span><span class="n">verification_status</span><span class="p">)</span>
+</span></code></pre></div></p>
+<p><strong>Testing Strategy:</strong>
+- Unit tests for personal_chore_service CRUD operations
+- Integration tests for verification flow (pending → verified → rejected)
+- Auto-verification job testing with mocked time
+- Agent tool tests with mock dependencies
+- Privacy verification (ensure personal data doesn't leak to household queries)</p>
+<h2 id="alternatives-considered">Alternatives Considered</h2>
+<h3 id="alternative-1-use-existing-chores-table-with-is_personal-flag">Alternative 1: Use Existing <code>chores</code> Table with <code>is_personal</code> Flag</h3>
+<p><strong>Rejected.</strong>
+- Would require filtering every household query to exclude personal chores
+- Risk of accidental privacy leaks (forgot to filter in one query → personal data on leaderboard)
+- Schema conflicts (household chores have <code>assigned_to</code>, personal chores have <code>owner_phone</code>)
+- Harder to enforce different access rules</p>
+<h3 id="alternative-2-always-require-accountability-partner">Alternative 2: Always Require Accountability Partner</h3>
+<p><strong>Rejected.</strong>
+- Too restrictive; many users prefer self-accountability
+- Forces users to involve housemates in private goals
+- Reduces adoption for users without willing accountability partners</p>
+<h3 id="alternative-3-always-self-verified-no-partner-option">Alternative 3: Always Self-Verified (No Partner Option)</h3>
+<p><strong>Rejected.</strong>
+- Removes valuable accountability mechanism for users who need it
+- Misses opportunity to create positive peer support dynamics
+- Research shows external accountability improves habit formation</p>
+<h3 id="alternative-4-no-auto-verification-indefinite-pending">Alternative 4: No Auto-Verification (Indefinite Pending)</h3>
+<p><strong>Rejected.</strong>
+- Logs would accumulate in "pending" state if partner forgets
+- Creates frustrating UX (user did the work but can't get credit)
+- Penalizes users for partner inattentiveness</p>
+<h3 id="alternative-5-personal-chores-contribute-to-leaderboard">Alternative 5: Personal Chores Contribute to Leaderboard</h3>
+<p><strong>Rejected.</strong>
+- Violates privacy expectation of "personal" chores
+- Incentivizes logging fake personal chores to boost household rank
+- Confuses the purpose of household vs. personal systems</p>
+<h3 id="alternative-6-separate-botapp-for-personal-chores">Alternative 6: Separate Bot/App for Personal Chores</h3>
+<p><strong>Rejected.</strong>
+- Increases user friction (two apps to manage)
+- Misses synergy with existing household members as accountability partners
+- Duplicates infrastructure (scheduling, WhatsApp integration, database)</p>
+<h2 id="future-considerations">Future Considerations</h2>
+<p><strong>If Users Request More Privacy Controls:</strong>
+- Allow marking specific personal chores as "shareable" (opt-in to leaderboard)
+- Support multiple accountability partners per chore
+- Add "anonymous accountability" (partner knows someone needs verification, not who)</p>
+<p><strong>If Auto-Verification Period Needs Tuning:</strong>
+- Make <code>AUTO_VERIFY_HOURS</code> configurable per user or per chore
+- Add reminder to partner before auto-verification kicks in
+- Allow users to manually trigger early verification</p>
+<p><strong>If Personal Gamification is Requested:</strong>
+- Personal streaks (consecutive days/weeks of completing personal goals)
+- Personal badges (unlocked at milestones: 10 completions, 30-day streak, etc.)
+- Personal charts/graphs (completion trend over time)
+- <strong>Important:</strong> Keep these features isolated from household leaderboard</p>
+<p><strong>If Cross-System Analytics Become Valuable:</strong>
+- Add admin-only aggregate stats (household avg personal chores per user)
+- Support "total productivity" view (household + personal combined, private to user)
+- Correlation analysis (does household chore burden affect personal goal completion?)</p>
+<h2 id="related-adrs">Related ADRs</h2>
+<ul>
+<li><a href="../002-agent-framework/">ADR 002: Agent Framework</a> - Established Pydantic AI tool architecture</li>
+<li><a href="../007-operations/">ADR 007: Operations</a> - Defined database schema patterns and onboarding protocol</li>
+<li><a href="../008-gamification/">ADR 008: Gamification</a> - Household leaderboard that personal chores intentionally avoid</li>
+<li><a href="../009-interactive-verification/">ADR 009: Interactive Verification</a> - Verification flow reused for partner verification</li>
+</ul>
+<h2 id="references">References</h2>
+<ul>
+<li>Implementation PR: <a href="https://github.com/[owner]/whatsapp-home-boss/pull/41">#41 - Add personal chore tracking system</a></li>
+<li>Service modules: <code>src/services/personal_chore_service.py</code>, <code>src/services/personal_verification_service.py</code></li>
+<li>Agent tools: <code>src/agents/tools/personal_chore_tools.py</code></li>
+<li>Recurrence parser refactor: Extracted shared logic between household and personal chores</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

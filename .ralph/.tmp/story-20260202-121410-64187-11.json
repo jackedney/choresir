@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 37,
+  "remaining": 27,
+  "quality_gates": [
+    "ruff format --check .",
+    "ruff check .",
+    "ty",
+    "pytest"
+  ],
+  "id": "US-011",
+  "title": "Add return type hints to test_webhook.py"
+}

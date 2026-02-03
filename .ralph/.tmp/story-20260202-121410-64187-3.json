@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 37,
+  "remaining": 35,
+  "quality_gates": [
+    "ruff format --check .",
+    "ruff check .",
+    "ty",
+    "pytest"
+  ],
+  "id": "US-003",
+  "title": "Remove PII from personal_verification_service.py logs"
+}

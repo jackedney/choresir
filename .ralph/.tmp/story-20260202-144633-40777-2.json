@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 37,
+  "remaining": 11,
+  "quality_gates": [
+    "ruff format --check .",
+    "ruff check .",
+    "ty",
+    "pytest"
+  ],
+  "id": "US-027",
+  "title": "Format long lists in errors.py for readability"
+}

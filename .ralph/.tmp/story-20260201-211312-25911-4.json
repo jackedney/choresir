@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 11,
+  "remaining": 8,
+  "quality_gates": [
+    "pytest",
+    "ruff check",
+    "ruff format --check",
+    "ty check"
+  ],
+  "id": "US-004",
+  "title": "Handle missing timestamp in parser"
+}

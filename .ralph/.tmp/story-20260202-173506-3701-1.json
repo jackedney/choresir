@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "total": 37,
+  "remaining": 0,
+  "quality_gates": [
+    "ruff format --check .",
+    "ruff check .",
+    "ty",
+    "pytest"
+  ]
+}

@@ -43,6 +43,13 @@ nav:
       - First Run: getting-started/first-run.md
   - User Guide:
       - Overview: user-guide/index.md
+      - Getting Started: user-guide/onboarding.md
+      - Household Chores: user-guide/chores.md
+      - Personal Chores: user-guide/personal-chores.md
+      - Pantry & Shopping: user-guide/pantry.md
+      - Analytics & Stats: user-guide/analytics.md
+      - Verification System: user-guide/verification.md
+      - FAQ: user-guide/faq.md
   - Contributors:
       - Overview: contributors/index.md
       - Development Workflow: contributors/development.md

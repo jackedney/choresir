@@ -1,0 +1,341 @@
+{
+  "version": 1,
+  "project": "Documentation Overhaul",
+  "overview": "Comprehensive upgrade of project documentation using MkDocs with Material theme, providing balanced coverage for both contributors and end users.",
+  "goals": [
+    "Migrate documentation to MkDocs with Material theme",
+    "Create comprehensive contributor documentation (architecture, development workflow, ADRs)",
+    "Create end-user documentation (features, getting started, guides)",
+    "Create detailed agent implementation guides",
+    "Ensure 100% coverage of all key documentation areas",
+    "Implement quality gates with spelling and lint checks"
+  ],
+  "nonGoals": [
+    "Public hosting/deployment (local build only)",
+    "Interactive demos or live code execution",
+    "Automated API documentation generation (manual documentation preferred)"
+  ],
+  "successMetrics": [
+    "All key documentation areas covered (100% coverage)",
+    "Documentation site builds successfully without errors",
+    "All spelling and lint checks pass",
+    "Content is accessible and understandable for mixed audience"
+  ],
+  "openQuestions": [],
+  "stack": {
+    "framework": "MkDocs",
+    "theme": "Material for MkDocs",
+    "hosting": "Local build only",
+    "quality": "markdownlint, textlint"
+  },
+  "routes": [
+    {
+      "path": "/",
+      "name": "Home",
+      "purpose": "Project overview and quick links"
+    },
+    {
+      "path": "/getting-started/",
+      "name": "Getting Started",
+      "purpose": "Setup and installation for users"
+    },
+    {
+      "path": "/user-guide/",
+      "name": "User Guide",
+      "purpose": "Features and usage instructions"
+    },
+    {
+      "path": "/contributors/",
+      "name": "Contributors",
+      "purpose": "Development and contribution guidelines"
+    },
+    {
+      "path": "/architecture/",
+      "name": "Architecture",
+      "purpose": "System design and patterns"
+    },
+    {
+      "path": "/agents/",
+      "name": "Agents",
+      "purpose": "Agent implementation guides"
+    },
+    {
+      "path": "/adr/",
+      "name": "ADRs",
+      "purpose": "Architectural Decision Records"
+    }
+  ],
+  "uiNotes": [
+    "Material theme with clean, professional design",
+    "Navigation sidebar with clear section hierarchy",
+    "Code blocks with syntax highlighting",
+    "Search functionality (Material theme built-in)",
+    "Mobile-responsive layout",
+    "Content-focused design (minimal visual flair)"
+  ],
+  "dataModel": [
+    {
+      "entity": "Documentation Structure",
+      "fields": [
+        "Home",
+        "Getting Started",
+        "User Guide",
+        "Contributors",
+        "Architecture",
+        "Agents",
+        "ADRs"
+      ]
+    }
+  ],
+  "importFormat": {
+    "description": "Migrate existing docs/ and AGENTS.md content to MkDocs format",
+    "example": {}
+  },
+  "rules": [
+    "All documentation must be in Markdown format",
+    "Code examples must use proper syntax highlighting",
+    "All internal links must be relative paths",
+    "Spelling and lint checks must pass before commits",
+    "Documentation must build successfully locally"
+  ],
+  "qualityGates": [
+    "uv run markdownlint docs/",
+    "uv run textlint docs/"
+  ],
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Setup MkDocs with Material theme",
+      "status": "done",
+      "dependsOn": [],
+      "description": "As a developer, I want MkDocs with Material theme configured so I can build and view documentation locally.",
+      "acceptanceCriteria": [
+        "Install mkdocs and mkdocs-material packages",
+        "Create mkdocs.yml configuration file",
+        "Configure Material theme with default settings",
+        "Create basic index.md home page",
+        "Example: Running 'mkdocs serve' starts local dev server on http://127.0.0.1:8000",
+        "Negative case: Missing mkdocs.yml -> configuration error on build",
+        "Verify site builds successfully with 'mkdocs build'"
+      ],
+      "startedAt": "2026-02-03T13:04:56.338432+00:00",
+      "completedAt": "2026-02-03T13:09:34.623952+00:00",
+      "updatedAt": "2026-02-03T13:09:34.623749+00:00"
+    },
+    {
+      "id": "US-002",
+      "title": "Configure documentation navigation structure",
+      "status": "done",
+      "dependsOn": [
+        "US-001"
+      ],
+      "description": "As a contributor, I want clear navigation structure so I can find documentation easily.",
+      "acceptanceCriteria": [
+        "Define nav structure in mkdocs.yml with all main sections",
+        "Create directory structure: docs/getting-started/, docs/user-guide/, docs/contributors/, docs/architecture/, docs/agents/, docs/adr/",
+        "Add section index files (README.md or similar)",
+        "Example: 'Getting Started' section has subpages for Installation, Configuration, First Run",
+        "Negative case: Broken navigation link -> 404 error in build",
+        "Verify navigation renders correctly in sidebar"
+      ],
+      "startedAt": "2026-02-03T13:09:36.703930+00:00",
+      "completedAt": "2026-02-03T13:15:13.482990+00:00",
+      "updatedAt": "2026-02-03T13:15:13.482842+00:00"
+    },
+    {
+      "id": "US-003",
+      "title": "Create Getting Started documentation",
+      "status": "done",
+      "dependsOn": [
+        "US-002"
+      ],
+      "description": "As a new user, I want clear getting started guides so I can quickly set up and use the WhatsApp bot.",
+      "acceptanceCriteria": [
+        "Write installation guide (prerequisites, commands, verification)",
+        "Write configuration guide (environment variables, PocketBase setup)",
+        "Write first run guide (sending first message, verifying connection)",
+        "Include code examples with syntax highlighting",
+        "Example: Installation includes uv install, PocketBase download, environment setup",
+        "Negative case: Missing prerequisite causes failure in setup -> document error message and solution",
+        "Verify all commands are accurate and tested"
+      ],
+      "startedAt": "2026-02-03T13:15:15.589004+00:00",
+      "completedAt": "2026-02-03T13:31:01.774729+00:00",
+      "updatedAt": "2026-02-03T13:31:01.774569+00:00"
+    },
+    {
+      "id": "US-004",
+      "title": "Create User Guide documentation",
+      "status": "in_progress",
+      "dependsOn": [
+        "US-002"
+      ],
+      "description": "As an end user, I want comprehensive user guides so I can understand all features and capabilities.",
+      "acceptanceCriteria": [
+        "Document all available features and commands",
+        "Provide usage examples for each feature",
+        "Include common use cases and workflows",
+        "Add FAQ section for common questions",
+        "Example: 'How to create a new chore' with step-by-step instructions",
+        "Negative case: User tries unsupported command -> document error handling",
+        "Ensure language is accessible to non-technical users"
+      ],
+      "startedAt": "2026-02-03T13:31:03.890674+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-03T13:31:03.890837+00:00"
+    },
+    {
+      "id": "US-005",
+      "title": "Create Contributors documentation",
+      "status": "open",
+      "dependsOn": [
+        "US-002"
+      ],
+      "description": "As a contributor, I want development documentation so I can understand how to work on the codebase.",
+      "acceptanceCriteria": [
+        "Document development workflow (setup, run, test, build)",
+        "Document code quality commands (ruff format, ruff check, ty check, pytest)",
+        "Document contribution guidelines (commit standards, PR process)",
+        "Document local development environment setup",
+        "Example: Pre-commit checklist with all required commands",
+        "Negative case: Skipping quality gates causes CI failure -> document required checks",
+        "Align with AGENTS.md instructions"
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "Create Architecture documentation",
+      "status": "open",
+      "dependsOn": [
+        "US-002"
+      ],
+      "description": "As a contributor, I want architecture documentation so I understand system design and patterns.",
+      "acceptanceCriteria": [
+        "Document overall system architecture and components",
+        "Document directory structure and purpose of each directory",
+        "Document engineering patterns (functional services, DTOs, dependency injection)",
+        "Document database interaction patterns (PocketBase via DatabaseService)",
+        "Document async and concurrency patterns",
+        "Example: src/services/ contains functional business logic, not service classes",
+        "Negative case: Direct PocketBase import -> document correct pattern via DatabaseService",
+        "Include diagrams using text-based format (ASCII or Mermaid if supported)"
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "Create Agent implementation guides",
+      "status": "open",
+      "dependsOn": [
+        "US-002"
+      ],
+      "description": "As a developer, I want agent implementation guides so I can build or extend Pydantic AI agents.",
+      "acceptanceCriteria": [
+        "Document agent naming conventions (snake_case for agents/tools, PascalCase for models)",
+        "Document dependency injection pattern with RunContext[Deps]",
+        "Document tool design patterns (single Pydantic model argument, error string returns)",
+        "Document base Deps structure in src/agents/base.py",
+        "Provide step-by-step guide for creating a new agent",
+        "Include example agent with tools",
+        "Example: 'tool_log_chore' takes LogChoreParams model, returns 'Error: Chore not found' on failure",
+        "Negative case: Raising exception in tool -> document return error string pattern instead"
+      ]
+    },
+    {
+      "id": "US-008",
+      "title": "Migrate ADRs to MkDocs format",
+      "status": "open",
+      "dependsOn": [
+        "US-002"
+      ],
+      "description": "As a contributor, I want ADRs in MkDocs so all documentation is in one place.",
+      "acceptanceCriteria": [
+        "Migrate existing ADRs from docs/decisions/ to docs/adr/",
+        "Convert ADRs to MkDocs Markdown format",
+        "Create ADR index page with chronological list",
+        "Maintain ADR numbering and structure",
+        "Example: ADR-017 on type checking becomes docs/adr/017-type-safety.md",
+        "Negative case: Broken internal link after migration -> verify all links work",
+        "Include ADR template for new decisions"
+      ]
+    },
+    {
+      "id": "US-009",
+      "title": "Migrate AGENTS.md to Contributors section",
+      "status": "open",
+      "dependsOn": [
+        "US-005"
+      ],
+      "description": "As a contributor, I want AGENTS.md content integrated into MkDocs so all contributor docs are unified.",
+      "acceptanceCriteria": [
+        "Extract content from AGENTS.md into appropriate MkDocs pages",
+        "Maintain all coding standards and conventions",
+        "Update AGENTS.md to reference the MkDocs documentation",
+        "Ensure no critical information is lost in migration",
+        "Example: 'Toolchain & Style' section goes to docs/contributors/toolchain.md",
+        "Negative case: Missing convention in MkDocs -> compare against AGENTS.md to ensure completeness",
+        "Verify internal consistency across all pages"
+      ]
+    },
+    {
+      "id": "US-010",
+      "title": "Add spelling and lint checks",
+      "status": "open",
+      "dependsOn": [
+        "US-001"
+      ],
+      "description": "As a contributor, I want automated spelling and lint checks so documentation quality is maintained.",
+      "acceptanceCriteria": [
+        "Install markdownlint package",
+        "Install textlint package",
+        "Configure markdownlint rules for Markdown files",
+        "Configure textlint rules for spelling and grammar",
+        "Add quality gate commands to pyproject.toml or similar",
+        "Example: 'uv run markdownlint docs/' catches formatting issues",
+        "Negative case: Typo in documentation -> textlint catches spelling error",
+        "Document quality gate commands in Contributors guide"
+      ]
+    },
+    {
+      "id": "US-011",
+      "title": "Verify documentation builds successfully",
+      "status": "open",
+      "dependsOn": [
+        "US-003",
+        "US-004",
+        "US-005",
+        "US-006",
+        "US-007",
+        "US-008",
+        "US-009"
+      ],
+      "description": "As a contributor, I want documentation that builds without errors so it can be reliably viewed.",
+      "acceptanceCriteria": [
+        "Run 'mkdocs build' and verify no errors or warnings",
+        "Verify all internal links resolve correctly (no 404s)",
+        "Verify all external links are accessible",
+        "Check that navigation renders completely",
+        "Verify search functionality works",
+        "Example: Complete build generates site/ directory with all pages",
+        "Negative case: Broken internal link -> build error or 404 on navigation",
+        "Test local server with 'mkdocs serve' and browse all pages"
+      ]
+    },
+    {
+      "id": "US-012",
+      "title": "Create README with documentation link",
+      "status": "open",
+      "dependsOn": [
+        "US-011"
+      ],
+      "description": "As a new user or contributor, I want clear direction to the documentation so I can find what I need.",
+      "acceptanceCriteria": [
+        "Update project README with clear link to documentation",
+        "Add instructions for building documentation locally",
+        "Include quick links to key sections (Getting Started, Contributors)",
+        "Example: 'For full documentation, run `mkdocs serve` and visit http://127.0.0.1:8000'",
+        "Negative case: Outdated link -> broken link in README",
+        "Keep README concise with reference to full docs"
+      ]
+    }
+  ]
+}
