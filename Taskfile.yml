@@ -128,14 +128,9 @@ tasks:
         echo ""
         echo "Press Ctrl+C to stop services..."
 
-        # Wait for interrupt
-        trap "echo 'Shutting down...'" INT
+        # Wait for interrupt with proper cleanup
+        trap "echo 'Shutting down...'; kill $POCKETBASE_PID $FASTAPI_PID 2>/dev/null || true; rm -f .pocketbase.pid .fastapi.pid; exit 0" INT TERM
         while true; do sleep 1; done
-
-        # Cleanup on exit
-        echo "Shutting down services..."
-        kill $POCKETBASE_PID $FASTAPI_PID 2>/dev/null || true
-        rm -f .pocketbase.pid .fastapi.pid
 
   stop-dev:
     desc: Stop all development services
