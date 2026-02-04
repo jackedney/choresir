@@ -145,7 +145,6 @@ Track your personal tasks privately within the same WhatsApp interface:
 
 **Required Accounts:**
 - [OpenRouter](https://openrouter.ai) - AI model access (~$3/month)
-- [ngrok](https://ngrok.com) - Local webhook tunnel (free)
 
 </td>
 <td width="50%">
@@ -191,11 +190,9 @@ cp .env.example .env
 # Option A: Full Docker (Recommended)
 docker-compose up -d
 
-# Option B: Dev Mode (requires 3 terminals)
+# Option B: Dev Mode
 docker-compose up -d redis waha      # Start dependencies
-./pocketbase serve                   # Terminal 1: Database
-uv run fastapi dev src/main.py       # Terminal 2: API Server
-ngrok http 8000                      # Terminal 3: Public Webhook (if not using local WAHA)
+task dev                             # Start PocketBase + FastAPI
 
 # 6️⃣ Scan QR Code
 # Open http://localhost:3000/dashboard to scan the WAHA QR code with your WhatsApp app.

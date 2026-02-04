@@ -73,7 +73,7 @@ tasks:
       - uv run ruff format
 
   dev:
-    desc: Run PocketBase, FastAPI, and ngrok concurrently for local development
+    desc: Run PocketBase and FastAPI for local development
     deps: [install-pocketbase]
     cmds:
       - |
@@ -101,8 +101,8 @@ tasks:
         echo "Admin account ready!"
 
         # Start FastAPI in background
-        echo "Starting FastAPI on http://0.0.0.0:8000..."
-        NO_COLOR=1 uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 > fastapi.log 2>&1 &
+        echo "Starting FastAPI on http://0.0.0.0:8001..."
+        NO_COLOR=1 uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 > fastapi.log 2>&1 &
         FASTAPI_PID=$!
         echo $FASTAPI_PID > .fastapi.pid
 
@@ -111,7 +111,7 @@ tasks:
         sleep 5
 
         # Check if FastAPI started successfully
-        if ! curl -s http://localhost:8000/health > /dev/null 2>&1; then
+        if ! curl -s http://localhost:8001/health > /dev/null 2>&1; then
           echo "ERROR: FastAPI failed to start. Check fastapi.log for details."
           echo "Shutting down services..."
           kill $POCKETBASE_PID 2>/dev/null || true
@@ -120,25 +120,17 @@ tasks:
         fi
         echo "FastAPI is ready!"
 
-        # Start ngrok (foreground)
-        echo "Starting ngrok..."
+        echo ""
+        echo "Development environment ready!"
+        echo "  PocketBase: http://127.0.0.1:8090"
+        echo "  FastAPI:    http://0.0.0.0:8001"
+        echo "  WAHA:       http://localhost:3000 (start with: docker-compose up -d waha)"
+        echo ""
+        echo "Press Ctrl+C to stop services..."
 
-        # Check if we have a saved static domain
-        if [ -f .ngrok-domain ] && [ -s .ngrok-domain ]; then
-          SAVED_DOMAIN=$(cat .ngrok-domain)
-          echo "Using saved static domain: $SAVED_DOMAIN"
-          echo "Webhook URL: https://$SAVED_DOMAIN/webhook/whatsapp"
-          ngrok http 8000 --domain=$SAVED_DOMAIN
-        else
-          echo "No static domain configured."
-          echo "To use a static domain:"
-          echo "  1. Visit https://dashboard.ngrok.com/domains"
-          echo "  2. Create a new domain (free plan includes 1 static domain)"
-          echo "  3. Save the domain to .ngrok-domain file"
-          echo ""
-          echo "Using random domain for now..."
-          ngrok http 8000
-        fi
+        # Wait for interrupt
+        trap "echo 'Shutting down...'" INT
+        while true; do sleep 1; done
 
         # Cleanup on exit
         echo "Shutting down services..."
@@ -159,7 +151,6 @@ tasks:
           rm .fastapi.pid
           echo "FastAPI stopped"
         fi
-        pkill -f "ngrok http" 2>/dev/null || true
         echo "All services stopped"
 
   down:
@@ -188,14 +179,11 @@ tasks:
           echo "✓ PocketBase stopped (port 8090)"
         fi
 
-        FASTAPI_PID=$(lsof -ti :8000) || true
+        FASTAPI_PID=$(lsof -ti :8001) || true
         if [ -n "$FASTAPI_PID" ]; then
           kill $FASTAPI_PID 2>/dev/null || true
-          echo "✓ FastAPI stopped (port 8000)"
+          echo "✓ FastAPI stopped (port 8001)"
         fi
-
-        # Kill ngrok
-        pkill -f "ngrok http" 2>/dev/null && echo "✓ ngrok stopped" || true
 
         # Clean up log files
         if [ -f pocketbase.log ]; then
@@ -210,32 +198,6 @@ tasks:
 
         echo ""
         echo "All services stopped and cleaned up!"
-
-  setup-ngrok:
-    desc: Configure ngrok static domain
-    cmds:
-      - |
-        echo "=== ngrok Static Domain Setup ==="
-        echo ""
-        echo "Free ngrok plan includes 1 static domain."
-        echo ""
-        echo "Steps:"
-        echo "1. Visit https://dashboard.ngrok.com/domains"
-        echo "2. Click 'Create Domain' (if you haven't already)"
-        echo "3. Copy the domain name (e.g., 'abc-xyz-123.ngrok-free.app')"
-        echo ""
-        read -p "Enter your static domain: " STATIC_DOMAIN
-
-        if [ -n "$STATIC_DOMAIN" ]; then
-          echo "$STATIC_DOMAIN" > .ngrok-domain
-          echo ""
-          echo "✅ Static domain saved!"
-          echo "Your webhook URL will be: https://$STATIC_DOMAIN/webhook/whatsapp"
-          echo ""
-          echo "Run 'task dev' to start with this domain."
-        else
-          echo "No domain entered. Skipping."
-        fi
 
   clean:
     desc: Remove PocketBase binary and data
