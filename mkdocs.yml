@@ -3,6 +3,7 @@ site_description: Household Operating System living in WhatsApp
 site_author: Jack Edney
 theme:
   name: material
+  font: false
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
