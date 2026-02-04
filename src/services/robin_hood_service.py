@@ -53,9 +53,11 @@ async def get_weekly_takeover_count(user_id: str) -> int:
 
     try:
         # Query for this user's record for the current week
+        sanitized_user_id = db_client.sanitize_param(user_id)
+        filter_query = f'user_id = "{sanitized_user_id}" && week_start_date = "{week_start.isoformat()}"'
         records = await db_client.list_records(
             collection="robin_hood_swaps",
-            filter_query=f'user_id = "{user_id}" && week_start_date = "{week_start.isoformat()}"',
+            filter_query=filter_query,
         )
 
         if records:
@@ -86,9 +88,11 @@ async def increment_weekly_takeover_count(user_id: str) -> int:
 
     try:
         # Try to get existing record for this week
+        sanitized_user_id = db_client.sanitize_param(user_id)
+        filter_query = f'user_id = "{sanitized_user_id}" && week_start_date = "{week_start.isoformat()}"'
         records = await db_client.list_records(
             collection="robin_hood_swaps",
-            filter_query=f'user_id = "{user_id}" && week_start_date = "{week_start.isoformat()}"',
+            filter_query=filter_query,
         )
 
         if records:
