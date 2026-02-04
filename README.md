@@ -22,24 +22,21 @@
 
 ## 📚 Documentation
 
-<table>
-<tr>
-<td width="50%">
+**Full documentation available in MkDocs format.**
 
-### 👥 For Users & Architects
-- 📐 **[Architecture Decisions](./docs/decisions/)** - The "Why" behind the system
-- 🤖 **[Agent Personas](./docs/decisions/002-agents.md)** - Functional specifications
+To build and view documentation locally:
+```bash
+mkdocs serve
+```
 
-</td>
-<td width="50%">
+Then visit `http://127.0.0.1:8000`
 
-### 💻 For Developers & AI Assistants
-- 📝 **[Contribution Guide](./AGENTS.md)** - Coding standards & patterns
-  *Read this before writing code*
-
-</td>
-</tr>
-</table>
+**Quick Links:**
+- **[Getting Started](docs/getting-started/)** - Setup, installation, and first run
+- **[Contributors](docs/contributors/)** - Development workflow, code quality, and patterns
+- **[Architecture](docs/architecture/)** - System design and engineering patterns
+- **[Agent Development](docs/agents/)** - Building and extending Pydantic AI agents
+- **[User Guide](docs/user-guide/)** - Features and usage instructions
 
 ## ✨ Features
 
@@ -144,7 +141,7 @@ Track your personal tasks privately within the same WhatsApp interface:
 ### ⚡ Quick Start
 *Already have OpenRouter account?*
 
-**→ [Quick Start Guide](./docs/QUICK_START.md)**
+**→ [Getting Started](docs/getting-started/)**
 
 **Required Accounts:**
 - [OpenRouter](https://openrouter.ai) - AI model access (~$3/month)
@@ -156,7 +153,7 @@ Track your personal tasks privately within the same WhatsApp interface:
 ### 🔰 First Time Setup
 *Starting from scratch?*
 
-**→ [Complete Setup Guide](./docs/SETUP.md)**
+**→ [Getting Started](docs/getting-started/)**
 
 </td>
 </tr>
@@ -164,7 +161,7 @@ Track your personal tasks privately within the same WhatsApp interface:
 
 ### 📦 Setup by Component
 
-Detailed setup instructions are available in the [Setup Guide](./docs/SETUP.md) and [Quick Start Guide](./docs/QUICK_START.md).
+Detailed setup instructions are available in the [Getting Started](docs/getting-started/) documentation.
 
 ### 💻 Minimal Local Setup
 
@@ -206,7 +203,7 @@ ngrok http 8000                      # Terminal 3: Public Webhook (if not using 
 
 <div align="center">
 
-📖 **See [Quick Start Guide](./docs/QUICK_START.md) for detailed instructions**
+📖 **See [Getting Started](docs/getting-started/) for detailed instructions**
 
 </div>
 
@@ -220,7 +217,7 @@ ngrok http 8000                      # Terminal 3: Public Webhook (if not using 
 
 **Platform:** Railway (recommended)
 **Cost:** ~$5-10/month
-**Guide:** See [Deployment Guide](./docs/DEPLOYMENT.md)
+**Guide:** See [Getting Started > Production](docs/getting-started/) documentation
 
 #### Quick Deploy Steps:
 1. ✅ Create Railway project
@@ -258,7 +255,7 @@ ngrok http 8000                      # Terminal 3: Public Webhook (if not using 
 
 ### 🎯 Ready to transform your household management?
 
-**[Get Started Now](./docs/QUICK_START.md)** | **[Architecture Decisions](./docs/decisions/)** | **[Developer Guide](./AGENTS.md)**
+**[Get Started Now](docs/getting-started/)** | **[Documentation](docs/)**
 
 ---
 

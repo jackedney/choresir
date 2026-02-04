@@ -1,0 +1,60 @@
+site_name: WhatsApp Home Boss
+site_description: Household Operating System living in WhatsApp
+site_author: Jack Edney
+theme:
+  name: material
+  font: false
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+plugins: []
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Agents: agents.md
+  - ADR:
+      - Overview: adr/index.md
+      - Technology Stack: adr/001-stack.md
+      - Agent Framework: adr/002-agent-framework.md
+      - Verification Protocol: adr/003-verification.md
+      - Conflict Resolution: adr/004-conflict.md
+      - Model Selection: adr/005-models.md
+      - Repository Standards: adr/006-standards.md
+      - Operations & Schema: adr/007-operations.md
+      - Gamification: adr/008-gamification.md
+      - Button Verification: adr/009-interactive-verification.md
+      - Smart Pantry: adr/010-smart-pantry.md
+      - Version Management: adr/011-version-management.md
+      - NLP Approach: adr/012-nlp-approach.md
+      - Redis Caching: adr/013-redis-caching.md
+      - Robin Hood Protocol: adr/014-robin-hood-protocol.md
+      - Type Safety: adr/015-type-safety.md
+      - House Joining Flow: adr/016-conversational-house-joining.md
+      - Personal Chores: adr/019-personal-chores.md
