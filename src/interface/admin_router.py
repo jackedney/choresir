@@ -2,6 +2,7 @@
 
 import logging
 import secrets
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
@@ -9,7 +10,8 @@ from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from src.core.config import constants, settings
-from src.core.db_client import create_record, get_first_record, list_records, update_record
+from src.core.db_client import create_record, get_first_record, list_records, sanitize_param, update_record
+from src.interface.whatsapp_sender import send_text_message
 from src.services.house_config_service import get_house_config as get_house_config_from_service
 
 
@@ -271,3 +273,106 @@ async def get_members(request: Request, _auth: None = Depends(require_auth)) -> 
     users = await list_records(collection="users", per_page=1000, sort="-created")
 
     return templates.TemplateResponse(request, name="admin/members.html", context={"members": users})
+
+
+@router.get("/members/add")
+async def get_add_member(request: Request, _auth: None = Depends(require_auth)) -> Response:
+    """Render add member form.
+
+    Args:
+        request: FastAPI request object
+        _auth: Auth dependency (ensures user is logged in)
+
+    Returns:
+        Template response with add member form
+    """
+    success_message = request.cookies.get("flash_success")
+    return templates.TemplateResponse(
+        request, name="admin/add_member.html", context={"success_message": success_message}
+    )
+
+
+@router.post("/members/add")
+async def post_add_member(
+    *,
+    request: Request,
+    _auth: None = Depends(require_auth),
+    phone: str = Form(...),
+) -> Response:
+    """Process add member form.
+
+    Args:
+        request: FastAPI request object
+        _auth: Auth dependency (ensures user is logged in)
+        phone: Phone number in E.164 format
+
+    Returns:
+        RedirectResponse to /admin/members on success, template with errors on validation failure
+    """
+    errors = []
+
+    # Validate E.164 format
+    if not phone or not phone.startswith("+"):
+        errors.append("Phone number must be in E.164 format (e.g., +1234567890)")
+    elif len(phone) < 8 or len(phone) > 16:
+        errors.append("Phone number must be 8-15 digits with + prefix")
+
+    if errors:
+        return templates.TemplateResponse(
+            request,
+            name="admin/add_member.html",
+            context={"errors": errors, "phone": phone},
+        )
+
+    # Check if user already exists
+    existing_user = await get_first_record(
+        collection="users",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
+    )
+    if existing_user:
+        return templates.TemplateResponse(
+            request,
+            name="admin/add_member.html",
+            context={"errors": ["User already exists"], "phone": phone},
+        )
+
+    # Get house config for welcome message
+    config = await get_house_config_from_service()
+    house_name = config["name"]
+
+    # Generate email from phone for PocketBase auth collection requirement
+    email = f"{phone.replace('+', '').replace('-', '')}@choresir.local"
+
+    # Generate secure random password for initial account creation
+    temp_password = secrets.token_urlsafe(32)
+
+    # Create user record
+    user_data = {
+        "phone": phone,
+        "name": "Pending User",
+        "email": email,
+        "role": "member",
+        "status": "pending",
+        "password": temp_password,
+        "passwordConfirm": temp_password,
+    }
+
+    await create_record(collection="users", data=user_data)
+    logger.info("Created pending user: %s", phone)
+
+    # Send WhatsApp invite message
+    invite_message = f"You've been invited to {house_name}! Reply YES to confirm"
+    send_result = await send_text_message(to_phone=phone, text=invite_message)
+
+    # Create pending invite record
+    invite_data = {
+        "phone": phone,
+        "invited_at": datetime.now(UTC).isoformat(),
+        "invite_message_id": send_result.message_id,
+    }
+    await create_record(collection="pending_invites", data=invite_data)
+    logger.info("Created pending invite for %s", phone)
+
+    response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie("flash_success", "Invite sent", max_age=5)
+    return response
