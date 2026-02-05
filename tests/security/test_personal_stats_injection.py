@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
 from src.services import personal_verification_service
 
 
@@ -34,8 +36,6 @@ async def test_get_personal_stats_injection():
 
                     # If injection is blocked (sanitized), it should look like:
                     # owner_phone = "\"+1234567890\" || true || \"" && ... (or similar escaping)
-
-                    print(f"Captured filter_query: {filter_query}")
 
                     # We check if the injected payload is present "as is" without escaping
                     # sanitize_param typically escapes quotes.
