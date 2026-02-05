@@ -17,6 +17,7 @@ from src.core.scheduler_tracker import job_tracker
 from src.core.schema import sync_schema
 from src.interface.admin_router import router as admin_router
 from src.interface.webhook import router as webhook_router
+from src.services.house_config_service import ensure_singleton_config, seed_from_env_vars
 
 
 logger = logging.getLogger(__name__)
@@ -120,6 +121,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         admin_email=settings.pocketbase_admin_email,
         admin_password=settings.pocketbase_admin_password,
     )
+    await seed_from_env_vars()
+    await ensure_singleton_config()
     start_scheduler()
     yield
     # Shutdown

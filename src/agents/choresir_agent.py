@@ -2,7 +2,6 @@
 
 import logging
 import re
-import secrets
 from datetime import datetime
 
 import logfire
@@ -12,10 +11,10 @@ from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
 from src.agents.retry_handler import get_retry_handler
 from src.core import admin_notifier, db_client
-from src.core.config import settings
 from src.core.errors import classify_agent_error
 from src.domain.user import User, UserStatus
 from src.services import session_service, user_service
+from src.services.house_config_service import get_house_config, validate_house_password
 
 
 logger = logging.getLogger(__name__)
@@ -289,7 +288,8 @@ async def _handle_legacy_join_or_onboard(user_phone: str, message_text: str) -> 
 
     if not match:
         # No join request detected, return onboarding prompt
-        house_name = settings.house_name or "the house"
+        config = await get_house_config()
+        house_name = config["name"]
         return (
             "Welcome! You're not yet a member of this household.\n\n"
             "To join, type:\n"
@@ -367,10 +367,9 @@ async def handle_house_join(phone: str, house_name: str) -> str:
     Returns:
         Response message for user
     """
-    # Guard: Validate house name is configured
-    if not settings.house_name:
-        logger.error("House name not configured in settings")
-        return "Sorry, house joining is not available at this time. Please contact an administrator."
+    # Guard: Get house config
+    config = await get_house_config()
+    configured_house_name = config["name"]
 
     # Guard: Check if user is already a member
     existing_user = await user_service.get_user_by_phone(phone=phone)
@@ -379,11 +378,11 @@ async def handle_house_join(phone: str, house_name: str) -> str:
 
     # Guard: Validate house name matches configured value (case-insensitive)
     normalized_house_name = house_name.strip().lower()
-    if normalized_house_name != settings.house_name.lower():
+    if normalized_house_name != configured_house_name.lower():
         return "Invalid house name. Please check and try again."
 
     # Create join session with initial state
-    # Store the original house_name (preserving case) for display purposes
+    # Store original house_name (preserving case) for display purposes
     await session_service.create_session(
         phone=phone,
         house_name=house_name.strip(),
@@ -421,16 +420,8 @@ async def handle_join_password_step(phone: str, password: str) -> str:
     if session_service.is_rate_limited(session=session):
         return "Please wait a few seconds before trying again."
 
-    # Validate password is configured
-    if not settings.house_password:
-        logger.error("House password not configured in settings")
-        return "Sorry, house joining is not available at this time. Please contact an administrator."
-
-    # Validate password with constant-time comparison (prevents timing attacks)
-    is_valid = secrets.compare_digest(
-        password.encode("utf-8"),
-        settings.house_password.encode("utf-8"),
-    )
+    # Validate password using house config
+    is_valid = await validate_house_password(password=password)
 
     if not is_valid:
         # Increment attempt counter and update last_attempt_at
@@ -452,14 +443,15 @@ async def handle_join_password_step(phone: str, password: str) -> str:
 
 async def handle_join_name_step(phone: str, name: str) -> str:
     """
-    Handle name submission during join flow.
+    Handle name submission during join flow (final step).
 
     Steps:
-    1. Get session for phone (must be in "awaiting_name" step)
-    2. Validate name using User model validator
-    3. Create join request via user_service
-    4. Delete session (flow complete)
-    5. Return welcome message
+    1. Get session for phone (returns None if expired)
+    2. Verify session is in "awaiting_name" step
+    3. Normalize and validate name
+    4. Create join request via user_service
+    5. Delete session (flow complete)
+    6. Return welcome message
 
     Args:
         phone: User's phone number in E.164 format
@@ -471,7 +463,8 @@ async def handle_join_name_step(phone: str, name: str) -> str:
     # Get session (returns None if expired)
     session = await session_service.get_session(phone=phone)
     if not session:
-        house_name = settings.house_name or "the house"
+        config = await get_house_config()
+        house_name = config["name"]
         return f"Your join session has expired. Please restart with '/house join {house_name}'."
 
     # Verify session is in the correct step
@@ -481,7 +474,8 @@ async def handle_join_name_step(phone: str, name: str) -> str:
             phone,
             session.get("step"),
         )
-        house_name = session.get("house_name", settings.house_name or "the house")
+        config = await get_house_config()
+        house_name = config["name"]
         return f"Something went wrong. Please restart with '/house join {house_name}'."
 
     # Strip whitespace from name (normalize user input)
@@ -501,16 +495,18 @@ async def handle_join_name_step(phone: str, name: str) -> str:
 
     # Create join request
     try:
-        if not settings.house_code or not settings.house_password:
-            logger.error("House credentials not configured in settings")
+        config = await get_house_config()
+
+        if not config["code"] or not config["password"]:
+            logger.error("House credentials not configured")
             await session_service.delete_session(phone=phone)
             return "Sorry, house joining is not available at this time. Please contact an administrator."
 
         await user_service.request_join(
             phone=phone,
             name=name,
-            house_code=settings.house_code,
-            password=settings.house_password,
+            house_code=config["code"],
+            password=config["password"],
         )
     except Exception as e:
         # Join request failed - delete session anyway (flow is complete)

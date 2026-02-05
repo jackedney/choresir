@@ -10,6 +10,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from src.core.config import constants, settings
 from src.core.db_client import create_record, get_first_record, list_records, update_record
+from src.services.house_config_service import get_house_config as get_house_config_from_service
 
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,8 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
     Returns:
         Template response with dashboard content
     """
-    house_name = settings.house_name or "Not configured"
+    config = await get_house_config_from_service()
+    house_name = config["name"]
 
     users = await list_records(collection="users", per_page=1000)
 
@@ -168,16 +170,16 @@ async def get_house_config(request: Request, _auth: None = Depends(require_auth)
         Template response with house config form
     """
     config = await get_first_record(collection="house_config", filter_query="")
-
     success_message = request.cookies.get("flash_success")
 
     if config:
-        house_name = config.get("name") or settings.house_name or ""
-        house_code = config.get("code") or settings.house_code or ""
+        house_name = config.get("name") or ""
+        house_code = config.get("code") or ""
         house_password = MASKED_TEXT_PLACEHOLDER
     else:
-        house_name = settings.house_name or ""
-        house_code = settings.house_code or ""
+        default_config = await get_house_config_from_service()
+        house_name = default_config["name"]
+        house_code = default_config["code"]
         house_password = ""
 
     return templates.TemplateResponse(
