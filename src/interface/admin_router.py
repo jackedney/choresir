@@ -255,3 +255,19 @@ async def post_house_config(
     response = RedirectResponse(url="/admin/house", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie("flash_success", message, max_age=5)
     return response
+
+
+@router.get("/members")
+async def get_members(request: Request, _auth: None = Depends(require_auth)) -> Response:
+    """Render member list with status and role badges.
+
+    Args:
+        request: FastAPI request object
+        _auth: Auth dependency (ensures user is logged in)
+
+    Returns:
+        Template response with member list table
+    """
+    users = await list_records(collection="users", per_page=1000, sort="-created")
+
+    return templates.TemplateResponse(request, name="admin/members.html", context={"members": users})
