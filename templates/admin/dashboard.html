@@ -4,5 +4,39 @@
 
 {% block content %}
 <h1>Admin Dashboard</h1>
-<p>Welcome to the admin interface. You are logged in.</p>
+
+<article>
+    <header><strong>House: {{ house_name }}</strong></header>
+    <p>House configuration and member management</p>
+</article>
+
+<h2>Member Summary</h2>
+{% if total_members == 0 %}
+    <p>No members yet</p>
+{% else %}
+    <div role="group">
+        <article>
+            <header><strong>Total Members</strong></header>
+            <p>{{ total_members }}</p>
+        </article>
+        <article>
+            <header><strong>Active</strong></header>
+            <p>{{ active_members }}</p>
+        </article>
+        <article>
+            <header><strong>Pending</strong></header>
+            <p>{{ pending_members }}</p>
+        </article>
+        <article>
+            <header><strong>Banned</strong></header>
+            <p>{{ banned_members }}</p>
+        </article>
+    </div>
+{% endif %}
+
+<h2>Quick Actions</h2>
+<div role="group">
+    <a href="/admin/house" role="button">House Configuration</a>
+    <a href="/admin/members" role="button">Manage Members</a>
+</div>
 {% endblock %}

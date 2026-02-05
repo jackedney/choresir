@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from src.core.config import constants, settings
+from src.core.db_client import list_records
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,26 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
     Returns:
         Template response with dashboard content
     """
-    return templates.TemplateResponse(request, name="admin/dashboard.html")
+    house_name = settings.house_name or "Not configured"
+
+    users = await list_records(collection="users", per_page=1000)
+
+    total_members = len(users)
+    active_members = sum(1 for user in users if user.get("status") == "active")
+    pending_members = sum(1 for user in users if user.get("status") == "pending")
+    banned_members = sum(1 for user in users if user.get("status") == "banned")
+
+    return templates.TemplateResponse(
+        request,
+        name="admin/dashboard.html",
+        context={
+            "house_name": house_name,
+            "total_members": total_members,
+            "active_members": active_members,
+            "pending_members": pending_members,
+            "banned_members": banned_members,
+        },
+    )
 
 
 @router.get("/login")
