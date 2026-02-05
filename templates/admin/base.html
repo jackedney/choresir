@@ -8,6 +8,16 @@
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
 <body>
+    <header>
+        <nav>
+            <ul>
+                <li><strong>Admin</strong></li>
+            </ul>
+            <ul>
+                <li><a href="/admin/logout">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
     <main class="container">
         {% block flash_messages %}{% endblock %}
         {% block content %}{% endblock %}
