@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from itsdangerous import URLSafeTimedSerializer
 
 from src.core.config import Settings
 from src.interface.admin_router import router as admin_router
@@ -119,8 +120,6 @@ def test_protected_route_with_invalid_session_redirects(client: TestClient) -> N
 
 def test_protected_route_with_valid_session_succeeds(client: TestClient) -> None:
     """Test that accessing protected route with valid session succeeds."""
-    from itsdangerous import URLSafeTimedSerializer
-
     with (
         patch("src.interface.admin_router.settings") as mock_settings,
         patch(

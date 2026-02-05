@@ -19,7 +19,14 @@
         </nav>
     </header>
     <main class="container">
-        {% block flash_messages %}{% endblock %}
+        {% block flash_messages %}
+        {% if success_message %}
+        <article role="alert" data-theme="success">
+            <header><strong>Success</strong></header>
+            {{ success_message }}
+        </article>
+        {% endif %}
+        {% endblock %}
         {% block content %}{% endblock %}
     </main>
 </body>

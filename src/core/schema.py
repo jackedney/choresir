@@ -25,6 +25,7 @@ COLLECTIONS = [
     "personal_chores",
     "personal_chore_logs",
     "join_sessions",
+    "house_config",
 ]
 
 
@@ -340,6 +341,22 @@ def _get_collection_schema(
                 {"name": "expires_at", "type": "date", "required": True},
             ],
             "indexes": ["CREATE UNIQUE INDEX idx_join_session_phone ON join_sessions (phone)"],
+        },
+        "house_config": {
+            "name": "house_config",
+            "type": "base",
+            "system": False,
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
+            "deleteRule": None,
+            "fields": [
+                {"name": "name", "type": "text", "required": True},
+                {"name": "password", "type": "text", "required": True},
+                {"name": "code", "type": "text", "required": True},
+            ],
         },
     }
     return schemas[collection_name]
