@@ -26,6 +26,7 @@ COLLECTIONS = [
     "personal_chore_logs",
     "join_sessions",
     "house_config",
+    "pending_invites",
 ]
 
 
@@ -357,6 +358,23 @@ def _get_collection_schema(
                 {"name": "password", "type": "text", "required": True},
                 {"name": "code", "type": "text", "required": True},
             ],
+        },
+        "pending_invites": {
+            "name": "pending_invites",
+            "type": "base",
+            "system": False,
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
+            "deleteRule": None,
+            "fields": [
+                {"name": "phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
+                {"name": "invited_at", "type": "date", "required": True},
+                {"name": "invite_message_id", "type": "text", "required": False},
+            ],
+            "indexes": ["CREATE UNIQUE INDEX idx_pending_invite_phone ON pending_invites (phone)"],
         },
     }
     return schemas[collection_name]

@@ -160,6 +160,7 @@ async def scheduler_health_check() -> JSONResponse:
         "weekly_leaderboard",
         "personal_chore_reminders",
         "auto_verify_personal",
+        "cleanup_expired_invites",
     ]
 
     job_statuses = {}

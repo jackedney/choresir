@@ -1,7 +1,7 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
 import logging
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -575,13 +575,47 @@ async def auto_verify_personal_chores() -> None:
     logger.info("Running personal chore auto-verification job")
 
     try:
-        # Call the auto-verification service
+        # Call) auto-verification service
         count = await personal_verification_service.auto_verify_expired_logs()
 
         logger.info(f"Completed auto-verification job: {count} logs auto-verified")
 
     except Exception as e:
         logger.error(f"Error in auto-verification job: {e}")
+
+
+async def cleanup_expired_invites() -> None:
+    """Remove pending invites older than 7 days.
+
+    Runs daily at 3am. Cleans up pending invites that have expired
+    to prevent stale records from accumulating.
+    """
+    logger.info("Running expired invites cleanup job")
+
+    try:
+        # Calculate cutoff date (7 days ago)
+        cutoff_date = datetime.now(UTC) - timedelta(days=7)
+        cutoff_iso = cutoff_date.isoformat().replace("+00:00", "Z")
+
+        # Get all pending invites older than 7 days
+        old_invites = await db_client.list_records(
+            collection="pending_invites",
+            filter_query=f'invited_at < "{sanitize_param(cutoff_iso)}"',
+        )
+
+        # Delete old invites
+        deleted_count = 0
+        for invite in old_invites:
+            try:
+                await db_client.delete_record(collection="pending_invites", record_id=invite["id"])
+                deleted_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to delete expired invite {invite['id']}: {e}")
+
+        logger.info(f"Completed expired invites cleanup: {deleted_count} invites removed")
+
+    except Exception as e:
+        logger.error(f"Error in expired invites cleanup job: {e}")
 
 
 def start_scheduler() -> None:
@@ -646,6 +680,16 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
     logger.info("Scheduled auto-verification job: hourly")
+
+    # Schedule expired invites cleanup (daily at 3am) with retry
+    scheduler.add_job(
+        lambda: retry_job_with_backoff(cleanup_expired_invites, "cleanup_expired_invites"),
+        trigger=CronTrigger(hour=3, minute=0),
+        id="cleanup_expired_invites",
+        name="Cleanup Expired Invites",
+        replace_existing=True,
+    )
+    logger.info("Scheduled expired invites cleanup job: daily at 3:00")
 
     # Start the scheduler
     scheduler.start()
