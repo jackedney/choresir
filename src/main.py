@@ -15,6 +15,7 @@ from src.core.redis_client import redis_client
 from src.core.scheduler import start_scheduler, stop_scheduler
 from src.core.scheduler_tracker import job_tracker
 from src.core.schema import sync_schema
+from src.interface.admin_router import router as admin_router
 from src.interface.webhook import router as webhook_router
 
 
@@ -83,6 +84,8 @@ async def validate_startup_configuration() -> None:
         settings.require_credential("pocketbase_url", "PocketBase URL")
         settings.require_credential("pocketbase_admin_email", "PocketBase admin email")
         settings.require_credential("pocketbase_admin_password", "PocketBase admin password")
+        settings.require_credential("admin_password", "Admin password for web interface")
+        settings.require_credential("secret_key", "Secret key for session signing")
 
         logger.info("startup_validation", extra={"stage": "credentials", "status": "ok"})
 
@@ -135,6 +138,7 @@ instrument_fastapi(app)
 
 # Register routers
 app.include_router(webhook_router)
+app.include_router(admin_router)
 
 
 @app.get("/health")

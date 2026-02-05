@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Login - Admin{% endblock %}
+
+{% block flash_messages %}
+{% if error %}
+<article role="alert" data-theme="danger">
+    <header>
+        <strong>Error</strong>
+    </header>
+    {{ error }}
+</article>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<h1>Admin Login</h1>
+
+<form method="post">
+    <label for="password">
+        Password
+        <input type="password" id="password" name="password" required autofocus />
+    </label>
+
+    <button type="submit">Login</button>
+</form>
+{% endblock %}

@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     house_code: str | None = Field(default=None, description="House code for member onboarding")
     house_password: str | None = Field(default=None, description="House password for member onboarding")
 
+    # Admin Interface Configuration
+    admin_password: str | None = Field(default=None, description="Admin password for web interface access")
+    secret_key: str | None = Field(default=None, description="Secret key for session signing")
+
     def require_credential(self, field_name: str, service_name: str) -> str:
         """Validate that a required credential is set, raising a clear error if missing.
 
