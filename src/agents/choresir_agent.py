@@ -241,16 +241,56 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
     """
     Handle message from unknown user.
 
-    Checks if the message contains join credentials and processes them.
-    Otherwise returns an onboarding prompt.
+    Checks for pending invites, join sessions, and join credentials.
+    Returns appropriate response based on context.
 
     Args:
         user_phone: Phone number of unknown user
         message_text: The message text from the user
 
     Returns:
-        Join success message or onboarding prompt
+        Join success message, invite confirmation response, or onboarding prompt
     """
+    # Check for pending invite (web admin flow)
+    pending_invite = await db_client.get_first_record(
+        collection="pending_invites",
+        filter_query=f'phone = "{db_client.sanitize_param(user_phone)}"',
+    )
+
+    if pending_invite:
+        # Normalize message text for case-insensitive comparison
+        normalized_message = message_text.strip().upper()
+
+        if normalized_message == "YES":
+            # Get user record
+            user = await user_service.get_user_by_phone(phone=user_phone)
+            if user:
+                # Update user status to active
+                await db_client.update_record(
+                    collection="users",
+                    record_id=user["id"],
+                    data={"status": "active"},
+                )
+                logger.info("Confirmed invite for user: %s", user_phone)
+
+                # Delete pending invite record
+                await db_client.delete_record(
+                    collection="pending_invites",
+                    record_id=pending_invite["id"],
+                )
+
+                # Get house config for welcome message
+                config = await get_house_config()
+                house_name = config["name"]
+
+                return f"Welcome to {house_name}! Your membership is now active."
+
+            logger.warning("User not found for pending invite: %s", user_phone)
+            return "Sorry, there was an error processing your invite. Please contact an admin."
+
+        # Message is not YES - instruct user to reply YES
+        return "To confirm your invitation, please reply YES"
+
     # Check for active join session first
     session = await session_service.get_session(phone=user_phone)
 
@@ -274,8 +314,8 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
         house_name = house_join_match.group(1).strip()
         return await handle_house_join(phone=user_phone, house_name=house_name)
 
-    # Try legacy join format or return onboarding prompt
-    return await _handle_legacy_join_or_onboard(user_phone, message_text)
+    # No pending invite, no join session, not a join command - user is not a member
+    return "You are not a member of this household. Please contact an admin to request an invite."
 
 
 async def _handle_legacy_join_or_onboard(user_phone: str, message_text: str) -> str:

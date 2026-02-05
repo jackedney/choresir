@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agents.base import Deps
-from src.agents.choresir_agent import run_agent
+from src.agents.choresir_agent import handle_unknown_user, run_agent
 from src.core.errors import ErrorCategory
 
 
@@ -271,3 +271,158 @@ class TestChoresirAgentErrorHandling:
 
                 # Verify message is not too long (reasonable for WhatsApp)
                 assert len(result) < 200, f"Message too long ({len(result)} chars): {result}"
+
+
+@pytest.mark.unit
+class TestHandleUnknownUserInviteConfirmation:
+    """Tests for handle_unknown_user with invite confirmation flow."""
+
+    @pytest.fixture
+    def mock_pending_invite(self):
+        """Create mock pending invite record."""
+        return {
+            "id": "invite_id_123",
+            "phone": "+1234567890",
+            "invited_at": "2024-01-01T00:00:00Z",
+            "invite_message_id": "msg_id_123",
+        }
+
+    @pytest.fixture
+    def mock_pending_user(self):
+        """Create mock pending user record."""
+        return {
+            "id": "user_id_123",
+            "phone": "+1234567890",
+            "name": "Pending User",
+            "status": "pending",
+            "role": "member",
+        }
+
+    @pytest.mark.asyncio
+    async def test_yes_confirms_invite_and_welcomes_user(self, mock_pending_invite, mock_pending_user):
+        """Test that YES confirms invite, updates user status, deletes invite, and welcomes user."""
+        with (
+            patch("src.agents.choresir_agent.db_client.get_first_record") as mock_get_first,
+            patch("src.agents.choresir_agent.db_client.update_record") as mock_update,
+            patch("src.agents.choresir_agent.db_client.delete_record") as mock_delete,
+            patch("src.agents.choresir_agent.user_service.get_user_by_phone") as mock_get_user,
+            patch("src.agents.choresir_agent.get_house_config") as mock_get_house_config,
+        ):
+            # Mock pending invite and user lookup
+            mock_get_first.return_value = mock_pending_invite
+            mock_get_user.return_value = mock_pending_user
+
+            # Mock house config
+            mock_get_house_config.return_value = {"name": "Test House", "password": "pass", "code": "CODE"}
+
+            # Handle message
+            result = await handle_unknown_user(user_phone="+1234567890", message_text="YES")
+
+            # Verify user status was updated to active
+            mock_update.assert_called_once_with(
+                collection="users",
+                record_id="user_id_123",
+                data={"status": "active"},
+            )
+
+            # Verify pending invite was deleted
+            mock_delete.assert_called_once_with(
+                collection="pending_invites",
+                record_id="invite_id_123",
+            )
+
+            # Verify welcome message includes house name
+            assert "Welcome to Test House" in result
+            assert "membership is now active" in result
+
+    @pytest.mark.asyncio
+    async def test_yes_case_insensitive_confirms_invite(self, mock_pending_invite, mock_pending_user):
+        """Test that 'yes', 'Yes', and 'YES' all confirm the invite."""
+        test_messages = ["yes", "Yes", "YES", "YeS", " yEs "]
+
+        for message in test_messages:
+            with (
+                patch("src.agents.choresir_agent.db_client.get_first_record") as mock_get_first,
+                patch("src.agents.choresir_agent.db_client.update_record") as mock_update,
+                patch("src.agents.choresir_agent.db_client.delete_record") as mock_delete,
+                patch("src.agents.choresir_agent.user_service.get_user_by_phone") as mock_get_user,
+                patch("src.agents.choresir_agent.get_house_config") as mock_get_house_config,
+            ):
+                # Mock pending invite and user lookup
+                mock_get_first.return_value = mock_pending_invite
+                mock_get_user.return_value = mock_pending_user
+                mock_get_house_config.return_value = {"name": "Test House", "password": "pass", "code": "CODE"}
+
+                # Handle message
+                result = await handle_unknown_user(user_phone="+1234567890", message_text=message)
+
+                # Verify invite was confirmed
+                mock_update.assert_called_once()
+                mock_delete.assert_called_once()
+                assert "Welcome to Test House" in result
+
+    @pytest.mark.asyncio
+    async def test_non_yes_message_returns_instruction(self, mock_pending_invite):
+        """Test that non-YES messages instruct user to reply YES."""
+        test_messages = ["hello", "maybe", "no", "what?", ""]
+
+        for message in test_messages:
+            with (
+                patch("src.agents.choresir_agent.db_client.get_first_record") as mock_get_first,
+                patch("src.agents.choresir_agent.db_client.update_record") as mock_update,
+                patch("src.agents.choresir_agent.db_client.delete_record") as mock_delete,
+            ):
+                # Mock pending invite exists but no user update/deletion
+                mock_get_first.return_value = mock_pending_invite
+
+                # Handle message
+                result = await handle_unknown_user(user_phone="+1234567890", message_text=message)
+
+                # Verify no user update or delete
+                mock_update.assert_not_called()
+                mock_delete.assert_not_called()
+
+                # Verify instruction message
+                assert result == "To confirm your invitation, please reply YES"
+
+    @pytest.mark.asyncio
+    async def test_no_pending_invite_returns_not_member_message(self):
+        """Test that users without pending invite get 'not a member' message."""
+        with (
+            patch("src.agents.choresir_agent.db_client.get_first_record") as mock_get_first,
+            patch("src.agents.choresir_agent.session_service.get_session") as mock_get_session,
+        ):
+            # Mock no pending invite and no join session
+            mock_get_first.return_value = None
+            mock_get_session.return_value = None
+
+            # Handle message
+            result = await handle_unknown_user(user_phone="+1234567890", message_text="hello")
+
+            # Verify 'not a member' message
+            assert "not a member of this household" in result
+            assert "contact an admin to request an invite" in result
+
+    @pytest.mark.asyncio
+    async def test_pending_invite_but_no_user_record_returns_error(self, mock_pending_invite):
+        """Test that missing user record after pending invite returns error message."""
+        with (
+            patch("src.agents.choresir_agent.db_client.get_first_record") as mock_get_first,
+            patch("src.agents.choresir_agent.db_client.update_record") as mock_update,
+            patch("src.agents.choresir_agent.db_client.delete_record") as mock_delete,
+            patch("src.agents.choresir_agent.user_service.get_user_by_phone") as mock_get_user,
+        ):
+            # Mock pending invite exists but user not found
+            mock_get_first.return_value = mock_pending_invite
+            mock_get_user.return_value = None
+
+            # Handle message
+            result = await handle_unknown_user(user_phone="+1234567890", message_text="YES")
+
+            # Verify error message
+            assert "error processing your invite" in result
+            assert "contact an admin" in result
+
+            # Verify no update or delete was attempted
+            mock_update.assert_not_called()
+            mock_delete.assert_not_called()
