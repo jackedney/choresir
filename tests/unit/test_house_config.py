@@ -26,6 +26,8 @@ def get_test_session_token(secret_key: str) -> str:
 
 def test_house_config_page_renders_without_existing_config(client: TestClient) -> None:
     """Test that house config page renders when no config exists."""
+    from src.services.house_config_service import HouseConfig
+
     test_serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-session")
     session_token = get_test_session_token("test_secret_key")
     client.cookies.set("admin_session", session_token)
@@ -36,11 +38,13 @@ def test_house_config_page_renders_without_existing_config(client: TestClient) -
         patch("src.interface.admin_router.settings") as mock_settings,
         patch("src.interface.admin_router.serializer", test_serializer),
         patch("src.interface.admin_router.get_first_record", mock_get_first_record),
+        patch("src.interface.admin_router.get_house_config_from_service") as mock_get_config,
     ):
         mock_settings.admin_password = "test_password"
         mock_settings.secret_key = "test_secret_key"
         mock_settings.house_name = None
         mock_settings.house_code = None
+        mock_get_config.return_value = HouseConfig(name="DefaultHouse", password="", code="")
 
         response = client.get("/admin/house")
 

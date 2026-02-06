@@ -147,15 +147,21 @@ def test_protected_route_with_invalid_session_redirects(client: TestClient) -> N
 
 def test_protected_route_with_valid_session_succeeds(client: TestClient) -> None:
     """Test that accessing protected route with valid session succeeds."""
+    from src.services.house_config_service import HouseConfig
+
     with (
         patch("src.interface.admin_router.settings") as mock_settings,
         patch(
             "src.interface.admin_router.serializer",
             URLSafeTimedSerializer("test_secret_key", salt="admin-session"),
         ),
+        patch("src.interface.admin_router.get_house_config_from_service") as mock_get_config,
+        patch("src.interface.admin_router.list_records") as mock_list_records,
     ):
         mock_settings.admin_password = "correct_password"
         mock_settings.secret_key = "test_secret_key"
+        mock_get_config.return_value = HouseConfig(name="TestHouse", password="test", code="TEST")
+        mock_list_records.return_value = []
 
         serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-session")
         session_token = serializer.dumps({"authenticated": True})
