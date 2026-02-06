@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 from pocketbase import PocketBase
-from pocketbase.client import ClientResponseError
+from pocketbase.errors import ClientResponseError
 
 from src.core.config import settings
 
@@ -24,7 +24,6 @@ COLLECTIONS = [
     "shopping_list",
     "personal_chores",
     "personal_chore_logs",
-    "join_sessions",
     "house_config",
     "pending_invites",
 ]
@@ -315,33 +314,6 @@ def _get_collection_schema(
                 "CREATE INDEX idx_pcl_owner ON personal_chore_logs (owner_phone)",
                 "CREATE INDEX idx_pcl_verification ON personal_chore_logs (verification_status)",
             ],
-        },
-        "join_sessions": {
-            "name": "join_sessions",
-            "type": "base",
-            "system": False,
-            # API Rules: Admin only (backend uses admin client)
-            "listRule": None,
-            "viewRule": None,
-            "createRule": None,
-            "updateRule": None,
-            "deleteRule": None,
-            "fields": [
-                {"name": "phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
-                {"name": "house_name", "type": "text", "required": True},
-                {
-                    "name": "step",
-                    "type": "select",
-                    "required": True,
-                    "values": ["awaiting_password", "awaiting_name"],
-                    "maxSelect": 1,
-                },
-                {"name": "password_attempts_count", "type": "number", "required": False, "default": 0},
-                {"name": "last_attempt_at", "type": "date", "required": False},
-                {"name": "created_at", "type": "date", "required": True},
-                {"name": "expires_at", "type": "date", "required": True},
-            ],
-            "indexes": ["CREATE UNIQUE INDEX idx_join_session_phone ON join_sessions (phone)"],
         },
         "house_config": {
             "name": "house_config",

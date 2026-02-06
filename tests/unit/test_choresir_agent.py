@@ -388,13 +388,9 @@ class TestHandleUnknownUserInviteConfirmation:
     @pytest.mark.asyncio
     async def test_no_pending_invite_returns_not_member_message(self):
         """Test that users without pending invite get 'not a member' message."""
-        with (
-            patch("src.agents.choresir_agent.db_client.get_first_record") as mock_get_first,
-            patch("src.agents.choresir_agent.session_service.get_session") as mock_get_session,
-        ):
-            # Mock no pending invite and no join session
+        with patch("src.agents.choresir_agent.db_client.get_first_record") as mock_get_first:
+            # Mock no pending invite
             mock_get_first.return_value = None
-            mock_get_session.return_value = None
 
             # Handle message
             result = await handle_unknown_user(user_phone="+1234567890", message_text="hello")
