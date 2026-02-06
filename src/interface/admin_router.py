@@ -508,7 +508,7 @@ async def post_edit_member(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # Update user record
-    await update_record(
+    updated_user = await update_record(
         collection="users",
         record_id=user["id"],
         data={"name": name.strip(), "role": role},
@@ -519,7 +519,7 @@ async def post_edit_member(
         return templates.TemplateResponse(
             request,
             name="admin/member_row.html",
-            context={"member": user},
+            context={"member": updated_user},
         )
 
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
