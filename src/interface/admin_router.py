@@ -10,7 +10,14 @@ from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from src.core.config import constants, settings
-from src.core.db_client import create_record, get_first_record, list_records, sanitize_param, update_record
+from src.core.db_client import (
+    create_record,
+    delete_record,
+    get_first_record,
+    list_records,
+    sanitize_param,
+    update_record,
+)
 from src.interface.whatsapp_sender import send_text_message
 from src.services.house_config_service import get_house_config as get_house_config_from_service
 
@@ -407,12 +414,26 @@ async def post_add_member(
         "passwordConfirm": temp_password,
     }
 
-    await create_record(collection="users", data=user_data)
+    created_user = await create_record(collection="users", data=user_data)
     logger.info("Created pending user: %s", phone)
 
     # Send WhatsApp invite message
     invite_message = f"You've been invited to {house_name}! Reply YES to confirm"
     send_result = await send_text_message(to_phone=phone, text=invite_message)
+
+    # Rollback user creation if WhatsApp send fails
+    if not send_result.success:
+        await delete_record(collection="users", record_id=created_user["id"])
+        logger.warning(
+            "Rolled back user creation due to WhatsApp send failure: %s (reason: %s)",
+            phone,
+            send_result.error,
+        )
+        return templates.TemplateResponse(
+            request,
+            name="admin/add_member.html",
+            context={"errors": [f"Failed to send WhatsApp message: {send_result.error}"], "phone": phone},
+        )
 
     # Create pending invite record
     invite_data = {
