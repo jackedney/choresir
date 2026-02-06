@@ -4,8 +4,6 @@ import logging
 from typing import Any
 
 import httpx
-from pocketbase import PocketBase
-from pocketbase.errors import ClientResponseError
 
 from src.core.config import settings
 
@@ -521,20 +519,26 @@ async def sync_schema(
     logger.info("Starting PocketBase schema sync...")
 
     url = pocketbase_url or settings.pocketbase_url
-    client = PocketBase(url)
 
-    # Authenticate as admin using PocketBase SDK
-    try:
-        client.admins.auth_with_password(admin_email, admin_password)
-        logger.info("Successfully authenticated as admin")
-    except ClientResponseError as e:
-        logger.error(f"Failed to authenticate as admin: {e}")
-        raise
-
-    # Use httpx with the auth token from PocketBase SDK
+    # Use httpx for all operations including authentication
     async with httpx.AsyncClient(base_url=url, timeout=30.0) as http_client:
-        # Set authorization header
-        http_client.headers["Authorization"] = f"Bearer {client.auth_store.token}"
+        # Authenticate as admin using PocketBase API directly
+        # PocketBase v0.22+ uses _superusers collection for admin auth
+        try:
+            auth_response = await http_client.post(
+                "/api/collections/_superusers/auth-with-password",
+                json={"identity": admin_email, "password": admin_password},
+            )
+            auth_response.raise_for_status()
+            auth_data = auth_response.json()
+            http_client.headers["Authorization"] = f"Bearer {auth_data['token']}"
+            logger.info("Successfully authenticated as admin")
+        except httpx.HTTPStatusError as e:
+            logger.error("Failed to authenticate as admin: %s", e)
+            raise
+        except httpx.RequestError as e:
+            logger.error("Connection error during admin authentication: %s", e)
+            raise
 
         # Build collection ID mapping as we create collections.
         # PocketBase requires actual collection IDs (not names) in relation field options.
