@@ -19,6 +19,8 @@ async def test_pending_invite_confirmation_success():
         patch("src.agents.choresir_agent.user_service") as mock_user_service,
         patch("src.agents.choresir_agent.get_house_config") as mock_get_config,
     ):
+        mock_db_client.sanitize_param = lambda x: x
+
         # Setup mocks
         mock_db_client.get_first_record = AsyncMock(
             return_value={
@@ -61,6 +63,8 @@ async def test_pending_invite_confirmation_case_insensitive():
         patch("src.agents.choresir_agent.user_service") as mock_user_service,
         patch("src.agents.choresir_agent.get_house_config") as mock_get_config,
     ):
+        mock_db_client.sanitize_param = lambda x: x
+
         for message_text in test_cases:
             # Setup mocks
             mock_db_client.get_first_record = AsyncMock(
@@ -102,6 +106,8 @@ async def test_pending_invite_confirmation_user_not_found():
         patch("src.agents.choresir_agent.db_client") as mock_db_client,
         patch("src.agents.choresir_agent.user_service") as mock_user_service,
     ):
+        mock_db_client.sanitize_param = lambda x: x
+
         mock_db_client.get_first_record = AsyncMock(
             return_value={
                 "id": "invite123",
@@ -128,6 +134,8 @@ async def test_pending_invite_non_yes_message():
     message_text = "Hello"
 
     with patch("src.agents.choresir_agent.db_client") as mock_db_client:
+        mock_db_client.sanitize_param = lambda x: x
+
         mock_db_client.get_first_record = AsyncMock(
             return_value={
                 "id": "invite123",
@@ -152,6 +160,8 @@ async def test_no_pending_invite_returns_not_a_member():
     message_text = "Hello"
 
     with patch("src.agents.choresir_agent.db_client") as mock_db_client:
+        mock_db_client.sanitize_param = lambda x: x
+
         mock_db_client.get_first_record = AsyncMock(return_value=None)
 
         result = await choresir_agent.handle_unknown_user(
@@ -171,6 +181,8 @@ async def test_house_join_command_returns_not_a_member():
     message_text = "/house join MyHouse"
 
     with patch("src.agents.choresir_agent.db_client") as mock_db_client:
+        mock_db_client.sanitize_param = lambda x: x
+
         mock_db_client.get_first_record = AsyncMock(return_value=None)
 
         result = await choresir_agent.handle_unknown_user(
