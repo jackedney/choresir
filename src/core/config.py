@@ -1,8 +1,9 @@
 """Configuration management for choresir."""
 
 from pathlib import Path
+from typing import Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,12 +19,23 @@ class Settings(BaseSettings):
 
     # PocketBase Configuration
     pocketbase_url: str = Field(default="http://127.0.0.1:8090", description="PocketBase server URL")
-    pocketbase_admin_email: str = Field(
-        default="admin@test.local", description="PocketBase admin email for schema sync"
-    )
-    pocketbase_admin_password: str = Field(
-        default="testpassword123", description="PocketBase admin password for schema sync"
-    )
+    pocketbase_admin_email: str | None = Field(default=None, description="PocketBase admin email for schema sync")
+    pocketbase_admin_password: str | None = Field(default=None, description="PocketBase admin password for schema sync")
+
+    @model_validator(mode="after")
+    def verify_admin_credentials(self) -> Self:
+        """Verify that admin credentials are set."""
+        if not self.pocketbase_admin_email:
+            raise ValueError(
+                "PocketBase admin email credential not configured. "
+                "Set POCKETBASE_ADMIN_EMAIL environment variable or add to .env file."
+            )
+        if not self.pocketbase_admin_password:
+            raise ValueError(
+                "PocketBase admin password credential not configured. "
+                "Set POCKETBASE_ADMIN_PASSWORD environment variable or add to .env file."
+            )
+        return self
 
     # OpenRouter Configuration
     openrouter_api_key: str | None = Field(default=None, description="OpenRouter API key for LLM access")

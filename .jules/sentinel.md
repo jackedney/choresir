@@ -32,3 +32,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** Several services (`chore_service`, `analytics_service`, `robin_hood_service`) constructed PocketBase filter queries using f-strings with unsanitized user inputs (e.g., `f'assigned_to = "{user_id}"'`). This allows attackers to bypass filters using injection payloads like `" || true || "`.
 **Learning:** Even with an ORM or SDK, manual query string construction is risky. Also, unit tests for injection must ensure that the vulnerable code path (e.g., loops iterating over DB results) is actually executed by providing mock data.
 **Prevention:** Always use `db_client.sanitize_param()` when embedding variables into filter strings. Ensure tests verify the exact constructed query string.
+
+## 2026-02-06 - [Hardcoded Admin Credentials in Config]
+**Vulnerability:** The `Settings` class in `src/core/config.py` contained hardcoded default values for `pocketbase_admin_email` ("admin@test.local") and `pocketbase_admin_password` ("testpassword123"). While intended for development, these defaults could lead to production deployments using insecure credentials if environment variables were omitted.
+**Learning:** Pydantic `BaseSettings` with default values allows the application to start even when critical security configuration is missing from the environment. "Safe defaults" for development can become "Unsafe defaults" for production.
+**Prevention:** Removed default values for critical credentials in `Settings`, forcing them to be explicitly provided via environment variables. Updated `Taskfile.yml` and `conftest.py` to inject these values for development and testing contexts.
