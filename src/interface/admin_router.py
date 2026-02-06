@@ -482,3 +482,84 @@ async def post_edit_member(
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie("flash_success", "Member updated successfully", max_age=5)
     return response
+
+
+@router.get("/members/{phone}/remove")
+async def get_remove_member(
+    *,
+    request: Request,
+    _auth: None = Depends(require_auth),
+    phone: str,
+) -> Response:
+    """Render remove member confirmation page.
+
+    Args:
+        request: FastAPI request object
+        _auth: Auth dependency (ensures user is logged in)
+        phone: Phone number of member to remove
+
+    Returns:
+        Template response with remove member confirmation, or 404 if user not found
+    """
+    user = await get_first_record(
+        collection="users",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
+    )
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return templates.TemplateResponse(
+        request,
+        name="admin/remove_member.html",
+        context={
+            "user": user,
+        },
+    )
+
+
+@router.post("/members/{phone}/remove")
+async def post_remove_member(
+    *,
+    request: Request,
+    _auth: None = Depends(require_auth),
+    phone: str,
+) -> Response:
+    """Process remove member form.
+
+    Args:
+        request: FastAPI request object
+        _auth: Auth dependency (ensures user is logged in)
+        phone: Phone number of member to remove
+
+    Returns:
+        RedirectResponse to /admin/members on success, template with errors on validation failure
+    """
+    # Find user by phone
+    user = await get_first_record(
+        collection="users",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
+    )
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Prevent banning admins
+    if user.get("role") == "admin":
+        return templates.TemplateResponse(
+            request,
+            name="admin/remove_member.html",
+            context={"errors": ["Cannot ban an admin"], "user": user},
+        )
+
+    # Update user status to banned
+    await update_record(
+        collection="users",
+        record_id=user["id"],
+        data={"status": "banned"},
+    )
+    logger.info("Banned member: %s", phone)
+
+    response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie("flash_success", "Member banned", max_age=5)
+    return response
