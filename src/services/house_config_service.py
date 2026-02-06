@@ -52,6 +52,11 @@ async def validate_house_credentials(*, house_code: str, password: str) -> bool:
     """
     config = await get_house_config()
 
+    if not config["code"]:
+        return False
+    if not config["password"]:
+        return False
+
     house_code_valid = secrets.compare_digest(house_code, config["code"])
     password_valid = secrets.compare_digest(password, config["password"])
 
@@ -73,6 +78,9 @@ async def validate_house_password(*, password: str) -> bool:
         Falls back to environment variables if no config exists in database.
     """
     config = await get_house_config()
+
+    if not config["password"]:
+        return False
 
     return secrets.compare_digest(password, config["password"])
 
