@@ -2,36 +2,36 @@
 
 ## System Overview
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                      External Systems                           │
 │  WhatsApp (WAHA)              OpenRouter (LLM)                 │
 └─────────┬───────────────────────────┬───────────────────────────┘
-          │ Webhook                   │ API
-          ▼                           ▼
+           │ Webhook                   │ API
+           ▼                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Interface Layer (src/interface/)                               │
 │  - webhook.py: Receive POST, validate, return 200 immediately   │
 │  - whatsapp_parser.py: Parse WAHA payloads                      │
 │  - whatsapp_sender.py: Send responses                           │
 └─────────────────────────────────────────────────────────────────┘
-          │ BackgroundTask
-          ▼
+           │ BackgroundTask
+           ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Agent Layer (src/agents/)                                      │
 │  - choresir_agent.py: Main agent with system prompt             │
 │  - tools/*.py: Tool functions the LLM can call                  │
 │  - base.py: Deps dataclass for dependency injection             │
 └─────────────────────────────────────────────────────────────────┘
-          │ Tool calls
-          ▼
+           │ Tool calls
+           ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Service Layer (src/services/)                                  │
 │  - Functional modules (not classes)                             │
 │  - chore_service, user_service, verification_service, etc.      │
 └─────────────────────────────────────────────────────────────────┘
-          │
-          ▼
+           │
+           ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Infrastructure (src/core/)                                     │
 │  - db_client.py: PocketBase wrapper with connection pooling     │
@@ -42,7 +42,7 @@
 
 ## Directory Structure
 
-```
+```text
 src/
 ├── agents/           # Pydantic AI agent + tools
 │   ├── tools/        # Tool functions (tool_log_chore, etc.)
