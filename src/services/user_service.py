@@ -7,6 +7,7 @@ from typing import Any
 from src.core import db_client
 from src.core.db_client import sanitize_param
 from src.core.logging import span
+from src.domain.create_models import UserCreate
 from src.domain.user import User, UserRole, UserStatus
 from src.services.house_config_service import validate_house_credentials
 
@@ -68,17 +69,17 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         # This prevents default credential vulnerabilities if the pending account is somehow accessed
         temp_password = secrets.token_urlsafe(32)
 
-        user_data = {
-            "phone": phone,
-            "name": name,
-            "email": email,
-            "role": UserRole.MEMBER,
-            "status": UserStatus.PENDING,
-            "password": temp_password,
-            "passwordConfirm": temp_password,
-        }
+        user_create = UserCreate(
+            phone=phone,
+            name=name,
+            email=email,
+            role=UserRole.MEMBER,
+            status=UserStatus.PENDING,
+            password=temp_password,
+            passwordConfirm=temp_password,
+        )
 
-        record = await db_client.create_record(collection="users", data=user_data)
+        record = await db_client.create_record(collection="users", data=user_create.model_dump())
         logger.info("Created pending user: %s (%s)", name, phone)
 
         return record

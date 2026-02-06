@@ -18,6 +18,8 @@ from src.core.db_client import (
     sanitize_param,
     update_record,
 )
+from src.domain.create_models import HouseConfigCreate, InviteCreate, UserCreate
+from src.domain.user import UserRole, UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.services.house_config_service import get_house_config as get_house_config_from_service
 
@@ -258,16 +260,20 @@ async def post_house_config(
         )
 
     # Build update data - exclude password if placeholder was submitted
-    data: dict[str, str] = {"name": name, "code": code}
+    house_config_data = {"name": name, "code": code}
     if not password_is_placeholder:
-        data["password"] = password
+        house_config_data["password"] = password
+
+    house_config = HouseConfigCreate(**house_config_data)
 
     if config:
-        await update_record(collection="house_config", record_id=config["id"], data=data)
+        await update_record(
+            collection="house_config", record_id=config["id"], data=house_config.model_dump(exclude_none=True)
+        )
         logger.info("house_config_updated", extra={"name": name})
         message = "House configuration updated successfully"
     else:
-        await create_record(collection="house_config", data=data)
+        await create_record(collection="house_config", data=house_config.model_dump())
         logger.info("house_config_created", extra={"name": name})
         message = "House configuration created successfully"
 
@@ -404,17 +410,17 @@ async def post_add_member(
     temp_password = secrets.token_urlsafe(32)
 
     # Create user record
-    user_data = {
-        "phone": phone,
-        "name": "Pending User",
-        "email": email,
-        "role": "member",
-        "status": "pending",
-        "password": temp_password,
-        "passwordConfirm": temp_password,
-    }
+    user_create = UserCreate(
+        phone=phone,
+        name="Pending User",
+        email=email,
+        role=UserRole.MEMBER,
+        status=UserStatus.PENDING,
+        password=temp_password,
+        passwordConfirm=temp_password,
+    )
 
-    created_user = await create_record(collection="users", data=user_data)
+    created_user = await create_record(collection="users", data=user_create.model_dump())
     logger.info("Created pending user: %s", phone)
 
     # Send WhatsApp invite message
@@ -436,12 +442,12 @@ async def post_add_member(
         )
 
     # Create pending invite record
-    invite_data = {
-        "phone": phone,
-        "invited_at": datetime.now(UTC).isoformat(),
-        "invite_message_id": send_result.message_id,
-    }
-    await create_record(collection="pending_invites", data=invite_data)
+    invite_create = InviteCreate(
+        phone=phone,
+        invited_at=datetime.now(UTC).isoformat(),
+        invite_message_id=send_result.message_id,
+    )
+    await create_record(collection="pending_invites", data=invite_create.model_dump(exclude_none=True))
     logger.info("Created pending invite for %s", phone)
 
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
