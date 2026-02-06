@@ -376,3 +376,109 @@ async def post_add_member(
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie("flash_success", "Invite sent", max_age=5)
     return response
+
+
+@router.get("/members/{phone}/edit")
+async def get_edit_member(
+    *,
+    request: Request,
+    _auth: None = Depends(require_auth),
+    phone: str,
+) -> Response:
+    """Render edit member form.
+
+    Args:
+        request: FastAPI request object
+        _auth: Auth dependency (ensures user is logged in)
+        phone: Phone number of member to edit
+
+    Returns:
+        Template response with edit member form, or 404 if user not found
+    """
+    user = await get_first_record(
+        collection="users",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
+    )
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return templates.TemplateResponse(
+        request,
+        name="admin/edit_member.html",
+        context={
+            "user": user,
+        },
+    )
+
+
+@router.post("/members/{phone}/edit")
+async def post_edit_member(
+    *,
+    request: Request,
+    _auth: None = Depends(require_auth),
+    phone: str,
+    name: str = Form(...),
+    role: str = Form(...),
+) -> Response:
+    """Process edit member form.
+
+    Args:
+        request: FastAPI request object
+        _auth: Auth dependency (ensures user is logged in)
+        phone: Phone number of member to edit
+        name: Member name (1-50 chars, Unicode letters/spaces/hyphens/apostrophes)
+        role: Member role (admin or member)
+
+    Returns:
+        RedirectResponse to /admin/members on success, template with errors on validation failure
+    """
+    errors = []
+
+    # Validate name
+    if not name or len(name.strip()) < 1:
+        errors.append("Name cannot be empty")
+    elif len(name) > 50:
+        errors.append("Name must be 50 characters or less")
+    elif not all(c.isalpha() or c.isspace() or c in "-'" for c in name):
+        errors.append("Name can only contain letters, spaces, hyphens, and apostrophes")
+
+    # Validate role
+    if role not in ("admin", "member"):
+        errors.append("Invalid role")
+
+    if errors:
+        # Get user for form repopulation
+        user = await get_first_record(
+            collection="users",
+            filter_query=f'phone = "{sanitize_param(phone)}"',
+        )
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        return templates.TemplateResponse(
+            request,
+            name="admin/edit_member.html",
+            context={"errors": errors, "user": user, "name": name, "role": role},
+        )
+
+    # Find user by phone
+    user = await get_first_record(
+        collection="users",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
+    )
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Update user record
+    await update_record(
+        collection="users",
+        record_id=user["id"],
+        data={"name": name.strip(), "role": role},
+    )
+    logger.info("Updated member: %s, name=%s, role=%s", phone, name, role)
+
+    response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie("flash_success", "Member updated successfully", max_age=5)
+    return response
