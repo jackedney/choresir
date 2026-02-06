@@ -575,7 +575,7 @@ async def auto_verify_personal_chores() -> None:
     logger.info("Running personal chore auto-verification job")
 
     try:
-        # Call) auto-verification service
+        # Call auto-verification service
         count = await personal_verification_service.auto_verify_expired_logs()
 
         logger.info(f"Completed auto-verification job: {count} logs auto-verified")
