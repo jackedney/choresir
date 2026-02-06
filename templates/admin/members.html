@@ -24,7 +24,7 @@
         </thead>
         <tbody>
             {% for member in members %}
-            <tr>
+            <tr id="member-{{ member.phone }}">
                 <td>{{ member.phone }}</td>
                 <td>{{ member.name }}</td>
                 <td>
@@ -45,8 +45,8 @@
                 </td>
                 <td>{{ member.created }}</td>
                 <td>
-                    <a href="/admin/members/{{ member.phone }}/edit">Edit</a>
-                    <a href="/admin/members/{{ member.phone }}/remove">Remove</a>
+                    <button hx-get="/admin/members/{{ member.phone }}/edit" hx-target="#member-{{ member.phone }}" hx-swap="outerHTML" class="outline">Edit</button>
+                    <button hx-get="/admin/members/{{ member.phone }}/remove" hx-target="#member-{{ member.phone }}" hx-swap="outerHTML" class="outline contrast">Remove</button>
                 </td>
             </tr>
             {% endfor %}

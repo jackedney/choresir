@@ -6,6 +6,28 @@
     <title>{% block title %}Admin{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 200ms ease-in;
+        }
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+        }
+        .htmx-request.htmx-indicator {
+            opacity: 1;
+        }
+        .flash-message {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        tr.htmx-requesting td {
+            opacity: 0.6;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -21,7 +43,7 @@
     <main class="container">
         {% block flash_messages %}
         {% if success_message %}
-        <article role="alert" data-theme="success">
+        <article role="alert" data-theme="success" class="flash-message">
             <header><strong>Success</strong></header>
             {{ success_message }}
         </article>

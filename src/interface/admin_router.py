@@ -259,6 +259,11 @@ async def post_house_config(
     return response
 
 
+def is_htmx_request(request: Request) -> bool:
+    """Check if the request is from HTMX."""
+    return request.headers.get("HX-Request") == "true"
+
+
 @router.get("/members")
 async def get_members(request: Request, _auth: None = Depends(require_auth)) -> Response:
     """Render member list with status and role badges.
@@ -271,8 +276,43 @@ async def get_members(request: Request, _auth: None = Depends(require_auth)) -> 
         Template response with member list table
     """
     users = await list_records(collection="users", per_page=1000, sort="-created")
+    success_message = request.cookies.get("flash_success")
 
-    return templates.TemplateResponse(request, name="admin/members.html", context={"members": users})
+    return templates.TemplateResponse(
+        request, name="admin/members.html", context={"members": users, "success_message": success_message}
+    )
+
+
+@router.get("/members/{phone}/row")
+async def get_member_row(
+    *,
+    request: Request,
+    _auth: None = Depends(require_auth),
+    phone: str,
+) -> Response:
+    """Get a single member row fragment for HTMX updates.
+
+    Args:
+        request: FastAPI request object
+        _auth: Auth dependency (ensures user is logged in)
+        phone: Phone number of member
+
+    Returns:
+        Template response with member row fragment, or 404 if not found
+    """
+    user = await get_first_record(
+        collection="users",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
+    )
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return templates.TemplateResponse(
+        request,
+        name="admin/member_row.html",
+        context={"member": user},
+    )
 
 
 @router.get("/members/add")
@@ -393,7 +433,7 @@ async def get_edit_member(
         phone: Phone number of member to edit
 
     Returns:
-        Template response with edit member form, or 404 if user not found
+        Template response with edit member form (inline if HTMX, full page otherwise), or 404 if not found
     """
     user = await get_first_record(
         collection="users",
@@ -403,12 +443,17 @@ async def get_edit_member(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    if is_htmx_request(request):
+        return templates.TemplateResponse(
+            request,
+            name="admin/edit_member_inline.html",
+            context={"user": user},
+        )
+
     return templates.TemplateResponse(
         request,
         name="admin/edit_member.html",
-        context={
-            "user": user,
-        },
+        context={"user": user},
     )
 
 
@@ -432,6 +477,7 @@ async def post_edit_member(
 
     Returns:
         RedirectResponse to /admin/members on success, template with errors on validation failure
+        For HTMX requests, returns the updated row fragment or inline form with errors
     """
     errors = []
 
@@ -456,6 +502,13 @@ async def post_edit_member(
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+        if is_htmx_request(request):
+            return templates.TemplateResponse(
+                request,
+                name="admin/edit_member_inline.html",
+                context={"errors": errors, "user": user, "name": name, "role": role},
+            )
+
         return templates.TemplateResponse(
             request,
             name="admin/edit_member.html",
@@ -479,6 +532,13 @@ async def post_edit_member(
     )
     logger.info("Updated member: %s, name=%s, role=%s", phone, name, role)
 
+    if is_htmx_request(request):
+        return templates.TemplateResponse(
+            request,
+            name="admin/member_row.html",
+            context={"member": user},
+        )
+
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie("flash_success", "Member updated successfully", max_age=5)
     return response
@@ -499,7 +559,7 @@ async def get_remove_member(
         phone: Phone number of member to remove
 
     Returns:
-        Template response with remove member confirmation, or 404 if user not found
+        Template response with remove member confirmation (inline if HTMX, full page otherwise), or 404 if not found
     """
     user = await get_first_record(
         collection="users",
@@ -509,12 +569,17 @@ async def get_remove_member(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    if is_htmx_request(request):
+        return templates.TemplateResponse(
+            request,
+            name="admin/remove_member_inline.html",
+            context={"user": user},
+        )
+
     return templates.TemplateResponse(
         request,
         name="admin/remove_member.html",
-        context={
-            "user": user,
-        },
+        context={"user": user},
     )
 
 
@@ -534,6 +599,7 @@ async def post_remove_member(
 
     Returns:
         RedirectResponse to /admin/members on success, template with errors on validation failure
+        For HTMX requests, returns the banned row fragment or inline form with errors
     """
     # Find user by phone
     user = await get_first_record(
@@ -546,6 +612,12 @@ async def post_remove_member(
 
     # Prevent banning admins
     if user.get("role") == "admin":
+        if is_htmx_request(request):
+            return templates.TemplateResponse(
+                request,
+                name="admin/remove_member_inline.html",
+                context={"errors": ["Cannot ban an admin"], "user": user},
+            )
         return templates.TemplateResponse(
             request,
             name="admin/remove_member.html",
@@ -559,6 +631,13 @@ async def post_remove_member(
         data={"status": "banned"},
     )
     logger.info("Banned member: %s", phone)
+
+    if is_htmx_request(request):
+        return templates.TemplateResponse(
+            request,
+            name="admin/member_row.html",
+            context={"member": user},
+        )
 
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie("flash_success", "Member banned", max_age=5)

@@ -81,6 +81,9 @@ ignore = [
     "ARG",     # Allow unused arguments in test fixtures
     "PLR2004", # Allow magic values in tests
 ]
+"src/interface/admin_router.py" = [
+    "PLR2004", # Allow magic values for validation constants (min/max lengths)
+]
 "src/interface/webhook.py" = [
     "PLC0415", # Allow local imports to avoid circular dependencies
     "C901",    # Allow complex functions (webhook processing logic)
