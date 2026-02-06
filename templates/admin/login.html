@@ -17,6 +17,8 @@
 <h1>Admin Login</h1>
 
 <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
     <label for="password">
         Password
         <input type="password" id="password" name="password" required autofocus />

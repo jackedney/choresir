@@ -31,9 +31,39 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory=str(constants.PROJECT_ROOT / "templates"))
 
 serializer = URLSafeTimedSerializer(str(settings.secret_key), salt="admin-session")
+csrf_serializer = URLSafeTimedSerializer(str(settings.secret_key), salt="admin-csrf")
 
 # Placeholder string for obscured text display
 MASKED_TEXT_PLACEHOLDER = "********"
+
+
+def generate_csrf_token() -> str:
+    """Generate a secure CSRF token."""
+    return secrets.token_hex(32)
+
+
+def validate_csrf_token(request: Request, token: str | None) -> bool:
+    """Validate CSRF token from request.
+
+    Args:
+        request: The incoming request
+        token: The CSRF token to validate
+
+    Returns:
+        True if token is valid, False otherwise
+    """
+    if not token:
+        return False
+
+    expected_token = request.cookies.get("csrf_token")
+    if not expected_token:
+        return False
+
+    try:
+        loaded_token = csrf_serializer.loads(expected_token, max_age=3600)
+        return secrets.compare_digest(loaded_token, token)
+    except (BadSignature, SignatureExpired):
+        return False
 
 
 async def require_auth(request: Request) -> None:
@@ -90,9 +120,21 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
 
 
 @router.get("/login")
-async def get_login(request: Request) -> Response:
-    """Render the admin login form."""
-    return templates.TemplateResponse(request, name="admin/login.html")
+async def get_login(request: Request, response: Response) -> Response:
+    """Render the admin login form with CSRF token."""
+    csrf_token = generate_csrf_token()
+    signed_token = csrf_serializer.dumps(csrf_token)
+
+    response = templates.TemplateResponse(request, name="admin/login.html", context={"csrf_token": csrf_token})
+    response.set_cookie(
+        key="csrf_token",
+        value=signed_token,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="strict",
+        max_age=3600,
+    )
+    return response
 
 
 @router.post("/login")
@@ -101,8 +143,16 @@ async def post_login(
     request: Request,
     response: Response,
     password: str = Form(...),
+    csrf_token: str | None = Form(None),
 ) -> Response:
     """Process admin login form submission and redirect to /admin on success."""
+    if not validate_csrf_token(request, csrf_token):
+        logger.warning("admin_login_invalid_csrf")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid CSRF token",
+        )
+
     expected_password = settings.admin_password
 
     if not expected_password:
@@ -124,6 +174,7 @@ async def post_login(
             samesite="strict",
             max_age=86400,
         )
+        response.delete_cookie(key="csrf_token", httponly=True, samesite="strict")
         return response
 
     error = "Invalid password"

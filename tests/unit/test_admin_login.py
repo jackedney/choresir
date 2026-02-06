@@ -20,7 +20,7 @@ def client() -> TestClient:
 
 
 def test_login_page_renders(client: TestClient) -> None:
-    """Test that login page renders correctly."""
+    """Test that login page renders correctly with CSRF token."""
     with patch("src.interface.admin_router.settings") as mock_settings:
         mock_settings.admin_password = "test_password"
         mock_settings.secret_key = "test_secret_key"
@@ -30,15 +30,30 @@ def test_login_page_renders(client: TestClient) -> None:
         assert response.status_code == 200
         assert "Admin Login" in response.text
         assert "Password" in response.text
+        assert 'name="csrf_token"' in response.text
+        assert "csrf_token" in response.cookies
 
 
 def test_login_with_valid_password_redirects(client: TestClient) -> None:
     """Test that valid password redirects to /admin and sets session cookie."""
-    with patch("src.interface.admin_router.settings") as mock_settings:
+    with (
+        patch("src.interface.admin_router.settings") as mock_settings,
+        patch("src.interface.admin_router.csrf_serializer") as mock_csrf_serializer,
+    ):
         mock_settings.admin_password = "correct_password"
         mock_settings.secret_key = "test_secret_key"
+        test_csrf_serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-csrf")
+        mock_csrf_serializer.dumps = test_csrf_serializer.dumps
+        mock_csrf_serializer.loads = test_csrf_serializer.loads
 
-        response = client.post("/admin/login", data={"password": "correct_password"}, follow_redirects=False)
+        csrf_token = test_csrf_serializer.dumps("test_csrf_value")
+
+        response = client.post(
+            "/admin/login",
+            data={"password": "correct_password", "csrf_token": "test_csrf_value"},
+            cookies={"csrf_token": csrf_token},
+            follow_redirects=False,
+        )
 
         assert response.status_code == 303
         assert response.headers["location"] == "/admin"
@@ -47,11 +62,23 @@ def test_login_with_valid_password_redirects(client: TestClient) -> None:
 
 def test_login_with_invalid_password_shows_error(client: TestClient) -> None:
     """Test that invalid password shows error message."""
-    with patch("src.interface.admin_router.settings") as mock_settings:
+    with (
+        patch("src.interface.admin_router.settings") as mock_settings,
+        patch("src.interface.admin_router.csrf_serializer") as mock_csrf_serializer,
+    ):
         mock_settings.admin_password = "correct_password"
         mock_settings.secret_key = "test_secret_key"
+        test_csrf_serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-csrf")
+        mock_csrf_serializer.dumps = test_csrf_serializer.dumps
+        mock_csrf_serializer.loads = test_csrf_serializer.loads
 
-        response = client.post("/admin/login", data={"password": "wrong_password"})
+        csrf_token = test_csrf_serializer.dumps("test_csrf_value")
+
+        response = client.post(
+            "/admin/login",
+            data={"password": "wrong_password", "csrf_token": "test_csrf_value"},
+            cookies={"csrf_token": csrf_token},
+        )
 
         assert response.status_code == 200
         assert "Invalid password" in response.text
@@ -154,3 +181,25 @@ def test_logout_clears_session_and_redirects(client: TestClient) -> None:
         set_cookie = response.headers.get("set-cookie")
         assert set_cookie is not None
         assert "admin_session=" in set_cookie
+
+
+def test_login_with_invalid_csrf_token_returns_403(client: TestClient) -> None:
+    """Test that invalid CSRF token returns 403 error."""
+    with patch("src.interface.admin_router.settings") as mock_settings:
+        mock_settings.admin_password = "correct_password"
+        mock_settings.secret_key = "test_secret_key"
+
+        response = client.post("/admin/login", data={"password": "correct_password", "csrf_token": "invalid_token"})
+
+        assert response.status_code == 403
+
+
+def test_login_with_missing_csrf_token_returns_403(client: TestClient) -> None:
+    """Test that missing CSRF token returns 403 error."""
+    with patch("src.interface.admin_router.settings") as mock_settings:
+        mock_settings.admin_password = "correct_password"
+        mock_settings.secret_key = "test_secret_key"
+
+        response = client.post("/admin/login", data={"password": "correct_password"})
+
+        assert response.status_code == 403
