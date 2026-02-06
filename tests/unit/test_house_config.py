@@ -18,7 +18,7 @@ def client() -> TestClient:
     return TestClient(test_app)
 
 
-def get_test_session_token(secret_key: str = "test_secret_key") -> str:
+def get_test_session_token(secret_key: str) -> str:
     """Create a valid session token for testing."""
     serializer = URLSafeTimedSerializer(secret_key, salt="admin-session")
     return serializer.dumps({"authenticated": True})
@@ -27,7 +27,7 @@ def get_test_session_token(secret_key: str = "test_secret_key") -> str:
 def test_house_config_page_renders_without_existing_config(client: TestClient) -> None:
     """Test that house config page renders when no config exists."""
     test_serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-session")
-    session_token = get_test_session_token()
+    session_token = get_test_session_token("test_secret_key")
     client.cookies.set("admin_session", session_token)
 
     mock_get_first_record = AsyncMock(return_value=None)
@@ -51,7 +51,7 @@ def test_house_config_page_renders_without_existing_config(client: TestClient) -
 def test_house_config_page_renders_with_existing_config(client: TestClient) -> None:
     """Test that house config page renders with existing config."""
     test_serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-session")
-    session_token = get_test_session_token()
+    session_token = get_test_session_token("test_secret_key")
     client.cookies.set("admin_session", session_token)
 
     existing_config = {
@@ -86,8 +86,6 @@ def test_house_config_page_renders_with_existing_config(client: TestClient) -> N
 def test_house_config_requires_auth(client: TestClient) -> None:
     """Test that house config routes require authentication."""
     test_serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-session")
-    session_token = get_test_session_token()
-    client.cookies.set("admin_session", session_token)
 
     with (
         patch("src.interface.admin_router.settings") as mock_settings,
@@ -97,8 +95,7 @@ def test_house_config_requires_auth(client: TestClient) -> None:
         mock_settings.secret_key = "test_secret_key"
 
         # Test GET without session
-        client.cookies.clear()
-        response = client.get("/admin/house")
+        response = client.get("/admin/house", follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/admin/login"
 
@@ -106,6 +103,7 @@ def test_house_config_requires_auth(client: TestClient) -> None:
         response = client.post(
             "/admin/house",
             data={"name": "TestHouse", "code": "CODE123", "password": "new_password"},
+            follow_redirects=False,
         )
         assert response.status_code == 303
         assert response.headers["location"] == "/admin/login"
