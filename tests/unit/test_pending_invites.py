@@ -49,6 +49,7 @@ async def old_invite(patched_user_db):
 class TestPendingInvitesSchema:
     """Tests for pending_invites collection schema."""
 
+    @pytest.mark.asyncio
     async def test_create_invite_success(self, patched_user_db):
         """Test creating a pending invite succeeds."""
         invite_data = {
@@ -66,6 +67,7 @@ class TestPendingInvitesSchema:
         assert "created" in result
         assert "updated" in result
 
+    @pytest.mark.asyncio
     async def test_create_invite_without_message_id(self, patched_user_db):
         """Test creating a pending invite without message_id succeeds."""
         invite_data = {
@@ -79,6 +81,7 @@ class TestPendingInvitesSchema:
         assert result["invited_at"] == invite_data["invited_at"]
         assert result.get("invite_message_id") is None
 
+    @pytest.mark.asyncio
     async def test_create_duplicate_phone_in_memory_db(self, patched_user_db, sample_invite):
         """Test creating invite with duplicate phone in memory DB."""
         new_invite_data = {
@@ -94,6 +97,7 @@ class TestPendingInvitesSchema:
         assert result["phone"] == sample_invite["phone"]
         assert result["invite_message_id"] == "msg_new"
 
+    @pytest.mark.asyncio
     async def test_get_invite_by_phone(self, patched_user_db, sample_invite):
         """Test retrieving invite by phone number."""
         filter_query = f'phone = "{sample_invite["phone"]}"'
@@ -103,6 +107,7 @@ class TestPendingInvitesSchema:
         assert result["id"] == sample_invite["id"]
         assert result["phone"] == sample_invite["phone"]
 
+    @pytest.mark.asyncio
     async def test_list_all_invites(self, patched_user_db, sample_invite, old_invite):
         """Test listing all pending invites."""
         result = await patched_user_db.list_records("pending_invites")
@@ -112,6 +117,7 @@ class TestPendingInvitesSchema:
         assert sample_invite["phone"] in phones
         assert old_invite["phone"] in phones
 
+    @pytest.mark.asyncio
     async def test_delete_invite(self, patched_user_db, sample_invite):
         """Test deleting a pending invite."""
         await patched_user_db.delete_record("pending_invites", sample_invite["id"])
@@ -124,6 +130,7 @@ class TestPendingInvitesSchema:
 class TestCleanupExpiredInvites:
     """Tests for cleanup_expired_invites job."""
 
+    @pytest.mark.asyncio
     async def test_cleanup_removes_old_invites(self, patched_user_db, sample_invite, old_invite):
         """Test cleanup removes invites older than 7 days."""
         await cleanup_expired_invites()
@@ -132,6 +139,7 @@ class TestCleanupExpiredInvites:
         assert len(result) == 1
         assert result[0]["phone"] == sample_invite["phone"]
 
+    @pytest.mark.asyncio
     async def test_cleanup_preserves_recent_invites(self, patched_user_db, sample_invite):
         """Test cleanup preserves invites younger than 7 days."""
         await cleanup_expired_invites()
@@ -140,6 +148,7 @@ class TestCleanupExpiredInvites:
         assert len(result) == 1
         assert result[0]["phone"] == sample_invite["phone"]
 
+    @pytest.mark.asyncio
     async def test_cleanup_handles_empty_collection(self, patched_user_db):
         """Test cleanup handles empty collection gracefully."""
         await cleanup_expired_invites()
@@ -147,6 +156,7 @@ class TestCleanupExpiredInvites:
         result = await patched_user_db.list_records("pending_invites")
         assert len(result) == 0
 
+    @pytest.mark.asyncio
     async def test_cleanup_removes_multiple_old_invites(self, patched_user_db):
         """Test cleanup removes multiple old invites."""
         # Create 3 old invites

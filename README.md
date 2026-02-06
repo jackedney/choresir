@@ -75,6 +75,7 @@ Track your personal tasks privately within the same WhatsApp interface:
 ```
 
 ### Web Admin Interface 🆕
+
 Manage your household through a modern web interface at `/admin`:
 - **🔐 Secure Login**: Password-protected admin access (set `ADMIN_PASSWORD` in .env)
 - **🏠 House Configuration**: Update house name, password, and code via web UI

@@ -33,7 +33,10 @@ class InviteCreate(BaseModel):
     """Pydantic model for creating a pending invite record."""
 
     phone: str = Field(..., description="Phone number in E.164 format")
-    invited_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat(), description="Invite timestamp")
+    invited_at: str = Field(
+        default_factory=lambda: datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        description="Invite timestamp",
+    )
     invite_message_id: str | None = Field(None, description="WhatsApp message ID")
 
     @field_validator("phone")

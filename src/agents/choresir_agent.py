@@ -11,6 +11,7 @@ from src.agents.base import Deps
 from src.agents.retry_handler import get_retry_handler
 from src.core import admin_notifier, db_client
 from src.core.errors import classify_agent_error
+from src.domain.update_models import UserStatusUpdate
 from src.domain.user import UserStatus
 from src.services import user_service
 from src.services.house_config_service import get_house_config
@@ -237,18 +238,7 @@ async def get_member_list(*, _db: PocketBase) -> str:
 
 
 async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
-    """
-    Handle message from unknown user.
-
-    Checks for pending invites and returns appropriate response based on context.
-
-    Args:
-        user_phone: Phone number of unknown user
-        message_text: The message text from the user
-
-    Returns:
-        Invite confirmation response or not a member message
-    """
+    """Handle unknown users with pending-invite confirmation."""
     # Check for pending invite (web admin flow)
     pending_invite = await db_client.get_first_record(
         collection="pending_invites",
@@ -267,7 +257,7 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
                 await db_client.update_record(
                     collection="users",
                     record_id=user["id"],
-                    data={"status": "active"},
+                    data=UserStatusUpdate(status="active").model_dump(exclude_none=True),
                 )
                 logger.info("invite_confirmed", extra={"user_phone": user_phone})
 
@@ -279,7 +269,7 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
 
                 # Get house config for welcome message
                 config = await get_house_config()
-                house_name = config["name"]
+                house_name = config.name
 
                 return f"Welcome to {house_name}! Your membership is now active."
 

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.agents import choresir_agent
+from src.services.house_config_service import HouseConfig
 
 
 @pytest.mark.asyncio
@@ -38,7 +39,7 @@ async def test_pending_invite_confirmation_success():
                 "status": "pending",
             }
         )
-        mock_get_config.return_value = {"name": "MyHouse"}
+        mock_get_config.return_value = HouseConfig(name="MyHouse", password="test", code="TEST")
 
         result = await choresir_agent.handle_unknown_user(
             user_phone=user_phone,
@@ -83,7 +84,7 @@ async def test_pending_invite_confirmation_case_insensitive():
                     "status": "pending",
                 }
             )
-            mock_get_config.return_value = {"name": "MyHouse"}
+            mock_get_config.return_value = HouseConfig(name="MyHouse", password="test", code="TEST")
 
             result = await choresir_agent.handle_unknown_user(
                 user_phone=user_phone,

@@ -209,12 +209,18 @@ async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, A
         logger.info("Created record in %s: %s", collection, record.id)
         return record.__dict__
     except httpx.HTTPStatusError as e:
+        logger.error(
+            "create_record_failed",
+            extra={"collection": collection, "error": str(e)},
+        )
         msg = f"Failed to create record in {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
     except httpx.RequestError as e:
+        logger.error(
+            "create_record_connection_error",
+            extra={"collection": collection, "error": str(e)},
+        )
         msg = f"Connection error creating record in {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
 
 
@@ -228,12 +234,18 @@ async def get_record(*, collection: str, record_id: str) -> dict[str, Any]:
         if e.response.status_code == 404:  # noqa: PLR2004
             msg = f"Record not found in {collection}: {record_id}"
             raise KeyError(msg) from e
+        logger.error(
+            "get_record_failed",
+            extra={"collection": collection, "record_id": record_id, "error": str(e)},
+        )
         msg = f"Failed to get record from {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
     except httpx.RequestError as e:
+        logger.error(
+            "get_record_connection_error",
+            extra={"collection": collection, "record_id": record_id, "error": str(e)},
+        )
         msg = f"Connection error getting record from {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
 
 
@@ -248,12 +260,18 @@ async def update_record(*, collection: str, record_id: str, data: dict[str, Any]
         if e.response.status_code == 404:  # noqa: PLR2004
             msg = f"Record not found in {collection}: {record_id}"
             raise KeyError(msg) from e
+        logger.error(
+            "update_record_failed",
+            extra={"collection": collection, "record_id": record_id, "error": str(e)},
+        )
         msg = f"Failed to update record in {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
     except httpx.RequestError as e:
+        logger.error(
+            "update_record_connection_error",
+            extra={"collection": collection, "record_id": record_id, "error": str(e)},
+        )
         msg = f"Connection error updating record in {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
 
 
@@ -267,12 +285,18 @@ async def delete_record(*, collection: str, record_id: str) -> None:
         if e.response.status_code == 404:  # noqa: PLR2004
             msg = f"Record not found in {collection}: {record_id}"
             raise KeyError(msg) from e
+        logger.error(
+            "delete_record_failed",
+            extra={"collection": collection, "record_id": record_id, "error": str(e)},
+        )
         msg = f"Failed to delete record from {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
     except httpx.RequestError as e:
+        logger.error(
+            "delete_record_connection_error",
+            extra={"collection": collection, "record_id": record_id, "error": str(e)},
+        )
         msg = f"Connection error deleting record from {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
 
 
@@ -301,12 +325,18 @@ async def list_records(
         )
         return [item.__dict__ for item in result.items]
     except httpx.HTTPStatusError as e:
+        logger.error(
+            "list_records_failed",
+            extra={"collection": collection, "error": str(e)},
+        )
         msg = f"Failed to list records from {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
     except httpx.RequestError as e:
+        logger.error(
+            "list_records_connection_error",
+            extra={"collection": collection, "error": str(e)},
+        )
         msg = f"Connection error listing records from {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
 
 
@@ -319,10 +349,16 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:  # noqa: PLR2004
             return None
+        logger.error(
+            "get_first_record_failed",
+            extra={"collection": collection, "filter_query": filter_query, "error": str(e)},
+        )
         msg = f"Failed to get first record from {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e
     except httpx.RequestError as e:
+        logger.error(
+            "get_first_record_connection_error",
+            extra={"collection": collection, "filter_query": filter_query, "error": str(e)},
+        )
         msg = f"Connection error getting first record from {collection}: {e}"
-        logger.error(msg)
         raise RuntimeError(msg) from e

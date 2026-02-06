@@ -19,6 +19,7 @@ from src.core.db_client import (
     update_record,
 )
 from src.domain.create_models import HouseConfigCreate, InviteCreate, UserCreate
+from src.domain.update_models import MemberStatusUpdate, MemberUpdate
 from src.domain.user import UserRole, UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.services.house_config_service import get_house_config as get_house_config_from_service
@@ -56,15 +57,7 @@ def set_csrf_cookie(response: Response, csrf_token: str) -> None:
 
 
 def validate_csrf_token(request: Request, token: str | None) -> bool:
-    """Validate CSRF token from request.
-
-    Args:
-        request: The incoming request
-        token: The CSRF token to validate
-
-    Returns:
-        True if token is valid, False otherwise
-    """
+    """Validate CSRF token from request against signed cookie value."""
     if not token:
         return False
 
@@ -80,7 +73,7 @@ def validate_csrf_token(request: Request, token: str | None) -> bool:
 
 
 async def require_auth(request: Request) -> None:
-    """Dependency that checks for a valid admin session and raises HTTPException redirecting to login if invalid."""
+    """Check for valid admin session and redirect to login if invalid."""
     session_token = request.cookies.get("admin_session")
 
     if not session_token:
@@ -108,9 +101,9 @@ async def require_auth(request: Request) -> None:
 
 @router.get("/")
 async def get_admin_dashboard(request: Request, _auth: None = Depends(require_auth)) -> Response:
-    """Render the admin dashboard (protected by auth)."""
+    """Render the admin dashboard with member statistics."""
     config = await get_house_config_from_service()
-    house_name = config["name"]
+    house_name = config.name
 
     users = await list_records(collection="users", per_page=1000)
 
@@ -149,7 +142,7 @@ async def post_login(
     password: str = Form(...),
     csrf_token: str | None = Form(None),
 ) -> Response:
-    """Process admin login form submission and redirect to /admin on success."""
+    """Process admin login and redirect to dashboard on success."""
     if not validate_csrf_token(request, csrf_token):
         logger.warning("admin_login_invalid_csrf")
         raise HTTPException(
@@ -213,8 +206,8 @@ async def get_house_config(request: Request, _auth: None = Depends(require_auth)
         house_password = MASKED_TEXT_PLACEHOLDER
     else:
         default_config = await get_house_config_from_service()
-        house_name = default_config["name"]
-        house_code = default_config["code"]
+        house_name = default_config.name
+        house_code = default_config.code
         house_password = ""
 
     return templates.TemplateResponse(
@@ -238,7 +231,7 @@ async def post_house_config(
     code: str = Form(...),
     password: str = Form(""),
 ) -> Response:
-    """Update house configuration and redirect to /admin/house on success."""
+    """Update house configuration and redirect on success."""
     errors = []
 
     if len(name) < 1 or len(name) > 50:
@@ -318,7 +311,7 @@ async def get_member_row(
     _auth: None = Depends(require_auth),
     phone: str,
 ) -> Response:
-    """Get a single member row fragment for HTMX updates, or 404 if not found."""
+    """Get a single member row fragment for HTMX updates."""
     user = await get_first_record(
         collection="users",
         filter_query=f'phone = "{sanitize_param(phone)}"',
@@ -350,7 +343,7 @@ async def post_add_member(
     _auth: None = Depends(require_auth),
     phone: str = Form(...),
 ) -> Response:
-    """Process add member form and redirect to /admin/members on success."""
+    """Process add member form and send WhatsApp invite."""
     errors = []
 
     # Validate E.164 format
@@ -380,7 +373,7 @@ async def post_add_member(
 
     # Get house config for welcome message
     config = await get_house_config_from_service()
-    house_name = config["name"]
+    house_name = config.name
 
     # Generate email from phone for PocketBase auth collection requirement
     email = f"{phone.replace('+', '').replace('-', '')}@choresir.local"
@@ -440,7 +433,7 @@ async def get_edit_member(
     _auth: None = Depends(require_auth),
     phone: str,
 ) -> Response:
-    """Render edit member form (inline if HTMX, full page otherwise), or 404 if not found."""
+    """Render edit member form (inline for HTMX, full page otherwise)."""
     user = await get_first_record(
         collection="users",
         filter_query=f'phone = "{sanitize_param(phone)}"',
@@ -470,7 +463,7 @@ async def post_edit_member(
     role: str = Form(...),
     csrf_token: str | None = Form(None),
 ) -> Response:
-    """Process edit member form and redirect to /admin/members on success, or return row fragment for HTMX."""
+    """Process edit member form and update user record."""
     if not validate_csrf_token(request, csrf_token):
         logger.warning("admin_edit_member_invalid_csrf")
         raise HTTPException(
@@ -520,19 +513,26 @@ async def post_edit_member(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Update user record
-    updated_user = await update_record(
+    # Update user record using DTO
+    member_update = MemberUpdate(name=name.strip(), role=role)
+    await update_record(
         collection="users",
         record_id=user["id"],
-        data={"name": name.strip(), "role": role},
+        data=member_update.model_dump(),
     )
-    logger.info("Updated member: %s, name=%s, role=%s", phone, name, role)
+    logger.info("member_updated", extra={"phone": phone, "name": name, "role": role})
+
+    # Re-fetch user data to get updated values for HTMX response
+    user = await get_first_record(
+        collection="users",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
+    )
 
     if is_htmx_request(request):
         return templates.TemplateResponse(
             request,
             name="admin/member_row.html",
-            context={"member": updated_user},
+            context={"member": user},
         )
 
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
@@ -547,7 +547,7 @@ async def get_remove_member(
     _auth: None = Depends(require_auth),
     phone: str,
 ) -> Response:
-    """Render remove member confirmation page (inline if HTMX, full page otherwise), or 404 if not found."""
+    """Render remove member confirmation page."""
     user = await get_first_record(
         collection="users",
         filter_query=f'phone = "{sanitize_param(phone)}"',
@@ -575,7 +575,7 @@ async def post_remove_member(
     phone: str,
     csrf_token: str | None = Form(None),
 ) -> Response:
-    """Process remove member form and redirect to /admin/members on success, or return row fragment for HTMX."""
+    """Process remove member form and ban the user."""
     if not validate_csrf_token(request, csrf_token):
         logger.warning("admin_remove_member_invalid_csrf")
         raise HTTPException(
@@ -606,29 +606,30 @@ async def post_remove_member(
             context={"errors": ["Cannot ban an admin"], "user": user},
         )
 
-    # Update user status to banned
+    # Update user status to banned using DTO
+    status_update = MemberStatusUpdate(status="banned")
     await update_record(
         collection="users",
         record_id=user["id"],
-        data={"status": "banned"},
+        data=status_update.model_dump(),
     )
     logger.info("banned_member", extra={"phone": phone})
 
-    # Refresh user data to get updated status for HTMX response
-    refreshed_user = await get_first_record(
+    # Re-fetch user data to get updated status for HTMX response
+    user = await get_first_record(
         collection="users",
         filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
     if is_htmx_request(request):
-        if not refreshed_user:
+        if not user:
             response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
             response.set_cookie("flash_error", "User not found after update", max_age=5)
             return response
         return templates.TemplateResponse(
             request,
             name="admin/member_row.html",
-            context={"member": refreshed_user},
+            context={"member": user},
         )
 
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)

@@ -601,6 +601,7 @@ async def cleanup_expired_invites() -> None:
         old_invites = await db_client.list_records(
             collection="pending_invites",
             filter_query=f'invited_at < "{sanitize_param(cutoff_iso)}"',
+            per_page=1000,
         )
 
         # Delete old invites
@@ -610,12 +611,12 @@ async def cleanup_expired_invites() -> None:
                 await db_client.delete_record(collection="pending_invites", record_id=invite["id"])
                 deleted_count += 1
             except Exception as e:
-                logger.warning(f"Failed to delete expired invite {invite['id']}: {e}")
+                logger.warning("Failed to delete expired invite", extra={"invite_id": invite["id"], "error": str(e)})
 
-        logger.info(f"Completed expired invites cleanup: {deleted_count} invites removed")
+        logger.info("Completed expired invites cleanup", extra={"deleted_count": deleted_count})
 
     except Exception as e:
-        logger.error(f"Error in expired invites cleanup job: {e}")
+        logger.error("Error in expired invites cleanup job", extra={"error": str(e)})
 
 
 def start_scheduler() -> None:
