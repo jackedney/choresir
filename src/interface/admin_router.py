@@ -222,11 +222,20 @@ async def post_house_config(
     if len(name) < 1 or len(name) > 50:
         errors.append("Name must be between 1 and 50 characters")
 
-    if len(password) < 8:
-        errors.append("Password must be at least 8 characters")
-
     if len(code) < 4:
         errors.append("Code must be at least 4 characters")
+
+    # Check if we're updating (config exists) and password is the placeholder
+    config = await get_first_record(collection="house_config", filter_query="")
+    password_is_placeholder = password == MASKED_TEXT_PLACEHOLDER
+
+    # Validate password only if it's not the placeholder (i.e., user is setting a new password)
+    if not password_is_placeholder and len(password) < 8:
+        errors.append("Password must be at least 8 characters")
+
+    # For new config creation, password is required (can't use placeholder)
+    if not config and password_is_placeholder:
+        errors.append("Password is required for new configuration")
 
     if errors:
         return templates.TemplateResponse(
@@ -241,9 +250,10 @@ async def post_house_config(
             },
         )
 
-    config = await get_first_record(collection="house_config", filter_query="")
-
-    data = {"name": name, "password": password, "code": code}
+    # Build update data - exclude password if placeholder was submitted
+    data: dict[str, str] = {"name": name, "code": code}
+    if not password_is_placeholder:
+        data["password"] = password
 
     if config:
         await update_record(collection="house_config", record_id=config["id"], data=data)
