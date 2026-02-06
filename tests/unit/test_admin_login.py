@@ -181,6 +181,8 @@ def test_logout_clears_session_and_redirects(client: TestClient) -> None:
         set_cookie = response.headers.get("set-cookie")
         assert set_cookie is not None
         assert "admin_session=" in set_cookie
+        # Check cookie is cleared with either max-age=0 or expires in past
+        assert "max-age=0" in set_cookie or "expires=" in set_cookie.lower()
 
 
 def test_login_with_invalid_csrf_token_returns_403(client: TestClient) -> None:
