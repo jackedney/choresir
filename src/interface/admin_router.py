@@ -310,7 +310,7 @@ async def get_member_row(
     """Get a single member row fragment for HTMX updates, or 404 if not found."""
     user = await get_first_record(
         collection="users",
-        filter_query=f"phone = \"{sanitize_param(phone)}\"",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
     if not user:
@@ -399,9 +399,8 @@ async def post_add_member(
     if not send_result.success:
         await delete_record(collection="users", record_id=created_user["id"])
         logger.warning(
-            "Rolled back user creation due to WhatsApp send failure: %s (reason: %s)",
-            phone,
-            send_result.error,
+            "user_creation_rolled_back_whatsapp_send_failed",
+            extra={"phone": phone, "reason": send_result.error},
         )
         return templates.TemplateResponse(
             request,
@@ -416,7 +415,7 @@ async def post_add_member(
         invite_message_id=send_result.message_id,
     )
     await create_record(collection="pending_invites", data=invite_create.model_dump(exclude_none=True))
-    logger.info("Created pending invite for %s", phone)
+    logger.info("pending_invite_created", extra={"phone": phone})
 
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie("flash_success", "Invite sent", max_age=5)

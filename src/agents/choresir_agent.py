@@ -269,7 +269,7 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
                     record_id=user["id"],
                     data={"status": "active"},
                 )
-                logger.info("Confirmed invite for user: %s", user_phone)
+                logger.info("invite_confirmed", extra={"user_phone": user_phone})
 
                 # Delete pending invite record
                 await db_client.delete_record(
@@ -283,7 +283,7 @@ async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
 
                 return f"Welcome to {house_name}! Your membership is now active."
 
-            logger.warning("User not found for pending invite: %s", user_phone)
+            logger.warning("user_not_found_for_pending_invite", extra={"user_phone": user_phone})
             return "Sorry, there was an error processing your invite. Please contact an admin."
 
         # Message is not YES - instruct user to reply YES
