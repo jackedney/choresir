@@ -1,7 +1,7 @@
 <tr id="member-{{ user.id }}">
     <td>{{ user.phone }}</td>
     <td colspan="4">
-        <form hx-post="/admin/members/{{ user.phone | urlencode }}/edit" hx-target="#member-{{ user.id }}" hx-swap="outerHTML">
+        <form hx-post="/admin/members/{{ user.phone | urlencode }}/edit" hx-target="#member-{{ user.id }}" hx-swap="outerHTML" hx-indicator="#indicator-{{ user.id }}">
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                 <label style="margin: 0;">
                     Name:
@@ -27,6 +27,6 @@
         </form>
     </td>
     <td>
-        <span class="htmx-indicator" style="color: var(--muted-color);">Saving...</span>
+        <span id="indicator-{{ user.id }}" class="htmx-indicator" style="color: var(--muted-color);">Saving...</span>
     </td>
 </tr>
