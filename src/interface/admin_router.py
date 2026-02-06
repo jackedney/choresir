@@ -37,16 +37,7 @@ MASKED_TEXT_PLACEHOLDER = "********"
 
 
 async def require_auth(request: Request) -> None:
-    """Dependency that checks for a valid admin session.
-
-    Raises HTTPException redirecting to login if session is invalid or missing.
-
-    Args:
-        request: FastAPI request object
-
-    Raises:
-        HTTPException: Redirects to /admin/login if authentication fails
-    """
+    """Dependency that checks for a valid admin session and raises HTTPException redirecting to login if invalid."""
     session_token = request.cookies.get("admin_session")
 
     if not session_token:
@@ -74,15 +65,7 @@ async def require_auth(request: Request) -> None:
 
 @router.get("/")
 async def get_admin_dashboard(request: Request, _auth: None = Depends(require_auth)) -> Response:
-    """Render the admin dashboard (protected by auth).
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-
-    Returns:
-        Template response with dashboard content
-    """
+    """Render the admin dashboard (protected by auth)."""
     config = await get_house_config_from_service()
     house_name = config["name"]
 
@@ -119,16 +102,7 @@ async def post_login(
     response: Response,
     password: str = Form(...),
 ) -> Response:
-    """Process admin login form submission.
-
-    Args:
-        request: FastAPI request object
-        response: FastAPI response object
-        password: Submitted password from form
-
-    Returns:
-        RedirectResponse to /admin on success, login page with error on failure
-    """
+    """Process admin login form submission and redirect to /admin on success."""
     expected_password = settings.admin_password
 
     if not expected_password:
@@ -158,11 +132,7 @@ async def post_login(
 
 @router.get("/logout")
 async def logout() -> Response:
-    """Clear admin session and redirect to login.
-
-    Returns:
-        RedirectResponse to /admin/login with session cookie cleared
-    """
+    """Clear admin session and redirect to login."""
     response = RedirectResponse(url="/admin/login", status_code=status.HTTP_303_SEE_OTHER)
     response.delete_cookie(key="admin_session", httponly=True, samesite="strict")
     logger.info("admin_logout_success")
@@ -171,15 +141,7 @@ async def logout() -> Response:
 
 @router.get("/house")
 async def get_house_config(request: Request, _auth: None = Depends(require_auth)) -> Response:
-    """Render house configuration form.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-
-    Returns:
-        Template response with house config form
-    """
+    """Render house configuration form."""
     config = await get_first_record(collection="house_config", filter_query="")
     success_message = request.cookies.get("flash_success")
 
@@ -214,18 +176,7 @@ async def post_house_config(
     code: str = Form(...),
     password: str = Form(...),
 ) -> Response:
-    """Update house configuration.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-        name: House name (1-50 chars)
-        code: House code (4+ chars)
-        password: House password (8+ chars)
-
-    Returns:
-        RedirectResponse to /admin/house on success, template with errors on validation failure
-    """
+    """Update house configuration and redirect to /admin/house on success."""
     errors = []
 
     if len(name) < 1 or len(name) > 50:
@@ -289,15 +240,7 @@ def is_htmx_request(request: Request) -> bool:
 
 @router.get("/members")
 async def get_members(request: Request, _auth: None = Depends(require_auth)) -> Response:
-    """Render member list with status and role badges.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-
-    Returns:
-        Template response with member list table
-    """
+    """Render member list with status and role badges."""
     users = await list_records(collection="users", per_page=1000, sort="-created")
     success_message = request.cookies.get("flash_success")
 
@@ -313,16 +256,7 @@ async def get_member_row(
     _auth: None = Depends(require_auth),
     phone: str,
 ) -> Response:
-    """Get a single member row fragment for HTMX updates.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-        phone: Phone number of member
-
-    Returns:
-        Template response with member row fragment, or 404 if not found
-    """
+    """Get a single member row fragment for HTMX updates, or 404 if not found."""
     user = await get_first_record(
         collection="users",
         filter_query=f'phone = "{sanitize_param(phone)}"',
@@ -340,15 +274,7 @@ async def get_member_row(
 
 @router.get("/members/add")
 async def get_add_member(request: Request, _auth: None = Depends(require_auth)) -> Response:
-    """Render add member form.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-
-    Returns:
-        Template response with add member form
-    """
+    """Render add member form."""
     success_message = request.cookies.get("flash_success")
     return templates.TemplateResponse(
         request, name="admin/add_member.html", context={"success_message": success_message}
@@ -362,16 +288,7 @@ async def post_add_member(
     _auth: None = Depends(require_auth),
     phone: str = Form(...),
 ) -> Response:
-    """Process add member form.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-        phone: Phone number in E.164 format
-
-    Returns:
-        RedirectResponse to /admin/members on success, template with errors on validation failure
-    """
+    """Process add member form and redirect to /admin/members on success."""
     errors = []
 
     # Validate E.164 format
@@ -462,16 +379,7 @@ async def get_edit_member(
     _auth: None = Depends(require_auth),
     phone: str,
 ) -> Response:
-    """Render edit member form.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-        phone: Phone number of member to edit
-
-    Returns:
-        Template response with edit member form (inline if HTMX, full page otherwise), or 404 if not found
-    """
+    """Render edit member form (inline if HTMX, full page otherwise), or 404 if not found."""
     user = await get_first_record(
         collection="users",
         filter_query=f'phone = "{sanitize_param(phone)}"',
@@ -503,19 +411,7 @@ async def post_edit_member(
     name: str = Form(...),
     role: str = Form(...),
 ) -> Response:
-    """Process edit member form.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-        phone: Phone number of member to edit
-        name: Member name (1-50 chars, Unicode letters/spaces/hyphens/apostrophes)
-        role: Member role (admin or member)
-
-    Returns:
-        RedirectResponse to /admin/members on success, template with errors on validation failure
-        For HTMX requests, returns the updated row fragment or inline form with errors
-    """
+    """Process edit member form and redirect to /admin/members on success, or return row fragment for HTMX."""
     errors = []
 
     # Validate name
@@ -588,16 +484,7 @@ async def get_remove_member(
     _auth: None = Depends(require_auth),
     phone: str,
 ) -> Response:
-    """Render remove member confirmation page.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-        phone: Phone number of member to remove
-
-    Returns:
-        Template response with remove member confirmation (inline if HTMX, full page otherwise), or 404 if not found
-    """
+    """Render remove member confirmation page (inline if HTMX, full page otherwise), or 404 if not found."""
     user = await get_first_record(
         collection="users",
         filter_query=f'phone = "{sanitize_param(phone)}"',
@@ -627,17 +514,7 @@ async def post_remove_member(
     _auth: None = Depends(require_auth),
     phone: str,
 ) -> Response:
-    """Process remove member form.
-
-    Args:
-        request: FastAPI request object
-        _auth: Auth dependency (ensures user is logged in)
-        phone: Phone number of member to remove
-
-    Returns:
-        RedirectResponse to /admin/members on success, template with errors on validation failure
-        For HTMX requests, returns the banned row fragment or inline form with errors
-    """
+    """Process remove member form and redirect to /admin/members on success, or return row fragment for HTMX."""
     # Find user by phone
     user = await get_first_record(
         collection="users",

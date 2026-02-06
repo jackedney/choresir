@@ -12,15 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 async def get_house_config() -> dict[str, Any]:
-    """Get house configuration from database or fallback to environment variables.
-
-    Returns:
-        Dictionary with keys: name, password, code (from DB or env vars)
-
-    Note:
-        If no config exists in database, falls back to environment variables.
-        This ensures backward compatibility during initial deployment.
-    """
+    """Get house configuration from database or fallback to environment variables."""
     config = await db_client.get_first_record(collection="house_config", filter_query="")
 
     if config:
@@ -36,20 +28,7 @@ async def get_house_config() -> dict[str, Any]:
 
 
 async def validate_house_credentials(*, house_code: str, password: str) -> bool:
-    """Validate house code and password against stored configuration.
-
-    Uses constant-time comparison for security (prevents timing attacks).
-
-    Args:
-        house_code: House code to validate
-        password: House password to validate
-
-    Returns:
-        True if both code and password are correct, False otherwise
-
-    Note:
-        Falls back to environment variables if no config exists in database.
-    """
+    """Validate house code and password against stored configuration using constant-time comparison."""
     config = await get_house_config()
 
     if not config["code"]:
@@ -64,19 +43,7 @@ async def validate_house_credentials(*, house_code: str, password: str) -> bool:
 
 
 async def validate_house_password(*, password: str) -> bool:
-    """Validate house password against stored configuration.
-
-    Uses constant-time comparison for security (prevents timing attacks).
-
-    Args:
-        password: House password to validate
-
-    Returns:
-        True if password is correct, False otherwise
-
-    Note:
-        Falls back to environment variables if no config exists in database.
-    """
+    """Validate house password against stored configuration using constant-time comparison."""
     config = await get_house_config()
 
     if not config["password"]:
@@ -86,18 +53,7 @@ async def validate_house_password(*, password: str) -> bool:
 
 
 async def ensure_singleton_config() -> dict[str, Any] | None:
-    """Ensure only one house_config record exists in the database.
-
-    If multiple records exist, keeps the first one and deletes the rest.
-
-    Returns:
-        The single house_config record if it exists, None otherwise
-
-    Note:
-        This is a safety measure to maintain singleton behavior.
-        The admin interface already enforces this, but this provides
-        a database-level safeguard.
-    """
+    """Ensure only one house_config record exists in the database, deleting duplicates if found."""
     try:
         all_configs = await db_client.list_records(collection="house_config", per_page=100)
 
@@ -122,18 +78,7 @@ async def ensure_singleton_config() -> dict[str, Any] | None:
 
 
 async def seed_from_env_vars() -> None:
-    """Seed house_config collection with values from environment variables.
-
-    Only creates a record if:
-    - Collection is empty AND
-    - All required environment variables are set (HOUSE_NAME, HOUSE_PASSWORD, HOUSE_CODE)
-
-    Returns:
-        None
-
-    Note:
-        This is safe to call idempotently. It will not overwrite existing data.
-    """
+    """Seed house_config collection with values from environment variables if collection is empty."""
     try:
         config = await db_client.get_first_record(collection="house_config", filter_query="")
 
