@@ -13,7 +13,7 @@ A WhatsApp-powered household management bot. Python + FastAPI + Pydantic AI + Po
 | View shopping list | "What's on the list?" | |
 | Personal task | `/personal add go to gym` | Private, not on leaderboard |
 | Complete personal | `/personal done gym` | Self-verified or partner-verified |
-| Join household | `/house join MyHouse` | Starts onboarding flow |
+| Join household | Reply YES to an admin invite | Starts onboarding flow |
 
 ## Concepts
 
