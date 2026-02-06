@@ -19,12 +19,8 @@ class Settings(BaseSettings):
 
     # PocketBase Configuration
     pocketbase_url: str = Field(default="http://127.0.0.1:8090", description="PocketBase server URL")
-    pocketbase_admin_email: str | None = Field(
-        default=None, description="PocketBase admin email for schema sync"
-    )
-    pocketbase_admin_password: str | None = Field(
-        default=None, description="PocketBase admin password for schema sync"
-    )
+    pocketbase_admin_email: str | None = Field(default=None, description="PocketBase admin email for schema sync")
+    pocketbase_admin_password: str | None = Field(default=None, description="PocketBase admin password for schema sync")
 
     @model_validator(mode="after")
     def verify_admin_credentials(self) -> Self:
