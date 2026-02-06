@@ -74,6 +74,19 @@ Track your personal tasks privately within the same WhatsApp interface:
 /personal add meditate every morning
 ```
 
+### Web Admin Interface 🆕
+Manage your household through a modern web interface at `/admin`:
+- **🔐 Secure Login**: Password-protected admin access (set `ADMIN_PASSWORD` in .env)
+- **🏠 House Configuration**: Update house name, password, and code via web UI
+- **👥 Member Management**: View, add, edit, and remove/ban household members
+- **📱 WhatsApp Invites**: Add members by phone number with automatic WhatsApp invites
+- **📊 Dashboard**: Quick overview of member counts and status
+- **🎨 Responsive Design**: Works on desktop and mobile browsers
+
+**Access:**
+- Local: `http://localhost:8000/admin`
+- Production: `https://your-domain.com/admin`
+
 ## 🛠️ Tech Stack
 
 <div align="center">
@@ -185,6 +198,7 @@ docker-compose up -d redis
 # 4️⃣ Configure environment
 cp .env.example .env
 # Edit .env with your tokens (OpenRouter API key, etc.)
+# IMPORTANT: Set ADMIN_PASSWORD to access the web admin interface
 
 # 5️⃣ Start services
 # Option A: Full Docker (Recommended)
@@ -196,6 +210,9 @@ task dev                             # Start PocketBase + FastAPI
 
 # 6️⃣ Scan QR Code
 # Open http://localhost:3000/dashboard to scan the WAHA QR code with your WhatsApp app.
+
+# 7️⃣ Access Web Admin Interface
+# Open http://localhost:8000/admin and log in with ADMIN_PASSWORD
 ```
 
 <div align="center">
@@ -221,8 +238,14 @@ task dev                             # Start PocketBase + FastAPI
 2. 💾 Deploy PocketBase service (with persistent volume)
 3. ⚡ Add Redis plugin (for caching)
 4. 🖥️ Deploy FastAPI service (connect GitHub repo)
-5. 🔐 Set environment variables (including REDIS_URL)
+5. 🔐 Set environment variables:
+   - `ADMIN_PASSWORD`: Password for web admin interface access (required)
+   - `SECRET_KEY`: Secret key for session signing (required, generate a random string)
+   - `REDIS_URL`: Redis connection URL (required)
+   - `OPENROUTER_API_KEY`: OpenRouter API key (required)
+   - `HOUSE_NAME`, `HOUSE_CODE`, `HOUSE_PASSWORD`: Optional (fallback values)
 6. 🔗 Update WhatsApp webhook URL
+7. 🌐 Access admin interface at `https://your-app.railway.app/admin`
 
 </td>
 <td width="40%">
