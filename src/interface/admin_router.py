@@ -623,13 +623,23 @@ async def post_remove_member(
         record_id=user["id"],
         data={"status": "banned"},
     )
-    logger.info("Banned member: %s", phone)
+    logger.info("banned_member", extra={"phone": phone})
+
+    # Refresh user data to get updated status for HTMX response
+    refreshed_user = await get_first_record(
+        collection="users",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
+    )
 
     if is_htmx_request(request):
+        if not refreshed_user:
+            response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
+            response.set_cookie("flash_error", "User not found after update", max_age=5)
+            return response
         return templates.TemplateResponse(
             request,
             name="admin/member_row.html",
-            context={"member": user},
+            context={"member": refreshed_user},
         )
 
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
