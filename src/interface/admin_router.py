@@ -310,7 +310,7 @@ async def get_member_row(
     """Get a single member row fragment for HTMX updates, or 404 if not found."""
     user = await get_first_record(
         collection="users",
-        filter_query=f'phone = "{sanitize_param(phone)}"',
+        filter_query=f"phone = \"{sanitize_param(phone)}\"",
     )
 
     if not user:
