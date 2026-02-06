@@ -389,7 +389,7 @@ async def post_add_member(
     )
 
     created_user = await create_record(collection="users", data=user_create.model_dump())
-    logger.info("Created pending user: %s", phone)
+    logger.info("created_pending_user", extra={"phone": phone})
 
     # Send WhatsApp invite message
     invite_message = f"You've been invited to {house_name}! Reply YES to confirm"
