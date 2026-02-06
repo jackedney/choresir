@@ -137,7 +137,7 @@ async def post_login(
             key="admin_session",
             value=session_token,
             httponly=True,
-            secure=False,
+            secure=settings.is_production,
             samesite="strict",
             max_age=86400,
         )

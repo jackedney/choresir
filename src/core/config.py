@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     admin_password: str | None = Field(default=None, description="Admin password for web interface access")
     secret_key: str | None = Field(default=None, description="Secret key for session signing")
 
+    # Environment Configuration
+    is_production: bool = Field(default=False, description="Production mode flag for secure cookies and other settings")
+
     def require_credential(self, field_name: str, service_name: str) -> str:
         """Validate that a required credential is set, raising a clear error if missing.
 
