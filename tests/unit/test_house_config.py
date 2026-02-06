@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from itsdangerous import URLSafeTimedSerializer
 
 from src.interface.admin_router import router as admin_router
+from src.services.house_config_service import HouseConfig
 
 
 @pytest.fixture
@@ -26,8 +27,6 @@ def get_test_session_token(secret_key: str) -> str:
 
 def test_house_config_page_renders_without_existing_config(client: TestClient) -> None:
     """Test that house config page renders when no config exists."""
-    from src.services.house_config_service import HouseConfig
-
     test_serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-session")
     session_token = get_test_session_token("test_secret_key")
     client.cookies.set("admin_session", session_token)
