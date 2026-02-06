@@ -79,8 +79,8 @@ class TestPendingInvitesSchema:
         assert result["invited_at"] == invite_data["invited_at"]
         assert result.get("invite_message_id") is None
 
-    async def test_create_duplicate_phone_updates_existing(self, patched_user_db, sample_invite):
-        """Test creating invite with duplicate phone updates existing record."""
+    async def test_create_duplicate_phone_in_memory_db(self, patched_user_db, sample_invite):
+        """Test creating invite with duplicate phone in memory DB."""
         new_invite_data = {
             "phone": sample_invite["phone"],
             "invited_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
