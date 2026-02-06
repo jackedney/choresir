@@ -192,6 +192,10 @@ def get_client() -> PocketBase:
     global _connection_pool  # noqa: PLW0603
 
     if _connection_pool is None:
+        # These are guaranteed to be present by Settings model validator
+        assert settings.pocketbase_admin_email is not None
+        assert settings.pocketbase_admin_password is not None
+
         _connection_pool = PocketBaseConnectionPool(
             url=settings.pocketbase_url,
             admin_email=settings.pocketbase_admin_email,

@@ -113,6 +113,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await validate_startup_configuration()
 
     instrument_pydantic_ai()
+
+    # Guaranteed by validate_startup_configuration
+    assert settings.pocketbase_admin_email is not None
+    assert settings.pocketbase_admin_password is not None
+
     await sync_schema(
         admin_email=settings.pocketbase_admin_email,
         admin_password=settings.pocketbase_admin_password,
