@@ -42,6 +42,19 @@ def generate_csrf_token() -> str:
     return secrets.token_hex(32)
 
 
+def set_csrf_cookie(response: Response, csrf_token: str) -> None:
+    """Set the CSRF cookie on a response."""
+    signed_token = csrf_serializer.dumps(csrf_token)
+    response.set_cookie(
+        key="csrf_token",
+        value=signed_token,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="strict",
+        max_age=3600,
+    )
+
+
 def validate_csrf_token(request: Request, token: str | None) -> bool:
     """Validate CSRF token from request.
 
@@ -120,20 +133,11 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
 
 
 @router.get("/login")
-async def get_login(request: Request, response: Response) -> Response:
+async def get_login(request: Request) -> Response:
     """Render the admin login form with CSRF token."""
     csrf_token = generate_csrf_token()
-    signed_token = csrf_serializer.dumps(csrf_token)
-
     response = templates.TemplateResponse(request, name="admin/login.html", context={"csrf_token": csrf_token})
-    response.set_cookie(
-        key="csrf_token",
-        value=signed_token,
-        httponly=True,
-        secure=settings.is_production,
-        samesite="strict",
-        max_age=3600,
-    )
+    set_csrf_cookie(response, csrf_token)
     return response
 
 
@@ -178,7 +182,14 @@ async def post_login(
         return response
 
     error = "Invalid password"
-    return templates.TemplateResponse(request, name="admin/login.html", context={"error": error})
+    csrf_token = generate_csrf_token()
+    response = templates.TemplateResponse(
+        request,
+        name="admin/login.html",
+        context={"error": error, "csrf_token": csrf_token},
+    )
+    set_csrf_cookie(response, csrf_token)
+    return response
 
 
 @router.get("/logout")
@@ -438,18 +449,15 @@ async def get_edit_member(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if is_htmx_request(request):
-        return templates.TemplateResponse(
-            request,
-            name="admin/edit_member_inline.html",
-            context={"user": user},
-        )
-
-    return templates.TemplateResponse(
+    csrf_token = generate_csrf_token()
+    template_name = "admin/edit_member_inline.html" if is_htmx_request(request) else "admin/edit_member.html"
+    response = templates.TemplateResponse(
         request,
-        name="admin/edit_member.html",
-        context={"user": user},
+        name=template_name,
+        context={"user": user, "csrf_token": csrf_token},
     )
+    set_csrf_cookie(response, csrf_token)
+    return response
 
 
 @router.post("/members/{phone}/edit")
@@ -460,8 +468,16 @@ async def post_edit_member(
     phone: str,
     name: str = Form(...),
     role: str = Form(...),
+    csrf_token: str | None = Form(None),
 ) -> Response:
     """Process edit member form and redirect to /admin/members on success, or return row fragment for HTMX."""
+    if not validate_csrf_token(request, csrf_token):
+        logger.warning("admin_edit_member_invalid_csrf")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid CSRF token",
+        )
+
     errors = []
 
     # Validate name
@@ -485,18 +501,15 @@ async def post_edit_member(
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-        if is_htmx_request(request):
-            return templates.TemplateResponse(
-                request,
-                name="admin/edit_member_inline.html",
-                context={"errors": errors, "user": user, "name": name, "role": role},
-            )
-
-        return templates.TemplateResponse(
+        new_csrf_token = generate_csrf_token()
+        template_name = "admin/edit_member_inline.html" if is_htmx_request(request) else "admin/edit_member.html"
+        response = templates.TemplateResponse(
             request,
-            name="admin/edit_member.html",
-            context={"errors": errors, "user": user, "name": name, "role": role},
+            name=template_name,
+            context={"errors": errors, "user": user, "name": name, "role": role, "csrf_token": new_csrf_token},
         )
+        set_csrf_cookie(response, new_csrf_token)
+        return response
 
     # Find user by phone
     user = await get_first_record(
@@ -544,37 +557,13 @@ async def get_remove_member(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     csrf_token = generate_csrf_token()
-    signed_token = csrf_serializer.dumps(csrf_token)
-
-    if is_htmx_request(request):
-        response = templates.TemplateResponse(
-            request,
-            name="admin/remove_member_inline.html",
-            context={"user": user, "csrf_token": csrf_token},
-        )
-        response.set_cookie(
-            key="csrf_token",
-            value=signed_token,
-            httponly=True,
-            secure=settings.is_production,
-            samesite="strict",
-            max_age=3600,
-        )
-        return response
-
+    template_name = "admin/remove_member_inline.html" if is_htmx_request(request) else "admin/remove_member.html"
     response = templates.TemplateResponse(
         request,
-        name="admin/remove_member.html",
+        name=template_name,
         context={"user": user, "csrf_token": csrf_token},
     )
-    response.set_cookie(
-        key="csrf_token",
-        value=signed_token,
-        httponly=True,
-        secure=settings.is_production,
-        samesite="strict",
-        max_age=3600,
-    )
+    set_csrf_cookie(response, csrf_token)
     return response
 
 
