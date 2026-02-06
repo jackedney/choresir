@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def request_join(*, phone: str, name: str, house_code: str, password: str) -> dict[str, Any]:
     """Request to join the household.
 
-    Validates house code and password against environment variables.
+    Validates house code and password against database configuration.
     Creates user with status="pending" for admin approval.
 
     Args:
