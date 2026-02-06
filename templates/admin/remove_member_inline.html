@@ -12,6 +12,8 @@
             {% endif %}
         </article>
         <form hx-post="/admin/members/{{ user.phone | urlencode }}/remove" hx-target="#member-{{ user.id }}" hx-swap="outerHTML" hx-indicator="#remove-loading-{{ user.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
             <div role="group">
                 <button type="submit" data-theme="danger">Ban Member</button>
                 <button type="button" hx-get="/admin/members/{{ user.phone | urlencode }}/row" hx-target="#member-{{ user.id }}" hx-swap="outerHTML" class="secondary">Cancel</button>

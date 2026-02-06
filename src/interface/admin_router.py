@@ -544,18 +544,39 @@ async def get_remove_member(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    csrf_token = generate_csrf_token()
+    signed_token = csrf_serializer.dumps(csrf_token)
+
     if is_htmx_request(request):
-        return templates.TemplateResponse(
+        response = templates.TemplateResponse(
             request,
             name="admin/remove_member_inline.html",
-            context={"user": user},
+            context={"user": user, "csrf_token": csrf_token},
         )
+        response.set_cookie(
+            key="csrf_token",
+            value=signed_token,
+            httponly=True,
+            secure=settings.is_production,
+            samesite="strict",
+            max_age=3600,
+        )
+        return response
 
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         name="admin/remove_member.html",
-        context={"user": user},
+        context={"user": user, "csrf_token": csrf_token},
     )
+    response.set_cookie(
+        key="csrf_token",
+        value=signed_token,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="strict",
+        max_age=3600,
+    )
+    return response
 
 
 @router.post("/members/{phone}/remove")
@@ -564,8 +585,16 @@ async def post_remove_member(
     request: Request,
     _auth: None = Depends(require_auth),
     phone: str,
+    csrf_token: str | None = Form(None),
 ) -> Response:
     """Process remove member form and redirect to /admin/members on success, or return row fragment for HTMX."""
+    if not validate_csrf_token(request, csrf_token):
+        logger.warning("admin_remove_member_invalid_csrf")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid CSRF token",
+        )
+
     # Find user by phone
     user = await get_first_record(
         collection="users",

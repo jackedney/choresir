@@ -54,6 +54,8 @@
 </table>
 
 <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
     <div role="group">
         <button type="submit" data-theme="danger">Ban Member</button>
         <a href="/admin/members" role="button" class="secondary">Cancel</a>
