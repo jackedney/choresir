@@ -1,7 +1,7 @@
-<tr id="member-{{ user.phone }}">
+<tr id="member-{{ user.id }}">
     <td>{{ user.phone }}</td>
     <td colspan="4">
-        <form hx-post="/admin/members/{{ user.phone }}/edit" hx-target="#member-{{ user.phone }}" hx-swap="outerHTML">
+        <form hx-post="/admin/members/{{ user.phone | urlencode }}/edit" hx-target="#member-{{ user.id }}" hx-swap="outerHTML">
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                 <label style="margin: 0;">
                     Name:
@@ -15,7 +15,7 @@
                     </select>
                 </label>
                 <button type="submit" style="margin: 0;">Save</button>
-                <button type="button" hx-get="/admin/members/{{ user.phone }}/row" hx-target="#member-{{ user.phone }}" hx-swap="outerHTML" class="secondary" style="margin: 0;">Cancel</button>
+                <button type="button" hx-get="/admin/members/{{ user.phone | urlencode }}/row" hx-target="#member-{{ user.id }}" hx-swap="outerHTML" class="secondary" style="margin: 0;">Cancel</button>
             </div>
             {% if errors %}
             <div style="margin-top: 0.5rem;">
