@@ -69,6 +69,21 @@ class RespondToDeletion(BaseModel):
     reason: str = Field(default="", description="Optional reason for the decision")
 
 
+class BatchRespondToWorkflows(BaseModel):
+    """Parameters for batch responding to multiple workflows."""
+
+    workflow_ids: list[str] | None = Field(
+        default=None,
+        description="List of workflow IDs to action (optional, for direct reference)",
+    )
+    indices: list[int] | None = Field(
+        default=None,
+        description="List of 1-based indices from 'REQUESTS YOU CAN ACTION' section (optional)",
+    )
+    decision: str = Field(description="Decision: 'approve' or 'reject'")
+    reason: str = Field(default="", description="Optional reason for the decision")
+
+
 def _fuzzy_match_chore(chores: list[dict], title_query: str) -> dict | None:
     """
     Fuzzy match a chore by title.
@@ -475,9 +490,116 @@ async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDelet
     return result
 
 
+async def tool_batch_respond_to_workflows(ctx: RunContext[Deps], params: BatchRespondToWorkflows) -> str:
+    """
+    Batch approve or reject multiple workflows at once.
+
+    Supports three modes of operation:
+    1. Direct workflow IDs: Provide workflow_ids list
+    2. Indexed references: Provide indices list (1-based from 'REQUESTS YOU CAN ACTION')
+    3. All workflows: Set indices to [0] or 'all' keyword to action all actionable workflows
+
+    Args:
+        ctx: Agent runtime context with dependencies
+        params: Batch workflow response parameters
+
+    Returns:
+        Summary message of resolved workflows or error message
+    """
+    try:
+        with logfire.span("tool_batch_respond_to_workflows", decision=params.decision):
+            # Normalize decision
+            decision_lower = params.decision.lower().strip()
+            if decision_lower not in ("approve", "reject"):
+                return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
+
+            # Determine which workflows to resolve
+            actionable_workflows = await workflow_service.get_actionable_workflows(user_id=ctx.deps.user_id)
+
+            workflow_ids_to_resolve: list[str] = []
+
+            # Mode 1: Direct workflow IDs
+            if params.workflow_ids:
+                workflow_ids_to_resolve = params.workflow_ids
+
+            # Mode 2: Indexed references (1-based from context)
+            elif params.indices:
+                # Check if no actionable workflows exist
+                if not actionable_workflows:
+                    return (
+                        "No actionable workflows found. You have no pending requests from others to approve or reject."
+                    )
+
+                # Check for 'all' keyword (indices = [0] or user said 'all')
+                if len(params.indices) == 1 and params.indices[0] == 0:
+                    # Action all actionable workflows
+                    workflow_ids_to_resolve = [wf["id"] for wf in actionable_workflows]
+                else:
+                    # Convert 1-based indices to workflow IDs
+                    for idx in params.indices:
+                        if 1 <= idx <= len(actionable_workflows):
+                            workflow_ids_to_resolve.append(actionable_workflows[idx - 1]["id"])
+                        else:
+                            logger.warning(
+                                "Index out of range",
+                                extra={
+                                    "index": idx,
+                                    "total_workflows": len(actionable_workflows),
+                                },
+                            )
+
+            else:
+                return "Error: Either workflow_ids or indices must be provided."
+
+            if not workflow_ids_to_resolve:
+                return "No valid workflows to action. Check the indices or workflow IDs provided."
+
+            # Get resolver name
+            resolver = await user_service.get_user_by_id(user_id=ctx.deps.user_id)
+            resolver_name = resolver.get("name", "Unknown")
+
+            # Batch resolve workflows
+            decision_status = (
+                workflow_service.WorkflowStatus.APPROVED
+                if decision_lower == "approve"
+                else workflow_service.WorkflowStatus.REJECTED
+            )
+
+            resolved_workflows = await workflow_service.batch_resolve_workflows(
+                workflow_ids=workflow_ids_to_resolve,
+                resolver_user_id=ctx.deps.user_id,
+                resolver_name=resolver_name,
+                decision=decision_status,
+                reason=params.reason,
+            )
+
+            if not resolved_workflows:
+                return (
+                    "No workflows were resolved. "
+                    "You may have tried to approve your own requests or already-resolved workflows."
+                )
+
+            # Build summary message
+            action_verb = "Approved" if decision_lower == "approve" else "Rejected"
+            workflow_titles = [wf["target_title"] for wf in resolved_workflows]
+            titles_quoted = '", "'.join(workflow_titles)
+
+            if len(resolved_workflows) == 1:
+                return f'{action_verb} 1 workflow: "{titles_quoted}"'
+            return f'{action_verb} {len(resolved_workflows)} workflows: "{titles_quoted}"'
+
+    except ValueError as e:
+        logger.warning("Batch workflow response failed", extra={"error": str(e)})
+        return f"Error: {e!s}"
+    except Exception as e:
+        logger.error("Unexpected error in tool_batch_respond_to_workflows", extra={"error": str(e)})
+        return "Error: Unable to process batch workflow response. Please try again."
+
+
 def register_tools(agent: Agent[Deps, str]) -> None:
     """Register chore tools with the agent."""
     agent.tool(tool_define_chore)
     agent.tool(tool_log_chore)
     agent.tool(tool_request_chore_deletion)
     agent.tool(tool_respond_to_deletion)
+    agent.tool(tool_batch_respond_to_workflows)
