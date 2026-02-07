@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -10,10 +11,36 @@ from src.core.config import Constants
 from src.core.db_client import sanitize_param
 from src.core.logging import span
 from src.models.service_models import PersonalChoreLog, PersonalChoreStatistics
-from src.services import notification_service, personal_chore_service, user_service
+from src.services import notification_service, personal_chore_service, user_service, workflow_service
 
 
 logger = logging.getLogger(__name__)
+
+
+async def get_pending_personal_verification_workflow(*, log_id: str) -> dict[str, Any] | None:
+    """Get the pending verification workflow for a personal chore log if one exists.
+
+    Args:
+        log_id: Personal chore log ID to check for pending verification workflow
+
+    Returns:
+        The pending verification workflow record, or None if no pending workflow
+    """
+    with span("personal_verification_service.get_pending_personal_verification_workflow"):
+        filter_query = (
+            f'type = "{workflow_service.WorkflowType.PERSONAL_VERIFICATION.value}" && '
+            f'target_id = "{sanitize_param(log_id)}" && '
+            f'status = "{workflow_service.WorkflowStatus.PENDING.value}"'
+        )
+
+        workflows = await db_client.list_records(
+            collection="workflows",
+            filter_query=filter_query,
+            sort="-created_at",
+            per_page=1,
+        )
+
+        return workflows[0] if workflows else None
 
 
 async def log_personal_chore(
@@ -93,15 +120,30 @@ async def log_personal_chore(
         # Send verification request notification if pending
         if verification_status == "PENDING" and partner_phone:
             try:
-                # Get owner details for notification
+                # Get owner details for notification and workflow
                 owner = await user_service.get_user_by_phone(phone=owner_phone)
                 owner_name = owner["name"] if owner else "Someone"
+                owner_user_id = owner.get("id", owner_phone) if owner else owner_phone
+
+                # Create workflow for personal verification
+                workflow = await workflow_service.create_workflow(
+                    workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                    requester_user_id=owner_user_id,
+                    requester_name=owner_name,
+                    target_id=log_record["id"],
+                    target_title=chore["title"],
+                )
 
                 await notification_service.send_personal_verification_request(
                     log_id=log_record["id"],
                     chore_title=chore["title"],
                     owner_name=owner_name,
                     partner_phone=partner_phone,
+                )
+                logger.info(
+                    "Created personal verification workflow %s for log %s",
+                    workflow["id"],
+                    log_record["id"],
                 )
             except Exception:
                 logger.exception(
@@ -133,6 +175,7 @@ async def verify_personal_chore(
     Raises:
         KeyError: If log not found
         PermissionError: If verifier is not the accountability partner
+        ValueError: If log not in pending state or self-verification attempted
     """
     with span("personal_verification_service.verify_personal_chore"):
         # Get log record
@@ -141,14 +184,38 @@ async def verify_personal_chore(
             record_id=log_id,
         )
 
-        # Validate verifier is the accountability partner
+        # Validate log is in PENDING state
+        if log_record["verification_status"] != "PENDING":
+            raise ValueError(f"Cannot verify log in state {log_record['verification_status']}")
+
+        # Get pending workflow
+        pending_workflow = await get_pending_personal_verification_workflow(log_id=log_id)
+        if not pending_workflow:
+            msg = f"No pending verification workflow for log {log_id}"
+            raise ValueError(msg)
+
+        # Get verifier name for workflow resolution
+        verifier = await user_service.get_user_by_phone(phone=verifier_phone)
+        verifier_user_id = verifier.get("id", verifier_phone) if verifier else verifier_phone
+        verifier_name = verifier["name"] if verifier else "Unknown"
+
+        # Validate verifier is the accountability partner (matches workflow requester check)
         expected_partner = log_record.get("accountability_partner_phone", "")
         if verifier_phone != expected_partner:
             raise PermissionError(f"Only accountability partner {expected_partner} can verify this chore")
 
-        # Validate log is in PENDING state
-        if log_record["verification_status"] != "PENDING":
-            raise ValueError(f"Cannot verify log in state {log_record['verification_status']}")
+        # Resolve workflow (self-verification check is handled by workflow_service)
+        workflow_decision = (
+            workflow_service.WorkflowStatus.APPROVED if approved else workflow_service.WorkflowStatus.REJECTED
+        )
+
+        await workflow_service.resolve_workflow(
+            workflow_id=pending_workflow["id"],
+            resolver_user_id=verifier_user_id,
+            resolver_name=verifier_name,
+            decision=workflow_decision,
+            reason=feedback,
+        )
 
         # Update verification status
         new_status = "VERIFIED" if approved else "REJECTED"
