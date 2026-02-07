@@ -12,7 +12,7 @@ import pytest
 
 from src.agents.base import Deps
 from src.agents.choresir_agent import run_agent
-from src.core import admin_notifier
+from src.core import admin_notifier, db_client
 from src.core.admin_notifier import notification_rate_limiter
 from src.core.errors import ErrorCategory
 
@@ -22,7 +22,7 @@ from src.core.errors import ErrorCategory
 class TestOpenRouterErrorFlow:
     """Test full error flow from OpenRouter to user notification."""
 
-    async def test_quota_exceeded_flow(self, mock_db_module, db_client, sample_users: dict):
+    async def test_quota_exceeded_flow(self, sample_users: dict):
         """Test complete flow when OpenRouter quota is exceeded.
 
         Flow:
@@ -34,14 +34,14 @@ class TestOpenRouterErrorFlow:
         """
         # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
         admin = sample_users["alice"]
+        user = sample_users["bob"]
 
         # Setup dependencies for agent
         deps = Deps(
-            db=db_client._pb,
-            user_id=sample_users["bob"]["id"],
-            user_phone=sample_users["bob"]["phone"],
-            user_name=sample_users["bob"]["name"],
-            user_role=sample_users["bob"]["role"],
+            user_id=user["id"],
+            user_phone=user["phone"],
+            user_name=user["name"],
+            user_role=user["role"],
             current_time=datetime.now(),
         )
 
@@ -83,10 +83,10 @@ class TestOpenRouterErrorFlow:
             message_text = call_args.kwargs["text"]
             assert "[CRITICAL]" in message_text
             assert "quota exceeded" in message_text.lower()
-            assert sample_users["bob"]["name"] in message_text
-            assert sample_users["bob"]["phone"] in message_text
+            assert user["name"] in message_text
+            assert user["phone"] in message_text
 
-    async def test_rate_limit_flow_no_admin_notification(self, mock_db_module, db_client, sample_users: dict):
+    async def test_rate_limit_flow_no_admin_notification(self, sample_users: dict):
         """Test rate limit errors do not trigger admin notifications.
 
         Flow:
@@ -95,12 +95,13 @@ class TestOpenRouterErrorFlow:
         3. User receives friendly error message
         4. Admin is NOT notified (transient error)
         """
+        user = sample_users["bob"]
+
         deps = Deps(
-            db=db_client._pb,
-            user_id=sample_users["bob"]["id"],
-            user_phone=sample_users["bob"]["phone"],
-            user_name=sample_users["bob"]["name"],
-            user_role=sample_users["bob"]["role"],
+            user_id=user["id"],
+            user_phone=user["phone"],
+            user_name=user["name"],
+            user_role=user["role"],
             current_time=datetime.now(),
         )
 
@@ -127,7 +128,7 @@ class TestOpenRouterErrorFlow:
             # Verify admin was NOT notified (rate limits are transient)
             mock_send_message.assert_not_called()
 
-    async def test_authentication_error_flow(self, mock_db_module, db_client, sample_users: dict):
+    async def test_authentication_error_flow(self, sample_users: dict):
         """Test authentication errors trigger admin notifications.
 
         Flow:
@@ -136,15 +137,13 @@ class TestOpenRouterErrorFlow:
         3. User receives message to contact support
         4. Admin receives critical notification
         """
-        # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
-        _admin = sample_users["alice"]
+        user = sample_users["bob"]
 
         deps = Deps(
-            db=db_client._pb,
-            user_id=sample_users["bob"]["id"],
-            user_phone=sample_users["bob"]["phone"],
-            user_name=sample_users["bob"]["name"],
-            user_role=sample_users["bob"]["role"],
+            user_id=user["id"],
+            user_phone=user["phone"],
+            user_name=user["name"],
+            user_role=user["role"],
             current_time=datetime.now(),
         )
 
@@ -170,12 +169,7 @@ class TestOpenRouterErrorFlow:
             assert "authentication" in response.lower()
             assert "contact support" in response.lower()
 
-            # Note: Authentication errors trigger admin notifications via should_notify_admins
-            # However, the current implementation in choresir_agent.py only handles
-            # SERVICE_QUOTA_EXCEEDED explicitly. This would need to be updated
-            # to handle all critical errors. For now, we verify the classification works.
-
-    async def test_network_error_no_admin_notification(self, mock_db_module, db_client, sample_users: dict):
+    async def test_network_error_no_admin_notification(self, sample_users: dict):
         """Test network errors do not trigger admin notifications.
 
         Flow:
@@ -184,12 +178,13 @@ class TestOpenRouterErrorFlow:
         3. User receives network error message
         4. Admin is NOT notified (transient issue)
         """
+        user = sample_users["bob"]
+
         deps = Deps(
-            db=db_client._pb,
-            user_id=sample_users["bob"]["id"],
-            user_phone=sample_users["bob"]["phone"],
-            user_name=sample_users["bob"]["name"],
-            user_role=sample_users["bob"]["role"],
+            user_id=user["id"],
+            user_phone=user["phone"],
+            user_name=user["name"],
+            user_role=user["role"],
             current_time=datetime.now(),
         )
 
@@ -219,14 +214,8 @@ class TestOpenRouterErrorFlow:
 class TestAdminNotificationRateLimiting:
     """Test admin notification rate limiting functionality."""
 
-    async def test_rate_limiter_prevents_spam(self, mock_db_module, db_client, sample_users: dict):
-        """Test that duplicate notifications within cooldown period are blocked.
-
-        Flow:
-        1. First quota exceeded error triggers admin notification
-        2. Second quota exceeded error within 1 hour is rate limited
-        3. No duplicate notification sent
-        """
+    async def test_rate_limiter_prevents_spam(self, sample_users: dict):
+        """Test that duplicate notifications within cooldown period are blocked."""
         # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
         _admin = sample_users["alice"]
 
@@ -256,17 +245,8 @@ class TestAdminNotificationRateLimiting:
             # Reset mock to verify no new calls
             mock_send_message.reset_mock()
 
-            # This would be blocked at the caller level (not implemented in MVP)
-            # For now, we just verify the rate limiter logic works
-
-    async def test_different_error_types_not_rate_limited(self, mock_db_module, db_client, sample_users: dict):
-        """Test that different error categories have independent rate limits.
-
-        Flow:
-        1. Quota exceeded notification sent
-        2. Authentication error notification can still be sent
-        3. Both notifications go through
-        """
+    async def test_different_error_types_not_rate_limited(self, sample_users: dict):
+        """Test that different error categories have independent rate limits."""
         # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
         _admin = sample_users["alice"]
 
@@ -289,27 +269,18 @@ class TestAdminNotificationRateLimiting:
 class TestAdminNotificationFailures:
     """Test graceful handling of admin notification failures."""
 
-    async def test_notification_failure_logged_not_raised(self, mock_db_module, db_client, sample_users: dict, caplog):
-        """Test that WhatsApp send failures don't break user flow.
-
-        Flow:
-        1. Quota exceeded error occurs
-        2. Admin notification fails to send
-        3. Failure is logged
-        4. User still receives error message
-        """
+    async def test_notification_failure_logged_not_raised(self, sample_users: dict, caplog):
+        """Test that WhatsApp send failures don't break user flow."""
         # Set caplog to capture ERROR level logs
         caplog.set_level(logging.ERROR)
 
-        # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
-        _admin = sample_users["alice"]
+        user = sample_users["bob"]
 
         deps = Deps(
-            db=db_client._pb,
-            user_id=sample_users["bob"]["id"],
-            user_phone=sample_users["bob"]["phone"],
-            user_name=sample_users["bob"]["name"],
-            user_role=sample_users["bob"]["role"],
+            user_id=user["id"],
+            user_phone=user["phone"],
+            user_name=user["name"],
+            user_role=user["role"],
             current_time=datetime.now(),
         )
 
@@ -341,21 +312,15 @@ class TestAdminNotificationFailures:
             # Verify failure was logged using caplog
             assert any("Failed to send admin notification" in record.message for record in caplog.records)
 
-    async def test_database_error_during_admin_lookup(self, mock_db_module, db_client, sample_users: dict):
-        """Test graceful handling when admin user lookup fails.
+    async def test_database_error_during_admin_lookup(self, sample_users: dict):
+        """Test graceful handling when admin user lookup fails."""
+        user = sample_users["bob"]
 
-        Flow:
-        1. Quota exceeded error occurs
-        2. Database query for admins fails
-        3. Error is logged
-        4. User still receives error message
-        """
         deps = Deps(
-            db=db_client._pb,
-            user_id=sample_users["bob"]["id"],
-            user_phone=sample_users["bob"]["phone"],
-            user_name=sample_users["bob"]["name"],
-            user_role=sample_users["bob"]["role"],
+            user_id=user["id"],
+            user_phone=user["phone"],
+            user_name=user["name"],
+            user_role=user["role"],
             current_time=datetime.now(),
         )
 
@@ -386,20 +351,15 @@ class TestAdminNotificationFailures:
 class TestErrorClassificationIntegration:
     """Test error classification with real exception types."""
 
-    async def test_multiple_error_indicators_prioritization(self, mock_db_module, db_client, sample_users: dict):
-        """Test that error classification correctly prioritizes when multiple patterns match.
+    async def test_multiple_error_indicators_prioritization(self, sample_users: dict):
+        """Test that error classification correctly prioritizes when multiple patterns match."""
+        user = sample_users["bob"]
 
-        Flow:
-        1. Error message contains both "quota" and "rate limit"
-        2. Quota exceeded is matched first (higher priority)
-        3. User receives quota exceeded message
-        """
         deps = Deps(
-            db=db_client._pb,
-            user_id=sample_users["bob"]["id"],
-            user_phone=sample_users["bob"]["phone"],
-            user_name=sample_users["bob"]["name"],
-            user_role=sample_users["bob"]["role"],
+            user_id=user["id"],
+            user_phone=user["phone"],
+            user_name=user["name"],
+            user_role=user["role"],
             current_time=datetime.now(),
         )
 
@@ -418,21 +378,15 @@ class TestErrorClassificationIntegration:
             # Should match quota exceeded (checked first in classify_agent_error)
             assert "quota" in response.lower()
 
-    async def test_unknown_error_provides_generic_message(self, mock_db_module, db_client, sample_users: dict):
-        """Test that unrecognized errors provide generic helpful message.
+    async def test_unknown_error_provides_generic_message(self, sample_users: dict):
+        """Test that unrecognized errors provide generic helpful message."""
+        user = sample_users["bob"]
 
-        Flow:
-        1. Unexpected error type occurs
-        2. Classified as UNKNOWN
-        3. User receives generic error message
-        4. No admin notification
-        """
         deps = Deps(
-            db=db_client._pb,
-            user_id=sample_users["bob"]["id"],
-            user_phone=sample_users["bob"]["phone"],
-            user_name=sample_users["bob"]["name"],
-            user_role=sample_users["bob"]["role"],
+            user_id=user["id"],
+            user_phone=user["phone"],
+            user_name=user["name"],
+            user_role=user["role"],
             current_time=datetime.now(),
         )
 

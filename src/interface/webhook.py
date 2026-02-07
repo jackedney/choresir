@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from pocketbase import PocketBase
 
 from src.agents import choresir_agent
 from src.agents.base import Deps
@@ -123,7 +122,6 @@ async def _handle_user_status(
     *,
     user_record: dict[str, Any],
     message: whatsapp_parser.ParsedMessage,
-    db: PocketBase,
     deps: Deps,
 ) -> tuple[bool, str | None]:
     """Handle message based on user status.
@@ -165,7 +163,7 @@ async def _handle_user_status(
             )
             return (result.success, result.error)
 
-        member_list = await choresir_agent.get_member_list(_db=db)
+        member_list = await choresir_agent.get_member_list()
         agent_response = await choresir_agent.run_agent(
             user_message=message.text or "",
             deps=deps,
@@ -370,8 +368,7 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     logger.info("Processing message from %s: %s", message.from_phone, message.text)
     await _log_message_start(message, "Processing")
 
-    db = db_client.get_client()
-    deps = await choresir_agent.build_deps(db=db, user_phone=message.from_phone)
+    deps = await choresir_agent.build_deps(user_phone=message.from_phone)
 
     if deps is None:
         logger.info("Unknown user %s, processing unknown user message", message.from_phone)
@@ -395,7 +392,7 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
         )
         return
 
-    success, error = await _handle_user_status(user_record=user_record, message=message, db=db, deps=deps)
+    success, error = await _handle_user_status(user_record=user_record, message=message, deps=deps)
     await _update_message_status(message_id=message.message_id, success=success, error=error)
 
 

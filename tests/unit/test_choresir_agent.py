@@ -27,7 +27,6 @@ class TestChoresirAgentErrorHandling:
     def mock_deps(self):
         """Create mock dependencies for agent execution."""
         return Deps(
-            db=MagicMock(),
             user_id="test_user_123",
             user_phone="+1234567890",
             user_name="Test User",

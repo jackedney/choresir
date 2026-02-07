@@ -64,7 +64,7 @@ uv run pytest
 
 - **Runtime:** Python 3.12+
 - **Framework:** FastAPI
-- **Database:** PocketBase (SQLite mode)
+- **Database:** SQLite (local embedded via `aiosqlite`)
 - **Agent Framework:** Pydantic AI
 - **Philosophy:** Maintainability over scalability
 
@@ -110,7 +110,7 @@ src/
 ### Database Interaction
 
 - **Access:** Use `src/core/db_client` wrapper functions
-- **Encapsulation:** Never import PocketBase client directly
+- **Encapsulation:** Never access SQLite directly outside of `db_client`
 - **Schema:** Code-first approach via `src/core/schema.py`
 
 ### Async & Concurrency
@@ -128,8 +128,8 @@ src/
 
 ### Testing
 
-- **Integration:** Use `pytest` with ephemeral PocketBase instances
-- **No Mocks:** Test against real (temporary) database binary
+- **Integration:** Use `pytest`. Tests run against a temporary SQLite database.
+- **No Mocks:** Prefer testing against the temporary database over mocking DB calls.
 
 ## Pre-Commit Checklist
 

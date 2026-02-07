@@ -127,13 +127,13 @@ Manage your household through a modern web interface at `/admin`:
 </tr>
 <tr>
 <td>💾 <strong>Database</strong></td>
-<td><img src="https://img.shields.io/badge/PocketBase-B8DBE4?style=flat&logo=pocketbase&logoColor=black" alt="PocketBase"></td>
-<td>Self-hosted SQLite backend + Admin UI</td>
+<td><img src="https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white" alt="SQLite"></td>
+<td>Local embedded database (via aiosqlite)</td>
 </tr>
 <tr>
 <td>⚡ <strong>Cache</strong></td>
-<td><img src="https://img.shields.io/badge/Redis-DC382D?style=flat&logo=redis&logoColor=white" alt="Redis"></td>
-<td>High-performance caching for leaderboards & analytics</td>
+<td><img src="https://img.shields.io/badge/Python-In--Memory-blue?style=flat&logo=python&logoColor=white" alt="In-Memory"></td>
+<td>Simple in-memory caching</td>
 </tr>
 <tr>
 <td>💬 <strong>Interface</strong></td>
@@ -182,37 +182,21 @@ Detailed setup instructions are available in the [Getting Started](docs/getting-
 # 1️⃣ Install dependencies
 uv sync
 
-# 2️⃣ Download PocketBase
-task setup
-
-# 3️⃣ Start Redis (choose one method):
-# Option A: Docker (recommended)
-docker run -d -p 6379:6379 redis:7-alpine
-
-# Option B: Docker Compose
-docker-compose up -d redis
-
-# Option C: Local installation
-# macOS: brew install redis && brew services start redis
-# Linux: sudo apt-get install redis-server && sudo systemctl start redis
-
-# 4️⃣ Configure environment
+# 2️⃣ Configure environment
 cp .env.example .env
 # Edit .env with your tokens (OpenRouter API key, etc.)
 # IMPORTANT: Set ADMIN_PASSWORD to access the web admin interface
 
-# 5️⃣ Start services
-# Option A: Full Docker (Recommended)
-docker-compose up -d
+# 3️⃣ Start WAHA (WhatsApp API)
+docker-compose up -d waha
 
-# Option B: Dev Mode
-docker-compose up -d redis waha      # Start dependencies
-task dev                             # Start PocketBase + FastAPI
+# 4️⃣ Start Application
+task dev
 
-# 6️⃣ Scan QR Code
+# 5️⃣ Scan QR Code
 # Open http://localhost:3000/dashboard to scan the WAHA QR code with your WhatsApp app.
 
-# 7️⃣ Access Web Admin Interface
+# 6️⃣ Access Web Admin Interface
 # Open http://localhost:8000/admin and log in with ADMIN_PASSWORD
 ```
 
@@ -224,49 +208,7 @@ task dev                             # Start PocketBase + FastAPI
 
 ## ☁️ Production Deployment
 
-<table>
-<tr>
-<td width="80%">
-
-### 🚂 Railway Deployment
-
-**Platform:** Railway (recommended)
-**Cost:** ~$5-10/month
-**Guide:** See [Getting Started > Production](docs/getting-started/) documentation
-
-#### Quick Deploy Steps:
-1. ✅ Create Railway project
-2. 💾 Deploy PocketBase service (with persistent volume)
-3. ⚡ Add Redis plugin (for caching)
-4. 🖥️ Deploy FastAPI service (connect GitHub repo)
-5. 🔐 Set environment variables:
-   - `ADMIN_PASSWORD`: Password for web admin interface access (required)
-   - `SECRET_KEY`: Secret key for session signing (required, generate a random string)
-   - `REDIS_URL`: Redis connection URL (required)
-   - `OPENROUTER_API_KEY`: OpenRouter API key (required)
-   - `HOUSE_NAME`, `HOUSE_CODE`, `HOUSE_PASSWORD`: Optional (fallback values)
-6. 🔗 Update WhatsApp webhook URL
-7. 🌐 Access admin interface at `https://your-app.railway.app/admin`
-
-</td>
-<td width="40%">
-
-<div align="center">
-
-### Cost Breakdown
-
-| Service | Monthly Cost |
-|---------|--------------|
-| PocketBase | ~$3-5 |
-| Redis | ~$1-3 |
-| FastAPI | ~$2-5 |
-| **Total** | **$6-13** |
-
-</div>
-
-</td>
-</tr>
-</table>
+Designed to be run locally or on a VPS (like Railway, Hetzner, etc.).
 
 ---
 

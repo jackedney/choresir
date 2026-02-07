@@ -7,33 +7,22 @@ import pytest
 
 from src.agents import choresir_agent
 from src.agents.base import Deps
+from src.core import db_client
 from src.interface import webhook
 from src.interface.whatsapp_parser import ParsedMessage
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_quota_exceeded_notification_to_admin(clean_db, sample_users: dict) -> None:
     """Test that admin receives notification when OpenRouter quota is exceeded."""
     # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
     admin = sample_users["alice"]
-
-    # Create regular user
-    user_data = {
-        "username": "testuser",
-        "email": "test@example.com",
-        "phone": "+15551234567",
-        "password": "password123",
-        "passwordConfirm": "password123",
-        "name": "Test User",
-        "role": "member",
-        "status": "active",
-    }
-    user = await db_client.create_record(collection="users", data=user_data)
+    # Use bob as regular user
+    user = sample_users["bob"]
 
     # Create test deps
     deps = Deps(
-        db=db_client._pb,
         user_id=user["id"],
         user_phone=user["phone"],
         user_name=user["name"],
@@ -43,7 +32,7 @@ async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client, s
 
     # Mock the agent to raise a quota exceeded error
     mock_agent = MagicMock()
-    mock_agent.run = AsyncMock(side_effect=Exception("OpenRouter quota exceeded: insufficient credits"))
+    mock_agent.run = AsyncMock(side_effect=Exception("OpenRouter API error: quota exceeded: insufficient credits"))
 
     # Mock send_text_message to capture admin notification
     sent_messages = []
@@ -71,13 +60,14 @@ async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client, s
         admin_msg = sent_messages[0]
         assert admin_msg["to_phone"] == admin["phone"]
         assert "⚠️ OpenRouter quota exceeded" in admin_msg["text"]
+        # Bob's details should be in the message
         assert user["name"] in admin_msg["text"]
         assert user["phone"] in admin_msg["text"]
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_webhook_critical_error_notification(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_webhook_critical_error_notification(clean_db, sample_users: dict) -> None:
     """Test that webhook errors trigger admin notifications for critical errors."""
     # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
     admin = sample_users["alice"]
@@ -139,26 +129,13 @@ async def test_webhook_critical_error_notification(mock_db_module, db_client, sa
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_non_critical_error_no_notification(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_non_critical_error_no_notification(clean_db, sample_users: dict) -> None:
     """Test that non-critical errors do not trigger admin notifications."""
     # alice is admin from sample_users but should NOT receive notification for non-critical errors
-
-    # Create regular user
-    user_data = {
-        "username": "testuser",
-        "email": "test@example.com",
-        "phone": "+15551234567",
-        "password": "password123",
-        "passwordConfirm": "password123",
-        "name": "Test User",
-        "role": "member",
-        "status": "active",
-    }
-    user = await db_client.create_record(collection="users", data=user_data)
+    user = sample_users["bob"]
 
     # Create test deps
     deps = Deps(
-        db=db_client._pb,
         user_id=user["id"],
         user_phone=user["phone"],
         user_name=user["name"],

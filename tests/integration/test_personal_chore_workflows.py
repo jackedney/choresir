@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from src.core import db_client
 from src.services import (
     personal_chore_service,
     personal_verification_service,
@@ -12,7 +13,7 @@ from src.services import (
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_self_verified_personal_chore_workflow(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_self_verified_personal_chore_workflow(clean_db, sample_users: dict) -> None:
     """Test: Create self-verified personal chore → log completion → verify auto-completion."""
     # Step 1: Alice creates a self-verified personal chore
     chore = await personal_chore_service.create_personal_chore(
@@ -51,7 +52,7 @@ async def test_self_verified_personal_chore_workflow(mock_db_module, db_client, 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_accountability_partner_workflow(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_accountability_partner_workflow(clean_db, sample_users: dict) -> None:
     """Test: Create chore with partner → log → partner approves → verify completion."""
     # Step 1: Alice creates personal chore with Bob as accountability partner
     chore = await personal_chore_service.create_personal_chore(
@@ -105,7 +106,7 @@ async def test_accountability_partner_workflow(mock_db_module, db_client, sample
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_accountability_partner_rejection(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_accountability_partner_rejection(clean_db, sample_users: dict) -> None:
     """Test: Partner rejects completion → verify status is REJECTED."""
     # Step 1: Create chore with partner
     chore = await personal_chore_service.create_personal_chore(
@@ -135,7 +136,7 @@ async def test_accountability_partner_rejection(mock_db_module, db_client, sampl
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_auto_verify_after_48_hours(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_auto_verify_after_48_hours(clean_db, sample_users: dict) -> None:
     """Test: Log pending > 48h → auto-verify job → verify status changes."""
     # Step 1: Create chore with partner
     chore = await personal_chore_service.create_personal_chore(
@@ -177,7 +178,7 @@ async def test_auto_verify_after_48_hours(mock_db_module, db_client, sample_user
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_privacy_isolation(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_privacy_isolation(clean_db, sample_users: dict) -> None:
     """Test: Alice's personal chores are not visible to Bob."""
     # Step 1: Alice creates personal chore
     alice_chore = await personal_chore_service.create_personal_chore(
@@ -214,7 +215,7 @@ async def test_privacy_isolation(mock_db_module, db_client, sample_users: dict) 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_partner_leaving_household(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_partner_leaving_household(clean_db, sample_users: dict) -> None:
     """Test: Partner leaves household → log auto-converts to self-verified."""
     # Step 1: Alice creates chore with Bob as partner
     chore = await personal_chore_service.create_personal_chore(
@@ -244,7 +245,7 @@ async def test_partner_leaving_household(mock_db_module, db_client, sample_users
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_fuzzy_matching(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_fuzzy_matching(clean_db, sample_users: dict) -> None:
     """Test: Fuzzy matching works for personal chore titles."""
     # Step 1: Create chore with full title
     chore = await personal_chore_service.create_personal_chore(
@@ -280,7 +281,7 @@ async def test_fuzzy_matching(mock_db_module, db_client, sample_users: dict) -> 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_wrong_partner_cannot_verify(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_wrong_partner_cannot_verify(clean_db, sample_users: dict) -> None:
     """Test: Only designated accountability partner can verify."""
     # Step 1: Alice creates chore with Bob as partner
     chore = await personal_chore_service.create_personal_chore(
@@ -307,7 +308,7 @@ async def test_wrong_partner_cannot_verify(mock_db_module, db_client, sample_use
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_delete_personal_chore(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_delete_personal_chore(clean_db, sample_users: dict) -> None:
     """Test: Soft delete (archive) personal chore."""
     # Step 1: Create chore
     chore = await personal_chore_service.create_personal_chore(

@@ -2,16 +2,16 @@
 
 import pytest
 
+from src.core import db_client
 from src.domain.chore import ChoreState
 from src.services import chore_service, conflict_service, user_service, verification_service
 from src.services.conflict_service import VoteChoice, VoteResult
 from src.services.verification_service import VerificationDecision
-from tests.conftest import create_test_admin
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_join_house_workflow(mock_db_module, db_client) -> None:
+async def test_join_house_workflow(clean_db) -> None:
     """Test: Join House workflow (request → approve → active)."""
     # Step 1: User requests to join
     user = await user_service.request_join(
@@ -27,11 +27,16 @@ async def test_join_house_workflow(mock_db_module, db_client) -> None:
     assert user["role"] == "member"
 
     # Step 2: Create admin to approve
-    admin = await create_test_admin(
-        phone="+15550000000",
-        name="Admin User",
-        db_client=db_client,
-    )
+    admin_data = {
+        "phone": "+15550000000",
+        "name": "Admin User",
+        "email": "admin@test.local",
+        "role": "admin",
+        "status": "active",
+        "password": "test_password",
+        "passwordConfirm": "test_password",
+    }
+    admin = await db_client.create_record(collection="users", data=admin_data)
 
     # Step 3: Admin approves member
     approved_user = await user_service.approve_member(
@@ -52,7 +57,7 @@ async def test_join_house_workflow(mock_db_module, db_client) -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_create_and_complete_chore_workflow(clean_db, sample_users: dict) -> None:
     """Test: Create & Complete Chore workflow (create → log → verify → completed)."""
     # Step 1: Create chore
     chore = await chore_service.create_chore(
@@ -98,7 +103,7 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_conflict_resolution_workflow(clean_db, sample_users: dict) -> None:
     """Test: Conflict Resolution workflow (log → reject → vote → resolve)."""
     # Step 1: Create chore
     chore = await chore_service.create_chore(
@@ -151,7 +156,7 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_robin_hood_swap_workflow(clean_db, sample_users: dict) -> None:
     """Test: Robin Hood Swap workflow (User A logs User B's chore)."""
     # Step 1: Create chore assigned to Bob
     chore = await chore_service.create_chore(
@@ -191,7 +196,7 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_invalid_house_credentials(mock_db_module, db_client) -> None:
+async def test_invalid_house_credentials(clean_db) -> None:
     """Test: Reject join request with invalid credentials."""
     with pytest.raises(ValueError, match="Invalid house code or password"):
         await user_service.request_join(
@@ -204,7 +209,7 @@ async def test_invalid_house_credentials(mock_db_module, db_client) -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_verifier_cannot_be_claimer(mock_db_module, db_client, sample_users: dict) -> None:
+async def test_verifier_cannot_be_claimer(clean_db, sample_users: dict) -> None:
     """Test: Verifier cannot be the same as claimer."""
     chore = await chore_service.create_chore(
         title="Water Plants",

@@ -1,306 +1,296 @@
-"""PocketBase client wrapper with CRUD operations."""
+"""SQLite client wrapper with CRUD operations.
+
+Replaces the previous PocketBase client with a local SQLite implementation
+while maintaining the same interface for the service layer.
+"""
 
 import json
 import logging
-import time
-from datetime import datetime, timedelta
-from typing import Any, TypeVar
+import re
+import secrets
+import sqlite3
+from datetime import datetime, UTC
+from pathlib import Path
+from typing import Any
 
-import httpx
-from pocketbase import PocketBase
+import aiosqlite
 
 from src.core.config import settings
 
 
 logger = logging.getLogger(__name__)
-T = TypeVar("T")
+
+
+# Global database connection
+_connection: aiosqlite.Connection | None = None
 
 
 def sanitize_param(value: str | int | float | bool | None) -> str:
-    """Sanitize a value for use in PocketBase filter queries.
+    """Sanitize a value for use in filter queries.
 
-    Uses json.dumps to properly escape quotes and backslashes, preventing
-    filter injection attacks. The result is safe to embed in filter strings.
+    Uses json.dumps to properly escape quotes and backslashes.
+    The result is safe to embed in filter strings which are then parsed into parameterized SQL.
 
     Args:
-        value: The value to sanitize (will be converted to string)
+        value: The value to sanitize
 
     Returns:
         A properly escaped string value (without surrounding quotes)
-
-    Example:
-        >>> phone = 'foo" || true || "'
-        >>> filter_query = f'phone = "{sanitize_param(phone)}"'
-        # Results in: phone = "foo\" || true || \""
-        # Which safely treats the injection attempt as a literal string
     """
-    # json.dumps handles all escaping: quotes become \", backslashes become \\
-    # We strip the surrounding quotes since the caller adds them
+    # Emulate the behavior of the previous implementation to ensure compatibility
+    # with existing f-strings in services (e.g. f'field = "{sanitize_param(val)}"')
     return json.dumps(str(value))[1:-1]
 
 
-class PocketBaseConnectionPool:
-    """Connection pool manager for PocketBase with health checks and automatic reconnection."""
+async def get_db() -> aiosqlite.Connection:
+    """Get the global SQLite connection, initializing it if necessary."""
+    global _connection
+    if _connection is None:
+        db_path = Path(settings.sqlite_db_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def __init__(
-        self,
-        url: str,
-        admin_email: str,
-        admin_password: str,
-        max_retries: int = 3,
-        connection_lifetime_seconds: int = 3600,  # 1 hour
-    ) -> None:
-        """Initialize the connection pool.
+        logger.info("Connecting to SQLite database at %s", db_path)
+        _connection = await aiosqlite.connect(db_path)
+        _connection.row_factory = aiosqlite.Row
 
-        Args:
-            url: PocketBase server URL
-            admin_email: Admin email for authentication
-            admin_password: Admin password for authentication
-            max_retries: Maximum number of retry attempts
-            connection_lifetime_seconds: Maximum connection lifetime before forced reconnection
-        """
-        self._url = url
-        self._admin_email = admin_email
-        self._admin_password = admin_password
-        self._max_retries = max_retries
-        self._connection_lifetime = timedelta(seconds=connection_lifetime_seconds)
+        # Enable foreign keys
+        await _connection.execute("PRAGMA foreign_keys = ON")
 
-        self._client: PocketBase | None = None
-        self._created_at: datetime | None = None
-
-    def _create_client(self) -> PocketBase:
-        """Create and authenticate a new PocketBase client."""
-        logger.info("Creating new PocketBase client connection", extra={"url": self._url})
-        client = PocketBase(self._url)
-        client.admins.auth_with_password(self._admin_email, self._admin_password)
-        self._created_at = datetime.now()
-        logger.info("PocketBase client authenticated successfully")
-        return client
-
-    def _is_connection_expired(self) -> bool:
-        """Check if the current connection has exceeded its lifetime."""
-        if self._created_at is None:
-            return True
-        return datetime.now() - self._created_at > self._connection_lifetime
-
-    def _health_check(self, client: PocketBase) -> bool:
-        """Perform a health check on the client connection.
-
-        Args:
-            client: PocketBase client to check
-
-        Returns:
-            True if connection is healthy, False otherwise
-        """
-        try:
-            # Verify token is present
-            if not client.auth_store.token:
-                logger.warning("PocketBase token missing")
-                return False
-
-            # Simple API call to verify connectivity
-            # Using admins.auth_refresh as a lightweight health check
-            client.admins.auth_refresh()
-            return True
-        except Exception as e:
-            logger.warning("PocketBase health check failed", extra={"error": str(e)})
-            return False
-
-    def _get_client_with_retry(self) -> PocketBase:
-        """Get a client with exponential backoff retry logic.
-
-        Returns:
-            Authenticated PocketBase client
-
-        Raises:
-            ConnectionError: If unable to establish connection after retries
-        """
-        backoff_delays = [1, 2, 4]  # Exponential backoff: 1s, 2s, 4s
-
-        for attempt in range(self._max_retries):
-            try:
-                client = self._create_client()
-                self._client = client
-                logger.info(
-                    "PocketBase connection established",
-                    extra={"attempt": attempt + 1, "max_retries": self._max_retries},
-                )
-                return client
-            except Exception as e:
-                logger.error(
-                    "PocketBase connection attempt failed",
-                    extra={"attempt": attempt + 1, "max_retries": self._max_retries, "error": str(e)},
-                )
-
-                if attempt < self._max_retries - 1:
-                    delay = backoff_delays[attempt]
-                    logger.info("Retrying connection", extra={"delay_seconds": delay})
-                    time.sleep(delay)
-                else:
-                    msg = f"Failed to connect to PocketBase after {self._max_retries} attempts: {e}"
-                    logger.error("PocketBase connection exhausted all retries")
-                    raise ConnectionError(msg) from e
-
-        # This should never be reached, but satisfies type checker
-        msg = "Unexpected error in connection retry logic"
-        raise ConnectionError(msg)
-
-    def get_client(self) -> PocketBase:
-        """Get a healthy PocketBase client instance.
-
-        Returns:
-            Authenticated and healthy PocketBase client
-
-        Raises:
-            ConnectionError: If unable to establish or restore connection
-        """
-        # Force reconnection if lifetime exceeded
-        if self._is_connection_expired():
-            logger.info("PocketBase connection lifetime exceeded, forcing reconnection")
-            self._client = None
-
-        # Create new client if none exists
-        if self._client is None:
-            logger.info("No existing PocketBase client, creating new connection")
-            return self._get_client_with_retry()
-
-        # Health check existing client
-        if not self._health_check(self._client):
-            logger.warning("PocketBase health check failed, reconnecting")
-            self._client = None
-            return self._get_client_with_retry()
-
-        return self._client
+    return _connection
 
 
-# Global connection pool instance
-_connection_pool: PocketBaseConnectionPool | None = None
+async def close_db() -> None:
+    """Close the global SQLite connection."""
+    global _connection
+    if _connection:
+        await _connection.close()
+        _connection = None
+        logger.info("Closed SQLite connection")
 
 
-def get_client() -> PocketBase:
-    """Get PocketBase client instance with admin authentication.
+def _parse_filter(filter_query: str) -> tuple[str, list[Any]]:
+    """Parse a PocketBase-style filter string into a SQL WHERE clause and parameters.
 
-    Returns a healthy client from the connection pool with automatic
-    reconnection, health checks, and retry logic.
-
-    Returns:
-        Authenticated PocketBase client
-
-    Raises:
-        ConnectionError: If unable to establish connection
+    Supports:
+    - && (AND)
+    - = (equality)
+    - != (inequality)
+    - >=, <=, >, < (comparison)
+    - ~ (contains/like)
     """
-    global _connection_pool  # noqa: PLW0603
+    if not filter_query:
+        return "", []
 
-    if _connection_pool is None:
-        # These are guaranteed to be present by Settings model validator
-        assert settings.pocketbase_admin_email is not None
-        assert settings.pocketbase_admin_password is not None
+    # Split by && (AND)
+    parts = filter_query.split("&&")
+    conditions = []
+    params = []
 
-        _connection_pool = PocketBaseConnectionPool(
-            url=settings.pocketbase_url,
-            admin_email=settings.pocketbase_admin_email,
-            admin_password=settings.pocketbase_admin_password,
-        )
+    # Improved regex: longer operators first, tolerant of whitespace
+    # Matches: field, operator, value
+    pattern = re.compile(r'^\s*([\w\.]+)\s*(!=|>=|<=|=|>|<|~)\s*(.+?)\s*$', re.IGNORECASE)
 
-    return _connection_pool.get_client()
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        match = pattern.match(part)
+        if match:
+            field, op, value_str = match.groups()
+
+            # Parse value
+            value: Any = None
+            if value_str.startswith('"') and value_str.endswith('"'):
+                # Double quoted string
+                try:
+                    value = json.loads(value_str)
+                except json.JSONDecodeError:
+                    value = value_str[1:-1]
+            elif value_str.startswith("'") and value_str.endswith("'"):
+                # Single quoted string
+                value = value_str[1:-1]
+            elif value_str.lower() == "true":
+                value = 1
+            elif value_str.lower() == "false":
+                value = 0
+            elif value_str.lower() == "null":
+                value = None
+            else:
+                # Number or unquoted string
+                try:
+                    if '.' in value_str:
+                        value = float(value_str)
+                    else:
+                        value = int(value_str)
+                except ValueError:
+                    value = value_str
+
+            # Map operators
+            if op == "~":
+                op = "LIKE"
+                value = f"%{value}%"
+
+            conditions.append(f"{field} {op} ?")
+            params.append(value)
+        else:
+            logger.warning("Could not parse filter part: '%s'", part)
+            # Log hex representation for debugging hidden chars
+            logger.debug("Filter part hex: %s", part.encode().hex())
+
+    where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
+    return where_clause, params
+
+
+def _parse_sort(sort: str) -> str:
+    """Parse a PocketBase-style sort string into SQL ORDER BY clause."""
+    if not sort:
+        return ""
+
+    parts = sort.split(",")
+    order_clauses = []
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        if part.startswith("-"):
+            order_clauses.append(f"{part[1:]} DESC")
+        elif part.startswith("+"):
+            order_clauses.append(f"{part[1:]} ASC")
+        else:
+            order_clauses.append(f"{part} ASC")
+
+    return " ORDER BY " + ", ".join(order_clauses)
 
 
 async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, Any]:
     """Create a new record in the specified collection."""
     try:
-        client = get_client()
-        record = client.collection(collection).create(data)
-        logger.info("Created record in %s: %s", collection, record.id)
-        return record.__dict__
-    except httpx.HTTPStatusError as e:
+        db = await get_db()
+
+        # Prepare data
+        data = data.copy()
+        if "id" not in data:
+            data["id"] = secrets.token_hex(8) # 16 chars
+
+        now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        if "created" not in data:
+            data["created"] = now
+        if "updated" not in data:
+            data["updated"] = now
+
+        # Handle booleans
+        for k, v in data.items():
+            if isinstance(v, bool):
+                data[k] = 1 if v else 0
+
+        columns = ", ".join(data.keys())
+        placeholders = ", ".join(["?"] * len(data))
+        values = list(data.values())
+
+        query = f"INSERT INTO {collection} ({columns}) VALUES ({placeholders}) RETURNING *"
+
+        logger.debug("Executing create: %s", query)
+
+        async with db.execute(query, values) as cursor:
+            row = await cursor.fetchone()
+            await db.commit()
+            if row:
+                return dict(row)
+            raise RuntimeError("Failed to return created record")
+
+    except Exception as e:
         logger.error(
             "create_record_failed",
             extra={"collection": collection, "error": str(e)},
         )
         msg = f"Failed to create record in {collection}: {e}"
         raise RuntimeError(msg) from e
-    except httpx.RequestError as e:
-        logger.error(
-            "create_record_connection_error",
-            extra={"collection": collection, "error": str(e)},
-        )
-        msg = f"Connection error creating record in {collection}: {e}"
-        raise RuntimeError(msg) from e
 
 
 async def get_record(*, collection: str, record_id: str) -> dict[str, Any]:
     """Get a record by ID from the specified collection."""
     try:
-        client = get_client()
-        record = client.collection(collection).get_one(record_id)
-        return record.__dict__
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:  # noqa: PLR2004
-            msg = f"Record not found in {collection}: {record_id}"
-            raise KeyError(msg) from e
+        db = await get_db()
+        query = f"SELECT * FROM {collection} WHERE id = ?"
+
+        async with db.execute(query, (record_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                msg = f"Record not found in {collection}: {record_id}"
+                raise KeyError(msg)
+            return dict(row)
+
+    except KeyError:
+        raise
+    except Exception as e:
         logger.error(
             "get_record_failed",
             extra={"collection": collection, "record_id": record_id, "error": str(e)},
         )
         msg = f"Failed to get record from {collection}: {e}"
         raise RuntimeError(msg) from e
-    except httpx.RequestError as e:
-        logger.error(
-            "get_record_connection_error",
-            extra={"collection": collection, "record_id": record_id, "error": str(e)},
-        )
-        msg = f"Connection error getting record from {collection}: {e}"
-        raise RuntimeError(msg) from e
 
 
 async def update_record(*, collection: str, record_id: str, data: dict[str, Any]) -> dict[str, Any]:
     """Update a record in the specified collection."""
     try:
-        client = get_client()
-        record = client.collection(collection).update(record_id, data)
-        logger.info("Updated record in %s: %s", collection, record_id)
-        return record.__dict__
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:  # noqa: PLR2004
-            msg = f"Record not found in {collection}: {record_id}"
-            raise KeyError(msg) from e
+        db = await get_db()
+
+        data = data.copy()
+        data["updated"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+        # Handle booleans
+        for k, v in data.items():
+            if isinstance(v, bool):
+                data[k] = 1 if v else 0
+
+        set_clauses = [f"{k} = ?" for k in data.keys()]
+        values = list(data.values())
+        values.append(record_id)
+
+        query = f"UPDATE {collection} SET {', '.join(set_clauses)} WHERE id = ? RETURNING *"
+
+        async with db.execute(query, values) as cursor:
+            row = await cursor.fetchone()
+            await db.commit()
+            if not row:
+                msg = f"Record not found in {collection}: {record_id}"
+                raise KeyError(msg)
+            return dict(row)
+
+    except KeyError:
+        raise
+    except Exception as e:
         logger.error(
             "update_record_failed",
             extra={"collection": collection, "record_id": record_id, "error": str(e)},
         )
         msg = f"Failed to update record in {collection}: {e}"
         raise RuntimeError(msg) from e
-    except httpx.RequestError as e:
-        logger.error(
-            "update_record_connection_error",
-            extra={"collection": collection, "record_id": record_id, "error": str(e)},
-        )
-        msg = f"Connection error updating record in {collection}: {e}"
-        raise RuntimeError(msg) from e
 
 
 async def delete_record(*, collection: str, record_id: str) -> None:
     """Delete a record from the specified collection."""
     try:
-        client = get_client()
-        client.collection(collection).delete(record_id)
-        logger.info("Deleted record from %s: %s", collection, record_id)
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:  # noqa: PLR2004
-            msg = f"Record not found in {collection}: {record_id}"
-            raise KeyError(msg) from e
+        db = await get_db()
+        query = f"DELETE FROM {collection} WHERE id = ?"
+
+        async with db.execute(query, (record_id,)) as cursor:
+            if cursor.rowcount == 0:
+                msg = f"Record not found in {collection}: {record_id}"
+                raise KeyError(msg)
+            await db.commit()
+
+    except KeyError:
+        raise
+    except Exception as e:
         logger.error(
             "delete_record_failed",
             extra={"collection": collection, "record_id": record_id, "error": str(e)},
         )
         msg = f"Failed to delete record from {collection}: {e}"
-        raise RuntimeError(msg) from e
-    except httpx.RequestError as e:
-        logger.error(
-            "delete_record_connection_error",
-            extra={"collection": collection, "record_id": record_id, "error": str(e)},
-        )
-        msg = f"Connection error deleting record from {collection}: {e}"
         raise RuntimeError(msg) from e
 
 
@@ -314,55 +304,46 @@ async def list_records(
 ) -> list[dict[str, Any]]:
     """List records from the specified collection with filtering and pagination."""
     try:
-        client = get_client()
-        # Only include filter and sort in query_params if they're not empty
-        query_params = {}
-        if sort:
-            query_params["sort"] = sort
-        if filter_query:
-            query_params["filter"] = filter_query
+        db = await get_db()
 
-        result = client.collection(collection).get_list(
-            page=page,
-            per_page=per_page,
-            query_params=query_params,
-        )
-        return [item.__dict__ for item in result.items]
-    except httpx.HTTPStatusError as e:
+        where_clause, params = _parse_filter(filter_query)
+        order_clause = _parse_sort(sort)
+
+        limit = per_page
+        offset = (page - 1) * per_page
+
+        query = f"SELECT * FROM {collection}{where_clause}{order_clause} LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        async with db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    except Exception as e:
         logger.error(
             "list_records_failed",
             extra={"collection": collection, "error": str(e)},
         )
         msg = f"Failed to list records from {collection}: {e}"
         raise RuntimeError(msg) from e
-    except httpx.RequestError as e:
-        logger.error(
-            "list_records_connection_error",
-            extra={"collection": collection, "error": str(e)},
-        )
-        msg = f"Connection error listing records from {collection}: {e}"
-        raise RuntimeError(msg) from e
 
 
 async def get_first_record(*, collection: str, filter_query: str) -> dict[str, Any] | None:
     """Get the first record matching the filter query, or None if not found."""
     try:
-        client = get_client()
-        result = client.collection(collection).get_first_list_item(filter_query)
-        return result.__dict__
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:  # noqa: PLR2004
-            return None
+        db = await get_db()
+
+        where_clause, params = _parse_filter(filter_query)
+        query = f"SELECT * FROM {collection}{where_clause} LIMIT 1"
+
+        async with db.execute(query, params) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    except Exception as e:
         logger.error(
             "get_first_record_failed",
             extra={"collection": collection, "filter_query": filter_query, "error": str(e)},
         )
         msg = f"Failed to get first record from {collection}: {e}"
-        raise RuntimeError(msg) from e
-    except httpx.RequestError as e:
-        logger.error(
-            "get_first_record_connection_error",
-            extra={"collection": collection, "filter_query": filter_query, "error": str(e)},
-        )
-        msg = f"Connection error getting first record from {collection}: {e}"
         raise RuntimeError(msg) from e
