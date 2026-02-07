@@ -48,42 +48,17 @@
 
 <article>
     <header>
-        <h3>House Group Chat</h3>
+        <h3>Group Activation</h3>
     </header>
 
     <p style="color: var(--muted-color); font-size: 0.9rem; margin-bottom: 1rem;">
-        Configure ChoresSir to respond in a house group chat instead of individual DMs.
-        When a group is configured, the bot will ONLY respond in that group and ignore personal messages.
+        Generate an activation key, then post it in your WhatsApp group to activate it as the house group.
+        Once activated, anyone who messages in the group will be automatically registered.
     </p>
 
-    <div id="group-config-container">
-        <div id="group-config-status">Loading group configuration...</div>
-
-        <form id="group-config-form" style="display: none; margin-top: 1rem;">
-            <label for="group-chat-id">
-                Group Chat ID
-                <input type="text" id="group-chat-id" name="group_chat_id"
-                       placeholder="e.g., 120363400136168625@g.us"
-                       style="font-family: monospace;">
-            </label>
-            <p style="color: var(--muted-color); font-size: 0.85rem; margin-top: -0.5rem;">
-                Leave empty to respond to DMs only (default behavior)
-            </p>
-            <button type="submit">Save Group Configuration</button>
-        </form>
-
-        <div id="group-config-message" style="display: none; margin-top: 1rem;"></div>
+    <div id="activation-container">
+        <div id="activation-status">Loading activation status...</div>
     </div>
-
-    <details style="margin-top: 1rem;">
-        <summary>How to find your Group ID</summary>
-        <ol style="margin-top: 0.5rem; padding-left: 1.5rem;">
-            <li>Create or open the WhatsApp group you want ChoresSir to use</li>
-            <li>Send any message in the group</li>
-            <li>Check the application logs - the group ID will appear in the format <code>120363400136168625@g.us</code></li>
-            <li>Copy the full group ID (including @g.us) and paste it above</li>
-        </ol>
-    </details>
 </article>
 
 <article>
@@ -224,76 +199,124 @@ async function configureWebhook() {
     }
 }
 
-// Group configuration functions
-async function loadGroupConfig() {
-    const statusDiv = document.getElementById('group-config-status');
-    const form = document.getElementById('group-config-form');
-    const input = document.getElementById('group-chat-id');
+// Activation key functions
+async function loadActivationStatus() {
+    const container = document.getElementById('activation-container');
+    const statusDiv = document.getElementById('activation-status');
 
     try {
-        const response = await fetch('/admin/whatsapp/group-config');
+        const response = await fetch('/admin/whatsapp/activation-status');
         const data = await response.json();
 
-        statusDiv.style.display = 'none';
-        form.style.display = 'block';
-
-        if (data.group_chat_id) {
-            input.value = data.group_chat_id;
+        if (!data.has_config) {
             statusDiv.innerHTML = `
-                <p style="color: #22c55e;">&#10003; Group configured: <code>${data.group_chat_id}</code></p>
+                <p style="color: #eab308;">&#9888; House not configured</p>
                 <p style="color: var(--muted-color); font-size: 0.9rem;">
-                    Bot will respond ONLY in this group (DMs ignored)
+                    Please <a href="/admin/house">configure house settings</a> first.
                 </p>
             `;
-            statusDiv.style.display = 'block';
-        } else {
+            return;
+        }
+
+        if (data.group_chat_id) {
+            // Group is already configured
             statusDiv.innerHTML = `
-                <p style="color: var(--muted-color);">No group configured - responding to DMs only</p>
+                <p style="color: #22c55e; font-weight: bold;">&#10003; Group Activated</p>
+                <p>Group ID: <code style="font-size: 0.85rem;">${data.group_chat_id}</code></p>
+                <p style="color: var(--muted-color); font-size: 0.9rem; margin-top: 0.5rem;">
+                    The bot is responding in this group. New users who message will be automatically registered.
+                </p>
+                <button onclick="clearGroup()" class="secondary outline" style="margin-top: 1rem;">Clear Group Configuration</button>
             `;
-            statusDiv.style.display = 'block';
+        } else if (data.activation_key) {
+            // Activation key is set, waiting for activation
+            statusDiv.innerHTML = `
+                <p style="color: #eab308; font-weight: bold;">&#9202; Waiting for Activation</p>
+                <p style="margin: 1rem 0;">Post this key in your WhatsApp group:</p>
+                <div style="background: var(--card-background-color); border: 2px dashed var(--muted-border-color); padding: 1.5rem; text-align: center; border-radius: 8px; margin: 1rem 0;">
+                    <code style="font-size: 1.5rem; letter-spacing: 0.1em; font-weight: bold;">${data.activation_key}</code>
+                </div>
+                <p style="color: var(--muted-color); font-size: 0.9rem;">
+                    Once someone posts this exact key in a group with the bot, that group will become the house group.
+                </p>
+                <button onclick="generateActivationKey()" class="secondary" style="margin-top: 1rem;">Generate New Key</button>
+            `;
+        } else {
+            // No activation key, no group - need to generate
+            statusDiv.innerHTML = `
+                <p style="color: var(--muted-color);">No group configured yet.</p>
+                <p style="color: var(--muted-color); font-size: 0.9rem; margin: 1rem 0;">
+                    Generate an activation key and post it in your WhatsApp group to activate it.
+                </p>
+                <button onclick="generateActivationKey()">Generate Activation Key</button>
+            `;
         }
     } catch (error) {
-        statusDiv.textContent = 'Failed to load group configuration';
-        statusDiv.style.color = '#dc2626';
+        statusDiv.innerHTML = `
+            <p style="color: #dc2626;">Failed to load activation status</p>
+            <p>${error.message}</p>
+        `;
     }
 }
 
-async function saveGroupConfig(event) {
-    event.preventDefault();
-
-    const input = document.getElementById('group-chat-id');
-    const messageDiv = document.getElementById('group-config-message');
-    const formData = new FormData();
-    formData.append('group_chat_id', input.value.trim());
-
-    messageDiv.style.display = 'block';
-    messageDiv.innerHTML = '<p>Saving...</p>';
+async function generateActivationKey() {
+    const statusDiv = document.getElementById('activation-status');
+    statusDiv.innerHTML = '<p>Generating activation key...</p>';
 
     try {
-        const response = await fetch('/admin/whatsapp/group-config', {
-            method: 'POST',
-            body: formData,
-        });
+        const response = await fetch('/admin/whatsapp/generate-activation-key', { method: 'POST' });
         const data = await response.json();
 
         if (data.success) {
-            messageDiv.innerHTML = `<p style="color: #22c55e;">&#10003; ${data.message}</p>`;
-            // Reload to refresh the status display
-            setTimeout(loadGroupConfig, 1000);
+            // Reload to show the new key
+            loadActivationStatus();
         } else {
-            messageDiv.innerHTML = `<p style="color: #dc2626;">&#10007; ${data.error}</p>`;
+            statusDiv.innerHTML = `
+                <p style="color: #dc2626;">&#10007; Failed to generate key</p>
+                <p>${data.error}</p>
+                <button onclick="generateActivationKey()" class="secondary">Retry</button>
+            `;
         }
     } catch (error) {
-        messageDiv.innerHTML = `<p style="color: #dc2626;">&#10007; ${error.message}</p>`;
+        statusDiv.innerHTML = `
+            <p style="color: #dc2626;">&#10007; Failed to generate key</p>
+            <p>${error.message}</p>
+            <button onclick="generateActivationKey()" class="secondary">Retry</button>
+        `;
     }
 }
 
-// Set up form handler
-document.getElementById('group-config-form').addEventListener('submit', saveGroupConfig);
+async function clearGroup() {
+    if (!confirm('Are you sure you want to clear the group configuration? You will need to activate a new group.')) {
+        return;
+    }
+
+    const statusDiv = document.getElementById('activation-status');
+    statusDiv.innerHTML = '<p>Clearing group configuration...</p>';
+
+    try {
+        const response = await fetch('/admin/whatsapp/clear-group', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            loadActivationStatus();
+        } else {
+            statusDiv.innerHTML = `
+                <p style="color: #dc2626;">&#10007; Failed to clear group</p>
+                <p>${data.error}</p>
+            `;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `
+            <p style="color: #dc2626;">&#10007; Failed to clear group</p>
+            <p>${error.message}</p>
+        `;
+    }
+}
 
 // Initial checks
 checkStatus();
-loadGroupConfig();
+loadActivationStatus();
 
 // Poll status every 5 seconds
 statusCheckInterval = setInterval(checkStatus, 5000);

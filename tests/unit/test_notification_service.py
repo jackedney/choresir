@@ -180,7 +180,7 @@ class TestSendVerificationRequest:
         users = [
             {"name": "Alice", "phone": "+11111111111", "status": UserStatus.ACTIVE},
             {"name": "Bob", "phone": "+12222222222", "status": UserStatus.ACTIVE},
-            {"name": "Charlie", "phone": "+13333333333", "status": UserStatus.PENDING},
+            {"name": "Charlie", "phone": "+13333333333", "status": UserStatus.PENDING_NAME},
         ]
 
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)

@@ -159,7 +159,7 @@ def test_protected_route_with_valid_session_succeeds(client: TestClient) -> None
     ):
         mock_settings.admin_password = "correct_password"
         mock_settings.secret_key = "test_secret_key"
-        mock_get_config.return_value = HouseConfig(name="TestHouse", password="test", code="TEST")
+        mock_get_config.return_value = HouseConfig(name="TestHouse")
         mock_list_records.return_value = []
 
         serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-session")

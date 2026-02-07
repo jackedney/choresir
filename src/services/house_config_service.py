@@ -1,7 +1,6 @@
 """House configuration service."""
 
 import logging
-import secrets
 
 from pydantic import BaseModel
 
@@ -16,9 +15,8 @@ class HouseConfig(BaseModel):
     """House configuration data transfer object."""
 
     name: str
-    password: str
-    code: str
     group_chat_id: str | None = None
+    activation_key: str | None = None
 
 
 async def get_house_config() -> HouseConfig:
@@ -28,41 +26,15 @@ async def get_house_config() -> HouseConfig:
     if config:
         return HouseConfig(
             name=config["name"],
-            password=config["password"],
-            code=config["code"],
             group_chat_id=config.get("group_chat_id"),
+            activation_key=config.get("activation_key"),
         )
 
     house_name = settings.house_name or "the house"
-    house_code = settings.house_code or ""
-    house_password = settings.house_password or ""
 
     logger.warning("house_config_not_found_using_env_fallback", extra={"house_name": house_name})
 
-    return HouseConfig(name=house_name, password=house_password, code=house_code)
-
-
-async def validate_house_credentials(*, house_code: str, password: str) -> bool:
-    """Validate house code and password against stored configuration."""
-    config = await get_house_config()
-
-    if not config.code or not config.password:
-        return False
-
-    house_code_valid = secrets.compare_digest(house_code, config.code)
-    password_valid = secrets.compare_digest(password, config.password)
-
-    return house_code_valid and password_valid
-
-
-async def validate_house_password(*, password: str) -> bool:
-    """Validate house password against stored configuration."""
-    config = await get_house_config()
-
-    if not config.password:
-        return False
-
-    return secrets.compare_digest(password, config.password)
+    return HouseConfig(name=house_name)
 
 
 async def ensure_singleton_config() -> HouseConfig | None:
@@ -75,9 +47,8 @@ async def ensure_singleton_config() -> HouseConfig | None:
                 c = all_configs[0]
                 return HouseConfig(
                     name=c["name"],
-                    password=c["password"],
-                    code=c["code"],
                     group_chat_id=c.get("group_chat_id"),
+                    activation_key=c.get("activation_key"),
                 )
             return None
 
@@ -94,9 +65,8 @@ async def ensure_singleton_config() -> HouseConfig | None:
 
         return HouseConfig(
             name=first_config["name"],
-            password=first_config["password"],
-            code=first_config["code"],
             group_chat_id=first_config.get("group_chat_id"),
+            activation_key=first_config.get("activation_key"),
         )
     except Exception as e:
         logger.error("house_config_singleton_check_failed", extra={"error": str(e)})
@@ -131,6 +101,59 @@ async def set_group_chat_id(group_id: str) -> bool:
         return False
 
 
+async def set_activation_key(key: str) -> bool:
+    """Set the activation key in house configuration.
+
+    Args:
+        key: The activation key (e.g., "tiger-mountain-gold")
+
+    Returns:
+        True if successfully set, False otherwise
+    """
+    try:
+        config = await db_client.get_first_record(collection="house_config", filter_query="")
+
+        if not config:
+            logger.warning("Cannot set activation_key - no house_config exists")
+            return False
+
+        await db_client.update_record(
+            collection="house_config",
+            record_id=config["id"],
+            data={"activation_key": key},
+        )
+        logger.info("activation_key_set")
+        return True
+    except Exception as e:
+        logger.error("activation_key_set_failed", extra={"error": str(e)})
+        return False
+
+
+async def clear_activation_key() -> bool:
+    """Clear the activation key from house configuration.
+
+    Returns:
+        True if successfully cleared, False otherwise
+    """
+    try:
+        config = await db_client.get_first_record(collection="house_config", filter_query="")
+
+        if not config:
+            logger.warning("Cannot clear activation_key - no house_config exists")
+            return False
+
+        await db_client.update_record(
+            collection="house_config",
+            record_id=config["id"],
+            data={"activation_key": None},
+        )
+        logger.info("activation_key_cleared")
+        return True
+    except Exception as e:
+        logger.error("activation_key_clear_failed", extra={"error": str(e)})
+        return False
+
+
 async def seed_from_env_vars() -> None:
     """Seed house_config collection from environment variables if empty."""
     try:
@@ -140,14 +163,12 @@ async def seed_from_env_vars() -> None:
             logger.info("house_config_already_exists", extra={"name": config["name"]})
             return
 
-        if not settings.house_name or not settings.house_code or not settings.house_password:
+        if not settings.house_name:
             logger.info("house_config_not_seeded_missing_env_vars")
             return
 
         data = {
             "name": settings.house_name,
-            "password": settings.house_password,
-            "code": settings.house_code,
         }
 
         await db_client.create_record(collection="house_config", data=data)

@@ -70,7 +70,7 @@ async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client, s
         assert len(sent_messages) == 1
         admin_msg = sent_messages[0]
         assert admin_msg["to_phone"] == admin["phone"]
-        assert "⚠️ OpenRouter quota exceeded" in admin_msg["text"]
+        assert "OpenRouter quota exceeded" in admin_msg["text"]
         assert user["name"] in admin_msg["text"]
         assert user["phone"] in admin_msg["text"]
 
@@ -96,14 +96,26 @@ async def test_webhook_critical_error_notification(mock_db_module, db_client, sa
         sent_messages.append({"to_phone": to_phone, "text": text})
         return MagicMock(success=True, message_id="test_msg_id")
 
-    # Mock parse_waha_webhook to return a parsed message
+    async def mock_send_group_message(to_group_id: str, text: str):
+        sent_messages.append({"to_group_id": to_group_id, "text": text})
+        return MagicMock(success=True, message_id="test_msg_id")
+
+    # Mock parse_waha_webhook to return a parsed GROUP message
     mock_parsed = ParsedMessage(
         message_id="test_msg_123",
         from_phone="+15551234567",
         text="test message",
         timestamp="1234567890",
         message_type="text",
+        is_group_message=True,
+        group_id="group123@g.us",
+        actual_sender_phone="+15551234567",
     )
+
+    # Mock house config with configured group
+    mock_config = MagicMock()
+    mock_config.group_chat_id = "group123@g.us"
+    mock_config.activation_key = None
 
     # Mock build_deps to raise an authentication error (critical)
     async def mock_build_deps(**kwargs):
@@ -115,9 +127,14 @@ async def test_webhook_critical_error_notification(mock_db_module, db_client, sa
             side_effect=mock_send_message,
         ),
         patch(
+            "src.interface.webhook.whatsapp_sender.send_group_message",
+            side_effect=mock_send_group_message,
+        ),
+        patch(
             "src.interface.webhook.whatsapp_parser.parse_waha_webhook",
             return_value=mock_parsed,
         ),
+        patch("src.interface.webhook.get_house_config", return_value=mock_config),
         patch("src.interface.webhook.choresir_agent.build_deps", side_effect=mock_build_deps),
         patch("src.core.admin_notifier.send_text_message", side_effect=mock_send_message),
     ):
@@ -125,15 +142,15 @@ async def test_webhook_critical_error_notification(mock_db_module, db_client, sa
         await webhook.process_webhook_message(params)
 
         # Verify admin received critical error notification
-        admin_notifications = [msg for msg in sent_messages if msg["to_phone"] == admin["phone"]]
+        admin_notifications = [msg for msg in sent_messages if msg.get("to_phone") == admin["phone"]]
         assert len(admin_notifications) >= 1
 
         admin_msg = admin_notifications[0]
-        assert "⚠️ Webhook error" in admin_msg["text"]
+        assert "Webhook error" in admin_msg["text"]
         assert "authentication_failed" in admin_msg["text"]
 
-        # Verify user received error message
-        user_notifications = [msg for msg in sent_messages if msg["to_phone"] == "+15551234567"]
+        # Verify error message was sent to the user (error messages go via DM, not group)
+        user_notifications = [msg for msg in sent_messages if msg.get("to_phone") == "+15551234567"]
         assert len(user_notifications) >= 1
 
 

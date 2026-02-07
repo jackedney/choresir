@@ -2,7 +2,6 @@
 
 import logging
 import secrets
-from datetime import UTC, datetime
 
 import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
@@ -19,11 +18,13 @@ from src.core.db_client import (
     sanitize_param,
     update_record,
 )
-from src.domain.create_models import HouseConfigCreate, InviteCreate, UserCreate
+from src.domain.create_models import HouseConfigCreate
 from src.domain.update_models import MemberUpdate
-from src.domain.user import UserRole, UserStatus
-from src.interface.whatsapp_sender import send_text_message
-from src.services.house_config_service import get_house_config as get_house_config_from_service
+from src.services.activation_key_service import generate_activation_key
+from src.services.house_config_service import (
+    get_house_config as get_house_config_from_service,
+    set_activation_key,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -34,9 +35,6 @@ templates = Jinja2Templates(directory=str(constants.PROJECT_ROOT / "templates"))
 
 serializer = URLSafeTimedSerializer(str(settings.secret_key), salt="admin-session")
 csrf_serializer = URLSafeTimedSerializer(str(settings.secret_key), salt="admin-csrf")
-
-# Placeholder string for obscured text display
-MASKED_TEXT_PLACEHOLDER = "********"
 
 
 def generate_csrf_token() -> str:
@@ -110,7 +108,7 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
 
     total_members = len(users)
     active_members = sum(1 for user in users if user.get("status") == "active")
-    pending_members = sum(1 for user in users if user.get("status") == "pending")
+    pending_members = sum(1 for user in users if user.get("status") == "pending_name")
 
     return templates.TemplateResponse(
         request,
@@ -201,21 +199,15 @@ async def get_house_config(request: Request, _auth: None = Depends(require_auth)
 
     if config:
         house_name = config.get("name") or ""
-        house_code = config.get("code") or ""
-        house_password = MASKED_TEXT_PLACEHOLDER
     else:
         default_config = await get_house_config_from_service()
         house_name = default_config.name
-        house_code = default_config.code
-        house_password = ""
 
     return templates.TemplateResponse(
         request,
         name="admin/house.html",
         context={
             "house_name": house_name,
-            "house_code": house_code,
-            "house_password": house_password,
             "success_message": success_message,
         },
     )
@@ -227,29 +219,12 @@ async def post_house_config(
     request: Request,
     _auth: None = Depends(require_auth),
     name: str = Form(...),
-    code: str = Form(...),
-    password: str = Form(""),
 ) -> Response:
     """Update house configuration and redirect on success."""
     errors = []
 
     if len(name) < 1 or len(name) > 50:
         errors.append("Name must be between 1 and 50 characters")
-
-    if len(code) < 4:
-        errors.append("Code must be at least 4 characters")
-
-    # Check if we're updating (config exists) and password is the placeholder or empty
-    config = await get_first_record(collection="house_config", filter_query="")
-    password_is_placeholder = password in (MASKED_TEXT_PLACEHOLDER, "")
-
-    # Validate password only if it's not the placeholder (i.e., user is setting a new password)
-    if not password_is_placeholder and len(password) < 8:
-        errors.append("Password must be at least 8 characters")
-
-    # For new config creation, password is required (can't use placeholder or empty)
-    if not config and password_is_placeholder:
-        errors.append("Password is required for new configuration")
 
     if errors:
         return templates.TemplateResponse(
@@ -258,19 +233,13 @@ async def post_house_config(
             context={
                 "errors": errors,
                 "house_name": name,
-                "house_code": code,
-                "house_password": MASKED_TEXT_PLACEHOLDER if password else "",
                 "success_message": None,
             },
         )
 
-    # Build update data - exclude password if placeholder was submitted
-    house_config_data = {"name": name, "code": code}
-    if not password_is_placeholder:
-        house_config_data["password"] = password
+    house_config = HouseConfigCreate(name=name)
 
-    house_config = HouseConfigCreate(**house_config_data)
-
+    config = await get_first_record(collection="house_config", filter_query="")
     if config:
         await update_record(
             collection="house_config", record_id=config["id"], data=house_config.model_dump(exclude_none=True)
@@ -324,114 +293,6 @@ async def get_member_row(
         name="admin/member_row.html",
         context={"member": user},
     )
-
-
-@router.get("/members/add")
-async def get_add_member(request: Request, _auth: None = Depends(require_auth)) -> Response:
-    """Render add member form."""
-    success_message = request.cookies.get("flash_success")
-    return templates.TemplateResponse(
-        request, name="admin/add_member.html", context={"success_message": success_message}
-    )
-
-
-@router.post("/members/add")
-async def post_add_member(
-    *,
-    request: Request,
-    _auth: None = Depends(require_auth),
-    phone: str = Form(...),
-) -> Response:
-    """Process add member form and send WhatsApp invite."""
-    errors = []
-
-    # Validate E.164 format
-    if not phone or not phone.startswith("+"):
-        errors.append("Phone number must be in E.164 format (e.g., +1234567890)")
-    elif len(phone) < 8 or len(phone) > 16:
-        errors.append("Phone number must be 8-15 digits with + prefix")
-
-    if errors:
-        return templates.TemplateResponse(
-            request,
-            name="admin/add_member.html",
-            context={"errors": errors, "phone": phone},
-        )
-
-    # Check if user already exists
-    existing_user = await get_first_record(
-        collection="users",
-        filter_query=f'phone = "{sanitize_param(phone)}"',
-    )
-    if existing_user:
-        return templates.TemplateResponse(
-            request,
-            name="admin/add_member.html",
-            context={"errors": ["User already exists"], "phone": phone},
-        )
-
-    # Get house config for welcome message
-    config = await get_house_config_from_service()
-    house_name = config.name
-
-    # Generate email from phone for PocketBase auth collection requirement
-    email = f"{phone.replace('+', '').replace('-', '')}@choresir.local"
-
-    # Generate secure random password for initial account creation
-    temp_password = secrets.token_urlsafe(32)
-
-    # Create user record
-    user_create = UserCreate(
-        phone=phone,
-        name="Pending User",
-        email=email,
-        role=UserRole.MEMBER,
-        status=UserStatus.PENDING,
-        password=temp_password,
-        passwordConfirm=temp_password,
-    )
-
-    created_user = await create_record(collection="users", data=user_create.model_dump())
-    logger.info("created_pending_user", extra={"phone": phone})
-
-    # Send WhatsApp invite message
-    invite_message = f"You've been invited to {house_name}! Reply YES to confirm"
-    send_result = await send_text_message(to_phone=phone, text=invite_message)
-
-    # Rollback user creation if WhatsApp send fails
-    if not send_result.success:
-        await delete_record(collection="users", record_id=created_user["id"])
-        logger.warning(
-            "user_creation_rolled_back_whatsapp_send_failed",
-            extra={"phone": phone, "reason": send_result.error},
-        )
-        return templates.TemplateResponse(
-            request,
-            name="admin/add_member.html",
-            context={"errors": [f"Failed to send WhatsApp message: {send_result.error}"], "phone": phone},
-        )
-
-    # Delete any existing pending invite (from previous attempts)
-    existing_invite = await get_first_record(
-        collection="pending_invites",
-        filter_query=f'phone = "{sanitize_param(phone)}"',
-    )
-    if existing_invite:
-        await delete_record(collection="pending_invites", record_id=existing_invite["id"])
-        logger.info("deleted_stale_pending_invite", extra={"phone": phone})
-
-    # Create pending invite record
-    invite_create = InviteCreate(
-        phone=phone,
-        invited_at=datetime.now(UTC).isoformat(),
-        invite_message_id=send_result.message_id,
-    )
-    await create_record(collection="pending_invites", data=invite_create.model_dump(exclude_none=True))
-    logger.info("pending_invite_created", extra={"phone": phone})
-
-    response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie("flash_success", "Invite sent", max_age=5)
-    return response
 
 
 @router.get("/members/{phone}/edit")
@@ -622,15 +483,6 @@ async def post_remove_member(
     await delete_record(collection="users", record_id=user["id"])
     logger.info("removed_member", extra={"phone": phone})
 
-    # Clean up any pending invite for this phone
-    pending_invite = await get_first_record(
-        collection="pending_invites",
-        filter_query=f'phone = "{sanitize_param(phone)}"',
-    )
-    if pending_invite:
-        await delete_record(collection="pending_invites", record_id=pending_invite["id"])
-        logger.info("deleted_pending_invite_on_member_removal", extra={"phone": phone})
-
     if is_htmx_request(request):
         # Return empty response to remove the row from the table
         return Response(content="", status_code=status.HTTP_200_OK)
@@ -805,43 +657,62 @@ async def configure_whatsapp_webhook(
         return {"success": False, "error": str(e)}
 
 
-@router.get("/whatsapp/group-config")
-async def get_group_config(
+@router.get("/whatsapp/activation-status")
+async def get_activation_status(
     *,
     _auth: None = Depends(require_auth),
 ) -> dict:
-    """Get the current group chat configuration."""
+    """Get the current activation key and group configuration status."""
     config = await get_first_record(collection="house_config", filter_query="")
-    group_chat_id = config.get("group_chat_id") if config else None
-    return {"group_chat_id": group_chat_id}
+    if not config:
+        return {"activation_key": None, "group_chat_id": None, "has_config": False}
+
+    return {
+        "activation_key": config.get("activation_key"),
+        "group_chat_id": config.get("group_chat_id"),
+        "has_config": True,
+    }
 
 
-@router.post("/whatsapp/group-config")
-async def post_group_config(
+@router.post("/whatsapp/generate-activation-key")
+async def post_generate_activation_key(
     *,
     _auth: None = Depends(require_auth),
-    group_chat_id: str = Form(""),
 ) -> dict:
-    """Update the group chat configuration."""
-    # Validate group ID format if provided
-    group_chat_id = group_chat_id.strip()
-    if group_chat_id and not group_chat_id.endswith("@g.us"):
-        return {"success": False, "error": "Group ID must end with @g.us (e.g., 120363400136168625@g.us)"}
-
+    """Generate a new activation key for group activation."""
+    # Check if house config exists
     config = await get_first_record(collection="house_config", filter_query="")
-
     if not config:
         return {"success": False, "error": "House configuration not found. Please configure house settings first."}
 
-    # Update the group_chat_id (empty string means clear it)
+    # Check if group is already configured
+    if config.get("group_chat_id"):
+        return {"success": False, "error": "A group is already configured. Clear it first to generate a new key."}
+
+    # Generate and save activation key
+    key = generate_activation_key()
+    success = await set_activation_key(key)
+
+    if success:
+        logger.info("activation_key_generated")
+        return {"success": True, "activation_key": key}
+    return {"success": False, "error": "Failed to save activation key"}
+
+
+@router.post("/whatsapp/clear-group")
+async def post_clear_group(
+    *,
+    _auth: None = Depends(require_auth),
+) -> dict:
+    """Clear the current group configuration."""
+    config = await get_first_record(collection="house_config", filter_query="")
+    if not config:
+        return {"success": False, "error": "House configuration not found."}
+
     await update_record(
         collection="house_config",
         record_id=config["id"],
-        data={"group_chat_id": group_chat_id if group_chat_id else None},
+        data={"group_chat_id": None, "activation_key": None},
     )
-
-    if group_chat_id:
-        logger.info("group_chat_id_configured", extra={"group_chat_id": group_chat_id})
-        return {"success": True, "message": "Group chat configured successfully"}
-    logger.info("group_chat_id_cleared")
-    return {"success": True, "message": "Group chat configuration cleared. Bot will respond to DMs only."}
+    logger.info("group_configuration_cleared")
+    return {"success": True, "message": "Group configuration cleared"}

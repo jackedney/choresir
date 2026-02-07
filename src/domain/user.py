@@ -20,7 +20,7 @@ class UserRole(StrEnum):
 class UserStatus(StrEnum):
     """User account status."""
 
-    PENDING = "pending"
+    PENDING_NAME = "pending_name"  # Awaiting name from user (auto-registered from group)
     ACTIVE = "active"
 
 
@@ -31,7 +31,7 @@ class User(BaseModel):
     phone: str = Field(..., description="Phone number in E.164 format (e.g., +14155552671)")
     name: str = Field(..., description="Display name of the user")
     role: UserRole = Field(default=UserRole.MEMBER, description="User role in household")
-    status: UserStatus = Field(default=UserStatus.PENDING, description="User account status")
+    status: UserStatus = Field(default=UserStatus.PENDING_NAME, description="User account status")
 
     @field_validator("phone")
     @classmethod

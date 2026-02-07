@@ -63,7 +63,7 @@ def _get_collection_schema(
                     "name": "status",
                     "type": "select",
                     "required": True,
-                    "values": ["pending", "active"],
+                    "values": ["pending_name", "active"],
                     "maxSelect": 1,
                 },
             ],

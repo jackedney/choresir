@@ -16,7 +16,17 @@ from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
 from src.domain.user import UserStatus
 from src.interface import webhook_security, whatsapp_parser, whatsapp_sender
-from src.services.house_config_service import get_house_config, set_group_chat_id
+from src.services.activation_key_service import check_activation_message
+from src.services.house_config_service import (
+    clear_activation_key,
+    get_house_config,
+    set_group_chat_id,
+)
+from src.services.user_service import (
+    create_pending_name_user,
+    update_user_name,
+    update_user_status,
+)
 
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
@@ -151,6 +161,44 @@ async def _send_response(*, message: whatsapp_parser.ParsedMessage, text: str) -
     return await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=text)
 
 
+async def _handle_pending_name_user(
+    *,
+    user_record: dict[str, Any],
+    message: whatsapp_parser.ParsedMessage,
+) -> tuple[bool, str | None]:
+    """Handle a user with pending_name status - they need to provide their name.
+
+    Args:
+        user_record: User database record
+        message: Parsed message
+
+    Returns:
+        Tuple of (success: bool, error_message: str | None)
+    """
+    name_text = (message.text or "").strip()
+
+    if not name_text:
+        response = "Welcome! Please reply with your name to complete registration."
+        result = await _send_response(message=message, text=response)
+        return (result.success, result.error)
+
+    # Try to use their message as their name
+    try:
+        await update_user_name(user_id=user_record["id"], name=name_text)
+        await update_user_status(user_id=user_record["id"], status=UserStatus.ACTIVE)
+
+        config = await get_house_config()
+        response = f"Thanks {name_text}! You're now registered with {config.name}."
+        result = await _send_response(message=message, text=response)
+        logger.info("User completed registration", extra={"phone": user_record["phone"], "name": name_text})
+        return (result.success, result.error)
+    except ValueError as e:
+        # Name validation failed
+        response = f"That name isn't valid: {e}. Please try again with a different name."
+        result = await _send_response(message=message, text=response)
+        return (result.success, result.error)
+
+
 async def _handle_user_status(
     *,
     user_record: dict[str, Any],
@@ -166,45 +214,8 @@ async def _handle_user_status(
     status = user_record["status"]
     sender_phone = _get_sender_phone(message)
 
-    if status == UserStatus.PENDING:
-        # Check if user has a pending invite (admin-initiated flow)
-        pending_invite = await db_client.get_first_record(
-            collection="pending_invites",
-            filter_query=f'phone = "{db_client.sanitize_param(sender_phone)}"',
-        )
-
-        if pending_invite:
-            # Handle invite confirmation
-            normalized_message = (message.text or "").strip().upper()
-            if normalized_message == "YES":
-                # Activate user
-                await db_client.update_record(
-                    collection="users",
-                    record_id=user_record["id"],
-                    data={"status": UserStatus.ACTIVE},
-                )
-                logger.info("invite_confirmed", extra={"user_phone": sender_phone})
-
-                # Delete pending invite
-                await db_client.delete_record(
-                    collection="pending_invites",
-                    record_id=pending_invite["id"],
-                )
-
-                # Get house name for welcome message
-                config = await get_house_config()
-                response = f"Welcome to {config.name}! Your membership is now active."
-            else:
-                response = "To confirm your invitation, please reply YES"
-
-            result = await _send_response(message=message, text=response)
-            return (result.success, result.error)
-
-        # No pending invite - user requested to join via WhatsApp
-        logger.info("Pending user %s sent message", sender_phone)
-        response = await choresir_agent.handle_pending_user(user_name=user_record["name"])
-        result = await _send_response(message=message, text=response)
-        return (result.success, result.error)
+    if status == UserStatus.PENDING_NAME:
+        return await _handle_pending_name_user(user_record=user_record, message=message)
 
     if status == UserStatus.ACTIVE:
         logger.info("Processing active user %s message with agent", sender_phone)
@@ -402,6 +413,29 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
     await _update_message_status(message_id=message.message_id, success=success, error=error)
 
 
+async def _handle_new_group_user(*, message: whatsapp_parser.ParsedMessage, sender_phone: str) -> None:
+    """Handle a new user messaging in the activated group - auto-register them.
+
+    Args:
+        message: Parsed message
+        sender_phone: Phone number of the sender
+    """
+    try:
+        await create_pending_name_user(phone=sender_phone)
+        logger.info("Auto-registered new group user", extra={"phone": sender_phone})
+
+        # Send prompt asking for their name
+        response = "Welcome! Please reply with your name to complete registration."
+        await _send_response(message=message, text=response)
+
+        # Log message processing
+        await _log_message_start(message, "New user registration")
+        await _update_message_status(message_id=message.message_id, success=True)
+    except ValueError as e:
+        # User already exists - this shouldn't happen but handle gracefully
+        logger.warning("Failed to create user during auto-registration: %s", e)
+
+
 async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     """Handle text messages through the agent.
 
@@ -421,8 +455,15 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     deps = await choresir_agent.build_deps(db=db, user_phone=sender_phone)
 
     if deps is None:
-        logger.info("Unknown user %s, processing unknown user message", sender_phone)
-        response = await choresir_agent.handle_unknown_user(user_phone=sender_phone, message_text=message.text or "")
+        # Unknown user - if this is a group message from the configured group, auto-register
+        config = await get_house_config()
+        if message.is_group_message and config.group_chat_id and message.group_id == config.group_chat_id:
+            await _handle_new_group_user(message=message, sender_phone=sender_phone)
+            return
+
+        # Unknown user not in configured group
+        logger.info("Unknown user %s, ignoring", sender_phone)
+        response = "You are not a member of this household. Please contact an admin."
         result = await _send_response(message=message, text=response)
         await _update_message_status(message_id=message.message_id, success=result.success, error=result.error)
         return
@@ -444,30 +485,44 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     await _update_message_status(message_id=message.message_id, success=success, error=error)
 
 
-async def _has_pending_invite(phone: str) -> bool:
-    """Check if a phone number has a pending invite.
+async def _activate_group(group_id: str, message: whatsapp_parser.ParsedMessage) -> None:
+    """Activate a group as the house group chat.
 
     Args:
-        phone: Phone number in E.164 format
-
-    Returns:
-        True if user has a pending invite, False otherwise
+        group_id: The WhatsApp group ID
+        message: The message that triggered activation
     """
-    pending_invite = await db_client.get_first_record(
-        collection="pending_invites",
-        filter_query=f'phone = "{db_client.sanitize_param(phone)}"',
+    # Save group_chat_id to house_config
+    success = await set_group_chat_id(group_id)
+    if not success:
+        logger.error("Failed to set group_chat_id during activation", extra={"group_id": group_id})
+        await _send_response(message=message, text="Failed to activate group. Please try again.")
+        return
+
+    # Clear the activation key
+    await clear_activation_key()
+
+    # Get house name for welcome message
+    config = await get_house_config()
+
+    # Send welcome message
+    response = (
+        f"This group is now activated for {config.name}!\n\n"
+        "Everyone who messages here will be automatically registered. "
+        "New users just need to reply with their name to complete registration."
     )
-    return pending_invite is not None
+    await _send_response(message=message, text=response)
+
+    logger.info("Group activated", extra={"group_id": group_id, "house_name": config.name})
 
 
 async def _should_process_message(message: whatsapp_parser.ParsedMessage) -> bool:
     """Determine if a message should be processed based on group configuration.
 
     Behavior:
-    - No group configured + group message received: Auto-save group ID and process
+    - Check for activation key match first (for group activation)
     - Group configured: Process ONLY messages from the configured group, ignore DMs
-    - No group configured + DM: Process DMs (legacy behavior)
-    - EXCEPTION: Always process DMs from users with pending invites (for confirmation)
+    - No group configured: Ignore all messages (need to activate first)
 
     Args:
         message: Parsed message
@@ -477,27 +532,29 @@ async def _should_process_message(message: whatsapp_parser.ParsedMessage) -> boo
     """
     config = await get_house_config()
 
+    # Check for activation key match (group activation flow)
+    if (
+        message.is_group_message
+        and message.group_id
+        and config.activation_key
+        and message.text
+        and check_activation_message(message.text, config.activation_key)
+    ):
+        logger.info(
+            "Activation key matched",
+            extra={"group_id": message.group_id, "key": config.activation_key},
+        )
+        await _activate_group(message.group_id, message)
+        # Return False because we've already handled this message
+        return False
+
     if message.is_group_message:
         if not config.group_chat_id:
-            # Auto-detect: First group message sets the house group
-            if message.group_id:
-                logger.info(
-                    "Auto-detecting house group chat",
-                    extra={"group_id": message.group_id},
-                )
-                success = await set_group_chat_id(message.group_id)
-                if success:
-                    logger.info(
-                        "House group chat auto-configured",
-                        extra={"group_id": message.group_id},
-                    )
-                    # Process this message since we just configured this group
-                    return True
-                logger.warning(
-                    "Failed to auto-configure group chat",
-                    extra={"group_id": message.group_id},
-                )
-                return False
+            # No group configured yet - ignore (user needs to activate first)
+            logger.debug(
+                "Ignoring group message - no group configured",
+                extra={"group_id": message.group_id},
+            )
             return False
 
         if message.group_id != config.group_chat_id:
@@ -510,25 +567,21 @@ async def _should_process_message(message: whatsapp_parser.ParsedMessage) -> boo
         # Message is from the configured group - process it
         return True
 
-    # Individual message (DM)
+    # Individual message (DM) - ignore in this new flow
+    # The bot only works in the configured group
     if config.group_chat_id:
-        # Group is configured - but allow DMs for pending invite confirmations
-        if await _has_pending_invite(message.from_phone):
-            logger.info(
-                "Processing DM from user with pending invite",
-                extra={"from_phone": message.from_phone},
-            )
-            return True
-
-        # Otherwise ignore DMs in group mode
         logger.debug(
             "Ignoring DM - group mode is enabled",
             extra={"from_phone": message.from_phone, "configured_group": config.group_chat_id},
         )
         return False
 
-    # No group configured - process DMs (current behavior)
-    return True
+    # No group configured - ignore DMs too (need activation first)
+    logger.debug(
+        "Ignoring DM - no group configured",
+        extra={"from_phone": message.from_phone},
+    )
+    return False
 
 
 async def _route_webhook_message(message: whatsapp_parser.ParsedMessage) -> None:
@@ -581,7 +634,7 @@ async def _handle_webhook_error(e: Exception, params: dict[str, Any]) -> None:
             timestamp = datetime.now().isoformat()
             error_preview = str(e)[:100]
             notification_msg = (
-                f"⚠️ Webhook error: {error_response.code}\n"
+                f"Webhook error: {error_response.code}\n"
                 f"Category: {error_category.value}\n"
                 f"Severity: {error_response.severity.value}\n"
                 f"User: {user_context}\nTime: {timestamp}\nError: {error_preview}"

@@ -11,10 +11,8 @@ from src.agents.base import Deps
 from src.agents.retry_handler import get_retry_handler
 from src.core import admin_notifier, db_client
 from src.core.errors import classify_agent_error
-from src.domain.update_models import UserStatusUpdate
 from src.domain.user import UserStatus
 from src.services import user_service
-from src.services.house_config_service import get_house_config
 
 
 logger = logging.getLogger(__name__)
@@ -169,7 +167,7 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
             try:
                 timestamp = datetime.now().isoformat()
                 message = (
-                    f"⚠️ OpenRouter quota exceeded. User {deps.user_name} ({deps.user_phone}) affected at {timestamp}"
+                    f"OpenRouter quota exceeded. User {deps.user_name} ({deps.user_phone}) affected at {timestamp}"
                 )
                 await admin_notifier.notify_admins(
                     message=message,
@@ -237,52 +235,6 @@ async def get_member_list(*, _db: PocketBase) -> str:
     return "\n".join(lines)
 
 
-async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
-    """Handle unknown users with pending-invite confirmation."""
-    # Check for pending invite (web admin flow)
-    pending_invite = await db_client.get_first_record(
-        collection="pending_invites",
-        filter_query=f'phone = "{db_client.sanitize_param(user_phone)}"',
-    )
-
-    if pending_invite:
-        # Normalize message text for case-insensitive comparison
-        normalized_message = message_text.strip().upper()
-
-        if normalized_message == "YES":
-            # Get user record
-            user = await user_service.get_user_by_phone(phone=user_phone)
-            if user:
-                # Update user status to active
-                await db_client.update_record(
-                    collection="users",
-                    record_id=user["id"],
-                    data=UserStatusUpdate(status="active").model_dump(exclude_none=True),
-                )
-                logger.info("invite_confirmed", extra={"user_phone": user_phone})
-
-                # Delete pending invite record
-                await db_client.delete_record(
-                    collection="pending_invites",
-                    record_id=pending_invite["id"],
-                )
-
-                # Get house config for welcome message
-                config = await get_house_config()
-                house_name = config.name
-
-                return f"Welcome to {house_name}! Your membership is now active."
-
-            logger.warning("user_not_found_for_pending_invite", extra={"user_phone": user_phone})
-            return "Sorry, there was an error processing your invite. Please contact an admin."
-
-        # Message is not YES - instruct user to reply YES
-        return "To confirm your invitation, please reply YES"
-
-    # No pending invite - user is not a member
-    return "You are not a member of this household. Please contact an admin to request an invite."
-
-
 async def handle_pending_user(*, user_name: str) -> str:
     """
     Handle message from pending user.
@@ -293,4 +245,4 @@ async def handle_pending_user(*, user_name: str) -> str:
     Returns:
         Status message
     """
-    return f"Hi {user_name}! Your membership is awaiting approval from an admin."
+    return f"Hi {user_name}! Please reply with your name to complete registration."

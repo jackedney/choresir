@@ -2,9 +2,6 @@
 
 import pytest
 
-from src.core.config import settings
-
-# KeyError replaced with KeyError
 from src.domain.user import UserRole, UserStatus
 from src.services import user_service
 
@@ -24,107 +21,79 @@ def patched_user_db(monkeypatch, in_memory_db):
     return in_memory_db
 
 
-@pytest.fixture
-def valid_join_credentials():
-    """Valid house code and password for testing."""
-    return {
-        "house_code": "HOUSE123",
-        "house_password": "secret123",
-    }
-
-
-@pytest.fixture
-def sample_join_request(valid_join_credentials):
-    """Sample join request data."""
-    return {
-        "phone": "+1234567890",
-        "name": "Test User",
-        "house_code": valid_join_credentials["house_code"],
-        "password": valid_join_credentials["house_password"],
-    }
-
-
-@pytest.fixture
-def patched_settings(monkeypatch, valid_join_credentials):
-    """Patch settings with test house credentials."""
-    monkeypatch.setattr(settings, "house_code", valid_join_credentials["house_code"])
-    monkeypatch.setattr(settings, "house_password", valid_join_credentials["house_password"])
-
-    return settings
-
-
 @pytest.mark.unit
-class TestRequestJoin:
-    """Tests for request_join function."""
+class TestCreatePendingNameUser:
+    """Tests for create_pending_name_user function."""
 
-    async def test_request_join_success(self, patched_user_db, patched_settings, sample_join_request):
-        """Test successful join request creates pending user."""
-        result = await user_service.request_join(**sample_join_request)
+    async def test_create_pending_name_user_success(self, patched_user_db):
+        """Test successfully creating a pending_name user."""
+        result = await user_service.create_pending_name_user(phone="+1234567890")
 
-        assert result["phone"] == sample_join_request["phone"]
-        assert result["name"] == sample_join_request["name"]
+        assert result["phone"] == "+1234567890"
+        assert result["name"] == "Pending"
         assert result["role"] == UserRole.MEMBER
-        assert result["status"] == UserStatus.PENDING
+        assert result["status"] == UserStatus.PENDING_NAME
         assert "id" in result
         assert "created" in result
 
         # Email should be generated from phone
-        expected_email = f"{sample_join_request['phone'].replace('+', '').replace('-', '')}@choresir.local"
+        expected_email = "1234567890@choresir.local"
         assert result["email"] == expected_email
 
-        # Password should be securely generated
-        assert result["password"] != "temp_password_will_be_set_on_activation"
-        assert len(result["password"]) >= 32  # Should be long enough
-        assert result["password"] == result["passwordConfirm"]
+    async def test_create_pending_name_user_duplicate_phone(self, patched_user_db):
+        """Test creating duplicate phone number fails."""
+        await user_service.create_pending_name_user(phone="+1234567890")
 
-    async def test_request_join_invalid_house_code(self, patched_user_db, patched_settings, sample_join_request):
-        """Test join request fails with invalid house code."""
-        sample_join_request["house_code"] = "WRONG_CODE"
-
-        with pytest.raises(ValueError, match="Invalid house code or password"):
-            await user_service.request_join(**sample_join_request)
-
-    async def test_request_join_invalid_password(self, patched_user_db, patched_settings, sample_join_request):
-        """Test join request fails with invalid password."""
-        sample_join_request["password"] = "wrong_password"
-
-        with pytest.raises(ValueError, match="Invalid house code or password"):
-            await user_service.request_join(**sample_join_request)
-
-    async def test_request_join_duplicate_phone(self, patched_user_db, patched_settings, sample_join_request):
-        """Test join request fails if phone number already exists."""
-        # Create first user
-        await user_service.request_join(**sample_join_request)
-
-        # Try to create duplicate
         with pytest.raises(ValueError, match="already exists"):
-            await user_service.request_join(**sample_join_request)
+            await user_service.create_pending_name_user(phone="+1234567890")
 
-    async def test_request_join_invalid_name_emoji(self, patched_user_db, patched_settings, sample_join_request):
-        """Test join request fails with emoji in name."""
-        sample_join_request["name"] = "Test🎉User"
+
+@pytest.mark.unit
+class TestUpdateUserName:
+    """Tests for update_user_name function."""
+
+    @pytest.fixture
+    async def pending_name_user(self, patched_user_db):
+        """Create a pending_name user for testing."""
+        return await user_service.create_pending_name_user(phone="+1234567890")
+
+    async def test_update_user_name_success(self, patched_user_db, pending_name_user):
+        """Test successfully updating user name."""
+        result = await user_service.update_user_name(
+            user_id=pending_name_user["id"],
+            name="John Doe",
+        )
+
+        assert result["name"] == "John Doe"
+        assert result["id"] == pending_name_user["id"]
+
+    async def test_update_user_name_invalid_name(self, patched_user_db, pending_name_user):
+        """Test updating with invalid name fails."""
         with pytest.raises(ValueError, match="can only contain"):
-            await user_service.request_join(**sample_join_request)
+            await user_service.update_user_name(
+                user_id=pending_name_user["id"],
+                name="Test@User",
+            )
 
-    async def test_request_join_invalid_name_special_chars(
-        self, patched_user_db, patched_settings, sample_join_request
-    ):
-        """Test join request fails with special characters in name."""
-        sample_join_request["name"] = "user@test"
-        with pytest.raises(ValueError, match="can only contain"):
-            await user_service.request_join(**sample_join_request)
 
-    async def test_request_join_invalid_name_too_long(self, patched_user_db, patched_settings, sample_join_request):
-        """Test join request fails with name too long."""
-        sample_join_request["name"] = "a" * 51
-        with pytest.raises(ValueError, match="too long"):
-            await user_service.request_join(**sample_join_request)
+@pytest.mark.unit
+class TestUpdateUserStatus:
+    """Tests for update_user_status function."""
 
-    async def test_request_join_invalid_name_empty(self, patched_user_db, patched_settings, sample_join_request):
-        """Test join request fails with empty name."""
-        sample_join_request["name"] = "   "
-        with pytest.raises(ValueError, match="cannot be empty"):
-            await user_service.request_join(**sample_join_request)
+    @pytest.fixture
+    async def pending_name_user(self, patched_user_db):
+        """Create a pending_name user for testing."""
+        return await user_service.create_pending_name_user(phone="+1234567890")
+
+    async def test_update_user_status_success(self, patched_user_db, pending_name_user):
+        """Test successfully updating user status."""
+        result = await user_service.update_user_status(
+            user_id=pending_name_user["id"],
+            status=UserStatus.ACTIVE,
+        )
+
+        assert result["status"] == UserStatus.ACTIVE
+        assert result["id"] == pending_name_user["id"]
 
 
 @pytest.mark.unit
@@ -146,28 +115,31 @@ class TestApproveMember:
         return await patched_user_db.create_record("users", admin_data)
 
     @pytest.fixture
-    async def pending_user(self, patched_user_db):
-        """Create a pending user for testing."""
+    async def pending_name_user(self, patched_user_db):
+        """Create a pending_name user for testing."""
         pending_data = {
             "phone": "+2222222222",
             "name": "Pending User",
             "email": "2222222222@choresir.local",
             "role": UserRole.MEMBER,
-            "status": UserStatus.PENDING,
+            "status": UserStatus.PENDING_NAME,
             "password": "temp_pass",
             "passwordConfirm": "temp_pass",
         }
         return await patched_user_db.create_record("users", pending_data)
 
-    async def test_approve_member_success(self, patched_user_db, admin_user, pending_user):
-        """Test admin successfully approves pending member."""
-        result = await user_service.approve_member(admin_user_id=admin_user["id"], target_phone=pending_user["phone"])
+    async def test_approve_member_success(self, patched_user_db, admin_user, pending_name_user):
+        """Test admin successfully approves pending_name member."""
+        result = await user_service.approve_member(
+            admin_user_id=admin_user["id"],
+            target_phone=pending_name_user["phone"],
+        )
 
-        assert result["id"] == pending_user["id"]
+        assert result["id"] == pending_name_user["id"]
         assert result["status"] == UserStatus.ACTIVE
-        assert result["phone"] == pending_user["phone"]
+        assert result["phone"] == pending_name_user["phone"]
 
-    async def test_approve_member_non_admin_fails(self, patched_user_db, pending_user):
+    async def test_approve_member_non_admin_fails(self, patched_user_db, pending_name_user):
         """Test non-admin cannot approve members."""
         # Create regular member
         member_data = {
@@ -182,7 +154,7 @@ class TestApproveMember:
         member = await patched_user_db.create_record("users", member_data)
 
         with pytest.raises(PermissionError, match="not authorized to approve"):
-            await user_service.approve_member(admin_user_id=member["id"], target_phone=pending_user["phone"])
+            await user_service.approve_member(admin_user_id=member["id"], target_phone=pending_name_user["phone"])
 
     async def test_approve_member_user_not_found(self, patched_user_db, admin_user):
         """Test approving non-existent user raises error."""

@@ -5,8 +5,12 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
     <h1 style="margin: 0;">Members</h1>
-    <a href="/admin/members/add" role="button">Add Member</a>
 </div>
+
+<p style="color: var(--muted-color); font-size: 0.9rem; margin-bottom: 1.5rem;">
+    Members are automatically registered when they message in the activated group chat.
+    New members need to reply with their name to complete registration.
+</p>
 
 {% if members %}
 <table>
@@ -35,6 +39,6 @@
     </tbody>
 </table>
 {% else %}
-<p>No members yet. <a href="/admin/members/add">Add your first member</a>.</p>
+<p>No members yet. Members will appear here once they message in the activated group chat.</p>
 {% endif %}
 {% endblock %}
