@@ -22,6 +22,7 @@ from src.services.conversation_context_service import (
     add_assistant_message,
     add_user_message,
 )
+from src.services.group_context_service import add_group_message
 from src.services.house_config_service import (
     clear_activation_key,
     get_house_config,
@@ -294,10 +295,21 @@ async def _handle_user_status(
             return (result.success, result.error)
 
         # Record user message in conversation context
+        # For group messages, use group_context_service for shared history
+        # For DM messages, use conversation_context_service (per-user)
         user_text = message.text or ""
         if sender_phone and user_text:
             try:
-                await add_user_message(user_phone=sender_phone, content=user_text)
+                if message.is_group_message:
+                    await add_group_message(
+                        group_id=message.group_id or "",
+                        sender_phone=sender_phone,
+                        sender_name=user_record["name"],
+                        content=user_text,
+                        is_bot=False,
+                    )
+                else:
+                    await add_user_message(user_phone=sender_phone, content=user_text)
             except Exception as e:
                 logger.warning("Failed to record user message context: %s", e)
 
@@ -313,9 +325,20 @@ async def _handle_user_status(
         )
 
         # Record assistant response in conversation context
+        # For group messages, use group_context_service for shared history
+        # For DM messages, use conversation_context_service (per-user)
         if sender_phone and agent_response:
             try:
-                await add_assistant_message(user_phone=sender_phone, content=agent_response)
+                if message.is_group_message:
+                    await add_group_message(
+                        group_id=message.group_id or "",
+                        sender_phone=sender_phone,
+                        sender_name=user_record["name"],
+                        content=agent_response,
+                        is_bot=True,
+                    )
+                else:
+                    await add_assistant_message(user_phone=sender_phone, content=agent_response)
             except Exception as e:
                 logger.warning("Failed to record assistant message context: %s", e)
 
