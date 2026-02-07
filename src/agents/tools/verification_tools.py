@@ -10,7 +10,6 @@ from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
 from src.core import db_client
-from src.domain.chore import ChoreState
 from src.services import chore_service, user_service, verification_service
 from src.services.verification_service import VerificationDecision
 
@@ -26,12 +25,12 @@ class VerifyChore(BaseModel):
     reason: str | None = Field(default=None, description="Optional reason for the decision")
 
 
-class GetStatus(BaseModel):
-    """Parameters for getting chore status."""
+class ListMyChores(BaseModel):
+    """Parameters for listing household chores assigned to a user."""
 
     target_user_phone: str | None = Field(
         default=None,
-        description="Phone number of user to get status for (None for requesting user)",
+        description="Phone number of user to list chores for (None for requesting user)",
     )
     time_range: int = Field(
         default=7,
@@ -39,38 +38,48 @@ class GetStatus(BaseModel):
     )
 
 
-def _format_chore_status(chores: list[dict], user_name: str) -> str:
+def _format_chore_list(chores: list[dict], user_name: str) -> str:
     """
-    Format chore status for WhatsApp display.
+    Format chore list for WhatsApp display.
 
     Args:
         chores: List of chore records
         user_name: Name of the user
 
     Returns:
-        Formatted status message
+        Formatted chore list
     """
     if not chores:
-        return f"{user_name}: No chores found."
+        return f"{user_name} has no household chores assigned."
 
-    # Count by state
-    pending = sum(1 for c in chores if c["current_state"] == ChoreState.PENDING_VERIFICATION)
-    completed = sum(1 for c in chores if c["current_state"] == ChoreState.COMPLETED)
-    todo = sum(1 for c in chores if c["current_state"] == ChoreState.TODO)
+    now = datetime.now().astimezone()
+    lines = [f"{user_name}'s Household Chores:"]
 
-    # Find next due
-    now = datetime.now()
-    upcoming_chores = [
-        c for c in chores if c["current_state"] == ChoreState.TODO and datetime.fromisoformat(c["deadline"]) > now
-    ]
+    # Group by state (compare as strings for robustness)
+    todo_chores = [c for c in chores if c.get("current_state") == "TODO"]
+    pending_chores = [c for c in chores if c.get("current_state") == "PENDING_VERIFICATION"]
 
-    next_due_msg = ""
-    if upcoming_chores:
-        next_chore = min(upcoming_chores, key=lambda c: c["deadline"])
-        next_date = datetime.fromisoformat(next_chore["deadline"]).strftime("%b %d")
-        next_due_msg = f" Next: '{next_chore['title']}' ({next_date})"
+    # Show TODO chores with deadlines
+    for chore in sorted(todo_chores, key=lambda c: c.get("deadline", "")):
+        deadline_str = chore.get("deadline", "")
+        if deadline_str:
+            deadline = datetime.fromisoformat(deadline_str)
+            # Make naive datetimes timezone-aware for comparison
+            if deadline.tzinfo is None:
+                deadline = deadline.astimezone()
+            if deadline < now:
+                status = "OVERDUE"
+            else:
+                status = deadline.strftime("%b %d")
+        else:
+            status = "no deadline"
+        lines.append(f"• {chore['title']} (due {status})")
 
-    return f"{user_name}: {todo} todo, {pending} pending, {completed} completed.{next_due_msg}"
+    # Show pending verification
+    for chore in pending_chores:
+        lines.append(f"• {chore['title']} (pending verification)")
+
+    return "\n".join(lines)
 
 
 async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
@@ -121,21 +130,23 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
         return "Error: Unable to verify chore. Please try again."
 
 
-async def tool_get_status(ctx: RunContext[Deps], params: GetStatus) -> str:
+async def tool_list_my_chores(ctx: RunContext[Deps], params: ListMyChores) -> str:
     """
-    Get chore status summary for a user.
+    List household chores assigned to a user.
 
-    Shows todo, pending, and completed chores within the time range.
+    Use this when the user asks "what chores do I have?", "my chores", "list chores",
+    or wants to see their assigned household tasks. Shows todo, pending, and completed
+    chores within the time range.
 
     Args:
         ctx: Agent runtime context with dependencies
-        params: Status query parameters
+        params: Query parameters
 
     Returns:
-        Formatted status summary
+        Formatted list of household chores
     """
     try:
-        with logfire.span("tool_get_status", target=params.target_user_phone):
+        with logfire.span("tool_list_my_chores", target=params.target_user_phone):
             # Determine target user
             if params.target_user_phone:
                 target_user = await user_service.get_user_by_phone(phone=params.target_user_phone)
@@ -154,14 +165,14 @@ async def tool_get_status(ctx: RunContext[Deps], params: GetStatus) -> str:
                 time_range_start=time_range_start,
             )
 
-            return _format_chore_status(chores, target_user_name)
+            return _format_chore_list(chores, target_user_name)
 
-    except Exception as e:
-        logger.error("Unexpected error in tool_get_status", extra={"error": str(e)})
-        return "Error: Unable to retrieve status. Please try again."
+    except Exception:
+        logger.exception("Unexpected error in tool_list_my_chores")
+        return "Error: Unable to retrieve chores. Please try again."
 
 
 def register_tools(agent: Agent[Deps, str]) -> None:
     """Register tools with the agent."""
     agent.tool(tool_verify_chore)
-    agent.tool(tool_get_status)
+    agent.tool(tool_list_my_chores)

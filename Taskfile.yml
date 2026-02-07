@@ -6,7 +6,7 @@ vars:
   POCKETBASE_BIN: '{{.POCKETBASE_DIR}}/pocketbase'
 
 tasks:
-  install-pocketbase:
+  setup:
     desc: Download and install PocketBase for the current platform
     status:
       - test -f {{.POCKETBASE_BIN}}
@@ -47,7 +47,7 @@ tasks:
 
   test:
     desc: Run all tests (unit and integration)
-    deps: [install-pocketbase]
+    deps: [setup]
     cmds:
       - PATH={{.POCKETBASE_DIR}}:$PATH uv run pytest
 
@@ -58,7 +58,7 @@ tasks:
 
   test-integration:
     desc: Run integration tests (requires PocketBase)
-    deps: [install-pocketbase]
+    deps: [setup]
     cmds:
       - PATH={{.POCKETBASE_DIR}}:$PATH uv run pytest -m integration
 
@@ -74,7 +74,8 @@ tasks:
 
   dev:
     desc: Run PocketBase and FastAPI for local development
-    deps: [install-pocketbase]
+    deps: [setup]
+    dotenv: ['.env']
     cmds:
       - defer: { task: stop-dev }
       - |
@@ -88,7 +89,10 @@ tasks:
         done
         echo "PocketBase is ready!"
 
-        {{.POCKETBASE_BIN}} superuser upsert admin@test.local testpassword123 > /dev/null 2>&1 || true
+        # Use credentials from .env, fallback to defaults
+        ADMIN_EMAIL="${POCKETBASE_ADMIN_EMAIL:-admin@test.local}"
+        ADMIN_PASS="${POCKETBASE_ADMIN_PASSWORD:-testpassword123}"
+        {{.POCKETBASE_BIN}} superuser upsert "$ADMIN_EMAIL" "$ADMIN_PASS" > /dev/null 2>&1 || true
 
         echo ""
         echo "Development environment ready!"
@@ -167,39 +171,3 @@ tasks:
       - rm -rf pb_data
       - rm -rf pb_migrations
 
-  deploy:
-    desc: Deploy to Railway (requires Railway CLI)
-    cmds:
-      - |
-        if ! command -v railway &> /dev/null; then
-          echo "Railway CLI not found. Install with: npm install -g @railway/cli"
-          exit 1
-        fi
-      - echo "Deploying to Railway..."
-      - railway up
-
-  deploy-status:
-    desc: Check Railway deployment status
-    cmds:
-      - |
-        if ! command -v railway &> /dev/null; then
-          echo "Railway CLI not found. Install with: npm install -g @railway/cli"
-          exit 1
-        fi
-      - railway status
-
-  deploy-logs:
-    desc: View Railway deployment logs
-    cmds:
-      - |
-        if ! command -v railway &> /dev/null; then
-          echo "Railway CLI not found. Install with: npm install -g @railway/cli"
-          exit 1
-        fi
-      - railway logs
-
-  install-railway-cli:
-    desc: Install Railway CLI
-    cmds:
-      - npm install -g @railway/cli
-      - echo "Railway CLI installed. Run 'railway login' to authenticate."

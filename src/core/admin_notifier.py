@@ -103,7 +103,7 @@ async def notify_admins(message: str, severity: str = "warning") -> None:
         try:
             # Look up all admin users from database
             admin_records = await list_records(
-                collection="users",
+                collection="members",
                 filter_query=f"role = '{UserRole.ADMIN}' && status = '{UserStatus.ACTIVE}'",
                 per_page=Constants.DEFAULT_PER_PAGE_LIMIT,
             )

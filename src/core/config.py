@@ -38,10 +38,8 @@ class Settings(BaseSettings):
     # Redis Configuration (optional)
     redis_url: str | None = Field(default=None, description="Redis connection URL (e.g., redis://localhost:6379)")
 
-    # House Onboarding Configuration
-    house_name: str | None = Field(default=None, description="House name for member onboarding")
-    house_code: str | None = Field(default=None, description="House code for member onboarding")
-    house_password: str | None = Field(default=None, description="House password for member onboarding")
+    # House Configuration
+    house_name: str | None = Field(default=None, description="House name (fallback if not set in database)")
 
     # Admin Interface Configuration
     admin_password: str | None = Field(default=None, description="Admin password for web interface access")
@@ -73,8 +71,12 @@ class Settings(BaseSettings):
 
     # AI Model Configuration
     model_id: str = Field(
-        default="anthropic/claude-3.5-sonnet",
-        description="Model ID for OpenRouter (defaults to Claude 3.5 Sonnet)",
+        default="z-ai/glm-4.7",
+        description="Model ID for OpenRouter",
+    )
+    model_provider: str | None = Field(
+        default="google-vertex",
+        description="OpenRouter provider for model routing (e.g., google-vertex, together, seed, etc.)",
     )
 
     # Admin Notification Configuration

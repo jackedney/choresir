@@ -32,7 +32,7 @@ async def create_pending_name_user(*, phone: str) -> dict[str, Any]:
     with span("user_service.create_pending_name_user"):
         # Guard: Check if user already exists
         existing_user = await db_client.get_first_record(
-            collection="users",
+            collection="members",
             filter_query=f'phone = "{sanitize_param(phone)}"',
         )
         if existing_user:
@@ -56,7 +56,7 @@ async def create_pending_name_user(*, phone: str) -> dict[str, Any]:
             passwordConfirm=temp_password,
         )
 
-        record = await db_client.create_record(collection="users", data=user_create.model_dump())
+        record = await db_client.create_record(collection="members", data=user_create.model_dump())
         logger.info("Created pending_name user: %s", phone)
 
         return record
@@ -86,7 +86,7 @@ async def update_user_name(*, user_id: str, name: str) -> dict[str, Any]:
             raise ValueError(msg) from e
 
         updated_record = await db_client.update_record(
-            collection="users",
+            collection="members",
             record_id=user_id,
             data={"name": name.strip()},
         )
@@ -110,7 +110,7 @@ async def update_user_status(*, user_id: str, status: UserStatus) -> dict[str, A
     """
     with span("user_service.update_user_status"):
         updated_record = await db_client.update_record(
-            collection="users",
+            collection="members",
             record_id=user_id,
             data={"status": status},
         )
@@ -138,7 +138,7 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
     """
     with span("user_service.approve_member"):
         # Guard: Verify admin privileges
-        admin_record = await db_client.get_record(collection="users", record_id=admin_user_id)
+        admin_record = await db_client.get_record(collection="members", record_id=admin_user_id)
         if admin_record["role"] != UserRole.ADMIN:
             msg = f"User {admin_user_id} is not authorized to approve members"
             logger.warning(msg)
@@ -146,7 +146,7 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
 
         # Guard: Find target user
         target_user = await db_client.get_first_record(
-            collection="users",
+            collection="members",
             filter_query=f'phone = "{sanitize_param(target_phone)}"',
         )
         if not target_user:
@@ -161,7 +161,7 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
 
         # Approve user
         updated_record = await db_client.update_record(
-            collection="users",
+            collection="members",
             record_id=target_user["id"],
             data={"status": UserStatus.ACTIVE},
         )
@@ -186,17 +186,17 @@ async def remove_user(*, admin_user_id: str, target_user_id: str) -> None:
     """
     with span("user_service.remove_user"):
         # Guard: Verify admin privileges
-        admin_record = await db_client.get_record(collection="users", record_id=admin_user_id)
+        admin_record = await db_client.get_record(collection="members", record_id=admin_user_id)
         if admin_record["role"] != UserRole.ADMIN:
             msg = f"User {admin_user_id} is not authorized to remove users"
             logger.warning(msg)
             raise PermissionError(msg)
 
         # Guard: Verify target user exists (will raise if not found)
-        await db_client.get_record(collection="users", record_id=target_user_id)
+        await db_client.get_record(collection="members", record_id=target_user_id)
 
         # Delete user
-        await db_client.delete_record(collection="users", record_id=target_user_id)
+        await db_client.delete_record(collection="members", record_id=target_user_id)
 
         logger.info("Removed user %s by admin %s", target_user_id, admin_user_id)
 
@@ -214,7 +214,7 @@ async def get_user_by_phone(*, phone: str) -> dict[str, Any] | None:
         db_client.DatabaseError: If database operation fails
     """
     return await db_client.get_first_record(
-        collection="users",
+        collection="members",
         filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
@@ -232,4 +232,4 @@ async def get_user_by_id(*, user_id: str) -> dict[str, Any]:
         db_client.RecordNotFoundError: If user not found
         db_client.DatabaseError: If database operation fails
     """
-    return await db_client.get_record(collection="users", record_id=user_id)
+    return await db_client.get_record(collection="members", record_id=user_id)

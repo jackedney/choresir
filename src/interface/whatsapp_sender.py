@@ -1,13 +1,18 @@
 """WhatsApp message sender with rate limiting and retry logic using WAHA."""
 
 import asyncio
+import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 
 import httpx
 from pydantic import BaseModel, Field
 
+from src.core import db_client
 from src.core.config import constants, settings
+
+
+logger = logging.getLogger(__name__)
 
 
 # HTTP status code constants for error handling
@@ -87,6 +92,50 @@ def _extract_message_id(data: dict) -> str | None:
     return raw_id
 
 
+async def _store_bot_message(*, message_id: str, text: str, chat_id: str) -> None:
+    """Store a sent bot message for reply context lookup.
+
+    Args:
+        message_id: WhatsApp message ID
+        text: Message text content
+        chat_id: Chat ID the message was sent to
+    """
+    try:
+        await db_client.create_record(
+            collection="bot_messages",
+            data={
+                "message_id": message_id,
+                "text": text,
+                "chat_id": chat_id,
+                "sent_at": datetime.now().isoformat(),
+            },
+        )
+    except Exception as e:
+        # Don't fail the send if storage fails - just log it
+        logger.warning("Failed to store bot message %s: %s", message_id, e)
+
+
+async def get_bot_message_text(message_id: str) -> str | None:
+    """Retrieve the text of a previously sent bot message.
+
+    Args:
+        message_id: WhatsApp message ID to look up
+
+    Returns:
+        Message text if found, None otherwise
+    """
+    try:
+        record = await db_client.get_first_record(
+            collection="bot_messages",
+            filter_query=f'message_id = "{db_client.sanitize_param(message_id)}"',
+        )
+        if record:
+            return record.get("text")
+    except Exception as e:
+        logger.warning("Failed to retrieve bot message %s: %s", message_id, e)
+    return None
+
+
 async def send_text_message(
     *,
     to_phone: str,
@@ -134,6 +183,9 @@ async def send_text_message(
 
                 if response.is_success:
                     message_id = _extract_message_id(response.json())
+                    # Store message for reply context lookup
+                    if message_id:
+                        await _store_bot_message(message_id=message_id, text=text, chat_id=chat_id)
                     return SendMessageResult(success=True, message_id=message_id)
 
                 # Client error (4xx) - don't retry
@@ -206,6 +258,9 @@ async def send_group_message(
 
                 if response.is_success:
                     message_id = _extract_message_id(response.json())
+                    # Store message for reply context lookup
+                    if message_id:
+                        await _store_bot_message(message_id=message_id, text=text, chat_id=to_group_id)
                     return SendMessageResult(success=True, message_id=message_id)
 
                 # Client error (4xx) - don't retry

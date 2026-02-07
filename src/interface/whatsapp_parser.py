@@ -1,8 +1,44 @@
 """WhatsApp webhook payload parser."""
 
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+def _clean_whatsapp_id(whatsapp_id: str) -> str | None:
+    """Clean WhatsApp ID to extract phone number.
+
+    Handles various WhatsApp ID formats:
+    - 1234567890@c.us (individual chat)
+    - 1234567890@s.whatsapp.net (individual chat alternative)
+    - 120363400136168625@g.us (group chat)
+    - 1234567890@lid (linked ID - NOT a phone number, returns None)
+
+    Args:
+        whatsapp_id: Raw WhatsApp ID string
+
+    Returns:
+        Clean phone number string, or None if not a valid phone format
+    """
+    if not whatsapp_id:
+        return None
+
+    # Skip @lid format - these are linked IDs, not phone numbers
+    if "@lid" in whatsapp_id:
+        return None
+
+    # Remove known WhatsApp suffixes
+    clean = whatsapp_id
+    for suffix in ("@c.us", "@s.whatsapp.net", "@g.us"):
+        clean = clean.replace(suffix, "")
+
+    # Validate it looks like a phone number (digits only, reasonable length)
+    # E.164 numbers are 1-15 digits
+    if not re.match(r"^\d{1,15}$", clean):
+        return None
+
+    return clean
 
 
 class ParsedMessage(BaseModel):
@@ -19,6 +55,8 @@ class ParsedMessage(BaseModel):
         None, description="Group JID if this is a group message (e.g., 120363400136168625@g.us)"
     )
     actual_sender_phone: str | None = Field(None, description="Real sender's phone in group messages")
+    participant_lid: str | None = Field(None, description="Raw participant @lid if phone couldn't be resolved")
+    reply_to_message_id: str | None = Field(None, description="Message ID being replied to, if this is a reply/quote")
 
 
 def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
@@ -64,6 +102,7 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
     is_group_message = from_raw.endswith("@g.us")
     group_id: str | None = None
     actual_sender_phone: str | None = None
+    participant_lid: str | None = None
 
     if is_group_message:
         # For group messages, "from" is the group ID
@@ -71,19 +110,34 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
         # The actual sender is in the "participant" field
         participant = payload.get("participant", "")
         if participant:
-            # Clean participant phone (remove @c.us suffix)
-            clean_participant = participant.replace("@c.us", "")
-            actual_sender_phone = (
-                f"+{clean_participant}" if not clean_participant.startswith("+") else clean_participant
-            )
+            # Clean participant phone (remove WhatsApp suffixes)
+            # _clean_whatsapp_id returns None for @lid format (linked IDs)
+            clean_participant = _clean_whatsapp_id(participant)
+            if clean_participant:
+                actual_sender_phone = f"+{clean_participant}"
+            elif "@lid" in participant:
+                # Keep the raw @lid for later resolution via WAHA API
+                participant_lid = participant
 
     # Clean phone number for individual messages
-    # Remove @c.us suffix
-    clean_number = from_raw.replace("@c.us", "").replace("@g.us", "")
+    clean_number = _clean_whatsapp_id(from_raw)
 
-    # Ensure E.164 format with + prefix for consistency with existing database records
-    # WAHA usually sends '1234567890', we want '+1234567890'
-    from_phone = f"+{clean_number}" if not clean_number.startswith("+") else clean_number
+    # For group messages, use actual_sender_phone as from_phone if available
+    # For individual messages, use cleaned from number
+    if is_group_message:
+        # In group context, actual_sender_phone is the real sender
+        # from_phone should still be set for backwards compatibility
+        if clean_number:
+            from_phone = f"+{clean_number}"
+        else:
+            # Group ID isn't a phone - use the participant as from_phone
+            from_phone = actual_sender_phone or ""
+    else:
+        # Individual message - must have a valid phone number
+        if not clean_number:
+            # Invalid phone format (e.g., @lid) - skip this message
+            return None
+        from_phone = f"+{clean_number}"
 
     # Extract content
     body = payload.get("body")
@@ -117,6 +171,9 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
     if button_payload:
         app_message_type = "button_reply"
 
+    # Extract reply context (replyTo contains the message ID being replied to)
+    reply_to_message_id = payload.get("replyTo")
+
     return ParsedMessage(
         message_id=msg_id,
         from_phone=from_phone,
@@ -127,4 +184,6 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
         is_group_message=is_group_message,
         group_id=group_id,
         actual_sender_phone=actual_sender_phone,
+        participant_lid=participant_lid,
+        reply_to_message_id=reply_to_message_id,
     )

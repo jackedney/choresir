@@ -93,6 +93,7 @@ async def test_agent_rate_limit_enforced_per_user():
     mock_message.is_group_message = False
     mock_message.group_id = None
     mock_message.actual_sender_phone = None
+    mock_message.reply_to_message_id = None
 
     mock_user_record = {
         "status": "active",
@@ -148,6 +149,7 @@ async def test_agent_rate_limit_allows_processing_when_under_limit():
     mock_message.is_group_message = False
     mock_message.group_id = None
     mock_message.actual_sender_phone = None
+    mock_message.reply_to_message_id = None
 
     mock_user_record = {
         "status": "active",

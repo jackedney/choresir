@@ -1,10 +1,12 @@
 """Main Pydantic AI agent for choresir household management."""
 
 import logging
+import re
 from datetime import datetime
 
 import logfire
 from pocketbase import PocketBase
+from pydantic_ai.messages import ModelMessage
 
 from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
@@ -13,12 +15,39 @@ from src.core import admin_notifier, db_client
 from src.core.errors import classify_agent_error
 from src.domain.user import UserStatus
 from src.services import user_service
+from src.services.deletion_service import get_user_pending_deletion_requests
+
+
+logger = logging.getLogger(__name__)
+
+# Regex pattern to strip special tokens from LLM output
+# These tokens can leak from various models (Qwen, DeepSeek, etc.)
+_SPECIAL_TOKEN_PATTERN = re.compile(
+    r"<\|(?:FunctionCallEnd|endoftext|im_start|im_end|pad|eos|bos|assistant|user|system)\|>",
+    re.IGNORECASE,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
-logger = logging.getLogger(__name__)
+def _sanitize_llm_output(text: str) -> str:
+    """Remove leaked special tokens from LLM output.
+
+    Some models (Qwen, DeepSeek, etc.) may leak special tokens like
+    <|FunctionCallEnd|> into their output. This function strips them.
+
+    Args:
+        text: Raw LLM output text
+
+    Returns:
+        Sanitized text with special tokens removed
+    """
+    sanitized = _SPECIAL_TOKEN_PATTERN.sub("", text)
+    # Clean up any resulting double spaces or leading/trailing whitespace
+    sanitized = re.sub(r"\s{2,}", " ", sanitized)
+    return sanitized.strip()
+
 
 # System prompt template
 SYSTEM_PROMPT_TEMPLATE = """You are choresir, a household chore management assistant. Your role is strictly functional.
@@ -96,11 +125,17 @@ CRITICAL: Personal chores are completely private.
 - NEVER show personal chore completions in household reports
 - Accountability partners can only verify, not view stats
 - All personal chore notifications must be sent via DM only
-"""
+{pending_context}"""
 
 
 def _build_system_prompt(
-    *, user_name: str, user_phone: str, user_role: str, current_time: str, member_list: str
+    *,
+    user_name: str,
+    user_phone: str,
+    user_role: str,
+    current_time: str,
+    member_list: str,
+    pending_context: str = "",
 ) -> str:
     """Build the system prompt with injected context."""
     return SYSTEM_PROMPT_TEMPLATE.format(
@@ -109,10 +144,50 @@ def _build_system_prompt(
         user_role=user_role,
         current_time=current_time,
         member_list=member_list,
+        pending_context=pending_context,
     )
 
 
-async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
+async def _build_pending_context(user_id: str) -> str:
+    """Build context string for pending actions awaiting user confirmation.
+
+    Args:
+        user_id: User ID to check for pending actions
+
+    Returns:
+        Context string to append to system prompt, or empty string if none
+    """
+    pending_deletions = await get_user_pending_deletion_requests(user_id=user_id)
+
+    if not pending_deletions:
+        return ""
+
+    lines = [
+        "",
+        "## PENDING CONFIRMATIONS",
+        "",
+        "You have requested deletion of the following chores (awaiting approval from another household member):",
+    ]
+    for req in pending_deletions:
+        lines.append(f'- "{req["chore_title"]}"')
+
+    lines.append("")
+    lines.append(
+        "If the user says 'yes', 'confirm', 'I confirm', or similar affirmative responses, "
+        "they are likely confirming one of these pending actions. Ask which one if multiple, "
+        "or acknowledge the pending status if there's only one."
+    )
+
+    return "\n".join(lines)
+
+
+async def run_agent(
+    *,
+    user_message: str,
+    deps: Deps,
+    member_list: str,
+    message_history: list[ModelMessage] | None = None,
+) -> str:
     """
     Run the choresir agent with the given message and context.
 
@@ -120,10 +195,14 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
         user_message: The message from the user
         deps: The injected dependencies (db, user info, current time)
         member_list: Formatted list of household members
+        message_history: Optional conversation history for context
 
     Returns:
         The agent's response as a string
     """
+    # Build pending context for this user
+    pending_context = await _build_pending_context(deps.user_id)
+
     # Build system prompt with context
     instructions = _build_system_prompt(
         user_name=deps.user_name,
@@ -131,6 +210,7 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
         user_role=deps.user_role,
         current_time=deps.current_time.isoformat(),
         member_list=member_list,
+        pending_context=pending_context,
     )
 
     try:
@@ -138,16 +218,20 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
         agent = get_agent()
         retry_handler = get_retry_handler()
 
+        # Use provided message history or empty list
+        history = message_history or []
+
         # Define the agent execution function for retry wrapper
         async def execute_agent() -> str:
             with logfire.span("choresir_agent_run", user_id=deps.user_id):
                 result = await agent.run(
                     user_message,
                     deps=deps,
-                    message_history=[],
+                    message_history=history,
                     instructions=instructions,
                 )
-                return result.output
+                # Sanitize output to remove any leaked special tokens
+                return _sanitize_llm_output(result.output)
 
         # Run the agent with intelligent retry logic
         return await retry_handler.execute_with_retry(execute_agent)
@@ -218,7 +302,7 @@ async def get_member_list(*, _db: PocketBase) -> str:
     """
     # Get all active members
     members = await db_client.list_records(
-        collection="users",
+        collection="members",
         filter_query=f'status = "{UserStatus.ACTIVE}"',
         sort="+name",
     )

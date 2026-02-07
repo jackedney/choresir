@@ -80,8 +80,6 @@ async def validate_startup_configuration() -> None:
 
     try:
         # Validate required credentials
-        settings.require_credential("house_code", "House onboarding code")
-        settings.require_credential("house_password", "House onboarding password")
         settings.require_credential("openrouter_api_key", "OpenRouter API key")
         settings.require_credential("pocketbase_url", "PocketBase URL")
         settings.require_credential("pocketbase_admin_email", "PocketBase admin email")
@@ -170,7 +168,6 @@ async def scheduler_health_check() -> JSONResponse:
         "weekly_leaderboard",
         "personal_chore_reminders",
         "auto_verify_personal",
-        "cleanup_expired_invites",
     ]
 
     job_statuses = {}

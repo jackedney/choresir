@@ -7,8 +7,17 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
+from src.core.recurrence_parser import cron_to_human
 from src.domain.chore import ChoreState
-from src.services import chore_service, personal_chore_service, robin_hood_service, user_service, verification_service
+from src.services import (
+    chore_service,
+    deletion_service,
+    notification_service,
+    personal_chore_service,
+    robin_hood_service,
+    user_service,
+    verification_service,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +46,21 @@ class LogChore(BaseModel):
     )
 
 
+class RequestChoreDeletion(BaseModel):
+    """Parameters for requesting chore deletion."""
+
+    chore_title_fuzzy: str = Field(description="Chore title or partial match (fuzzy search)")
+    reason: str = Field(default="", description="Optional reason for requesting deletion")
+
+
+class RespondToDeletion(BaseModel):
+    """Parameters for responding to a deletion request."""
+
+    chore_title_fuzzy: str = Field(description="Chore title or partial match (fuzzy search)")
+    decision: str = Field(description="Decision: 'approve' or 'reject'")
+    reason: str = Field(default="", description="Optional reason for the decision")
+
+
 def _fuzzy_match_chore(chores: list[dict], title_query: str) -> dict | None:
     """
     Fuzzy match a chore by title.
@@ -48,26 +72,48 @@ def _fuzzy_match_chore(chores: list[dict], title_query: str) -> dict | None:
     Returns:
         Best matching chore or None
     """
-    title_lower = title_query.lower().strip()
+    matches = _fuzzy_match_all_chores(chores, title_query)
+    return matches[0] if matches else None
 
-    # Exact match
+
+def _fuzzy_match_all_chores(chores: list[dict], title_query: str) -> list[dict]:
+    """
+    Fuzzy match all chores matching a title query.
+
+    Args:
+        chores: List of chore records
+        title_query: User's search query
+
+    Returns:
+        List of all matching chores (may be empty)
+    """
+    title_lower = title_query.lower().strip()
+    matches: list[dict] = []
+
+    # Exact match (highest priority)
     for chore in chores:
         if chore["title"].lower() == title_lower:
-            return chore
+            matches.append(chore)
+
+    if matches:
+        return matches
 
     # Contains match
     for chore in chores:
         if title_lower in chore["title"].lower():
-            return chore
+            matches.append(chore)
+
+    if matches:
+        return matches
 
     # Partial word match
     query_words = set(title_lower.split())
     for chore in chores:
         chore_words = set(chore["title"].lower().split())
         if query_words & chore_words:  # Intersection
-            return chore
+            matches.append(chore)
 
-    return None
+    return matches
 
 
 async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
@@ -92,22 +138,24 @@ async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
                 assignee_id = user["id"]
 
             # Create the chore
-            await chore_service.create_chore(
+            chore = await chore_service.create_chore(
                 title=params.title,
                 description=params.description,
                 recurrence=params.recurrence,
                 assigned_to=assignee_id,
             )
 
+            # Convert schedule to human-readable format
+            schedule_human = cron_to_human(chore.get("schedule_cron", params.recurrence))
             assignee_msg = f"assigned to {params.assignee_phone}" if assignee_id else "unassigned"
-            return f"Created chore '{params.title}' - {params.recurrence}, {assignee_msg}."
+            return f"Created chore '{params.title}' - {schedule_human}, {assignee_msg}."
 
     except ValueError as e:
         logger.warning("Chore creation failed", extra={"error": str(e)})
         return f"Error: {e!s}"
     except Exception as e:
-        logger.error("Unexpected error in tool_define_chore", extra={"error": str(e)})
-        return "Error: Unable to create chore. Please try again."
+        logger.error("Unexpected error in tool_define_chore", extra={"error": str(e), "type": type(e).__name__})
+        return f"Error: Unable to create chore - {e!s}"
 
 
 async def _handle_robin_hood_swap(ctx: RunContext[Deps], household_match: dict, chore_title: str) -> str | None:
@@ -246,7 +294,153 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
         return "Error: Unable to log chore. Please try again."
 
 
+async def tool_request_chore_deletion(ctx: RunContext[Deps], params: RequestChoreDeletion) -> str:
+    """
+    Request deletion of a household chore (requires another member to approve).
+
+    This initiates a two-step deletion process. Another household member
+    must approve the deletion within 48 hours for the chore to be removed.
+
+    Args:
+        ctx: Agent runtime context with dependencies
+        params: Deletion request parameters
+
+    Returns:
+        Success or error message
+    """
+    try:
+        with logfire.span("tool_request_chore_deletion", title=params.chore_title_fuzzy):
+            # Get all chores to fuzzy match
+            all_chores = await chore_service.get_chores()
+
+            # Fuzzy match the chore
+            matched_chore = _fuzzy_match_chore(all_chores, params.chore_title_fuzzy)
+
+            if not matched_chore:
+                return f"Error: No chore found matching '{params.chore_title_fuzzy}'."
+
+            chore_id = matched_chore["id"]
+            chore_title = matched_chore["title"]
+
+            # Check if chore is already archived
+            if matched_chore["current_state"] == ChoreState.ARCHIVED:
+                return f"Error: Chore '{chore_title}' is already archived."
+
+            # Request deletion
+            log_record = await deletion_service.request_chore_deletion(
+                chore_id=chore_id,
+                requester_user_id=ctx.deps.user_id,
+                reason=params.reason,
+            )
+
+            # Send notifications to other household members
+            try:
+                await notification_service.send_deletion_request_notification(
+                    log_id=log_record["id"],
+                    chore_id=chore_id,
+                    chore_title=chore_title,
+                    requester_user_id=ctx.deps.user_id,
+                )
+            except Exception:
+                # Log but don't fail the request
+                logger.exception(
+                    "Failed to send deletion request notifications for chore %s",
+                    chore_id,
+                )
+
+            return f"Requested deletion of '{chore_title}'. Another household member must approve this within 48 hours."
+
+    except ValueError as e:
+        logger.warning("Chore deletion request failed", extra={"error": str(e)})
+        return f"Error: {e!s}"
+    except Exception as e:
+        logger.error("Unexpected error in tool_request_chore_deletion", extra={"error": str(e)})
+        return "Error: Unable to request chore deletion. Please try again."
+
+
+async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDeletion) -> str:
+    """
+    Respond to a pending chore deletion request (approve or reject).
+
+    When multiple chores match the title, this function will find the one
+    with a pending deletion request. This handles duplicates gracefully.
+
+    Args:
+        ctx: Agent runtime context with dependencies
+        params: Deletion response parameters
+
+    Returns:
+        Success or error message
+    """
+    result = None
+    try:
+        with logfire.span("tool_respond_to_deletion", title=params.chore_title_fuzzy, decision=params.decision):
+            # Normalize decision
+            decision_lower = params.decision.lower().strip()
+            if decision_lower not in ("approve", "reject"):
+                return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
+
+            # Get all chores to fuzzy match
+            all_chores = await chore_service.get_chores()
+
+            # Find ALL matching chores (not just the first)
+            matched_chores = _fuzzy_match_all_chores(all_chores, params.chore_title_fuzzy)
+
+            if not matched_chores:
+                return f'No pending deletion request found for "{params.chore_title_fuzzy}". To delete a chore, first request deletion with "Request deletion [chore title]".'
+
+            # Find which matched chores have pending deletion requests
+            chores_with_pending_deletion: list[tuple[dict, dict]] = []
+            for chore in matched_chores:
+                pending_request = await deletion_service.get_pending_deletion_request(chore_id=chore["id"])
+                if pending_request:
+                    chores_with_pending_deletion.append((chore, pending_request))
+
+            if not chores_with_pending_deletion:
+                return f'No pending deletion request found for "{params.chore_title_fuzzy}". To delete a chore, first request deletion with "Request deletion [chore title]".'
+
+            if len(chores_with_pending_deletion) > 1:
+                # Multiple chores with pending deletion - ask for clarification
+                chore_list = ", ".join(f"'{c['title']}'" for c, _ in chores_with_pending_deletion)
+                return f"Multiple chores with pending deletion found: {chore_list}. Please specify which one."
+
+            # Exactly one chore with pending deletion - use it
+            matched_chore, _pending_request = chores_with_pending_deletion[0]
+            chore_id = matched_chore["id"]
+            chore_title = matched_chore["title"]
+
+            # Process the decision
+            if decision_lower == "approve":
+                await deletion_service.approve_chore_deletion(
+                    chore_id=chore_id,
+                    approver_user_id=ctx.deps.user_id,
+                    reason=params.reason,
+                )
+                result = f"Approved deletion of '{chore_title}'. The chore has been archived."
+            else:
+                await deletion_service.reject_chore_deletion(
+                    chore_id=chore_id,
+                    rejecter_user_id=ctx.deps.user_id,
+                    reason=params.reason,
+                )
+                result = f"Rejected deletion request for '{chore_title}'. The chore will remain active."
+
+    except PermissionError as e:
+        logger.warning("Chore deletion response failed - self-approval", extra={"error": str(e)})
+        result = "Error: You cannot approve your own deletion request. Another member must approve it."
+    except ValueError as e:
+        logger.warning("Chore deletion response failed", extra={"error": str(e)})
+        result = f"Error: {e!s}"
+    except Exception as e:
+        logger.error("Unexpected error in tool_respond_to_deletion", extra={"error": str(e)})
+        result = "Error: Unable to process deletion response. Please try again."
+
+    return result
+
+
 def register_tools(agent: Agent[Deps, str]) -> None:
     """Register chore tools with the agent."""
     agent.tool(tool_define_chore)
     agent.tool(tool_log_chore)
+    agent.tool(tool_request_chore_deletion)
+    agent.tool(tool_respond_to_deletion)

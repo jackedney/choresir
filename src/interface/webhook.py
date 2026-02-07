@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pocketbase import PocketBase
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
 
 from src.agents import choresir_agent
 from src.agents.base import Deps
@@ -22,6 +23,7 @@ from src.services.house_config_service import (
     get_house_config,
     set_group_chat_id,
 )
+from src.services.lid_resolver import resolve_lid_to_phone
 from src.services.user_service import (
     create_pending_name_user,
     update_user_name,
@@ -129,21 +131,33 @@ async def _update_message_status(*, message_id: str, success: bool, error: str |
         )
 
 
-def _get_sender_phone(message: whatsapp_parser.ParsedMessage) -> str:
+async def _get_sender_phone(message: whatsapp_parser.ParsedMessage) -> str | None:
     """Get the actual sender phone number from a message.
 
     For group messages, returns the actual sender (participant).
+    If the participant uses @lid format, attempts to resolve it via WAHA API.
     For individual messages, returns the from_phone.
 
     Args:
         message: Parsed message
 
     Returns:
-        The sender's phone number in E.164 format
+        The sender's phone number in E.164 format, or None if unresolvable
     """
-    if message.is_group_message and message.actual_sender_phone:
-        return message.actual_sender_phone
-    return message.from_phone
+    if message.is_group_message:
+        if message.actual_sender_phone:
+            return message.actual_sender_phone
+        # Try to resolve @lid to phone number
+        if message.participant_lid:
+            resolved = await resolve_lid_to_phone(message.participant_lid)
+            if resolved:
+                return resolved
+            logger.warning(
+                "Could not resolve participant @lid to phone",
+                extra={"lid": message.participant_lid, "group_id": message.group_id},
+            )
+            return None
+    return message.from_phone if message.from_phone else None
 
 
 async def _send_response(*, message: whatsapp_parser.ParsedMessage, text: str) -> whatsapp_sender.SendMessageResult:
@@ -199,6 +213,45 @@ async def _handle_pending_name_user(
         return (result.success, result.error)
 
 
+async def _build_message_history(message: whatsapp_parser.ParsedMessage) -> list[ModelMessage]:
+    """Build message history from a quoted/replied-to message.
+
+    When a user replies to a bot message, we look up the original bot message
+    and include it in the message history so the agent has context.
+
+    Args:
+        message: Parsed message that may contain a reply_to_message_id
+
+    Returns:
+        List of ModelMessage objects for the agent's message_history parameter
+    """
+    if not message.reply_to_message_id:
+        return []
+
+    # Look up the quoted message text
+    quoted_text = await whatsapp_sender.get_bot_message_text(message.reply_to_message_id)
+    if not quoted_text:
+        logger.debug(
+            "Could not find quoted message %s in bot_messages",
+            message.reply_to_message_id,
+        )
+        return []
+
+    # Build a simple history: user asked something, bot responded with quoted_text
+    # Since we don't know the original user message, we create a synthetic one
+    # The important part is that the agent sees the bot's previous response
+    history: list[ModelMessage] = [
+        ModelRequest(parts=[UserPromptPart(content="[Previous message from user]")]),
+        ModelResponse(parts=[TextPart(content=quoted_text)]),
+    ]
+
+    logger.debug(
+        "Built message history from quoted message %s",
+        message.reply_to_message_id,
+    )
+    return history
+
+
 async def _handle_user_status(
     *,
     user_record: dict[str, Any],
@@ -212,7 +265,7 @@ async def _handle_user_status(
         Tuple of (success: bool, error_message: str | None)
     """
     status = user_record["status"]
-    sender_phone = _get_sender_phone(message)
+    sender_phone = await _get_sender_phone(message)
 
     if status == UserStatus.PENDING_NAME:
         return await _handle_pending_name_user(user_record=user_record, message=message)
@@ -221,8 +274,10 @@ async def _handle_user_status(
         logger.info("Processing active user %s message with agent", sender_phone)
 
         # Check per-user agent call rate limit
+        # Note: sender_phone is guaranteed to be non-None here because _handle_text_message
+        # checks for None before calling this function
         try:
-            await rate_limiter.check_agent_rate_limit(sender_phone)
+            await rate_limiter.check_agent_rate_limit(sender_phone or "")
         except HTTPException as e:
             # Extract rate limit info from headers
             retry_after = e.headers.get("Retry-After", "3600") if e.headers else "3600"
@@ -234,11 +289,15 @@ async def _handle_user_status(
             result = await _send_response(message=message, text=response)
             return (result.success, result.error)
 
+        # Build message history from quoted message (if this is a reply)
+        message_history = await _build_message_history(message)
+
         member_list = await choresir_agent.get_member_list(_db=db)
         agent_response = await choresir_agent.run_agent(
             user_message=message.text or "",
             deps=deps,
             member_list=member_list,
+            message_history=message_history if message_history else None,
         )
         result = await _send_response(message=message, text=agent_response)
         if not result.success:
@@ -365,18 +424,29 @@ async def _check_duplicate_message(message_id: str) -> bool:
     return False
 
 
-async def _log_message_start(message: whatsapp_parser.ParsedMessage, message_type: str) -> None:
+async def _log_message_start(
+    message: whatsapp_parser.ParsedMessage,
+    message_type: str,
+    sender_phone: str | None = None,
+) -> None:
     """Log the start of message processing.
 
     Args:
         message: Parsed message
         message_type: Type description for logging
+        sender_phone: Resolved sender phone (use if from_phone is empty)
     """
+    phone = sender_phone or message.from_phone
+    if not phone:
+        # Can't log without a phone - skip creating the record
+        logger.debug("Skipping processed_messages log - no phone available")
+        return
+
     await db_client.create_record(
         collection="processed_messages",
         data={
             "message_id": message.message_id,
-            "from_phone": message.from_phone,
+            "from_phone": phone,
             "processed_at": datetime.now().isoformat(),
             "success": False,
             "error_message": f"{message_type} processing started",
@@ -393,12 +463,18 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
     if await _check_duplicate_message(message.message_id):
         return
 
-    sender_phone = _get_sender_phone(message)
+    sender_phone = await _get_sender_phone(message)
+
+    # Skip messages where we can't determine a valid phone number
+    if not sender_phone:
+        logger.debug("Skipping button click - no valid sender phone number")
+        return
+
     logger.info("Processing button click from %s: %s", sender_phone, message.button_payload)
-    await _log_message_start(message, "Button")
+    await _log_message_start(message, "Button", sender_phone)
 
     user_record = await db_client.get_first_record(
-        collection="users",
+        collection="members",
         filter_query=f'phone = "{sanitize_param(sender_phone)}"',
     )
     if not user_record:
@@ -429,7 +505,7 @@ async def _handle_new_group_user(*, message: whatsapp_parser.ParsedMessage, send
         await _send_response(message=message, text=response)
 
         # Log message processing
-        await _log_message_start(message, "New user registration")
+        await _log_message_start(message, "New user registration", sender_phone)
         await _update_message_status(message_id=message.message_id, success=True)
     except ValueError as e:
         # User already exists - this shouldn't happen but handle gracefully
@@ -445,11 +521,17 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     if await _check_duplicate_message(message.message_id):
         return
 
-    # Get the actual sender phone (handles group messages)
-    sender_phone = _get_sender_phone(message)
+    # Get the actual sender phone (handles group messages and @lid resolution)
+    sender_phone = await _get_sender_phone(message)
+
+    # Skip messages where we can't determine a valid phone number
+    # (e.g., WhatsApp linked IDs that couldn't be resolved)
+    if not sender_phone:
+        logger.debug("Skipping message - no valid sender phone number")
+        return
 
     logger.info("Processing message from %s: %s", sender_phone, message.text)
-    await _log_message_start(message, "Processing")
+    await _log_message_start(message, "Processing", sender_phone)
 
     db = db_client.get_client()
     deps = await choresir_agent.build_deps(db=db, user_phone=sender_phone)
@@ -469,7 +551,7 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
         return
 
     user_record = await db_client.get_first_record(
-        collection="users",
+        collection="members",
         filter_query=f'phone = "{sanitize_param(sender_phone)}"',
     )
     if not user_record:

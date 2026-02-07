@@ -10,12 +10,18 @@
 </nav>
 
 <article>
-    <header>
-        <h3>Connection Status</h3>
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">Connection Status</h3>
+        <span id="status-badge" style="display: none; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: bold;"></span>
     </header>
 
-    <div id="status-container">
-        <p>Checking connection status...</p>
+    <div id="loading-container">
+        <p aria-busy="true">Checking connection status...</p>
+    </div>
+
+    <div id="stopped-container" style="display: none;">
+        <p style="color: var(--muted-color);">WhatsApp session is not running.</p>
+        <button onclick="startSession()">Start Session</button>
     </div>
 
     <div id="qr-container" style="text-align: center; display: none;">
@@ -30,10 +36,10 @@
     </div>
 
     <div id="connected-container" style="display: none;">
-        <p style="color: #22c55e; font-weight: bold;">
+        <p style="color: #22c55e; font-weight: bold; font-size: 1.1rem;">
             &#10003; WhatsApp Connected
         </p>
-        <p>Connected as: <strong id="connected-phone"></strong></p>
+        <p>Phone: <strong id="connected-phone"></strong></p>
         <div id="webhook-status"></div>
     </div>
 
@@ -77,39 +83,50 @@
 let statusCheckInterval;
 let qrRefreshInterval;
 
-async function checkStatus() {
-    const statusContainer = document.getElementById('status-container');
-    const qrContainer = document.getElementById('qr-container');
-    const connectedContainer = document.getElementById('connected-container');
-    const errorContainer = document.getElementById('error-container');
+function hideAllContainers() {
+    document.getElementById('loading-container').style.display = 'none';
+    document.getElementById('stopped-container').style.display = 'none';
+    document.getElementById('qr-container').style.display = 'none';
+    document.getElementById('connected-container').style.display = 'none';
+    document.getElementById('error-container').style.display = 'none';
+}
 
+function updateStatusBadge(status, color) {
+    const badge = document.getElementById('status-badge');
+    badge.style.display = 'inline-block';
+    badge.textContent = status;
+    badge.style.backgroundColor = color;
+    badge.style.color = '#fff';
+}
+
+async function checkStatus() {
     try {
         const response = await fetch('/admin/whatsapp/status');
         const data = await response.json();
 
-        statusContainer.style.display = 'none';
-        qrContainer.style.display = 'none';
-        connectedContainer.style.display = 'none';
-        errorContainer.style.display = 'none';
+        hideAllContainers();
 
         if (data.status === 'WORKING') {
-            connectedContainer.style.display = 'block';
+            updateStatusBadge('Connected', '#22c55e');
+            document.getElementById('connected-container').style.display = 'block';
             document.getElementById('connected-phone').textContent = data.phone || 'Unknown';
             clearInterval(qrRefreshInterval);
+            qrRefreshInterval = null;
             clearInterval(statusCheckInterval);
+            statusCheckInterval = null;
 
             // Show webhook status
             const webhookStatus = document.getElementById('webhook-status');
             if (data.webhook_configured) {
                 webhookStatus.innerHTML = `
-                    <p style="color: #22c55e;">&#10003; Webhook configured</p>
+                    <p style="color: #22c55e; margin-top: 1rem;">&#10003; Webhook configured</p>
                     <p style="color: var(--muted-color); font-size: 0.9rem;">
                         Ready to receive messages.
                     </p>
                 `;
             } else {
                 webhookStatus.innerHTML = `
-                    <p style="color: #eab308;">&#9888; Webhook not configured</p>
+                    <p style="color: #eab308; margin-top: 1rem;">&#9888; Webhook not configured</p>
                     <p style="color: var(--muted-color); font-size: 0.9rem;">
                         Messages won't be received until webhook is configured.
                     </p>
@@ -117,32 +134,35 @@ async function checkStatus() {
                 `;
             }
         } else if (data.status === 'SCAN_QR_CODE') {
-            qrContainer.style.display = 'block';
+            updateStatusBadge('Awaiting Scan', '#eab308');
+            document.getElementById('qr-container').style.display = 'block';
             loadQRCode();
             // Start QR refresh if not already running
             if (!qrRefreshInterval) {
                 qrRefreshInterval = setInterval(loadQRCode, 20000);
             }
         } else if (data.status === 'STARTING') {
-            statusContainer.style.display = 'block';
-            statusContainer.innerHTML = '<p>Session is starting... please wait.</p>';
+            updateStatusBadge('Starting', '#3b82f6');
+            document.getElementById('loading-container').style.display = 'block';
+            document.getElementById('loading-container').innerHTML = '<p aria-busy="true">Session is starting... please wait.</p>';
         } else if (data.status === 'STOPPED' || data.status === 'NOT_FOUND') {
-            statusContainer.style.display = 'block';
-            statusContainer.innerHTML = `
-                <p>WhatsApp session is not running.</p>
-                <button onclick="startSession()">Start Session</button>
-            `;
+            updateStatusBadge('Stopped', '#6b7280');
+            document.getElementById('stopped-container').style.display = 'block';
             clearInterval(qrRefreshInterval);
             qrRefreshInterval = null;
+        } else if (data.status === 'ERROR') {
+            updateStatusBadge('Error', '#dc2626');
+            document.getElementById('error-container').style.display = 'block';
+            document.getElementById('error-message').textContent = data.error || 'Unknown error';
         } else {
-            statusContainer.style.display = 'block';
-            statusContainer.innerHTML = '<p>Status: ' + data.status + '</p>';
+            updateStatusBadge(data.status, '#6b7280');
+            document.getElementById('loading-container').style.display = 'block';
+            document.getElementById('loading-container').innerHTML = '<p>Status: ' + data.status + '</p>';
         }
     } catch (error) {
-        statusContainer.style.display = 'none';
-        qrContainer.style.display = 'none';
-        connectedContainer.style.display = 'none';
-        errorContainer.style.display = 'block';
+        hideAllContainers();
+        updateStatusBadge('Offline', '#dc2626');
+        document.getElementById('error-container').style.display = 'block';
         document.getElementById('error-message').textContent =
             'Could not connect to WAHA service. Make sure it is running.';
     }

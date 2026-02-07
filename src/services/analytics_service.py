@@ -245,7 +245,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
             user_completion_counts[user_to_award] = user_completion_counts.get(user_to_award, 0) + 1
 
         # Fetch all users for leaderboard
-        all_users = await db_client.list_records(collection="users", per_page=500)
+        all_users = await db_client.list_records(collection="members", per_page=500)
         users_map = {u["id"]: u for u in all_users}
 
         # Build and sort leaderboard
@@ -404,7 +404,7 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
 
         # Get user details - CRITICAL, fail fast if user doesn't exist
         try:
-            user = await db_client.get_record(collection="users", record_id=user_id)
+            user = await db_client.get_record(collection="members", record_id=user_id)
             user_name = user.get("name")
             if not user_name:
                 logger.warning("User %s missing 'name' field, using ID as fallback", user_id)
@@ -659,7 +659,7 @@ async def get_household_summary(*, period_days: int = 7) -> HouseholdSummary:
 
         # Get active users count
         active_users = await db_client.list_records(
-            collection="users",
+            collection="members",
             filter_query=f'status = "{UserStatus.ACTIVE}"',
         )
 

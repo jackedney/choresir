@@ -8,7 +8,7 @@ import logging
 
 import logfire
 from pydantic_ai import Agent
-from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterProvider
+from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings, OpenRouterProvider
 
 from src.agents.base import Deps
 from src.core.config import settings
@@ -44,9 +44,18 @@ def _create_agent() -> Agent[Deps, str]:
     # Initialize the agent with OpenRouter
     api_key = settings.require_credential("openrouter_api_key", "OpenRouter API key")
     provider = OpenRouterProvider(api_key=api_key)
+
+    # Configure provider routing if specified
+    model_settings: OpenRouterModelSettings | None = None
+    if settings.model_provider:
+        model_settings = OpenRouterModelSettings(
+            openrouter_provider={"only": [settings.model_provider]}
+        )
+
     model = OpenRouterModel(
         model_name=settings.model_id,
         provider=provider,
+        settings=model_settings,
     )
 
     # Create the agent with retry support

@@ -12,38 +12,31 @@ from src.main import (
 )
 
 
-# Legacy credential validation tests
-def test_startup_fails_without_house_code() -> None:
-    """Test that application startup fails when house_code is missing."""
-    settings = Settings(house_code=None, house_password="test_password")
-    with pytest.raises(ValueError, match="House onboarding code credential not configured"):
-        settings.require_credential("house_code", "House onboarding code")
+# Credential validation tests
+def test_startup_fails_without_openrouter_api_key() -> None:
+    """Test that application startup fails when openrouter_api_key is missing."""
+    settings = Settings(openrouter_api_key=None)
+    with pytest.raises(ValueError, match="OpenRouter API key credential not configured"):
+        settings.require_credential("openrouter_api_key", "OpenRouter API key")
 
 
-def test_startup_fails_without_house_password() -> None:
-    """Test that application startup fails when house_password is missing."""
-    settings = Settings(house_code="TEST123", house_password=None)
-    with pytest.raises(ValueError, match="House onboarding password credential not configured"):
-        settings.require_credential("house_password", "House onboarding password")
-
-
-def test_startup_fails_with_empty_house_code() -> None:
-    """Test that application startup fails when house_code is empty string."""
-    settings = Settings(house_code="", house_password="test_password")
-    with pytest.raises(ValueError, match="House onboarding code credential not configured"):
-        settings.require_credential("house_code", "House onboarding code")
+def test_startup_fails_with_empty_openrouter_api_key() -> None:
+    """Test that application startup fails when openrouter_api_key is empty string."""
+    settings = Settings(openrouter_api_key="")
+    with pytest.raises(ValueError, match="OpenRouter API key credential not configured"):
+        settings.require_credential("openrouter_api_key", "OpenRouter API key")
 
 
 def test_startup_succeeds_with_valid_credentials() -> None:
-    """Test that validation passes when both credentials are properly set."""
-    settings = Settings(house_code="TEST123", house_password="test_password")
-    house_code = settings.require_credential("house_code", "House onboarding code")
-    house_password = settings.require_credential("house_password", "House onboarding password")
-    assert house_code == "TEST123"
-    assert house_password == "test_password"
+    """Test that validation passes when credentials are properly set."""
+    settings = Settings(openrouter_api_key="sk-test-123", admin_password="secret")
+    api_key = settings.require_credential("openrouter_api_key", "OpenRouter API key")
+    admin_pwd = settings.require_credential("admin_password", "Admin password")
+    assert api_key == "sk-test-123"
+    assert admin_pwd == "secret"
 
 
-# New comprehensive startup validation tests
+# Connectivity check tests
 @pytest.mark.asyncio
 async def test_check_pocketbase_connectivity_success() -> None:
     """Test successful PocketBase connectivity check."""

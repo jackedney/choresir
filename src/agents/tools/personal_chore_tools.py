@@ -8,6 +8,7 @@ from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
 from src.core import db_client
+from src.core.recurrence_parser import cron_to_human
 from src.domain.user import UserStatus
 from src.services import personal_chore_service, personal_verification_service, user_service
 
@@ -85,7 +86,7 @@ async def tool_create_personal_chore(ctx: RunContext[Deps], params: CreatePerson
             if params.accountability_partner_name:
                 # Search for user by name
                 all_users = await db_client.list_records(
-                    collection="users",
+                    collection="members",
                     filter_query=f'status = "{UserStatus.ACTIVE}"',
                     sort="+name",
                 )
@@ -281,14 +282,15 @@ async def tool_list_personal_chores(ctx: RunContext[Deps], params: ListPersonalC
                 return "You have no personal chores. Use '/personal add [task]' to create one."
 
             # Format chore list
-            lines = ["📝 Your Personal Chores:\n"]
+            lines = ["Your Personal Chores:\n"]
             for chore in chores:
                 title = chore["title"]
                 recurrence = chore.get("recurrence", "")
                 if recurrence:
-                    lines.append(f"• {title} ({recurrence})")
+                    schedule_human = cron_to_human(recurrence)
+                    lines.append(f"- {title} ({schedule_human})")
                 else:
-                    lines.append(f"• {title} (one-time)")
+                    lines.append(f"- {title} (one-time)")
 
             return "\n".join(lines)
 

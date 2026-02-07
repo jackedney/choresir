@@ -6,6 +6,90 @@ from datetime import datetime, timedelta
 from croniter import croniter
 
 
+def cron_to_human(cron_expr: str) -> str:
+    """Convert a CRON expression to human-readable text.
+
+    Args:
+        cron_expr: CRON expression (e.g., "0 12 * * 1") or INTERVAL format
+
+    Returns:
+        Human-readable description (e.g., "every Monday at 12:00 PM")
+    """
+    # Handle INTERVAL format (e.g., "INTERVAL:3:0 0 * * *")
+    if cron_expr.startswith("INTERVAL:"):
+        parts = cron_expr.split(":")
+        days = int(parts[1])
+        if days == 1:
+            return "daily"
+        return f"every {days} days"
+
+    # Parse CRON expression
+    parts = cron_expr.split()
+    if len(parts) != 5:
+        return cron_expr  # Return as-is if not valid
+
+    minute, hour, day_of_month, month, day_of_week = parts
+
+    # Build time string
+    time_str = ""
+    if hour != "*" and minute != "*":
+        try:
+            h = int(hour)
+            m = int(minute)
+            if h == 0 and m == 0:
+                time_str = " at midnight"
+            elif h == 12 and m == 0:
+                time_str = " at noon"
+            else:
+                period = "AM" if h < 12 else "PM"
+                display_hour = h if h <= 12 else h - 12
+                if display_hour == 0:
+                    display_hour = 12
+                if m == 0:
+                    time_str = f" at {display_hour}:00 {period}"
+                else:
+                    time_str = f" at {display_hour}:{m:02d} {period}"
+        except ValueError:
+            pass
+
+    # Determine frequency
+    weekday_names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+    # Daily (every day of week, every day of month)
+    if day_of_week == "*" and day_of_month == "*" and month == "*":
+        return f"daily{time_str}"
+
+    # Weekly (specific day of week)
+    if day_of_month == "*" and month == "*" and day_of_week != "*":
+        try:
+            # Handle comma-separated days
+            if "," in day_of_week:
+                days = [weekday_names[int(d)] for d in day_of_week.split(",")]
+                return f"every {', '.join(days)}{time_str}"
+            dow = int(day_of_week)
+            return f"every {weekday_names[dow]}{time_str}"
+        except (ValueError, IndexError):
+            pass
+
+    # Monthly (specific day of month)
+    if day_of_week == "*" and month == "*" and day_of_month != "*":
+        try:
+            dom = int(day_of_month)
+            suffix = "th"
+            if dom in (1, 21, 31):
+                suffix = "st"
+            elif dom in (2, 22):
+                suffix = "nd"
+            elif dom in (3, 23):
+                suffix = "rd"
+            return f"monthly on the {dom}{suffix}{time_str}"
+        except ValueError:
+            pass
+
+    # Fallback: return a simplified description
+    return f"scheduled ({cron_expr})"
+
+
 def parse_recurrence_to_cron(recurrence: str) -> str:
     """Parse recurrence string to CRON expression.
 

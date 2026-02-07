@@ -73,7 +73,8 @@ class PocketBaseConnectionPool:
         """Create and authenticate a new PocketBase client."""
         logger.info("Creating new PocketBase client connection", extra={"url": self._url})
         client = PocketBase(self._url)
-        client.admins.auth_with_password(self._admin_email, self._admin_password)
+        # PocketBase v0.22+ uses _superusers collection for admin auth
+        client.collection("_superusers").auth_with_password(self._admin_email, self._admin_password)
         self._created_at = datetime.now()
         logger.info("PocketBase client authenticated successfully")
         return client

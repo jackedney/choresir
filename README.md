@@ -210,11 +210,10 @@ docker-compose up -d
 docker-compose up -d redis waha      # Start dependencies
 task dev                             # Start PocketBase + FastAPI
 
-# 6️⃣ Scan QR Code
-# Open http://localhost:3000/dashboard to scan the WAHA QR code with your WhatsApp app.
-
-# 7️⃣ Access Web Admin Interface
+# 6️⃣ Configure via Web Admin
 # Open http://localhost:8000/admin and log in with ADMIN_PASSWORD
+# - Set your house name in Settings
+# - Go to WhatsApp Setup to connect WhatsApp and activate your group
 ```
 
 <div align="center">
@@ -245,7 +244,7 @@ task dev                             # Start PocketBase + FastAPI
    - `SECRET_KEY`: Secret key for session signing (required, generate a random string)
    - `REDIS_URL`: Redis connection URL (required)
    - `OPENROUTER_API_KEY`: OpenRouter API key (required)
-   - `HOUSE_NAME`, `HOUSE_CODE`, `HOUSE_PASSWORD`: Optional (fallback values)
+   - `HOUSE_NAME`: Optional fallback house name
 6. 🔗 Update WhatsApp webhook URL
 7. 🌐 Access admin interface at `https://your-app.railway.app/admin`
 

@@ -104,7 +104,7 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
     config = await get_house_config_from_service()
     house_name = config.name
 
-    users = await list_records(collection="users", per_page=1000)
+    users = await list_records(collection="members", per_page=1000)
 
     total_members = len(users)
     active_members = sum(1 for user in users if user.get("status") == "active")
@@ -264,7 +264,7 @@ def is_htmx_request(request: Request) -> bool:
 @router.get("/members")
 async def get_members(request: Request, _auth: None = Depends(require_auth)) -> Response:
     """Render member list with status and role badges."""
-    users = await list_records(collection="users", per_page=1000, sort="-created")
+    users = await list_records(collection="members", per_page=1000)
     success_message = request.cookies.get("flash_success")
 
     return templates.TemplateResponse(
@@ -281,7 +281,7 @@ async def get_member_row(
 ) -> Response:
     """Get a single member row fragment for HTMX updates."""
     user = await get_first_record(
-        collection="users",
+        collection="members",
         filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
@@ -304,7 +304,7 @@ async def get_edit_member(
 ) -> Response:
     """Render edit member form (inline for HTMX, full page otherwise)."""
     user = await get_first_record(
-        collection="users",
+        collection="members",
         filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
@@ -357,7 +357,7 @@ async def post_edit_member(
     if errors:
         # Get user for form repopulation
         user = await get_first_record(
-            collection="users",
+            collection="members",
             filter_query=f'phone = "{sanitize_param(phone)}"',
         )
         if not user:
@@ -375,7 +375,7 @@ async def post_edit_member(
 
     # Find user by phone
     user = await get_first_record(
-        collection="users",
+        collection="members",
         filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
@@ -385,7 +385,7 @@ async def post_edit_member(
     # Update user record using DTO
     member_update = MemberUpdate(name=name.strip(), role=role)
     await update_record(
-        collection="users",
+        collection="members",
         record_id=user["id"],
         data=member_update.model_dump(),
     )
@@ -393,7 +393,7 @@ async def post_edit_member(
 
     # Re-fetch user data to get updated values for HTMX response
     user = await get_first_record(
-        collection="users",
+        collection="members",
         filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
@@ -418,7 +418,7 @@ async def get_remove_member(
 ) -> Response:
     """Render remove member confirmation page."""
     user = await get_first_record(
-        collection="users",
+        collection="members",
         filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
@@ -454,7 +454,7 @@ async def post_remove_member(
 
     # Find user by phone
     user = await get_first_record(
-        collection="users",
+        collection="members",
         filter_query=f'phone = "{sanitize_param(phone)}"',
     )
 
@@ -480,7 +480,7 @@ async def post_remove_member(
         return response
 
     # Delete the user record
-    await delete_record(collection="users", record_id=user["id"])
+    await delete_record(collection="members", record_id=user["id"])
     logger.info("removed_member", extra={"phone": phone})
 
     if is_htmx_request(request):
