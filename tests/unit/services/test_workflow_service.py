@@ -777,3 +777,296 @@ class TestResolveWorkflow:
         )
 
         assert "reason" not in resolved
+
+
+class TestBatchResolveWorkflows:
+    """Test batch resolving workflows."""
+
+    @pytest.mark.asyncio
+    async def test_resolves_multiple_workflows(
+        self,
+        patched_workflow_db,
+    ):
+        """Example from acceptance criteria: batch resolve 3 workflows, all 3 returned as resolved."""
+        workflow1 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+        workflow2 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore2",
+            target_title="Take Out Trash",
+        )
+        workflow3 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="personal1",
+            target_title="Buy groceries",
+        )
+
+        resolved = await workflow_service.batch_resolve_workflows(
+            workflow_ids=[workflow1["id"], workflow2["id"], workflow3["id"]],
+            resolver_user_id="user2",
+            resolver_name="Bob",
+            decision=workflow_service.WorkflowStatus.APPROVED,
+        )
+
+        assert len(resolved) == 3
+        assert all(w["status"] == "approved" for w in resolved)
+        assert all(w["resolver_user_id"] == "user2" for w in resolved)
+
+    @pytest.mark.asyncio
+    async def test_skips_own_workflow(
+        self,
+        patched_workflow_db,
+    ):
+        """Example from acceptance criteria: batch resolve includes own workflow, that one skipped, others resolved."""
+        own_workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+        other_workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            requester_user_id="user2",
+            requester_name="Bob",
+            target_id="chore2",
+            target_title="Take Out Trash",
+        )
+
+        resolved = await workflow_service.batch_resolve_workflows(
+            workflow_ids=[own_workflow["id"], other_workflow["id"]],
+            resolver_user_id="user1",
+            resolver_name="Alice",
+            decision=workflow_service.WorkflowStatus.APPROVED,
+        )
+
+        assert len(resolved) == 1
+        assert resolved[0]["id"] == other_workflow["id"]
+        assert resolved[0]["status"] == "approved"
+
+        own_check = await workflow_service.get_workflow(workflow_id=own_workflow["id"])
+        assert own_check["status"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_skips_non_pending_workflows(
+        self,
+        patched_workflow_db,
+    ):
+        """Skips workflows not in PENDING status."""
+        pending_workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+        approved_workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore2",
+            target_title="Take Out Trash",
+        )
+
+        await patched_workflow_db.update_record(
+            collection="workflows",
+            record_id=approved_workflow["id"],
+            data={"status": "approved"},
+        )
+
+        resolved = await workflow_service.batch_resolve_workflows(
+            workflow_ids=[pending_workflow["id"], approved_workflow["id"]],
+            resolver_user_id="user2",
+            resolver_name="Bob",
+            decision=workflow_service.WorkflowStatus.APPROVED,
+        )
+
+        assert len(resolved) == 1
+        assert resolved[0]["id"] == pending_workflow["id"]
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_for_empty_workflow_ids(
+        self,
+        patched_workflow_db,
+    ):
+        """Negative case: empty workflow_ids list returns empty list."""
+        resolved = await workflow_service.batch_resolve_workflows(
+            workflow_ids=[],
+            resolver_user_id="user1",
+            resolver_name="Alice",
+            decision=workflow_service.WorkflowStatus.APPROVED,
+        )
+
+        assert resolved == []
+
+    @pytest.mark.asyncio
+    async def test_skips_not_found_workflows(
+        self,
+        patched_workflow_db,
+    ):
+        """Skips workflows that don't exist."""
+        workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+
+        resolved = await workflow_service.batch_resolve_workflows(
+            workflow_ids=[workflow["id"], "nonexistent_id"],
+            resolver_user_id="user2",
+            resolver_name="Bob",
+            decision=workflow_service.WorkflowStatus.APPROVED,
+        )
+
+        assert len(resolved) == 1
+        assert resolved[0]["id"] == workflow["id"]
+
+    @pytest.mark.asyncio
+    async def test_resolves_with_rejection_reason(
+        self,
+        patched_workflow_db,
+    ):
+        """Resolves workflows as REJECTED with a reason."""
+        workflow1 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+        workflow2 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore2",
+            target_title="Take Out Trash",
+        )
+
+        resolved = await workflow_service.batch_resolve_workflows(
+            workflow_ids=[workflow1["id"], workflow2["id"]],
+            resolver_user_id="user2",
+            resolver_name="Bob",
+            decision=workflow_service.WorkflowStatus.REJECTED,
+            reason="Not enough time",
+        )
+
+        assert len(resolved) == 2
+        assert all(w["status"] == "rejected" for w in resolved)
+        assert all(w["reason"] == "Not enough time" for w in resolved)
+
+    @pytest.mark.asyncio
+    async def test_raises_value_error_for_invalid_decision(
+        self,
+        patched_workflow_db,
+    ):
+        """Raises ValueError when decision is not APPROVED or REJECTED."""
+        workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+
+        with pytest.raises(ValueError, match="Invalid decision"):
+            await workflow_service.batch_resolve_workflows(
+                workflow_ids=[workflow["id"]],
+                resolver_user_id="user2",
+                resolver_name="Bob",
+                decision=workflow_service.WorkflowStatus.PENDING,
+            )
+
+    @pytest.mark.asyncio
+    async def test_handles_mixed_scenarios(
+        self,
+        patched_workflow_db,
+    ):
+        """Handles mixed scenarios: own workflow, non-pending, not found, and valid."""
+        own_workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+        pending_workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            requester_user_id="user2",
+            requester_name="Bob",
+            target_id="chore2",
+            target_title="Take Out Trash",
+        )
+        approved_workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+            requester_user_id="user3",
+            requester_name="Charlie",
+            target_id="personal1",
+            target_title="Buy groceries",
+        )
+
+        await patched_workflow_db.update_record(
+            collection="workflows",
+            record_id=approved_workflow["id"],
+            data={"status": "approved"},
+        )
+
+        resolved = await workflow_service.batch_resolve_workflows(
+            workflow_ids=[
+                own_workflow["id"],
+                pending_workflow["id"],
+                approved_workflow["id"],
+                "nonexistent_id",
+            ],
+            resolver_user_id="user1",
+            resolver_name="Alice",
+            decision=workflow_service.WorkflowStatus.APPROVED,
+        )
+
+        assert len(resolved) == 1
+        assert resolved[0]["id"] == pending_workflow["id"]
+        assert resolved[0]["status"] == "approved"
+
+    @pytest.mark.asyncio
+    async def test_sets_resolved_at_timestamp_for_all(
+        self,
+        patched_workflow_db,
+    ):
+        """Sets resolved_at timestamp for all resolved workflows."""
+        workflow1 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+        workflow2 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore2",
+            target_title="Take Out Trash",
+        )
+
+        resolved = await workflow_service.batch_resolve_workflows(
+            workflow_ids=[workflow1["id"], workflow2["id"]],
+            resolver_user_id="user2",
+            resolver_name="Bob",
+            decision=workflow_service.WorkflowStatus.APPROVED,
+        )
+
+        assert all(w["resolved_at"] is not None for w in resolved)
+        now = datetime.now()
+        for workflow in resolved:
+            resolved_at = datetime.fromisoformat(workflow["resolved_at"])
+            assert (now - resolved_at).total_seconds() < 10

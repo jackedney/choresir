@@ -214,3 +214,97 @@ async def resolve_workflow(
         )
 
         return updated_workflow
+
+
+async def batch_resolve_workflows(
+    *,
+    workflow_ids: list[str],
+    resolver_user_id: str,
+    resolver_name: str,
+    decision: WorkflowStatus,
+    reason: str = "",
+) -> list[dict[str, Any]]:
+    """Resolve multiple workflows by approving or rejecting them.
+
+    Args:
+        workflow_ids: List of workflow IDs to resolve
+        resolver_user_id: ID of user resolving the workflows
+        resolver_name: Name of user resolving the workflows (denormalized)
+        decision: Resolution decision (APPROVED or REJECTED)
+        reason: Optional reason for rejection
+
+    Returns:
+        List of resolved workflow records as dicts (skipped workflows not included)
+
+    Raises:
+        ValueError: If decision is not APPROVED or REJECTED
+    """
+    with span("workflow.batch_resolve_workflows"):
+        if decision not in (WorkflowStatus.APPROVED, WorkflowStatus.REJECTED):
+            msg = f"Invalid decision '{decision}', must be APPROVED or REJECTED"
+            raise ValueError(msg)
+
+        resolved_workflows: list[dict[str, Any]] = []
+
+        for workflow_id in workflow_ids:
+            workflow = await get_workflow(workflow_id=workflow_id)
+
+            if workflow is None:
+                logger.warning(
+                    "Skipping workflow not found",
+                    extra={
+                        "workflow_id": workflow_id,
+                        "resolver_user_id": resolver_user_id,
+                    },
+                )
+                continue
+
+            if workflow["status"] != WorkflowStatus.PENDING.value:
+                logger.warning(
+                    "Skipping workflow not in PENDING status",
+                    extra={
+                        "workflow_id": workflow_id,
+                        "status": workflow["status"],
+                        "resolver_user_id": resolver_user_id,
+                    },
+                )
+                continue
+
+            if workflow["requester_user_id"] == resolver_user_id:
+                logger.warning(
+                    "Skipping workflow where resolver is requester",
+                    extra={
+                        "workflow_id": workflow_id,
+                        "requester_user_id": workflow["requester_user_id"],
+                        "resolver_user_id": resolver_user_id,
+                    },
+                )
+                continue
+
+            resolved_at = datetime.now().isoformat()
+            update_data = {
+                "status": decision.value,
+                "resolved_at": resolved_at,
+                "resolver_user_id": resolver_user_id,
+                "resolver_name": resolver_name,
+            }
+
+            if reason:
+                update_data["reason"] = reason
+
+            updated_workflow = await db_client.update_record(
+                collection="workflows", record_id=workflow_id, data=update_data
+            )
+
+            resolved_workflows.append(updated_workflow)
+
+            logger.info(
+                "Workflow batch resolved",
+                extra={
+                    "workflow_id": workflow_id,
+                    "resolver_user_id": resolver_user_id,
+                    "decision": decision.value,
+                },
+            )
+
+        return resolved_workflows
