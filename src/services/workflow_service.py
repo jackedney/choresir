@@ -111,3 +111,37 @@ async def get_pending_workflows(*, workflow_type: WorkflowType | None = None) ->
             filter_query += f' && type = "{db_client.sanitize_param(workflow_type.value)}"'
 
         return await db_client.list_records(collection="workflows", filter_query=filter_query)
+
+
+async def get_user_pending_workflows(*, user_id: str) -> list[dict[str, Any]]:
+    """Get pending workflows initiated by the specified user.
+
+    Args:
+        user_id: ID of the user who requested the workflows
+
+    Returns:
+        List of pending workflow records as dicts initiated by the user
+    """
+    with span("workflow.get_user_pending_workflows"):
+        filter_query = (
+            f'requester_user_id = "{db_client.sanitize_param(user_id)}" && status = "{WorkflowStatus.PENDING.value}"'
+        )
+
+        return await db_client.list_records(collection="workflows", filter_query=filter_query)
+
+
+async def get_actionable_workflows(*, user_id: str) -> list[dict[str, Any]]:
+    """Get pending workflows the user can approve/reject (not initiated by them).
+
+    Args:
+        user_id: ID of the user who can action the workflows
+
+    Returns:
+        List of pending workflow records as dicts initiated by others
+    """
+    with span("workflow.get_actionable_workflows"):
+        filter_query = (
+            f'requester_user_id != "{db_client.sanitize_param(user_id)}" && status = "{WorkflowStatus.PENDING.value}"'
+        )
+
+        return await db_client.list_records(collection="workflows", filter_query=filter_query)

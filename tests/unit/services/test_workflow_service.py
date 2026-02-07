@@ -345,3 +345,240 @@ class TestGetPendingWorkflows:
         workflow = await workflow_service.get_workflow(workflow_id="invalid_id_12345")
 
         assert workflow is None
+
+
+class TestGetUserPendingWorkflows:
+    """Test retrieving pending workflows for a specific user."""
+
+    @pytest.mark.asyncio
+    async def test_returns_workflows_initiated_by_user(
+        self,
+        patched_workflow_db,
+    ):
+        """Returns pending workflows where requester_user_id matches the user."""
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="jack_user_id",
+            requester_name="Jack",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            requester_user_id="jack_user_id",
+            requester_name="Jack",
+            target_id="chore2",
+            target_title="Take Out Trash",
+        )
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="lottie_user_id",
+            requester_name="Lottie",
+            target_id="chore3",
+            target_title="Clean Kitchen",
+        )
+
+        jacks_pending = await workflow_service.get_user_pending_workflows(user_id="jack_user_id")
+
+        assert len(jacks_pending) == 2
+        assert all(w["requester_user_id"] == "jack_user_id" for w in jacks_pending)
+
+    @pytest.mark.asyncio
+    async def test_jack_creates_workflow_jacks_pending_includes_it(
+        self,
+        patched_workflow_db,
+    ):
+        """Example from acceptance criteria: Jack creates workflow, Jack's get_user_pending_workflows includes it."""
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="jack_user_id",
+            requester_name="Jack",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+
+        jacks_pending = await workflow_service.get_user_pending_workflows(user_id="jack_user_id")
+
+        assert len(jacks_pending) == 1
+        assert jacks_pending[0]["requester_user_id"] == "jack_user_id"
+        assert jacks_pending[0]["requester_name"] == "Jack"
+
+    @pytest.mark.asyncio
+    async def test_excludes_non_pending_workflows_for_user(
+        self,
+        patched_workflow_db,
+    ):
+        """Excludes workflows that are not in pending status for the user."""
+        pending_workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user123",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Dishes",
+        )
+
+        await patched_workflow_db.update_record(
+            collection="workflows",
+            record_id=pending_workflow["id"],
+            data={"status": "approved"},
+        )
+
+        pending = await workflow_service.get_user_pending_workflows(user_id="user123")
+
+        assert len(pending) == 0
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_when_no_pending_for_user(
+        self,
+        patched_workflow_db,
+    ):
+        """Negative case: no pending workflows returns empty list."""
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="other_user",
+            requester_name="Other",
+            target_id="chore1",
+            target_title="Dishes",
+        )
+
+        pending = await workflow_service.get_user_pending_workflows(user_id="user123")
+
+        assert pending == []
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_for_new_user(
+        self,
+        patched_workflow_db,
+    ):
+        """Returns empty list when user has no workflows."""
+        pending = await workflow_service.get_user_pending_workflows(user_id="new_user_id")
+
+        assert pending == []
+
+
+class TestGetActionableWorkflows:
+    """Test retrieving workflows a user can approve/reject."""
+
+    @pytest.mark.asyncio
+    async def test_returns_workflows_not_initiated_by_user(
+        self,
+        patched_workflow_db,
+    ):
+        """Returns pending workflows where requester_user_id does not match the user."""
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="lottie_user_id",
+            requester_name="Lottie",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            requester_user_id="bob_user_id",
+            requester_name="Bob",
+            target_id="chore2",
+            target_title="Take Out Trash",
+        )
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="jack_user_id",
+            requester_name="Jack",
+            target_id="chore3",
+            target_title="Clean Kitchen",
+        )
+
+        jacks_actionable = await workflow_service.get_actionable_workflows(user_id="jack_user_id")
+
+        assert len(jacks_actionable) == 2
+        assert all(w["requester_user_id"] != "jack_user_id" for w in jacks_actionable)
+        assert {w["requester_user_id"] for w in jacks_actionable} == {"lottie_user_id", "bob_user_id"}
+
+    @pytest.mark.asyncio
+    async def test_jack_creates_workflow_lottie_actionable_includes_it(
+        self,
+        patched_workflow_db,
+    ):
+        """Example from acceptance criteria: Jack creates workflow, Lottie's get_actionable_workflows includes it."""
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="jack_user_id",
+            requester_name="Jack",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+
+        lotties_actionable = await workflow_service.get_actionable_workflows(user_id="lottie_user_id")
+
+        assert len(lotties_actionable) == 1
+        assert lotties_actionable[0]["requester_user_id"] == "jack_user_id"
+        assert lotties_actionable[0]["requester_name"] == "Jack"
+
+    @pytest.mark.asyncio
+    async def test_jack_creates_workflow_jacks_actionable_excludes_it(
+        self,
+        patched_workflow_db,
+    ):
+        """Example from acceptance criteria: Jack creates workflow, Jack's get_actionable_workflows excludes it."""
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="jack_user_id",
+            requester_name="Jack",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+
+        jacks_actionable = await workflow_service.get_actionable_workflows(user_id="jack_user_id")
+
+        assert len(jacks_actionable) == 0
+
+    @pytest.mark.asyncio
+    async def test_excludes_non_pending_workflows_from_actionable(
+        self,
+        patched_workflow_db,
+    ):
+        """Excludes workflows that are not in pending status."""
+        other_workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="other_user",
+            requester_name="Other",
+            target_id="chore1",
+            target_title="Dishes",
+        )
+
+        await patched_workflow_db.update_record(
+            collection="workflows",
+            record_id=other_workflow["id"],
+            data={"status": "approved"},
+        )
+
+        actionable = await workflow_service.get_actionable_workflows(user_id="user123")
+
+        assert len(actionable) == 0
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_when_no_actionable_workflows(
+        self,
+        patched_workflow_db,
+    ):
+        """Negative case: no pending workflows returns empty list."""
+        actionable = await workflow_service.get_actionable_workflows(user_id="user123")
+
+        assert actionable == []
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_for_sole_user(
+        self,
+        patched_workflow_db,
+    ):
+        """Returns empty list when only workflows are from the user themselves."""
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user123",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Dishes",
+        )
+
+        actionable = await workflow_service.get_actionable_workflows(user_id="user123")
+
+        assert actionable == []
