@@ -444,6 +444,22 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     await _update_message_status(message_id=message.message_id, success=success, error=error)
 
 
+async def _has_pending_invite(phone: str) -> bool:
+    """Check if a phone number has a pending invite.
+
+    Args:
+        phone: Phone number in E.164 format
+
+    Returns:
+        True if user has a pending invite, False otherwise
+    """
+    pending_invite = await db_client.get_first_record(
+        collection="pending_invites",
+        filter_query=f'phone = "{db_client.sanitize_param(phone)}"',
+    )
+    return pending_invite is not None
+
+
 async def _should_process_message(message: whatsapp_parser.ParsedMessage) -> bool:
     """Determine if a message should be processed based on group configuration.
 
@@ -451,6 +467,7 @@ async def _should_process_message(message: whatsapp_parser.ParsedMessage) -> boo
     - No group configured + group message received: Auto-save group ID and process
     - Group configured: Process ONLY messages from the configured group, ignore DMs
     - No group configured + DM: Process DMs (legacy behavior)
+    - EXCEPTION: Always process DMs from users with pending invites (for confirmation)
 
     Args:
         message: Parsed message
@@ -495,7 +512,15 @@ async def _should_process_message(message: whatsapp_parser.ParsedMessage) -> boo
 
     # Individual message (DM)
     if config.group_chat_id:
-        # Group is configured - ignore DMs
+        # Group is configured - but allow DMs for pending invite confirmations
+        if await _has_pending_invite(message.from_phone):
+            logger.info(
+                "Processing DM from user with pending invite",
+                extra={"from_phone": message.from_phone},
+            )
+            return True
+
+        # Otherwise ignore DMs in group mode
         logger.debug(
             "Ignoring DM - group mode is enabled",
             extra={"from_phone": message.from_phone, "configured_group": config.group_chat_id},
