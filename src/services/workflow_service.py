@@ -145,3 +145,72 @@ async def get_actionable_workflows(*, user_id: str) -> list[dict[str, Any]]:
         )
 
         return await db_client.list_records(collection="workflows", filter_query=filter_query)
+
+
+async def resolve_workflow(
+    *,
+    workflow_id: str,
+    resolver_user_id: str,
+    resolver_name: str,
+    decision: WorkflowStatus,
+    reason: str = "",
+) -> dict[str, Any]:
+    """Resolve a workflow by approving or rejecting it.
+
+    Args:
+        workflow_id: ID of workflow to resolve
+        resolver_user_id: ID of user resolving the workflow
+        resolver_name: Name of user resolving the workflow (denormalized)
+        decision: Resolution decision (APPROVED or REJECTED)
+        reason: Optional reason for rejection
+
+    Returns:
+        Updated workflow record as dict
+
+    Raises:
+        ValueError: If workflow not found, resolver is requester, workflow not pending, or decision invalid
+    """
+    with span("workflow.resolve_workflow"):
+        workflow = await get_workflow(workflow_id=workflow_id)
+
+        if workflow is None:
+            msg = f"Workflow not found: {workflow_id}"
+            raise ValueError(msg)
+
+        if workflow["status"] != WorkflowStatus.PENDING.value:
+            msg = f"Cannot resolve workflow with status '{workflow['status']}': {workflow_id}"
+            raise ValueError(msg)
+
+        if workflow["requester_user_id"] == resolver_user_id:
+            msg = f"Cannot approve own workflow: {workflow_id}"
+            raise ValueError(msg)
+
+        if decision not in (WorkflowStatus.APPROVED, WorkflowStatus.REJECTED):
+            msg = f"Invalid decision '{decision}', must be APPROVED or REJECTED"
+            raise ValueError(msg)
+
+        resolved_at = datetime.now().isoformat()
+        update_data = {
+            "status": decision.value,
+            "resolved_at": resolved_at,
+            "resolver_user_id": resolver_user_id,
+            "resolver_name": resolver_name,
+        }
+
+        if reason:
+            update_data["reason"] = reason
+
+        updated_workflow = await db_client.update_record(
+            collection="workflows", record_id=workflow_id, data=update_data
+        )
+
+        logger.info(
+            "Workflow resolved",
+            extra={
+                "workflow_id": workflow_id,
+                "resolver_user_id": resolver_user_id,
+                "decision": decision.value,
+            },
+        )
+
+        return updated_workflow
