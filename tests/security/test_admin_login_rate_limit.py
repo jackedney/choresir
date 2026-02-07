@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi import Request, status, HTTPException
+from fastapi import HTTPException, Request, status
 
 from src.interface.admin_router import check_login_rate_limit
 

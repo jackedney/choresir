@@ -10,7 +10,6 @@ from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from src.core.config import constants, settings
-from src.core.redis_client import redis_client
 from src.core.db_client import (
     create_record,
     delete_record,
@@ -19,6 +18,7 @@ from src.core.db_client import (
     sanitize_param,
     update_record,
 )
+from src.core.redis_client import redis_client
 from src.domain.create_models import HouseConfigCreate, InviteCreate, UserCreate
 from src.domain.update_models import MemberStatusUpdate, MemberUpdate
 from src.domain.user import UserRole, UserStatus
