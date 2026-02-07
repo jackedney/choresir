@@ -194,40 +194,41 @@ def _build_system_prompt(ctx: PromptContext) -> str:
     )
 
 
-async def _build_pending_context(user_id: str) -> str:
-    """Build context string for pending actions awaiting user confirmation.
+async def _build_workflow_context(user_id: str) -> str:
+    """Build context string for pending workflows.
+
+    Shows workflows initiated by the user (awaiting others) and workflows from others
+    that the user can action (approve/reject).
 
     Args:
-        user_id: User ID to check for pending actions
+        user_id: User ID to check for pending workflows
 
     Returns:
         Context string to append to system prompt, or empty string if none
     """
-    pending_workflows = await workflow_service.get_user_pending_workflows(user_id=user_id)
+    user_workflows = await workflow_service.get_user_pending_workflows(user_id=user_id)
+    actionable_workflows = await workflow_service.get_actionable_workflows(user_id=user_id)
 
-    # Filter for deletion approval workflows
-    deletion_workflows = [
-        w for w in pending_workflows if w["type"] == workflow_service.WorkflowType.DELETION_APPROVAL.value
-    ]
-
-    if not deletion_workflows:
+    if not user_workflows and not actionable_workflows:
         return ""
 
-    lines = [
-        "",
-        "## PENDING CONFIRMATIONS",
-        "",
-        "You have requested deletion of the following chores (awaiting approval from another household member):",
-    ]
-    for wf in deletion_workflows:
-        lines.append(f'- "{wf["target_title"]}"')
+    lines = []
 
-    lines.append("")
-    lines.append(
-        "If the user says 'yes', 'confirm', 'I confirm', or similar affirmative responses, "
-        "they are likely confirming one of these pending actions. Ask which one if multiple, "
-        "or acknowledge the pending status if there's only one."
-    )
+    # Section 1: Workflows user initiated (awaiting others)
+    if user_workflows:
+        lines.extend(["", "## YOUR PENDING REQUESTS", "", "You have requested the following (awaiting approval):"])
+        for wf in user_workflows:
+            workflow_type = wf["type"].replace("_", " ").title()
+            lines.append(f"- {workflow_type}: {wf['target_title']}")
+
+    # Section 2: Workflows from others user can action
+    if actionable_workflows:
+        lines.extend(["", "## REQUESTS YOU CAN ACTION", "", "You can approve/reject the following:"])
+        for idx, wf in enumerate(actionable_workflows, start=1):
+            workflow_type = wf["type"].replace("_", " ").title()
+            lines.append(f"{idx}. {workflow_type}: {wf['target_title']} (from {wf['requester_name']})")
+
+        lines.extend(["", "User can say: approve 1, reject both, approve all"])
 
     return "\n".join(lines)
 
@@ -253,8 +254,8 @@ async def run_agent(
     Returns:
         The agent's response as a string
     """
-    # Build pending context for this user
-    pending_context = await _build_pending_context(deps.user_id)
+    # Build workflow context for this user
+    pending_context = await _build_workflow_context(deps.user_id)
 
     # Build conversation context from recent messages
     # Use group context for group chats, per-user context for DMs

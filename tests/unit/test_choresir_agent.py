@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agents.base import Deps
-from src.agents.choresir_agent import run_agent
+from src.agents.choresir_agent import _build_workflow_context, run_agent
 from src.core.errors import ErrorCategory
 
 
@@ -17,6 +17,18 @@ def mock_admin_notifier():
         mock_notifier.should_notify_admins.return_value = False
         mock_notifier.notify_admins = AsyncMock()
         yield mock_notifier
+
+
+@pytest.fixture(autouse=True)
+def mock_workflow_service():
+    """Mock workflow service to avoid database queries in error handling tests."""
+    with (
+        patch("src.agents.choresir_agent.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+        patch("src.agents.choresir_agent.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+    ):
+        mock_user_wfs.return_value = []
+        mock_actionable_wfs.return_value = []
+        yield mock_user_wfs, mock_actionable_wfs
 
 
 @pytest.mark.unit
@@ -395,3 +407,167 @@ class TestChoresirAgentErrorHandling:
             assert "[Alice]: I'll do dishes" in instructions
             assert "[Bob]: I'll do laundry" in instructions
             assert "[Charlie]: I'll cook" in instructions
+
+
+@pytest.mark.unit
+class TestBuildWorkflowContext:
+    """Tests for _build_workflow_context function."""
+
+    @pytest.mark.asyncio
+    async def test_empty_context_when_no_pending_workflows(self):
+        """Test that empty string is returned when there are no pending workflows."""
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = []
+            mock_actionable_wfs.return_value = []
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_user_pending_requests_section(self):
+        """Test that user's pending requests are shown correctly."""
+        user_workflows = [
+            {
+                "id": "wf1",
+                "type": "deletion_approval",
+                "target_title": "Clean kitchen",
+                "requester_name": "Alice",
+            },
+            {
+                "id": "wf2",
+                "type": "chore_verification",
+                "target_title": "Take out trash",
+                "requester_name": "Alice",
+            },
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = user_workflows
+            mock_actionable_wfs.return_value = []
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "## YOUR PENDING REQUESTS" in result
+            assert "Deletion Approval: Clean kitchen" in result
+            assert "Chore Verification: Take out trash" in result
+
+    @pytest.mark.asyncio
+    async def test_actionable_workflows_section_with_numbering(self):
+        """Test that actionable workflows are shown with numbering."""
+        actionable_workflows = [
+            {
+                "id": "wf3",
+                "type": "deletion_approval",
+                "target_title": "Do dishes",
+                "requester_name": "Bob",
+            },
+            {
+                "id": "wf4",
+                "type": "personal_verification",
+                "target_title": "Gym workout",
+                "requester_name": "Charlie",
+            },
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = []
+            mock_actionable_wfs.return_value = actionable_workflows
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "## REQUESTS YOU CAN ACTION" in result
+            assert "1. Deletion Approval: Do dishes (from Bob)" in result
+            assert "2. Personal Verification: Gym workout (from Charlie)" in result
+
+    @pytest.mark.asyncio
+    async def test_both_sections_shown(self):
+        """Test that both sections are shown when user has both pending and actionable workflows."""
+        user_workflows = [
+            {
+                "id": "wf1",
+                "type": "deletion_approval",
+                "target_title": "My chore",
+                "requester_name": "Alice",
+            }
+        ]
+
+        actionable_workflows = [
+            {
+                "id": "wf2",
+                "type": "chore_verification",
+                "target_title": "Other chore",
+                "requester_name": "Bob",
+            }
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = user_workflows
+            mock_actionable_wfs.return_value = actionable_workflows
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "## YOUR PENDING REQUESTS" in result
+            assert "## REQUESTS YOU CAN ACTION" in result
+            assert "Deletion Approval: My chore" in result
+            assert "1. Chore Verification: Other chore (from Bob)" in result
+
+    @pytest.mark.asyncio
+    async def test_hint_message_for_batch_operations(self):
+        """Test that hint message is shown when there are actionable workflows."""
+        actionable_workflows = [
+            {
+                "id": "wf1",
+                "type": "deletion_approval",
+                "target_title": "Some chore",
+                "requester_name": "Bob",
+            }
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = []
+            mock_actionable_wfs.return_value = actionable_workflows
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "User can say: approve 1, reject both, approve all" in result
+
+    @pytest.mark.asyncio
+    async def test_no_hint_when_only_user_pending_workflows(self):
+        """Test that hint is not shown when there are no actionable workflows."""
+        user_workflows = [
+            {
+                "id": "wf1",
+                "type": "deletion_approval",
+                "target_title": "My chore",
+                "requester_name": "Alice",
+            }
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = user_workflows
+            mock_actionable_wfs.return_value = []
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "User can say:" not in result
+            assert "## YOUR PENDING REQUESTS" in result
+            assert "Deletion Approval: My chore" in result
