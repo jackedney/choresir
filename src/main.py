@@ -170,6 +170,7 @@ async def scheduler_health_check() -> JSONResponse:
         "auto_verify_personal",
         "expire_deletion_requests",
         "expire_workflows",
+        "cleanup_group_context",
     ]
 
     job_statuses = {}

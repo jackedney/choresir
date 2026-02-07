@@ -15,7 +15,12 @@ from src.core.scheduler_tracker import retry_job_with_backoff
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.models.service_models import LeaderboardEntry, OverdueChore
-from src.services import personal_chore_service, personal_verification_service, workflow_service
+from src.services import (
+    group_context_service,
+    personal_chore_service,
+    personal_verification_service,
+    workflow_service,
+)
 from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
 
 
@@ -602,6 +607,24 @@ async def expire_workflows() -> None:
         logger.error(f"Error in workflow expiry job: {e}")
 
 
+async def cleanup_group_context() -> None:
+    """Delete expired group context messages.
+
+    Runs every hour. Finds messages where expires_at < now and deletes them
+    to prevent unbounded database growth.
+    """
+    logger.info("Running group context cleanup job")
+
+    try:
+        # Call group context cleanup function
+        count = await group_context_service.cleanup_expired_group_context()
+
+        logger.info(f"Completed group context cleanup job: {count} messages deleted")
+
+    except Exception as e:
+        logger.error(f"Error in group context cleanup job: {e}")
+
+
 def start_scheduler() -> None:
     """Start the scheduler and register all jobs.
 
@@ -674,6 +697,16 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
     logger.info("Scheduled workflow expiry job: hourly at :45")
+
+    # Schedule group context cleanup (hourly) with retry
+    scheduler.add_job(
+        lambda: retry_job_with_backoff(cleanup_group_context, "cleanup_group_context"),
+        trigger=CronTrigger(hour="*", minute=50),  # Every hour at minute 50 (offset from other hourly jobs)
+        id="cleanup_group_context",
+        name="Cleanup Group Context",
+        replace_existing=True,
+    )
+    logger.info("Scheduled group context cleanup job: hourly at :50")
 
     # Start scheduler
     scheduler.start()

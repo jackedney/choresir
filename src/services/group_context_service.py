@@ -100,6 +100,52 @@ async def get_group_context(*, group_id: str) -> list[dict]:
         return [{"sender_name": msg["sender_name"], "content": msg["content"]} for msg in messages]
 
 
+async def cleanup_expired_group_context() -> int:
+    """Delete expired group context messages to prevent unbounded database growth.
+
+    Deletes all group_context records where expires_at < now.
+
+    Returns:
+        Count of deleted records
+    """
+    with span("group_context.cleanup_expired_group_context"):
+        now = datetime.now().isoformat()
+
+        # Find all expired messages
+        expired_messages = await db_client.list_records(
+            collection="group_context",
+            filter_query=f'expires_at < "{db_client.sanitize_param(now)}"',
+        )
+
+        deleted_count = 0
+
+        for message in expired_messages:
+            try:
+                await db_client.delete_record(
+                    collection="group_context",
+                    record_id=message["id"],
+                )
+
+                deleted_count += 1
+
+                logger.info(
+                    "Deleted expired group context message",
+                    extra={
+                        "message_id": message["id"],
+                        "group_id": message["group_id"],
+                        "sender_name": message["sender_name"],
+                    },
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error deleting expired group context message {message['id']}: {e}",
+                )
+
+        logger.info("Completed group context cleanup", extra={"deleted_count": deleted_count})
+
+        return deleted_count
+
+
 def format_group_context_for_prompt(context: list[dict]) -> str:
     """Format group context for inclusion in system prompt.
 
