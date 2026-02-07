@@ -49,18 +49,18 @@ tasks:
     desc: Run all tests (unit and integration)
     deps: [setup]
     cmds:
-      - PATH={{.POCKETBASE_DIR}}:$PATH uv run pytest
+      - PATH={{.POCKETBASE_DIR}}:$PATH POCKETBASE_ADMIN_EMAIL=admin@test.local POCKETBASE_ADMIN_PASSWORD=testpassword123 uv run pytest
 
   test-unit:
     desc: Run unit tests only
     cmds:
-      - uv run pytest -m unit
+      - POCKETBASE_ADMIN_EMAIL=admin@test.local POCKETBASE_ADMIN_PASSWORD=testpassword123 uv run pytest -m unit
 
   test-integration:
     desc: Run integration tests (requires PocketBase)
     deps: [setup]
     cmds:
-      - PATH={{.POCKETBASE_DIR}}:$PATH uv run pytest -m integration
+      - PATH={{.POCKETBASE_DIR}}:$PATH POCKETBASE_ADMIN_EMAIL=admin@test.local POCKETBASE_ADMIN_PASSWORD=testpassword123 uv run pytest -m integration
 
   lint:
     desc: Run linting checks

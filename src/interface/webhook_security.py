@@ -1,6 +1,7 @@
 """Webhook security utilities for replay attack protection."""
 
 import logging
+import secrets
 from datetime import datetime
 from typing import NamedTuple
 
@@ -145,25 +146,74 @@ async def validate_webhook_rate_limit(phone_number: str) -> WebhookSecurityResul
     return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
 
-async def verify_webhook_security(message_id: str, timestamp_str: str, phone_number: str) -> WebhookSecurityResult:
+async def validate_webhook_secret(received_secret: str | None, expected_secret: str | None) -> WebhookSecurityResult:
+    """Validate webhook secret (authentication).
+
+    Args:
+        received_secret: Secret received in request header
+        expected_secret: Secret configured in settings
+
+    Returns:
+        WebhookSecurityResult indicating if secret is valid
+    """
+    if not expected_secret:
+        # Secret not configured, skip validation (fail open for backward compatibility)
+        return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
+
+    if not received_secret:
+        logger.warning("Missing webhook secret")
+        return WebhookSecurityResult(
+            is_valid=False,
+            error_message="Missing webhook secret",
+            http_status_code=401,
+        )
+
+    if not secrets.compare_digest(received_secret, expected_secret):
+        logger.warning("Invalid webhook secret")
+        return WebhookSecurityResult(
+            is_valid=False,
+            error_message="Invalid webhook secret",
+            http_status_code=403,
+        )
+
+    return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
+
+
+async def verify_webhook_security(
+    message_id: str,
+    timestamp_str: str,
+    phone_number: str,
+    received_secret: str | None = None,
+    expected_secret: str | None = None,
+) -> WebhookSecurityResult:
     """Perform all webhook security validations.
 
     Args:
         message_id: Unique message ID
         timestamp_str: Unix timestamp string
         phone_number: Phone number making the request
+        received_secret: Secret received in request header
+        expected_secret: Secret configured in settings
 
     Returns:
         WebhookSecurityResult with validation result
     """
+    # 1. Authentication Check (First line of defense)
+    secret_result = await validate_webhook_secret(received_secret, expected_secret)
+    if not secret_result.is_valid:
+        return secret_result
+
+    # 2. Replay Protection (Timestamp)
     timestamp_result = await validate_webhook_timestamp(timestamp_str)
     if not timestamp_result.is_valid:
         return timestamp_result
 
+    # 3. Replay Protection (Nonce)
     nonce_result = await validate_webhook_nonce(message_id)
     if not nonce_result.is_valid:
         return nonce_result
 
+    # 4. Rate Limiting
     rate_limit_result = await validate_webhook_rate_limit(phone_number)
     if not rate_limit_result.is_valid:
         return rate_limit_result

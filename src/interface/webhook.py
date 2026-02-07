@@ -11,7 +11,7 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, Text
 from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
-from src.core.config import Constants
+from src.core.config import Constants, settings
 from src.core.db_client import sanitize_param
 from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
@@ -79,6 +79,9 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
         # Ignore non-message events (e.g., status updates, qr codes)
         return {"status": "ignored"}
 
+    # Extract webhook secret from header
+    webhook_secret = request.headers.get("X-Webhook-Secret")
+
     # Perform security checks (replay attack protection)
     # Note: WAHA timestamp might be slightly different or missing in some events,
     # but our parser extracts it.
@@ -86,6 +89,8 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
         message_id=message.message_id,
         timestamp_str=message.timestamp,
         phone_number=message.from_phone,
+        received_secret=webhook_secret,
+        expected_secret=settings.waha_webhook_secret,
     )
 
     if not security_result.is_valid:
@@ -257,6 +262,34 @@ async def _build_message_history(message: whatsapp_parser.ParsedMessage) -> list
     return history
 
 
+async def _record_message_context(
+    *,
+    message: whatsapp_parser.ParsedMessage,
+    sender_phone: str | None,
+    user_name: str,
+    content: str,
+    is_bot: bool,
+) -> None:
+    """Record message in conversation context (group or DM)."""
+    if not sender_phone or not content:
+        return
+    try:
+        if message.is_group_message:
+            await add_group_message(
+                group_id=message.group_id or "",
+                sender_phone=sender_phone,
+                sender_name=user_name,
+                content=content,
+                is_bot=is_bot,
+            )
+        elif is_bot:
+            await add_assistant_message(user_phone=sender_phone, content=content)
+        else:
+            await add_user_message(user_phone=sender_phone, content=content)
+    except Exception as e:
+        logger.warning("Failed to record message context: %s", e)
+
+
 async def _handle_user_status(
     *,
     user_record: dict[str, Any],
@@ -295,23 +328,14 @@ async def _handle_user_status(
             return (result.success, result.error)
 
         # Record user message in conversation context
-        # For group messages, use group_context_service for shared history
-        # For DM messages, use conversation_context_service (per-user)
         user_text = message.text or ""
-        if sender_phone and user_text:
-            try:
-                if message.is_group_message:
-                    await add_group_message(
-                        group_id=message.group_id or "",
-                        sender_phone=sender_phone,
-                        sender_name=user_record["name"],
-                        content=user_text,
-                        is_bot=False,
-                    )
-                else:
-                    await add_user_message(user_phone=sender_phone, content=user_text)
-            except Exception as e:
-                logger.warning("Failed to record user message context: %s", e)
+        await _record_message_context(
+            message=message,
+            sender_phone=sender_phone,
+            user_name=user_record["name"],
+            content=user_text,
+            is_bot=False,
+        )
 
         # Build message history from quoted message (if this is a reply)
         message_history = await _build_message_history(message)
@@ -326,22 +350,13 @@ async def _handle_user_status(
         )
 
         # Record assistant response in conversation context
-        # For group messages, use group_context_service for shared history
-        # For DM messages, use conversation_context_service (per-user)
-        if sender_phone and agent_response:
-            try:
-                if message.is_group_message:
-                    await add_group_message(
-                        group_id=message.group_id or "",
-                        sender_phone=sender_phone,
-                        sender_name=user_record["name"],
-                        content=agent_response,
-                        is_bot=True,
-                    )
-                else:
-                    await add_assistant_message(user_phone=sender_phone, content=agent_response)
-            except Exception as e:
-                logger.warning("Failed to record assistant message context: %s", e)
+        await _record_message_context(
+            message=message,
+            sender_phone=sender_phone,
+            user_name=user_record["name"],
+            content=agent_response,
+            is_bot=True,
+        )
 
         result = await _send_response(message=message, text=agent_response)
         if not result.success:

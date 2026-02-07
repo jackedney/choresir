@@ -112,7 +112,7 @@ class TestApproveMember:
             "password": "admin_pass",
             "passwordConfirm": "admin_pass",
         }
-        return await patched_user_db.create_record("users", admin_data)
+        return await patched_user_db.create_record("members", admin_data)
 
     @pytest.fixture
     async def pending_name_user(self, patched_user_db):
@@ -126,7 +126,7 @@ class TestApproveMember:
             "password": "temp_pass",
             "passwordConfirm": "temp_pass",
         }
-        return await patched_user_db.create_record("users", pending_data)
+        return await patched_user_db.create_record("members", pending_data)
 
     async def test_approve_member_success(self, patched_user_db, admin_user, pending_name_user):
         """Test admin successfully approves pending_name member."""
@@ -151,7 +151,7 @@ class TestApproveMember:
             "password": "pass",
             "passwordConfirm": "pass",
         }
-        member = await patched_user_db.create_record("users", member_data)
+        member = await patched_user_db.create_record("members", member_data)
 
         with pytest.raises(PermissionError, match="not authorized to approve"):
             await user_service.approve_member(admin_user_id=member["id"], target_phone=pending_name_user["phone"])
@@ -173,7 +173,7 @@ class TestApproveMember:
             "password": "pass",
             "passwordConfirm": "pass",
         }
-        active_user = await patched_user_db.create_record("users", active_data)
+        active_user = await patched_user_db.create_record("members", active_data)
 
         with pytest.raises(ValueError, match="not pending approval"):
             await user_service.approve_member(admin_user_id=admin_user["id"], target_phone=active_user["phone"])
@@ -195,7 +195,7 @@ class TestRemoveUser:
             "password": "admin_pass",
             "passwordConfirm": "admin_pass",
         }
-        return await patched_user_db.create_record("users", admin_data)
+        return await patched_user_db.create_record("members", admin_data)
 
     @pytest.fixture
     async def active_user(self, patched_user_db):
@@ -209,7 +209,7 @@ class TestRemoveUser:
             "password": "pass",
             "passwordConfirm": "pass",
         }
-        return await patched_user_db.create_record("users", user_data)
+        return await patched_user_db.create_record("members", user_data)
 
     async def test_remove_user_success(self, patched_user_db, admin_user, active_user):
         """Test admin successfully removes user."""
@@ -217,7 +217,7 @@ class TestRemoveUser:
 
         # Verify user was deleted
         with pytest.raises(KeyError):
-            await patched_user_db.get_record("users", active_user["id"])
+            await patched_user_db.get_record("members", active_user["id"])
 
     async def test_remove_user_non_admin_fails(self, patched_user_db, active_user):
         """Test non-admin cannot remove users."""
@@ -231,7 +231,7 @@ class TestRemoveUser:
             "password": "pass",
             "passwordConfirm": "pass",
         }
-        member = await patched_user_db.create_record("users", member_data)
+        member = await patched_user_db.create_record("members", member_data)
 
         with pytest.raises(PermissionError, match="not authorized to remove"):
             await user_service.remove_user(admin_user_id=member["id"], target_user_id=active_user["id"])
@@ -258,7 +258,7 @@ class TestGetUserByPhone:
             "password": "pass",
             "passwordConfirm": "pass",
         }
-        return await patched_user_db.create_record("users", user_data)
+        return await patched_user_db.create_record("members", user_data)
 
     async def test_get_user_by_phone_found(self, patched_user_db, test_user):
         """Test retrieving user by phone when exists."""
@@ -292,7 +292,7 @@ class TestGetUserById:
             "password": "pass",
             "passwordConfirm": "pass",
         }
-        return await patched_user_db.create_record("users", user_data)
+        return await patched_user_db.create_record("members", user_data)
 
     async def test_get_user_by_id_found(self, patched_user_db, test_user):
         """Test retrieving user by ID when exists."""
