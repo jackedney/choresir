@@ -17,6 +17,7 @@ from src.services import (
     robin_hood_service,
     user_service,
     verification_service,
+    workflow_service,
 )
 
 
@@ -56,7 +57,14 @@ class RequestChoreDeletion(BaseModel):
 class RespondToDeletion(BaseModel):
     """Parameters for responding to a deletion request."""
 
-    chore_title_fuzzy: str = Field(description="Chore title or partial match (fuzzy search)")
+    workflow_id: str | None = Field(
+        default=None,
+        description="Workflow ID (optional, for direct reference)",
+    )
+    chore_title_fuzzy: str | None = Field(
+        default=None,
+        description="Chore title or partial match (fuzzy search, used if workflow_id not provided)",
+    )
     decision: str = Field(description="Decision: 'approve' or 'reject'")
     reason: str = Field(default="", description="Optional reason for the decision")
 
@@ -362,8 +370,7 @@ async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDelet
     """
     Respond to a pending chore deletion request (approve or reject).
 
-    When multiple chores match the title, this function will find the one
-    with a pending deletion request. This handles duplicates gracefully.
+    Supports referencing by workflow_id directly or by chore title matching.
 
     Args:
         ctx: Agent runtime context with dependencies
@@ -374,66 +381,90 @@ async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDelet
     """
     result = None
     try:
-        with logfire.span("tool_respond_to_deletion", title=params.chore_title_fuzzy, decision=params.decision):
+        with logfire.span("tool_respond_to_deletion", workflow_id=params.workflow_id, decision=params.decision):
+            # Validate input
+            if not params.workflow_id and not params.chore_title_fuzzy:
+                return "Error: Either workflow_id or chore_title_fuzzy must be provided."
+
             # Normalize decision
             decision_lower = params.decision.lower().strip()
             if decision_lower not in ("approve", "reject"):
                 return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
 
-            # Get all chores to fuzzy match
-            all_chores = await chore_service.get_chores()
+            # Determine the workflow to resolve
+            workflow: dict | None = None
 
-            # Find ALL matching chores (not just the first)
-            matched_chores = _fuzzy_match_all_chores(all_chores, params.chore_title_fuzzy)
+            if params.workflow_id:
+                # Direct workflow ID reference
+                workflow = await workflow_service.get_workflow(workflow_id=params.workflow_id)
+                if not workflow:
+                    return f"Error: Workflow '{params.workflow_id}' not found."
 
-            if not matched_chores:
-                return (
-                    f'No pending deletion request found for "{params.chore_title_fuzzy}". '
-                    'To delete a chore, first request deletion with "Request deletion [chore title]".'
-                )
+                if workflow["type"] != workflow_service.WorkflowType.DELETION_APPROVAL.value:
+                    return f"Error: Workflow '{params.workflow_id}' is not a deletion approval workflow."
 
-            # Find which matched chores have pending deletion requests
-            chores_with_pending_deletion: list[tuple[dict, dict]] = []
-            for chore in matched_chores:
-                pending_workflow = await deletion_service.get_pending_deletion_workflow(chore_id=chore["id"])
-                if pending_workflow:
-                    chores_with_pending_deletion.append((chore, pending_workflow))
-
-            if not chores_with_pending_deletion:
-                return (
-                    f'No pending deletion request found for "{params.chore_title_fuzzy}". '
-                    'To delete a chore, first request deletion with "Request deletion [chore title]".'
-                )
-
-            if len(chores_with_pending_deletion) > 1:
-                # Multiple chores with pending deletion - ask for clarification
-                chore_list = ", ".join(f"'{c['title']}'" for c, _ in chores_with_pending_deletion)
-                return f"Multiple chores with pending deletion found: {chore_list}. Please specify which one."
-
-            # Exactly one chore with pending deletion - use it
-            matched_chore, _pending_request = chores_with_pending_deletion[0]
-            chore_id = matched_chore["id"]
-            chore_title = matched_chore["title"]
-
-            # Process the decision
-            if decision_lower == "approve":
-                await deletion_service.approve_chore_deletion(
-                    chore_id=chore_id,
-                    approver_user_id=ctx.deps.user_id,
-                    reason=params.reason,
-                )
-                result = f"Approved deletion of '{chore_title}'. The chore has been archived."
+                if workflow["status"] != workflow_service.WorkflowStatus.PENDING.value:
+                    return f"Error: Workflow '{params.workflow_id}' is not pending (status: {workflow['status']})."
             else:
-                await deletion_service.reject_chore_deletion(
-                    chore_id=chore_id,
-                    rejecter_user_id=ctx.deps.user_id,
+                # Find workflow by chore title matching
+                assert params.chore_title_fuzzy is not None  # Type narrowing: validated above
+                all_chores = await chore_service.get_chores()
+
+                # Find ALL matching chores (not just the first)
+                matched_chores = _fuzzy_match_all_chores(all_chores, params.chore_title_fuzzy)
+
+                if not matched_chores:
+                    return (
+                        f'No chore found matching "{params.chore_title_fuzzy}". '
+                        'To delete a chore, first request deletion with "Request deletion [chore title]".'
+                    )
+
+                # Find which matched chores have pending deletion requests
+                chores_with_pending_deletion: list[tuple[dict, dict]] = []
+                for chore in matched_chores:
+                    pending_workflow = await deletion_service.get_pending_deletion_workflow(chore_id=chore["id"])
+                    if pending_workflow:
+                        chores_with_pending_deletion.append((chore, pending_workflow))
+
+                if not chores_with_pending_deletion:
+                    return (
+                        f'No pending deletion request found for "{params.chore_title_fuzzy}". '
+                        'To delete a chore, first request deletion with "Request deletion [chore title]".'
+                    )
+
+                if len(chores_with_pending_deletion) > 1:
+                    # Multiple chores with pending deletion - ask for clarification
+                    chore_list = ", ".join(f"'{c['title']}'" for c, _ in chores_with_pending_deletion)
+                    return f"Multiple chores with pending deletion found: {chore_list}. Please specify which one."
+
+                # Exactly one chore with pending deletion - use it
+                _matched_chore, pending_workflow = chores_with_pending_deletion[0]
+                workflow = pending_workflow
+
+            # Get resolver name
+            resolver = await user_service.get_user_by_id(user_id=ctx.deps.user_id)
+            resolver_name = resolver.get("name", "Unknown")
+
+            # Process the decision using workflow_service
+            if decision_lower == "approve":
+                await workflow_service.resolve_workflow(
+                    workflow_id=workflow["id"],
+                    resolver_user_id=ctx.deps.user_id,
+                    resolver_name=resolver_name,
+                    decision=workflow_service.WorkflowStatus.APPROVED,
                     reason=params.reason,
                 )
-                result = f"Rejected deletion request for '{chore_title}'. The chore will remain active."
+                result = f"Approved deletion of '{workflow['target_title']}'. The chore has been archived."
+            else:
+                await workflow_service.resolve_workflow(
+                    workflow_id=workflow["id"],
+                    resolver_user_id=ctx.deps.user_id,
+                    resolver_name=resolver_name,
+                    decision=workflow_service.WorkflowStatus.REJECTED,
+                    reason=params.reason,
+                )
+                result = f"Rejected deletion request for '{workflow['target_title']}'. The chore will remain active."
 
-    except PermissionError as e:
-        logger.warning("Chore deletion response failed - self-approval", extra={"error": str(e)})
-        result = "Error: You cannot approve your own deletion request. Another member must approve it."
     except ValueError as e:
         logger.warning("Chore deletion response failed", extra={"error": str(e)})
         result = f"Error: {e!s}"
