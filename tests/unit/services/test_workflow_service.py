@@ -854,6 +854,7 @@ class TestBatchResolveWorkflows:
         assert resolved[0]["status"] == "approved"
 
         own_check = await workflow_service.get_workflow(workflow_id=own_workflow["id"])
+        assert own_check is not None
         assert own_check["status"] == "pending"
 
     @pytest.mark.asyncio
