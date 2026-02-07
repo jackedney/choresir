@@ -25,6 +25,7 @@ COLLECTIONS = [
     "house_config",
     "bot_messages",
     "group_context",
+    "workflows",
 ]
 
 
@@ -371,6 +372,61 @@ def _get_collection_schema(
             "indexes": [
                 "CREATE INDEX idx_group_id ON group_context (group_id)",
                 "CREATE INDEX idx_expires_at ON group_context (expires_at)",
+            ],
+        },
+        "workflows": {
+            "name": "workflows",
+            "type": "base",
+            "system": False,
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
+            "deleteRule": None,
+            "fields": [
+                {
+                    "name": "type",
+                    "type": "select",
+                    "required": True,
+                    "values": ["deletion_approval", "chore_verification", "personal_verification"],
+                    "maxSelect": 1,
+                },
+                {
+                    "name": "status",
+                    "type": "select",
+                    "required": True,
+                    "values": ["pending", "approved", "rejected", "expired", "cancelled"],
+                    "maxSelect": 1,
+                },
+                {
+                    "name": "requester_user_id",
+                    "type": "relation",
+                    "required": True,
+                    "collectionId": ids.get("members", "members"),
+                    "maxSelect": 1,
+                },
+                {"name": "requester_name", "type": "text", "required": True},
+                {"name": "target_id", "type": "text", "required": True},
+                {"name": "target_title", "type": "text", "required": True},
+                {"name": "created_at", "type": "date", "required": True},
+                {"name": "expires_at", "type": "date", "required": True},
+                {"name": "resolved_at", "type": "date", "required": False},
+                {
+                    "name": "resolver_user_id",
+                    "type": "relation",
+                    "required": False,
+                    "collectionId": ids.get("members", "members"),
+                    "maxSelect": 1,
+                },
+                {"name": "resolver_name", "type": "text", "required": False},
+                {"name": "reason", "type": "text", "required": False},
+                {"name": "metadata", "type": "json", "required": False},
+            ],
+            "indexes": [
+                "CREATE INDEX idx_workflow_status ON workflows (status)",
+                "CREATE INDEX idx_workflow_requester ON workflows (requester_user_id)",
+                "CREATE INDEX idx_workflow_expires_at ON workflows (expires_at)",
             ],
         },
     }
