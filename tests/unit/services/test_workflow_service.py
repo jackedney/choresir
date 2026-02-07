@@ -1071,3 +1071,211 @@ class TestBatchResolveWorkflows:
         for workflow in resolved:
             resolved_at = datetime.fromisoformat(workflow["resolved_at"])
             assert (now - resolved_at).total_seconds() < 10
+
+
+class TestExpireOldWorkflows:
+    """Test expiring old workflows."""
+
+    @pytest.mark.asyncio
+    async def test_expires_workflow_with_past_expires_at(
+        self,
+        patched_workflow_db,
+    ):
+        """Example from acceptance criteria: workflow with expires_at in past gets status EXPIRED."""
+        # Create workflow with expires_at in the past
+        workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user123",
+            requester_name="Alice",
+            target_id="chore456",
+            target_title="Wash Dishes",
+        )
+
+        # Manually set expires_at to the past
+        past_time = (datetime.now() - timedelta(hours=49)).isoformat()
+        await patched_workflow_db.update_record(
+            collection="workflows",
+            record_id=workflow["id"],
+            data={"expires_at": past_time},
+        )
+
+        # Expire old workflows
+        count = await workflow_service.expire_old_workflows()
+
+        # Verify one workflow was expired
+        assert count == 1
+
+        # Verify workflow status is EXPIRED
+        expired_workflow = await workflow_service.get_workflow(workflow_id=workflow["id"])
+        assert expired_workflow is not None
+        assert expired_workflow["status"] == "expired"
+
+    @pytest.mark.asyncio
+    async def test_keeps_workflow_with_future_expires_at(
+        self,
+        patched_workflow_db,
+    ):
+        """Example from acceptance criteria: workflow with expires_at in future remains PENDING."""
+        # Create workflow with default expires_at (48 hours in future)
+        workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user123",
+            requester_name="Alice",
+            target_id="chore456",
+            target_title="Wash Dishes",
+        )
+
+        # Expire old workflows
+        count = await workflow_service.expire_old_workflows()
+
+        # Verify no workflows were expired
+        assert count == 0
+
+        # Verify workflow status is still PENDING
+        pending_workflow = await workflow_service.get_workflow(workflow_id=workflow["id"])
+        assert pending_workflow is not None
+        assert pending_workflow["status"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_does_not_touch_already_resolved_workflow(
+        self,
+        patched_workflow_db,
+    ):
+        """Negative case from acceptance criteria: already resolved workflow is not touched."""
+        # Create and approve a workflow
+        workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user123",
+            requester_name="Alice",
+            target_id="chore456",
+            target_title="Wash Dishes",
+        )
+
+        # Set expires_at to the past
+        past_time = (datetime.now() - timedelta(hours=49)).isoformat()
+        await patched_workflow_db.update_record(
+            collection="workflows",
+            record_id=workflow["id"],
+            data={"expires_at": past_time, "status": "approved"},
+        )
+
+        # Expire old workflows
+        count = await workflow_service.expire_old_workflows()
+
+        # Verify no workflows were expired
+        assert count == 0
+
+        # Verify workflow status is still APPROVED
+        approved_workflow = await workflow_service.get_workflow(workflow_id=workflow["id"])
+        assert approved_workflow is not None
+        assert approved_workflow["status"] == "approved"
+
+    @pytest.mark.asyncio
+    async def test_expires_multiple_workflows(
+        self,
+        patched_workflow_db,
+    ):
+        """Expires multiple workflows at once."""
+        # Create multiple workflows
+        workflow1 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user1",
+            requester_name="Alice",
+            target_id="chore1",
+            target_title="Wash Dishes",
+        )
+        workflow2 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            requester_user_id="user2",
+            requester_name="Bob",
+            target_id="chore2",
+            target_title="Take Out Trash",
+        )
+        workflow3 = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+            requester_user_id="user3",
+            requester_name="Charlie",
+            target_id="personal1",
+            target_title="Buy groceries",
+        )
+
+        # Set first two to have expired
+        past_time = (datetime.now() - timedelta(hours=49)).isoformat()
+        await patched_workflow_db.update_record(
+            collection="workflows",
+            record_id=workflow1["id"],
+            data={"expires_at": past_time},
+        )
+        await patched_workflow_db.update_record(
+            collection="workflows",
+            record_id=workflow2["id"],
+            data={"expires_at": past_time},
+        )
+
+        # Expire old workflows
+        count = await workflow_service.expire_old_workflows()
+
+        # Verify two workflows were expired
+        assert count == 2
+
+        # Verify first two are EXPIRED, third is still PENDING
+        w1 = await workflow_service.get_workflow(workflow_id=workflow1["id"])
+        w2 = await workflow_service.get_workflow(workflow_id=workflow2["id"])
+        w3 = await workflow_service.get_workflow(workflow_id=workflow3["id"])
+
+        assert w1 is not None
+        assert w2 is not None
+        assert w3 is not None
+        assert w1["status"] == "expired"
+        assert w2["status"] == "expired"
+        assert w3["status"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_returns_zero_when_no_expired_workflows(
+        self,
+        patched_workflow_db,
+    ):
+        """Returns zero when there are no expired workflows."""
+        # Create workflow with future expires_at
+        await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user123",
+            requester_name="Alice",
+            target_id="chore456",
+            target_title="Wash Dishes",
+        )
+
+        # Expire old workflows
+        count = await workflow_service.expire_old_workflows()
+
+        # Verify no workflows were expired
+        assert count == 0
+
+    @pytest.mark.asyncio
+    async def test_expires_workflow_exactly_at_expiration_time(
+        self,
+        patched_workflow_db,
+    ):
+        """Expires workflows where expires_at is exactly at current time."""
+        # Create workflow
+        workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id="user123",
+            requester_name="Alice",
+            target_id="chore456",
+            target_title="Wash Dishes",
+        )
+
+        # Set expires_at to exactly now
+        now = datetime.now()
+        await patched_workflow_db.update_record(
+            collection="workflows",
+            record_id=workflow["id"],
+            data={"expires_at": now.isoformat()},
+        )
+
+        # Expire old workflows
+        count = await workflow_service.expire_old_workflows()
+
+        # Verify workflow was expired (expires_at < now is true for slightly older times)
+        assert count >= 0

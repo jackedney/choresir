@@ -308,3 +308,50 @@ async def batch_resolve_workflows(
             )
 
         return resolved_workflows
+
+
+async def expire_old_workflows() -> int:
+    """Expire workflows that have passed their expiration time.
+
+    Updates status to EXPIRED for all workflows where expires_at < now and status = PENDING.
+
+    Returns:
+        Count of expired workflows
+    """
+    with span("workflow.expire_old_workflows"):
+        now = datetime.now().isoformat()
+
+        # Find all pending workflows that have expired
+        expired_workflows = await db_client.list_records(
+            collection="workflows",
+            filter_query=f'status = "{WorkflowStatus.PENDING.value}" && expires_at < "{db_client.sanitize_param(now)}"',
+        )
+
+        expired_count = 0
+
+        for workflow in expired_workflows:
+            try:
+                await db_client.update_record(
+                    collection="workflows",
+                    record_id=workflow["id"],
+                    data={"status": WorkflowStatus.EXPIRED.value},
+                )
+
+                expired_count += 1
+
+                logger.info(
+                    "Workflow expired",
+                    extra={
+                        "workflow_id": workflow["id"],
+                        "workflow_type": workflow["type"],
+                        "requester_user_id": workflow["requester_user_id"],
+                    },
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error expiring workflow {workflow['id']}: {e}",
+                )
+
+        logger.info("Completed workflow expiry", extra={"expired_count": expired_count})
+
+        return expired_count

@@ -168,6 +168,8 @@ async def scheduler_health_check() -> JSONResponse:
         "weekly_leaderboard",
         "personal_chore_reminders",
         "auto_verify_personal",
+        "expire_deletion_requests",
+        "expire_workflows",
     ]
 
     job_statuses = {}

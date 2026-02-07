@@ -15,7 +15,7 @@ from src.core.scheduler_tracker import retry_job_with_backoff
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.models.service_models import LeaderboardEntry, OverdueChore
-from src.services import deletion_service, personal_chore_service, personal_verification_service
+from src.services import deletion_service, personal_chore_service, personal_verification_service, workflow_service
 from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
 
 
@@ -603,6 +603,24 @@ async def expire_deletion_requests() -> None:
         logger.error(f"Error in deletion request expiry job: {e}")
 
 
+async def expire_workflows() -> None:
+    """Expire pending workflows past their expiration time.
+
+    Runs every hour. Finds workflows where expires_at < now and status = PENDING,
+    then updates their status to EXPIRED.
+    """
+    logger.info("Running workflow expiry job")
+
+    try:
+        # Call workflow service expiry function
+        count = await workflow_service.expire_old_workflows()
+
+        logger.info(f"Completed workflow expiry job: {count} workflows expired")
+
+    except Exception as e:
+        logger.error(f"Error in workflow expiry job: {e}")
+
+
 def start_scheduler() -> None:
     """Start the scheduler and register all jobs.
 
@@ -676,7 +694,17 @@ def start_scheduler() -> None:
     )
     logger.info("Scheduled deletion request expiry job: hourly at :30")
 
-    # Start the scheduler
+    # Schedule workflow expiry (hourly) with retry
+    scheduler.add_job(
+        lambda: retry_job_with_backoff(expire_workflows, "expire_workflows"),
+        trigger=CronTrigger(hour="*", minute=45),  # Every hour at minute 45 (offset from other hourly jobs)
+        id="expire_workflows",
+        name="Expire Workflows",
+        replace_existing=True,
+    )
+    logger.info("Scheduled workflow expiry job: hourly at :45")
+
+    # Start scheduler
     scheduler.start()
     logger.info("Scheduler started successfully")
 
