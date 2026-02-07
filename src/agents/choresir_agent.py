@@ -2,6 +2,7 @@
 
 import logging
 import re
+from dataclasses import dataclass
 from datetime import datetime
 
 import logfire
@@ -15,7 +16,24 @@ from src.core import admin_notifier, db_client
 from src.core.errors import classify_agent_error
 from src.domain.user import UserStatus
 from src.services import user_service
+from src.services.conversation_context_service import (
+    format_context_for_prompt,
+    get_recent_context,
+)
 from src.services.deletion_service import get_user_pending_deletion_requests
+
+
+@dataclass
+class PromptContext:
+    """Context data for building the system prompt."""
+
+    user_name: str
+    user_phone: str
+    user_role: str
+    current_time: str
+    member_list: str
+    pending_context: str = ""
+    conversation_context: str = ""
 
 
 logger = logging.getLogger(__name__)
@@ -79,31 +97,64 @@ You have access to tools for:
 
 Use tools to perform actions. Always confirm understanding before using destructive tools.
 
+## Household Chore Deletion (Two-Step Process)
+
+IMPORTANT: Household chores use a TWO-STEP deletion process:
+1. **Request deletion**: Use `tool_request_chore_deletion` - this creates a pending request
+2. **Approve deletion**: Another household member must approve using `tool_respond_to_deletion`
+
+When a user asks to delete/remove a HOUSEHOLD chore:
+- Use `tool_request_chore_deletion` to initiate the request
+- Tell them another member must approve the deletion
+- DO NOT use personal chore removal tools for household chores
+
+When a user confirms "yes" to delete household chores:
+- If you previously asked about deleting household chores, proceed with the deletion request
+- DO NOT route this to personal chore tools
+
 ## Personal Chores vs Household Chores
 
 You manage TWO separate systems:
 
 1. **Household Chores**: Shared responsibilities tracked on the leaderboard
-   - Commands: "Done dishes", "Create chore", "Stats"
+   - Commands: "Done dishes", "Create chore", "Delete chore", "Stats"
    - Visible to all household members
    - Require verification from other members
+   - Deletion requires approval from another member (two-step process)
 
 2. **Personal Chores**: Private individual tasks
-   - Commands: "/personal add", "/personal done", "/personal stats"
+   - Commands: "/personal add", "/personal done", "/personal remove", "/personal stats"
    - Completely private (only owner can see)
    - Optional accountability partner for verification
    - NOT included in household leaderboard or reports
+   - Can be removed immediately by owner (no approval needed)
 
 ## Command Routing Rules
 
+CRITICAL ROUTING RULES:
 - If message starts with "/personal", route to personal chore tools
-- If message says "done X" or "log X", check for name collision:
+- If user is confirming a previous question about HOUSEHOLD chores, use HOUSEHOLD tools
+- If user is confirming a previous question about PERSONAL chores, use PERSONAL tools
+- Check the RECENT CONVERSATION section to understand what the user is confirming
+
+For "done X" or "log X" commands:
   1. Search household chores for "X"
   2. Search user's personal chores for "X"
   3. If BOTH match, ask: "Did you mean household [X] or your personal [X]?"
   4. If only one matches, proceed with that one
 - For stats/list commands without "/personal", default to household
 - For create/add commands without "/personal", default to household
+
+## Understanding Confirmatory Responses
+
+When a user sends short confirmatory messages like:
+- "Yes", "Yeah", "Confirm", "OK" - confirm the most recent pending action
+- "1", "2", "1 and 2", "both" - select numbered items from a list you provided
+- "the first one", "all of them" - reference items you listed
+
+ALWAYS check the RECENT CONVERSATION section to understand what they're confirming.
+If you asked about household chores, confirm with household chore tools.
+If you asked about personal chores, confirm with personal chore tools.
 
 ## Personal Chore Disambiguation
 
@@ -128,23 +179,15 @@ CRITICAL: Personal chores are completely private.
 {pending_context}"""
 
 
-def _build_system_prompt(
-    *,
-    user_name: str,
-    user_phone: str,
-    user_role: str,
-    current_time: str,
-    member_list: str,
-    pending_context: str = "",
-) -> str:
+def _build_system_prompt(ctx: PromptContext) -> str:
     """Build the system prompt with injected context."""
     return SYSTEM_PROMPT_TEMPLATE.format(
-        user_name=user_name,
-        user_phone=user_phone,
-        user_role=user_role,
-        current_time=current_time,
-        member_list=member_list,
-        pending_context=pending_context,
+        user_name=ctx.user_name,
+        user_phone=ctx.user_phone,
+        user_role=ctx.user_role,
+        current_time=ctx.current_time,
+        member_list=ctx.member_list,
+        pending_context=ctx.pending_context + ctx.conversation_context,
     )
 
 
@@ -203,15 +246,25 @@ async def run_agent(
     # Build pending context for this user
     pending_context = await _build_pending_context(deps.user_id)
 
+    # Build conversation context from recent messages
+    conversation_context = ""
+    try:
+        recent_context = await get_recent_context(user_phone=deps.user_phone)
+        conversation_context = format_context_for_prompt(recent_context)
+    except Exception as e:
+        logger.warning("Failed to get conversation context: %s", e)
+
     # Build system prompt with context
-    instructions = _build_system_prompt(
+    prompt_ctx = PromptContext(
         user_name=deps.user_name,
         user_phone=deps.user_phone,
         user_role=deps.user_role,
         current_time=deps.current_time.isoformat(),
         member_list=member_list,
         pending_context=pending_context,
+        conversation_context=conversation_context,
     )
+    instructions = _build_system_prompt(prompt_ctx)
 
     try:
         # Get agent instance (lazy initialization)

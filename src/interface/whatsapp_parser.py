@@ -171,8 +171,16 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
     if button_payload:
         app_message_type = "button_reply"
 
-    # Extract reply context (replyTo contains the message ID being replied to)
-    reply_to_message_id = payload.get("replyTo")
+    # Extract reply context (replyTo can be a string ID or an object with message details)
+    reply_to_raw = payload.get("replyTo")
+    reply_to_message_id: str | None = None
+    if reply_to_raw:
+        if isinstance(reply_to_raw, str):
+            reply_to_message_id = reply_to_raw
+        elif isinstance(reply_to_raw, dict):
+            # WAHA can send replyTo as an object with message details
+            # Try common field names for the message ID
+            reply_to_message_id = reply_to_raw.get("id") or reply_to_raw.get("messageId")
 
     return ParsedMessage(
         message_id=msg_id,

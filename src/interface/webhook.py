@@ -18,6 +18,10 @@ from src.core.rate_limiter import rate_limiter
 from src.domain.user import UserStatus
 from src.interface import webhook_security, whatsapp_parser, whatsapp_sender
 from src.services.activation_key_service import check_activation_message
+from src.services.conversation_context_service import (
+    add_assistant_message,
+    add_user_message,
+)
 from src.services.house_config_service import (
     clear_activation_key,
     get_house_config,
@@ -289,16 +293,32 @@ async def _handle_user_status(
             result = await _send_response(message=message, text=response)
             return (result.success, result.error)
 
+        # Record user message in conversation context
+        user_text = message.text or ""
+        if sender_phone and user_text:
+            try:
+                await add_user_message(user_phone=sender_phone, content=user_text)
+            except Exception as e:
+                logger.warning("Failed to record user message context: %s", e)
+
         # Build message history from quoted message (if this is a reply)
         message_history = await _build_message_history(message)
 
         member_list = await choresir_agent.get_member_list(_db=db)
         agent_response = await choresir_agent.run_agent(
-            user_message=message.text or "",
+            user_message=user_text,
             deps=deps,
             member_list=member_list,
             message_history=message_history if message_history else None,
         )
+
+        # Record assistant response in conversation context
+        if sender_phone and agent_response:
+            try:
+                await add_assistant_message(user_phone=sender_phone, content=agent_response)
+            except Exception as e:
+                logger.warning("Failed to record assistant message context: %s", e)
+
         result = await _send_response(message=message, text=agent_response)
         if not result.success:
             logger.error("Failed to send response to %s: %s", sender_phone, result.error)

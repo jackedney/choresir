@@ -74,14 +74,40 @@ async def get_pending_deletion_request(*, chore_id: str) -> dict[str, Any] | Non
             return None
 
         # Check if request has expired (48 hours)
+        # Try multiple timestamp sources: explicit timestamp field, then PocketBase's created field
+        request_time = None
         try:
             request_time = datetime.fromisoformat(request_timestamp)
-            expiry_time = request_time + timedelta(hours=DELETION_REQUEST_EXPIRY_HOURS)
-            if datetime.now() > expiry_time:
-                # Request has expired
-                return None
         except (ValueError, TypeError):
-            logger.warning("Invalid timestamp in deletion request log: %s", request_log.get("id"))
+            # Fallback to PocketBase's built-in 'created' field
+            created_timestamp = request_log.get("created")
+            if created_timestamp:
+                try:
+                    # PocketBase created field format: "2024-01-15 10:30:00.000Z"
+                    # Handle both ISO format and PocketBase format
+                    created_str = created_timestamp.replace(" ", "T").replace("Z", "+00:00")
+                    request_time = datetime.fromisoformat(created_str.split("+")[0])
+                except (ValueError, TypeError):
+                    pass
+
+        if request_time is None:
+            logger.warning(
+                "Could not determine timestamp for deletion request log: %s (timestamp=%s, created=%s)",
+                request_log.get("id"),
+                request_timestamp,
+                request_log.get("created"),
+            )
+            # Don't return None - assume the request is still valid if we can't determine its age
+            # This prevents valid deletion requests from being hidden due to missing timestamps
+            return request_log
+
+        # Ensure request_time is naive for comparison with datetime.now()
+        if request_time.tzinfo is not None:
+            request_time = request_time.replace(tzinfo=None)
+
+        expiry_time = request_time + timedelta(hours=DELETION_REQUEST_EXPIRY_HOURS)
+        if datetime.now() > expiry_time:
+            # Request has expired
             return None
 
         return request_log

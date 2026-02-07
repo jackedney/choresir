@@ -48,9 +48,7 @@ def _create_agent() -> Agent[Deps, str]:
     # Configure provider routing if specified
     model_settings: OpenRouterModelSettings | None = None
     if settings.model_provider:
-        model_settings = OpenRouterModelSettings(
-            openrouter_provider={"only": [settings.model_provider]}
-        )
+        model_settings = OpenRouterModelSettings(openrouter_provider={"only": [settings.model_provider]})
 
     model = OpenRouterModel(
         model_name=settings.model_id,
