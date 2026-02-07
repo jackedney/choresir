@@ -14,12 +14,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pocketbase import PocketBase
 
-from src.agents import choresir_agent as choresir_agent_module
 from src.agents.retry_handler import reset_retry_handler
 from src.core import admin_notifier as admin_notifier_module, config as config_module, db_client as db_module
 from src.core.config import Settings
 from src.core.schema import COLLECTIONS, sync_schema
-from src.services import user_service as user_service_module
+from src.services import house_config_service as house_config_service_module
 from tests.conftest import MockDBClient
 
 
@@ -285,9 +284,8 @@ def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypa
     # Patch the global settings to use test settings
     monkeypatch.setattr(config_module, "settings", test_settings)
     monkeypatch.setattr(db_module, "settings", test_settings)
-    monkeypatch.setattr(user_service_module, "settings", test_settings)
     monkeypatch.setattr(admin_notifier_module, "settings", test_settings)
-    monkeypatch.setattr(choresir_agent_module, "settings", test_settings)
+    monkeypatch.setattr(house_config_service_module, "settings", test_settings)
 
     yield
 

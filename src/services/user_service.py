@@ -5,10 +5,11 @@ import secrets
 from typing import Any
 
 from src.core import db_client
-from src.core.config import settings
 from src.core.db_client import sanitize_param
 from src.core.logging import span
+from src.domain.create_models import UserCreate
 from src.domain.user import User, UserRole, UserStatus
+from src.services.house_config_service import validate_house_credentials
 
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def request_join(*, phone: str, name: str, house_code: str, password: str) -> dict[str, Any]:
     """Request to join the household.
 
-    Validates house code and password against environment variables.
+    Validates house code and password against database configuration.
     Creates user with status="pending" for admin approval.
 
     Args:
@@ -35,15 +36,9 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
     """
     with span("user_service.request_join"):
         # Guard: Validate credentials
-        # Use bitwise AND to prevent short-circuit and ensure constant-time evaluation
-        # Note: These are validated at startup by require_credential()
-        assert settings.house_code is not None
-        assert settings.house_password is not None
-        house_code_valid = secrets.compare_digest(house_code, settings.house_code)
-        password_valid = secrets.compare_digest(password, settings.house_password)
+        is_valid = await validate_house_credentials(house_code=house_code, password=password)
 
-        # Use bitwise AND to prevent short-circuit evaluation and maintain constant time
-        if not (house_code_valid & password_valid):
+        if not is_valid:
             msg = "Invalid house code or password"
             logger.warning("Failed join request for %s: %s", phone, msg)
             raise ValueError(msg)
@@ -74,17 +69,17 @@ async def request_join(*, phone: str, name: str, house_code: str, password: str)
         # This prevents default credential vulnerabilities if the pending account is somehow accessed
         temp_password = secrets.token_urlsafe(32)
 
-        user_data = {
-            "phone": phone,
-            "name": name,
-            "email": email,
-            "role": UserRole.MEMBER,
-            "status": UserStatus.PENDING,
-            "password": temp_password,
-            "passwordConfirm": temp_password,
-        }
+        user_create = UserCreate(
+            phone=phone,
+            name=name,
+            email=email,
+            role=UserRole.MEMBER,
+            status=UserStatus.PENDING,
+            password=temp_password,
+            passwordConfirm=temp_password,
+        )
 
-        record = await db_client.create_record(collection="users", data=user_data)
+        record = await db_client.create_record(collection="users", data=user_create.model_dump())
         logger.info("Created pending user: %s (%s)", name, phone)
 
         return record

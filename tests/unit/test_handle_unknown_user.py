@@ -1,94 +1,196 @@
 """Tests for handle_unknown_user function."""
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src.agents import choresir_agent
+from src.services.house_config_service import HouseConfig
 
 
 @pytest.mark.asyncio
-async def test_parse_join_request_success():
-    """Test parsing a valid join request message."""
-    message = "I want to join. Code: HOUSE123, Password: SecretPass, Name: Jack"
+async def test_pending_invite_confirmation_success():
+    """Test confirming a pending invite with YES."""
     user_phone = "+1234567890"
+    message_text = "YES"
 
     with (
-        patch("src.agents.choresir_agent.session_service") as mock_session_service,
+        patch("src.agents.choresir_agent.db_client") as mock_db_client,
         patch("src.agents.choresir_agent.user_service") as mock_user_service,
+        patch("src.agents.choresir_agent.get_house_config") as mock_get_config,
     ):
-        mock_session_service.get_session = AsyncMock(return_value=None)
-        mock_user_service.request_join = AsyncMock(return_value=None)
+        mock_db_client.sanitize_param = lambda x: x
 
-        result = await choresir_agent.handle_unknown_user(user_phone=user_phone, message_text=message)
+        # Setup mocks
+        mock_db_client.get_first_record = AsyncMock(
+            return_value={
+                "id": "invite123",
+                "phone": "+1234567890",
+            }
+        )
+        mock_db_client.update_record = AsyncMock()
+        mock_db_client.delete_record = AsyncMock()
+        mock_user_service.get_user_by_phone = AsyncMock(
+            return_value={
+                "id": "user123",
+                "phone": "+1234567890",
+                "name": "Test User",
+                "status": "pending",
+            }
+        )
+        mock_get_config.return_value = HouseConfig(name="MyHouse", password="test", code="TEST")
 
-        # Should call user_service.request_join with correct params
-        mock_user_service.request_join.assert_called_once_with(
-            phone=user_phone, name="Jack", house_code="HOUSE123", password="SecretPass"
+        result = await choresir_agent.handle_unknown_user(
+            user_phone=user_phone,
+            message_text=message_text,
         )
 
-        # Should return success message
-        assert "Welcome, Jack!" in result
-        assert "membership request has been submitted" in result
+        # Should confirm invite and return welcome message
+        assert "Welcome to MyHouse" in result
+        assert "Your membership is now active" in result
+        mock_db_client.update_record.assert_called_once()
+        mock_db_client.delete_record.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_parse_join_request_invalid_credentials():
-    """Test parsing a join request with invalid credentials."""
-    message = "I want to join. Code: WRONGCODE, Password: WrongPass, Name: Jack"
+async def test_pending_invite_confirmation_case_insensitive():
+    """Test confirming a pending invite with various case variations of YES."""
     user_phone = "+1234567890"
+    test_cases = ["yes", "Yes", "YES", "yEs"]
 
     with (
-        patch("src.agents.choresir_agent.session_service") as mock_session_service,
+        patch("src.agents.choresir_agent.db_client") as mock_db_client,
+        patch("src.agents.choresir_agent.user_service") as mock_user_service,
+        patch("src.agents.choresir_agent.get_house_config") as mock_get_config,
+    ):
+        mock_db_client.sanitize_param = lambda x: x
+
+        for message_text in test_cases:
+            # Setup mocks
+            mock_db_client.get_first_record = AsyncMock(
+                return_value={
+                    "id": "invite123",
+                    "phone": "+1234567890",
+                }
+            )
+            mock_db_client.update_record = AsyncMock()
+            mock_db_client.delete_record = AsyncMock()
+            mock_user_service.get_user_by_phone = AsyncMock(
+                return_value={
+                    "id": "user123",
+                    "phone": "+1234567890",
+                    "name": "Test User",
+                    "status": "pending",
+                }
+            )
+            mock_get_config.return_value = HouseConfig(name="MyHouse", password="test", code="TEST")
+
+            result = await choresir_agent.handle_unknown_user(
+                user_phone=user_phone,
+                message_text=message_text,
+            )
+
+            # Should confirm invite
+            assert "Welcome to MyHouse" in result
+            mock_db_client.update_record.assert_called_once()
+            mock_db_client.delete_record.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_pending_invite_confirmation_user_not_found():
+    """Test confirming a pending invite when user is not found."""
+    user_phone = "+1234567890"
+    message_text = "YES"
+
+    with (
+        patch("src.agents.choresir_agent.db_client") as mock_db_client,
         patch("src.agents.choresir_agent.user_service") as mock_user_service,
     ):
-        mock_session_service.get_session = AsyncMock(return_value=None)
-        mock_user_service.request_join = AsyncMock(side_effect=ValueError("Invalid house code or password"))
+        mock_db_client.sanitize_param = lambda x: x
 
-        result = await choresir_agent.handle_unknown_user(user_phone=user_phone, message_text=message)
+        mock_db_client.get_first_record = AsyncMock(
+            return_value={
+                "id": "invite123",
+                "phone": "+1234567890",
+                "invited_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        mock_user_service.get_user_by_phone = AsyncMock(return_value=None)
+
+        result = await choresir_agent.handle_unknown_user(
+            user_phone=user_phone,
+            message_text=message_text,
+        )
 
         # Should return error message
-        assert "Sorry, I couldn't process your join request" in result
-        assert "Invalid house code or password" in result
+        assert "Sorry, there was an error processing your invite" in result
+        assert "Please contact an admin" in result
 
 
 @pytest.mark.asyncio
-async def test_no_join_request_returns_onboarding():
-    """Test that a message without join request returns onboarding prompt."""
-    message = "Hello, how do I join?"
+async def test_pending_invite_non_yes_message():
+    """Test that non-YES message prompts user to reply YES."""
     user_phone = "+1234567890"
+    message_text = "Hello"
 
-    with patch("src.agents.choresir_agent.session_service") as mock_session_service:
-        mock_session_service.get_session = AsyncMock(return_value=None)
+    with patch("src.agents.choresir_agent.db_client") as mock_db_client:
+        mock_db_client.sanitize_param = lambda x: x
 
-        result = await choresir_agent.handle_unknown_user(user_phone=user_phone, message_text=message)
+        mock_db_client.get_first_record = AsyncMock(
+            return_value={
+                "id": "invite123",
+                "phone": "+1234567890",
+                "invited_at": datetime.now(UTC).isoformat(),
+            }
+        )
 
-        # Should return onboarding prompt
-        assert "Welcome! You're not yet a member" in result
-        assert "/house join" in result
-        assert "password" in result.lower()
+        result = await choresir_agent.handle_unknown_user(
+            user_phone=user_phone,
+            message_text=message_text,
+        )
+
+        # Should instruct user to reply YES
+        assert "To confirm your invitation, please reply YES" in result
 
 
 @pytest.mark.asyncio
-async def test_parse_join_request_variations():
-    """Test parsing join requests with various formatting."""
-    test_cases = [
-        "Code: ABC123, Password: Pass123, Name: John Doe",
-        "code:ABC123 password:Pass123 name:John Doe",
-        "I'd like to join! Code: ABC123, Password: Pass123, Name: John Doe",
-        "Code:ABC123,Password:Pass123,Name:John Doe",
-    ]
+async def test_no_pending_invite_returns_not_a_member():
+    """Test that unknown user without pending invite gets not a member message."""
+    user_phone = "+1234567890"
+    message_text = "Hello"
 
-    for message in test_cases:
-        with (
-            patch("src.agents.choresir_agent.session_service") as mock_session_service,
-            patch("src.agents.choresir_agent.user_service") as mock_user_service,
-        ):
-            mock_session_service.get_session = AsyncMock(return_value=None)
-            mock_user_service.request_join = AsyncMock(return_value=None)
+    with patch("src.agents.choresir_agent.db_client") as mock_db_client:
+        mock_db_client.sanitize_param = lambda x: x
 
-            result = await choresir_agent.handle_unknown_user(user_phone="+1234567890", message_text=message)
+        mock_db_client.get_first_record = AsyncMock(return_value=None)
 
-            # Should successfully parse and process
-            assert "Welcome" in result
-            mock_user_service.request_join.assert_called_once()
+        result = await choresir_agent.handle_unknown_user(
+            user_phone=user_phone,
+            message_text=message_text,
+        )
+
+        # Should return not a member message
+        assert "You are not a member of this household" in result
+        assert "Please contact an admin to request an invite" in result
+
+
+@pytest.mark.asyncio
+async def test_house_join_command_returns_not_a_member():
+    """Test that /house join command returns not a member message."""
+    user_phone = "+1234567890"
+    message_text = "/house join MyHouse"
+
+    with patch("src.agents.choresir_agent.db_client") as mock_db_client:
+        mock_db_client.sanitize_param = lambda x: x
+
+        mock_db_client.get_first_record = AsyncMock(return_value=None)
+
+        result = await choresir_agent.handle_unknown_user(
+            user_phone=user_phone,
+            message_text=message_text,
+        )
+
+        # Should return not a member message
+        assert "You are not a member of this household" in result
+        assert "Please contact an admin to request an invite" in result

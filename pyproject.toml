@@ -18,6 +18,9 @@ dependencies = [
     "python-dateutil>=2.9.0.post0",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.7.1",
+    "jinja2>=3.1.6",
+    "python-multipart>=0.0.21",
+    "itsdangerous>=2.2.0",
 ]
 
 [project.optional-dependencies]
@@ -77,6 +80,9 @@ ignore = [
     "ANN",     # Don't require type annotations in tests
     "ARG",     # Allow unused arguments in test fixtures
     "PLR2004", # Allow magic values in tests
+]
+"src/interface/admin_router.py" = [
+    "PLR2004", # Allow magic values for validation constants (min/max lengths)
 ]
 "src/interface/webhook.py" = [
     "PLC0415", # Allow local imports to avoid circular dependencies

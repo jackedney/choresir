@@ -1,0 +1,64 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Remove Member - Admin{% endblock %}
+
+{% block flash_messages %}
+{% if errors %}
+{% for error in errors %}
+<article role="alert" data-theme="danger">
+    <header>
+        <strong>Error</strong>
+    </header>
+    {{ error }}
+</article>
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<h1>Remove Member</h1>
+
+<p>Are you sure you want to ban this member from the house?</p>
+
+<table role="grid" style="margin-bottom: 2rem;">
+    <thead>
+        <tr>
+            <th>Phone</th>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>{{ user.phone }}</td>
+            <td>{{ user.name }}</td>
+            <td>
+                {% if user.role == "admin" %}
+                    <mark data-mark="blue">admin</mark>
+                {% else %}
+                    <mark data-mark="gray">member</mark>
+                {% endif %}
+            </td>
+            <td>
+                {% if user.status == "active" %}
+                    <mark data-mark="green">active</mark>
+                {% elif user.status == "pending" %}
+                    <mark data-mark="yellow">pending</mark>
+                {% elif user.status == "banned" %}
+                    <mark data-mark="red">banned</mark>
+                {% endif %}
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+    <div role="group">
+        <button type="submit" data-theme="danger">Ban Member</button>
+        <a href="/admin/members" role="button" class="secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

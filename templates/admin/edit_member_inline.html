@@ -1,0 +1,33 @@
+<tr id="member-{{ user.id }}">
+    <td>{{ user.phone }}</td>
+    <td colspan="4">
+        <form hx-post="/admin/members/{{ user.phone | urlencode }}/edit" hx-target="#member-{{ user.id }}" hx-swap="outerHTML" hx-indicator="#indicator-{{ user.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <label style="margin: 0;">
+                    Name:
+                    <input type="text" name="name" value="{{ name | default(user.name) }}" required maxlength="50" />
+                </label>
+                <label style="margin: 0;">
+                    Role:
+                    <select name="role" required>
+                        <option value="member" {% if (role | default(user.role)) == 'member' %}selected{% endif %}>member</option>
+                        <option value="admin" {% if (role | default(user.role)) == 'admin' %}selected{% endif %}>admin</option>
+                    </select>
+                </label>
+                <button type="submit" style="margin: 0;">Save</button>
+                <button type="button" hx-get="/admin/members/{{ user.phone | urlencode }}/row" hx-target="#member-{{ user.id }}" hx-swap="outerHTML" class="secondary" style="margin: 0;">Cancel</button>
+            </div>
+            {% if errors %}
+            <div style="margin-top: 0.5rem;">
+                {% for error in errors %}
+                <small style="color: var(--del-color); display: block; margin-bottom: 0.25rem;">{{ error }}</small>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </form>
+    </td>
+    <td>
+        <span id="indicator-{{ user.id }}" class="htmx-indicator" style="color: var(--muted-color);">Saving...</span>
+    </td>
+</tr>
