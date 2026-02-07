@@ -19,6 +19,9 @@ def _get_waha_headers() -> dict[str, str]:
     return headers
 
 
+HTTP_NOT_FOUND = 404
+
+
 async def resolve_lid_to_phone(lid: str, session: str = "default") -> str | None:
     """Resolve a WhatsApp @lid to a phone number using WAHA API.
 
@@ -35,7 +38,11 @@ async def resolve_lid_to_phone(lid: str, session: str = "default") -> str | None
     if not lid or "@lid" not in lid:
         return None
 
-    # URL-encode the @ symbol
+    return await _fetch_phone_from_lid(lid=lid, session=session)
+
+
+async def _fetch_phone_from_lid(*, lid: str, session: str) -> str | None:
+    """Internal: Fetch phone number from WAHA LID endpoint."""
     encoded_lid = lid.replace("@", "%40")
 
     try:
@@ -45,36 +52,34 @@ async def resolve_lid_to_phone(lid: str, session: str = "default") -> str | None
                 headers=_get_waha_headers(),
             )
 
-            if response.status_code == 404:
+            if response.status_code == HTTP_NOT_FOUND:
                 logger.debug("LID not found in WAHA", extra={"lid": lid})
                 return None
 
             response.raise_for_status()
-            data = response.json()
-
-            # Response format: {"lid": "123@lid", "pn": "447871681224@c.us"}
-            pn = data.get("pn")
-            if not pn:
-                logger.debug("LID resolved but no phone number", extra={"lid": lid, "response": data})
-                return None
-
-            # Extract phone number from @c.us format
-            phone = pn.replace("@c.us", "").replace("@s.whatsapp.net", "")
-
-            # Validate it looks like a phone number
-            if not re.match(r"^\d{1,15}$", phone):
-                logger.warning("Invalid phone format from LID resolution", extra={"lid": lid, "pn": pn})
-                return None
-
-            logger.info("Resolved LID to phone", extra={"lid": lid, "phone": f"+{phone}"})
-            return f"+{phone}"
+            return _parse_lid_response(lid=lid, data=response.json())
 
     except httpx.HTTPStatusError as e:
         logger.error("WAHA LID resolution HTTP error", extra={"lid": lid, "status": e.response.status_code})
-        return None
     except httpx.RequestError as e:
         logger.error("WAHA LID resolution connection error", extra={"lid": lid, "error": str(e)})
-        return None
     except Exception as e:
         logger.error("WAHA LID resolution unexpected error", extra={"lid": lid, "error": str(e)})
+    return None
+
+
+def _parse_lid_response(*, lid: str, data: dict) -> str | None:
+    """Parse WAHA LID response and extract phone number."""
+    pn = data.get("pn")
+    if not pn:
+        logger.debug("LID resolved but no phone number", extra={"lid": lid, "response": data})
         return None
+
+    phone = pn.replace("@c.us", "").replace("@s.whatsapp.net", "")
+
+    if not re.match(r"^\d{1,15}$", phone):
+        logger.warning("Invalid phone format from LID resolution", extra={"lid": lid, "pn": pn})
+        return None
+
+    logger.info("Resolved LID to phone", extra={"lid": lid, "phone": f"+{phone}"})
+    return f"+{phone}"

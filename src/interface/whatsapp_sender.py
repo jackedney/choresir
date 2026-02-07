@@ -136,46 +136,20 @@ async def get_bot_message_text(message_id: str) -> str | None:
     return None
 
 
-async def send_text_message(
+async def _send_waha_message(
     *,
-    to_phone: str,
+    chat_id: str,
     text: str,
-    max_retries: int = 3,
-    retry_delay: float = 1.0,
+    max_retries: int,
+    retry_delay: float,
 ) -> SendMessageResult:
-    """Send a text message via WAHA API with retry logic.
-
-    Args:
-        to_phone: Recipient phone number in E.164 format (e.g., "1234567890")
-        text: Message text to send
-        max_retries: Maximum number of retry attempts on failure
-        retry_delay: Delay in seconds between retries (doubles each retry)
-
-    Returns:
-        SendMessageResult indicating success or failure
-    """
-    # Check rate limit
-    if not rate_limiter.can_send(to_phone):
-        return SendMessageResult(
-            success=False,
-            error="Rate limit exceeded. Please try again later.",
-        )
-
-    # Record request for rate limiting (before attempting API call)
-    rate_limiter.record_request(to_phone)
-
-    chat_id = format_phone_for_waha(to_phone)
+    """Core message sending logic with retry."""
     url = f"{settings.waha_base_url}/api/sendText"
-    payload = {
-        "session": "default",
-        "chatId": chat_id,
-        "text": text,
-    }
+    payload = {"session": "default", "chatId": chat_id, "text": text}
     headers = {"Content-Type": "application/json"}
     if settings.waha_api_key:
         headers["X-Api-Key"] = settings.waha_api_key
 
-    # Retry logic
     for attempt in range(max_retries):
         try:
             async with httpx.AsyncClient(timeout=constants.API_TIMEOUT_SECONDS) as client:
@@ -183,31 +157,42 @@ async def send_text_message(
 
                 if response.is_success:
                     message_id = _extract_message_id(response.json())
-                    # Store message for reply context lookup
                     if message_id:
                         await _store_bot_message(message_id=message_id, text=text, chat_id=chat_id)
                     return SendMessageResult(success=True, message_id=message_id)
 
-                # Client error (4xx) - don't retry
                 if HTTP_CLIENT_ERROR_START <= response.status_code < HTTP_CLIENT_ERROR_END:
                     return SendMessageResult(success=False, error=f"Client error: {response.text}")
 
-                # Server error (5xx) - allow retry
                 raise httpx.HTTPStatusError(
                     f"Server error: {response.status_code}", request=response.request, response=response
                 )
-
         except httpx.HTTPStatusError:
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
         except Exception as e:
-            # Retry on unexpected errors
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_delay * (2**attempt))
             else:
                 return SendMessageResult(success=False, error=f"Failed after retries: {e!s}")
 
     return SendMessageResult(success=False, error="Max retries exceeded")
+
+
+async def send_text_message(
+    *,
+    to_phone: str,
+    text: str,
+    max_retries: int = 3,
+    retry_delay: float = 1.0,
+) -> SendMessageResult:
+    """Send a text message via WAHA API with retry logic."""
+    if not rate_limiter.can_send(to_phone):
+        return SendMessageResult(success=False, error="Rate limit exceeded. Please try again later.")
+
+    rate_limiter.record_request(to_phone)
+    chat_id = format_phone_for_waha(to_phone)
+    return await _send_waha_message(chat_id=chat_id, text=text, max_retries=max_retries, retry_delay=retry_delay)
 
 
 async def send_group_message(
@@ -217,69 +202,9 @@ async def send_group_message(
     max_retries: int = 3,
     retry_delay: float = 1.0,
 ) -> SendMessageResult:
-    """Send a text message to a WhatsApp group via WAHA API with retry logic.
-
-    Args:
-        to_group_id: Group JID (e.g., "120363400136168625@g.us")
-        text: Message text to send
-        max_retries: Maximum number of retry attempts on failure
-        retry_delay: Delay in seconds between retries (doubles each retry)
-
-    Returns:
-        SendMessageResult indicating success or failure
-    """
-    # Check rate limit using the group ID
+    """Send a text message to a WhatsApp group via WAHA API with retry logic."""
     if not rate_limiter.can_send(to_group_id):
-        return SendMessageResult(
-            success=False,
-            error="Rate limit exceeded. Please try again later.",
-        )
+        return SendMessageResult(success=False, error="Rate limit exceeded. Please try again later.")
 
-    # Record request for rate limiting (before attempting API call)
     rate_limiter.record_request(to_group_id)
-
-    # Group IDs are already in the correct format (e.g., "120363400136168625@g.us")
-    # No formatting needed unlike phone numbers
-    url = f"{settings.waha_base_url}/api/sendText"
-    payload = {
-        "session": "default",
-        "chatId": to_group_id,
-        "text": text,
-    }
-    headers = {"Content-Type": "application/json"}
-    if settings.waha_api_key:
-        headers["X-Api-Key"] = settings.waha_api_key
-
-    # Retry logic
-    for attempt in range(max_retries):
-        try:
-            async with httpx.AsyncClient(timeout=constants.API_TIMEOUT_SECONDS) as client:
-                response = await client.post(url, json=payload, headers=headers)
-
-                if response.is_success:
-                    message_id = _extract_message_id(response.json())
-                    # Store message for reply context lookup
-                    if message_id:
-                        await _store_bot_message(message_id=message_id, text=text, chat_id=to_group_id)
-                    return SendMessageResult(success=True, message_id=message_id)
-
-                # Client error (4xx) - don't retry
-                if HTTP_CLIENT_ERROR_START <= response.status_code < HTTP_CLIENT_ERROR_END:
-                    return SendMessageResult(success=False, error=f"Client error: {response.text}")
-
-                # Server error (5xx) - allow retry
-                raise httpx.HTTPStatusError(
-                    f"Server error: {response.status_code}", request=response.request, response=response
-                )
-
-        except httpx.HTTPStatusError:
-            if attempt < max_retries - 1:
-                await asyncio.sleep(retry_delay * (2**attempt))
-        except Exception as e:
-            # Retry on unexpected errors
-            if attempt < max_retries - 1:
-                await asyncio.sleep(retry_delay * (2**attempt))
-            else:
-                return SendMessageResult(success=False, error=f"Failed after retries: {e!s}")
-
-    return SendMessageResult(success=False, error="Max retries exceeded")
+    return await _send_waha_message(chat_id=to_group_id, text=text, max_retries=max_retries, retry_delay=retry_delay)

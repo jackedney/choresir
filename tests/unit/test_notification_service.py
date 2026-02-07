@@ -135,7 +135,7 @@ class TestSendVerificationRequest:
         )
 
         # Send verification request with non-existent claimer
-        results = await notification_service.send_verification_request(
+        await notification_service.send_verification_request(
             log_id="log123",
             chore_id=chore["id"],
             claimer_user_id="nonexistent_user",

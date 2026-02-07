@@ -381,7 +381,7 @@ async def tool_request_chore_deletion(ctx: RunContext[Deps], params: RequestChor
         return "Error: Unable to request chore deletion. Please try again."
 
 
-async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDeletion) -> str:
+async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDeletion) -> str:  # noqa: C901, PLR0911, PLR0912
     """
     Respond to a pending chore deletion request (approve or reject).
 
@@ -490,7 +490,7 @@ async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDelet
     return result
 
 
-async def tool_batch_respond_to_workflows(ctx: RunContext[Deps], params: BatchRespondToWorkflows) -> str:
+async def tool_batch_respond_to_workflows(ctx: RunContext[Deps], params: BatchRespondToWorkflows) -> str:  # noqa: C901, PLR0911, PLR0912
     """
     Batch approve or reject multiple workflows at once.
 

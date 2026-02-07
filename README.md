@@ -228,25 +228,23 @@ task dev                             # Start PocketBase + FastAPI
 <tr>
 <td width="80%">
 
-### 🚂 Railway Deployment
+### 🐳 Docker Deployment
 
-**Platform:** Railway (recommended)
-**Cost:** ~$5-10/month
+**Platform:** Docker Compose (any VPS or container platform)
+**Cost:** ~$5-10/month (any VPS provider)
 **Guide:** See [Getting Started > Production](docs/getting-started/) documentation
 
 #### Quick Deploy Steps:
-1. ✅ Create Railway project
-2. 💾 Deploy PocketBase service (with persistent volume)
-3. ⚡ Add Redis plugin (for caching)
-4. 🖥️ Deploy FastAPI service (connect GitHub repo)
-5. 🔐 Set environment variables:
+1. ✅ Clone the repository
+2. 📝 Copy `.env.example` to `.env` and configure:
    - `ADMIN_PASSWORD`: Password for web admin interface access (required)
    - `SECRET_KEY`: Secret key for session signing (required, generate a random string)
    - `REDIS_URL`: Redis connection URL (required)
    - `OPENROUTER_API_KEY`: OpenRouter API key (required)
    - `HOUSE_NAME`: Optional fallback house name
-6. 🔗 Update WhatsApp webhook URL
-7. 🌐 Access admin interface at `https://your-app.railway.app/admin`
+3. 🚀 Run `docker-compose up -d`
+4. 🔗 Update WhatsApp webhook URL to your server
+5. 🌐 Access admin interface at `https://your-domain.com/admin`
 
 </td>
 <td width="40%">

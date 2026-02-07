@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from croniter import croniter
 
 
-def cron_to_human(cron_expr: str) -> str:
+def cron_to_human(cron_expr: str) -> str:  # noqa: C901, PLR0911, PLR0912
     """Convert a CRON expression to human-readable text.
 
     Args:
@@ -25,7 +25,7 @@ def cron_to_human(cron_expr: str) -> str:
 
     # Parse CRON expression
     parts = cron_expr.split()
-    if len(parts) != 5:
+    if len(parts) != 5:  # noqa: PLR2004
         return cron_expr  # Return as-is if not valid
 
     minute, hour, day_of_month, month, day_of_week = parts
@@ -38,17 +38,14 @@ def cron_to_human(cron_expr: str) -> str:
             m = int(minute)
             if h == 0 and m == 0:
                 time_str = " at midnight"
-            elif h == 12 and m == 0:
+            elif h == 12 and m == 0:  # noqa: PLR2004
                 time_str = " at noon"
             else:
-                period = "AM" if h < 12 else "PM"
-                display_hour = h if h <= 12 else h - 12
+                period = "AM" if h < 12 else "PM"  # noqa: PLR2004
+                display_hour = h if h <= 12 else h - 12  # noqa: PLR2004
                 if display_hour == 0:
                     display_hour = 12
-                if m == 0:
-                    time_str = f" at {display_hour}:00 {period}"
-                else:
-                    time_str = f" at {display_hour}:{m:02d} {period}"
+                time_str = f" at {display_hour}:00 {period}" if m == 0 else f" at {display_hour}:{m:02d} {period}"
         except ValueError:
             pass
 

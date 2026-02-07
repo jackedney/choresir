@@ -5,6 +5,7 @@ across different workflow types (deletion approval, chore verification, personal
 """
 
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
@@ -34,7 +35,20 @@ class WorkflowStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-async def create_workflow(
+@dataclass
+class WorkflowCreateParams:
+    """Parameters for creating a workflow."""
+
+    workflow_type: WorkflowType
+    requester_user_id: str
+    requester_name: str
+    target_id: str
+    target_title: str
+    expires_hours: int = 48
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+async def create_workflow(  # noqa: PLR0913
     *,
     workflow_type: WorkflowType,
     requester_user_id: str,

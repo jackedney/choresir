@@ -127,10 +127,7 @@ def _format_chore_list(chores: list[dict], user_name: str) -> str:
             # Make naive datetimes timezone-aware for comparison
             if deadline.tzinfo is None:
                 deadline = deadline.astimezone()
-            if deadline < now:
-                status = "OVERDUE"
-            else:
-                status = deadline.strftime("%b %d")
+            status = "OVERDUE" if deadline < now else deadline.strftime("%b %d")
         else:
             status = "no deadline"
         lines.append(f"• {chore['title']} (due {status})")
@@ -142,7 +139,7 @@ def _format_chore_list(chores: list[dict], user_name: str) -> str:
     return "\n".join(lines)
 
 
-async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
+async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:  # noqa: C901, PLR0911, PLR0912
     """
     Verify or reject a chore completion claim.
 

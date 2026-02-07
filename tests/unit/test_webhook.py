@@ -26,7 +26,7 @@ class TestGroupContextRecording:
     @patch("src.interface.webhook.choresir_agent")
     @patch("src.interface.webhook.add_group_message")
     @patch("src.interface.webhook.add_user_message")
-    async def test_group_message_records_user_to_group_context(
+    async def test_group_message_records_user_to_group_context(  # noqa: PLR0913
         self,
         mock_add_user,
         mock_add_group,
@@ -92,7 +92,7 @@ class TestGroupContextRecording:
     @patch("src.interface.webhook.choresir_agent")
     @patch("src.interface.webhook.add_group_message")
     @patch("src.interface.webhook.add_assistant_message")
-    async def test_group_bot_response_records_to_group_context(
+    async def test_group_bot_response_records_to_group_context(  # noqa: PLR0913
         self,
         mock_add_assistant,
         mock_add_group,
@@ -152,7 +152,7 @@ class TestGroupContextRecording:
     @patch("src.interface.webhook.add_group_message")
     @patch("src.interface.webhook.add_user_message")
     @patch("src.interface.webhook.add_assistant_message")
-    async def test_dm_message_not_processed_ignores_group_context(
+    async def test_dm_message_not_processed_ignores_group_context(  # noqa: PLR0913
         self,
         mock_add_assistant,
         mock_add_user,

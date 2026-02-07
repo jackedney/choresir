@@ -59,7 +59,7 @@ class ParsedMessage(BaseModel):
     reply_to_message_id: str | None = Field(None, description="Message ID being replied to, if this is a reply/quote")
 
 
-def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
+def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:  # noqa: C901, PLR0912
     """Parse WAHA WhatsApp webhook JSON data.
 
     WAHA sends webhooks with structure:
@@ -127,16 +127,12 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
     if is_group_message:
         # In group context, actual_sender_phone is the real sender
         # from_phone should still be set for backwards compatibility
-        if clean_number:
-            from_phone = f"+{clean_number}"
-        else:
-            # Group ID isn't a phone - use the participant as from_phone
-            from_phone = actual_sender_phone or ""
+        from_phone = f"+{clean_number}" if clean_number else actual_sender_phone or ""
+    elif not clean_number:
+        # Individual message must have a valid phone number
+        # Invalid phone format (e.g., @lid) - skip this message
+        return None
     else:
-        # Individual message - must have a valid phone number
-        if not clean_number:
-            # Invalid phone format (e.g., @lid) - skip this message
-            return None
         from_phone = f"+{clean_number}"
 
     # Extract content
