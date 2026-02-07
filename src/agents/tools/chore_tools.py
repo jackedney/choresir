@@ -387,17 +387,23 @@ async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDelet
             matched_chores = _fuzzy_match_all_chores(all_chores, params.chore_title_fuzzy)
 
             if not matched_chores:
-                return f'No pending deletion request found for "{params.chore_title_fuzzy}". To delete a chore, first request deletion with "Request deletion [chore title]".'
+                return (
+                    f'No pending deletion request found for "{params.chore_title_fuzzy}". '
+                    'To delete a chore, first request deletion with "Request deletion [chore title]".'
+                )
 
             # Find which matched chores have pending deletion requests
             chores_with_pending_deletion: list[tuple[dict, dict]] = []
             for chore in matched_chores:
-                pending_request = await deletion_service.get_pending_deletion_request(chore_id=chore["id"])
-                if pending_request:
-                    chores_with_pending_deletion.append((chore, pending_request))
+                pending_workflow = await deletion_service.get_pending_deletion_workflow(chore_id=chore["id"])
+                if pending_workflow:
+                    chores_with_pending_deletion.append((chore, pending_workflow))
 
             if not chores_with_pending_deletion:
-                return f'No pending deletion request found for "{params.chore_title_fuzzy}". To delete a chore, first request deletion with "Request deletion [chore title]".'
+                return (
+                    f'No pending deletion request found for "{params.chore_title_fuzzy}". '
+                    'To delete a chore, first request deletion with "Request deletion [chore title]".'
+                )
 
             if len(chores_with_pending_deletion) > 1:
                 # Multiple chores with pending deletion - ask for clarification

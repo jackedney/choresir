@@ -322,6 +322,7 @@ async def _handle_user_status(
             deps=deps,
             member_list=member_list,
             message_history=message_history if message_history else None,
+            group_id=message.group_id if message.is_group_message else None,
         )
 
         # Record assistant response in conversation context

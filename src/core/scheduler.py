@@ -15,7 +15,7 @@ from src.core.scheduler_tracker import retry_job_with_backoff
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.models.service_models import LeaderboardEntry, OverdueChore
-from src.services import deletion_service, personal_chore_service, personal_verification_service, workflow_service
+from src.services import personal_chore_service, personal_verification_service, workflow_service
 from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
 
 
@@ -584,25 +584,6 @@ async def auto_verify_personal_chores() -> None:
         logger.error(f"Error in auto-verification job: {e}")
 
 
-async def expire_deletion_requests() -> None:
-    """Expire chore deletion requests pending for > 48 hours.
-
-    Runs every hour. Finds deletion requests older than 48 hours
-    and auto-rejects them (no response in time).
-    Unlike verification, expired deletion requests are cancelled for safety.
-    """
-    logger.info("Running deletion request expiry job")
-
-    try:
-        # Call deletion service expiry function
-        count = await deletion_service.expire_old_deletion_requests()
-
-        logger.info(f"Completed deletion request expiry job: {count} requests expired")
-
-    except Exception as e:
-        logger.error(f"Error in deletion request expiry job: {e}")
-
-
 async def expire_workflows() -> None:
     """Expire pending workflows past their expiration time.
 
@@ -683,16 +664,6 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
     logger.info("Scheduled auto-verification job: hourly")
-
-    # Schedule deletion request expiry (hourly) with retry
-    scheduler.add_job(
-        lambda: retry_job_with_backoff(expire_deletion_requests, "expire_deletion_requests"),
-        trigger=CronTrigger(hour="*", minute=30),  # Every hour at minute 30 (offset from auto-verify)
-        id="expire_deletion_requests",
-        name="Expire Deletion Requests",
-        replace_existing=True,
-    )
-    logger.info("Scheduled deletion request expiry job: hourly at :30")
 
     # Schedule workflow expiry (hourly) with retry
     scheduler.add_job(

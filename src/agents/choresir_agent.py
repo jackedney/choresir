@@ -15,12 +15,15 @@ from src.agents.retry_handler import get_retry_handler
 from src.core import admin_notifier, db_client
 from src.core.errors import classify_agent_error
 from src.domain.user import UserStatus
-from src.services import user_service
+from src.services import user_service, workflow_service
 from src.services.conversation_context_service import (
     format_context_for_prompt,
     get_recent_context,
 )
-from src.services.deletion_service import get_user_pending_deletion_requests
+from src.services.group_context_service import (
+    format_group_context_for_prompt,
+    get_group_context,
+)
 
 
 @dataclass
@@ -200,9 +203,14 @@ async def _build_pending_context(user_id: str) -> str:
     Returns:
         Context string to append to system prompt, or empty string if none
     """
-    pending_deletions = await get_user_pending_deletion_requests(user_id=user_id)
+    pending_workflows = await workflow_service.get_user_pending_workflows(user_id=user_id)
 
-    if not pending_deletions:
+    # Filter for deletion approval workflows
+    deletion_workflows = [
+        w for w in pending_workflows if w["type"] == workflow_service.WorkflowType.DELETION_APPROVAL.value
+    ]
+
+    if not deletion_workflows:
         return ""
 
     lines = [
@@ -211,8 +219,8 @@ async def _build_pending_context(user_id: str) -> str:
         "",
         "You have requested deletion of the following chores (awaiting approval from another household member):",
     ]
-    for req in pending_deletions:
-        lines.append(f'- "{req["chore_title"]}"')
+    for wf in deletion_workflows:
+        lines.append(f'- "{wf["target_title"]}"')
 
     lines.append("")
     lines.append(
@@ -230,6 +238,7 @@ async def run_agent(
     deps: Deps,
     member_list: str,
     message_history: list[ModelMessage] | None = None,
+    group_id: str | None = None,
 ) -> str:
     """
     Run the choresir agent with the given message and context.
@@ -239,6 +248,7 @@ async def run_agent(
         deps: The injected dependencies (db, user info, current time)
         member_list: Formatted list of household members
         message_history: Optional conversation history for context
+        group_id: Optional WhatsApp group ID for shared group context
 
     Returns:
         The agent's response as a string
@@ -247,12 +257,20 @@ async def run_agent(
     pending_context = await _build_pending_context(deps.user_id)
 
     # Build conversation context from recent messages
+    # Use group context for group chats, per-user context for DMs
     conversation_context = ""
-    try:
-        recent_context = await get_recent_context(user_phone=deps.user_phone)
-        conversation_context = format_context_for_prompt(recent_context)
-    except Exception as e:
-        logger.warning("Failed to get conversation context: %s", e)
+    if group_id:
+        try:
+            group_context = await get_group_context(group_id=group_id)
+            conversation_context = format_group_context_for_prompt(group_context)
+        except Exception as e:
+            logger.warning("Failed to get group context: %s", e)
+    else:
+        try:
+            recent_context = await get_recent_context(user_phone=deps.user_phone)
+            conversation_context = format_context_for_prompt(recent_context)
+        except Exception as e:
+            logger.warning("Failed to get conversation context: %s", e)
 
     # Build system prompt with context
     prompt_ctx = PromptContext(

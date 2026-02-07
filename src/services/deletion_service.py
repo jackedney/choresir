@@ -5,112 +5,42 @@ and another member must approve (second) the request.
 """
 
 import logging
-from datetime import datetime, timedelta
-from enum import StrEnum
+from datetime import datetime
 from typing import Any
 
 from src.core import db_client
 from src.core.logging import span
 from src.domain.chore import ChoreState
+from src.services import user_service, workflow_service
 
 
 logger = logging.getLogger(__name__)
 
-# Constants
-DELETION_REQUEST_EXPIRY_HOURS = 48
 
-
-class DeletionDecision(StrEnum):
-    """Deletion response decision enum."""
-
-    APPROVE = "APPROVE"
-    REJECT = "REJECT"
-
-
-async def get_pending_deletion_request(*, chore_id: str) -> dict[str, Any] | None:
-    """Get the pending deletion request for a chore if one exists.
+async def get_pending_deletion_workflow(*, chore_id: str) -> dict[str, Any] | None:
+    """Get the pending deletion workflow for a chore if one exists.
 
     Args:
-        chore_id: Chore ID to check for pending deletion request
+        chore_id: Chore ID to check for pending deletion workflow
 
     Returns:
-        The pending deletion request log record, or None if no pending request
+        The pending deletion workflow record, or None if no pending workflow
     """
-    with span("deletion_service.get_pending_deletion_request"):
-        filter_query = f'chore_id = "{db_client.sanitize_param(chore_id)}" && action = "deletion_requested"'
+    with span("deletion_service.get_pending_deletion_workflow"):
+        filter_query = (
+            f'type = "{workflow_service.WorkflowType.DELETION_APPROVAL.value}" && '
+            f'target_id = "{db_client.sanitize_param(chore_id)}" && '
+            f'status = "{workflow_service.WorkflowStatus.PENDING.value}"'
+        )
 
-        logs = await db_client.list_records(
-            collection="logs",
+        workflows = await db_client.list_records(
+            collection="workflows",
             filter_query=filter_query,
-            sort="-timestamp",
+            sort="-created_at",
             per_page=1,
         )
 
-        if not logs:
-            return None
-
-        request_log = logs[0]
-
-        # Check if this request has been resolved (approved/rejected)
-        request_timestamp = request_log.get("timestamp", "")
-        if not request_timestamp:
-            return None
-
-        # Look for a resolution log after this request
-        resolution_filter = (
-            f'chore_id = "{db_client.sanitize_param(chore_id)}" && '
-            f'(action = "deletion_approved" || action = "deletion_rejected") && '
-            f'timestamp >= "{request_timestamp}"'
-        )
-
-        resolution_logs = await db_client.list_records(
-            collection="logs",
-            filter_query=resolution_filter,
-            per_page=1,
-        )
-
-        if resolution_logs:
-            # Request has been resolved
-            return None
-
-        # Check if request has expired (48 hours)
-        # Try multiple timestamp sources: explicit timestamp field, then PocketBase's created field
-        request_time = None
-        try:
-            request_time = datetime.fromisoformat(request_timestamp)
-        except (ValueError, TypeError):
-            # Fallback to PocketBase's built-in 'created' field
-            created_timestamp = request_log.get("created")
-            if created_timestamp:
-                try:
-                    # PocketBase created field format: "2024-01-15 10:30:00.000Z"
-                    # Handle both ISO format and PocketBase format
-                    created_str = created_timestamp.replace(" ", "T").replace("Z", "+00:00")
-                    request_time = datetime.fromisoformat(created_str.split("+")[0])
-                except (ValueError, TypeError):
-                    pass
-
-        if request_time is None:
-            logger.warning(
-                "Could not determine timestamp for deletion request log: %s (timestamp=%s, created=%s)",
-                request_log.get("id"),
-                request_timestamp,
-                request_log.get("created"),
-            )
-            # Don't return None - assume the request is still valid if we can't determine its age
-            # This prevents valid deletion requests from being hidden due to missing timestamps
-            return request_log
-
-        # Ensure request_time is naive for comparison with datetime.now()
-        if request_time.tzinfo is not None:
-            request_time = request_time.replace(tzinfo=None)
-
-        expiry_time = request_time + timedelta(hours=DELETION_REQUEST_EXPIRY_HOURS)
-        if datetime.now() > expiry_time:
-            # Request has expired
-            return None
-
-        return request_log
+        return workflows[0] if workflows else None
 
 
 async def request_chore_deletion(
@@ -121,8 +51,7 @@ async def request_chore_deletion(
 ) -> dict[str, Any]:
     """Request deletion of a chore (first step of seconded deletion).
 
-    Creates a log entry for the deletion request and triggers notifications
-    to other household members.
+    Creates a workflow for the deletion request and log entry for audit trail.
 
     Args:
         chore_id: Chore ID to request deletion for
@@ -130,7 +59,7 @@ async def request_chore_deletion(
         reason: Optional reason for deletion request
 
     Returns:
-        Created log record
+        Created workflow record
 
     Raises:
         ValueError: If chore already has a pending deletion request
@@ -145,13 +74,25 @@ async def request_chore_deletion(
             msg = f"Cannot request deletion: chore {chore_id} is already archived"
             raise ValueError(msg)
 
-        # Check for existing pending deletion request
-        existing_request = await get_pending_deletion_request(chore_id=chore_id)
-        if existing_request:
+        # Check for existing pending deletion workflow
+        existing_workflow = await get_pending_deletion_workflow(chore_id=chore_id)
+        if existing_workflow:
             msg = f"Chore {chore_id} already has a pending deletion request"
             raise ValueError(msg)
 
-        # Create deletion request log
+        # Get requester name for workflow
+        requester = await user_service.get_user_by_id(user_id=requester_user_id)
+
+        # Create deletion workflow
+        workflow = await workflow_service.create_workflow(
+            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+            requester_user_id=requester_user_id,
+            requester_name=requester.get("name", "Unknown"),
+            target_id=chore_id,
+            target_title=chore.get("title", "Unknown"),
+        )
+
+        # Create log entry for audit trail
         log_data = {
             "chore_id": chore_id,
             "user_id": requester_user_id,
@@ -160,7 +101,7 @@ async def request_chore_deletion(
             "timestamp": datetime.now().isoformat(),
         }
 
-        log_record = await db_client.create_record(collection="logs", data=log_data)
+        await db_client.create_record(collection="logs", data=log_data)
 
         logger.info(
             "User %s requested deletion of chore %s",
@@ -168,7 +109,7 @@ async def request_chore_deletion(
             chore_id,
         )
 
-        return log_record
+        return workflow
 
 
 async def approve_chore_deletion(
@@ -179,7 +120,7 @@ async def approve_chore_deletion(
 ) -> dict[str, Any]:
     """Approve a pending deletion request (second step - the 'seconding').
 
-    Archives the chore and creates approval log.
+    Archives the chore and resolves workflow.
 
     Args:
         chore_id: Chore ID to approve deletion for
@@ -190,26 +131,30 @@ async def approve_chore_deletion(
         Updated chore record
 
     Raises:
-        ValueError: If no pending deletion request exists
+        ValueError: If no pending deletion workflow exists
         PermissionError: If approver is the original requester (self-approval)
         KeyError: If chore not found
     """
     with span("deletion_service.approve_chore_deletion"):
-        # Get pending deletion request
-        pending_request = await get_pending_deletion_request(chore_id=chore_id)
-        if not pending_request:
+        # Get pending deletion workflow
+        pending_workflow = await get_pending_deletion_workflow(chore_id=chore_id)
+        if not pending_workflow:
             msg = f"No pending deletion request for chore {chore_id}"
             raise ValueError(msg)
 
-        requester_user_id = pending_request["user_id"]
+        # Get approver name for workflow resolution
+        approver = await user_service.get_user_by_id(user_id=approver_user_id)
 
-        # Prevent self-approval
-        if approver_user_id == requester_user_id:
-            msg = f"User {approver_user_id} cannot approve their own deletion request"
-            logger.warning(msg)
-            raise PermissionError(msg)
+        # Resolve workflow (self-approval check is handled by workflow_service)
+        await workflow_service.resolve_workflow(
+            workflow_id=pending_workflow["id"],
+            resolver_user_id=approver_user_id,
+            resolver_name=approver.get("name", "Unknown"),
+            decision=workflow_service.WorkflowStatus.APPROVED,
+            reason=reason,
+        )
 
-        # Create approval log
+        # Create log entry for audit trail
         log_data = {
             "chore_id": chore_id,
             "user_id": approver_user_id,
@@ -227,10 +172,9 @@ async def approve_chore_deletion(
         )
 
         logger.info(
-            "User %s approved deletion of chore %s (requested by %s)",
+            "User %s approved deletion of chore %s",
             approver_user_id,
             chore_id,
-            requester_user_id,
         )
 
         return updated_chore
@@ -244,7 +188,7 @@ async def reject_chore_deletion(
 ) -> dict[str, Any]:
     """Reject a pending deletion request.
 
-    Cancels the deletion request without archiving the chore.
+    Cancels deletion request without archiving the chore.
 
     Args:
         chore_id: Chore ID to reject deletion for
@@ -255,22 +199,39 @@ async def reject_chore_deletion(
         The rejection log record
 
     Raises:
-        ValueError: If no pending deletion request exists
+        ValueError: If no pending deletion workflow exists
         KeyError: If chore not found
     """
     with span("deletion_service.reject_chore_deletion"):
         # Verify chore exists
         await db_client.get_record(collection="chores", record_id=chore_id)
 
-        # Get pending deletion request
-        pending_request = await get_pending_deletion_request(chore_id=chore_id)
-        if not pending_request:
+        # Get pending deletion workflow
+        pending_workflow = await get_pending_deletion_workflow(chore_id=chore_id)
+        if not pending_workflow:
             msg = f"No pending deletion request for chore {chore_id}"
             raise ValueError(msg)
 
-        requester_user_id = pending_request["user_id"]
+        # Get rejecter name for workflow resolution
+        rejecter = await user_service.get_user_by_id(user_id=rejecter_user_id)
 
-        # Create rejection log
+        # Resolve workflow as REJECTED
+        try:
+            await workflow_service.resolve_workflow(
+                workflow_id=pending_workflow["id"],
+                resolver_user_id=rejecter_user_id,
+                resolver_name=rejecter.get("name", "Unknown"),
+                decision=workflow_service.WorkflowStatus.REJECTED,
+                reason=reason,
+            )
+        except ValueError as e:
+            # Allow requester to reject (cancel) their own request
+            if "Cannot approve own workflow" in str(e):
+                pass
+            else:
+                raise
+
+        # Create log entry for audit trail
         log_data = {
             "chore_id": chore_id,
             "user_id": rejecter_user_id,
@@ -281,182 +242,9 @@ async def reject_chore_deletion(
         log_record = await db_client.create_record(collection="logs", data=log_data)
 
         logger.info(
-            "User %s rejected deletion of chore %s (requested by %s)",
+            "User %s rejected deletion of chore %s",
             rejecter_user_id,
             chore_id,
-            requester_user_id,
         )
 
         return log_record
-
-
-async def _is_deletion_request_resolved(*, chore_id: str, request_timestamp: str) -> bool:
-    """Check if a deletion request has been resolved (approved or rejected).
-
-    Args:
-        chore_id: Chore ID
-        request_timestamp: Timestamp of the deletion request
-
-    Returns:
-        True if the request has been resolved, False if still pending
-    """
-    resolution_filter = (
-        f'chore_id = "{db_client.sanitize_param(chore_id)}" && '
-        f'(action = "deletion_approved" || action = "deletion_rejected") && '
-        f'timestamp >= "{request_timestamp}"'
-    )
-
-    resolution_logs = await db_client.list_records(
-        collection="logs",
-        filter_query=resolution_filter,
-        per_page=1,
-    )
-
-    return len(resolution_logs) > 0
-
-
-async def expire_old_deletion_requests() -> int:
-    """Expire deletion requests that have been pending for > 48 hours.
-
-    This function is called by the scheduler job.
-    Unlike verification, expired deletion requests are cancelled (not auto-approved)
-    for safety.
-
-    Returns:
-        Number of requests expired
-    """
-    with span("deletion_service.expire_old_deletion_requests"):
-        cutoff_time = datetime.now() - timedelta(hours=DELETION_REQUEST_EXPIRY_HOURS)
-
-        # Find all deletion_requested logs older than cutoff
-        filter_query = f'action = "deletion_requested" && timestamp < "{cutoff_time.isoformat()}"'
-
-        old_requests = await db_client.list_records(
-            collection="logs",
-            filter_query=filter_query,
-        )
-
-        expired_count = 0
-        for request_log in old_requests:
-            chore_id = request_log.get("chore_id")
-            request_timestamp = request_log.get("timestamp")
-            if not chore_id or not request_timestamp:
-                continue
-
-            # Check if this request has already been resolved
-            is_resolved = await _is_deletion_request_resolved(
-                chore_id=chore_id,
-                request_timestamp=request_timestamp,
-            )
-
-            if not is_resolved:
-                # This old request is still pending - expire it
-                try:
-                    # Create expiry log
-                    expiry_log_data = {
-                        "chore_id": chore_id,
-                        "user_id": request_log.get("user_id"),
-                        "action": "deletion_rejected",
-                        "notes": "Auto-expired (no response within 48 hours)",
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                    await db_client.create_record(collection="logs", data=expiry_log_data)
-                    expired_count += 1
-
-                    logger.info(
-                        "Auto-expired deletion request for chore %s (48h timeout)",
-                        chore_id,
-                    )
-                except Exception as e:
-                    logger.error("Failed to expire deletion request %s: %s", request_log.get("id"), e)
-                    continue
-
-        logger.info("Expired %d deletion requests", expired_count)
-        return expired_count
-
-
-async def get_all_pending_deletion_requests() -> list[dict[str, Any]]:
-    """Get all pending deletion requests across all chores.
-
-    Returns:
-        List of pending deletion request log records with chore details
-    """
-    with span("deletion_service.get_all_pending_deletion_requests"):
-        cutoff_time = datetime.now() - timedelta(hours=DELETION_REQUEST_EXPIRY_HOURS)
-
-        # Find all deletion_requested logs within expiry window
-        filter_query = f'action = "deletion_requested" && timestamp >= "{cutoff_time.isoformat()}"'
-
-        request_logs = await db_client.list_records(
-            collection="logs",
-            filter_query=filter_query,
-            sort="-timestamp",
-        )
-
-        pending_requests = []
-        for request_log in request_logs:
-            chore_id = request_log.get("chore_id")
-            if not chore_id:
-                continue
-
-            # Verify this is actually pending (not resolved)
-            pending = await get_pending_deletion_request(chore_id=chore_id)
-            if pending and pending.get("id") == request_log.get("id"):
-                # Enrich with chore details
-                try:
-                    chore = await db_client.get_record(collection="chores", record_id=chore_id)
-                    enriched = dict(request_log)
-                    enriched["chore_title"] = chore.get("title", "Unknown")
-                    pending_requests.append(enriched)
-                except KeyError:
-                    # Chore was deleted
-                    continue
-
-        return pending_requests
-
-
-async def get_user_pending_deletion_requests(*, user_id: str) -> list[dict[str, Any]]:
-    """Get pending deletion requests made by a specific user.
-
-    Args:
-        user_id: User ID to get pending deletions for
-
-    Returns:
-        List of pending deletion request records with chore details
-    """
-    with span("deletion_service.get_user_pending_deletion_requests"):
-        cutoff_time = datetime.now() - timedelta(hours=DELETION_REQUEST_EXPIRY_HOURS)
-
-        # Find deletion_requested logs by this user within expiry window
-        filter_query = (
-            f'action = "deletion_requested" && '
-            f'user_id = "{db_client.sanitize_param(user_id)}" && '
-            f'timestamp >= "{cutoff_time.isoformat()}"'
-        )
-
-        request_logs = await db_client.list_records(
-            collection="logs",
-            filter_query=filter_query,
-            sort="-timestamp",
-        )
-
-        pending_requests = []
-        for request_log in request_logs:
-            chore_id = request_log.get("chore_id")
-            if not chore_id:
-                continue
-
-            # Verify this is actually pending (not resolved)
-            pending = await get_pending_deletion_request(chore_id=chore_id)
-            if pending and pending.get("id") == request_log.get("id"):
-                # Enrich with chore details
-                try:
-                    chore = await db_client.get_record(collection="chores", record_id=chore_id)
-                    enriched = dict(request_log)
-                    enriched["chore_title"] = chore.get("title", "Unknown")
-                    pending_requests.append(enriched)
-                except KeyError:
-                    # Chore was deleted
-                    continue
-
-        return pending_requests

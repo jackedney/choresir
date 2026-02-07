@@ -271,3 +271,127 @@ class TestChoresirAgentErrorHandling:
 
                 # Verify message is not too long (reasonable for WhatsApp)
                 assert len(result) < 200, f"Message too long ({len(result)} chars): {result}"
+
+    @pytest.mark.asyncio
+    async def test_group_id_fetches_group_context(self, mock_deps, mock_member_list):
+        """Test that group_id parameter triggers group context fetching."""
+        group_id = "group_123"
+
+        mock_group_context = [
+            {"sender_name": "Alice", "content": "I'll do the dishes"},
+            {"sender_name": "Bob", "content": "I'll take out trash"},
+        ]
+
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+            patch("src.agents.choresir_agent.get_group_context") as mock_get_group_context,
+        ):
+            # Mock group context fetching
+            mock_get_group_context.return_value = mock_group_context
+
+            # Mock agent execution
+            mock_agent = AsyncMock()
+            mock_agent.run.return_value = MagicMock(output="Response")
+            mock_get_agent.return_value = mock_agent
+            mock_retry_handler = AsyncMock()
+            mock_retry_handler.execute_with_retry.return_value = "Response"
+            mock_get_retry_handler.return_value = mock_retry_handler
+
+            # Run agent with group_id
+            await run_agent(
+                user_message="What's happening?",
+                deps=mock_deps,
+                member_list=mock_member_list,
+                group_id=group_id,
+            )
+
+            # Verify group context was fetched
+            mock_get_group_context.assert_called_once_with(group_id=group_id)
+
+    @pytest.mark.asyncio
+    async def test_none_group_id_uses_per_user_context(self, mock_deps, mock_member_list):
+        """Test that None group_id uses per-user conversation context."""
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+            patch("src.agents.choresir_agent.get_recent_context") as mock_get_recent_context,
+            patch("src.agents.choresir_agent.format_context_for_prompt") as mock_format_context,
+            patch("src.agents.choresir_agent.get_group_context") as mock_get_group_context,
+        ):
+            # Mock per-user context fetching
+            mock_get_recent_context.return_value = []
+            mock_format_context.return_value = "## RECENT CONVERSATION\n..."
+
+            # Mock agent execution
+            mock_agent = AsyncMock()
+            mock_agent.run.return_value = MagicMock(output="Response")
+            mock_get_agent.return_value = mock_agent
+            mock_retry_handler = AsyncMock()
+            mock_retry_handler.execute_with_retry.return_value = "Response"
+            mock_get_retry_handler.return_value = mock_retry_handler
+
+            # Run agent without group_id
+            await run_agent(
+                user_message="What's happening?",
+                deps=mock_deps,
+                member_list=mock_member_list,
+                group_id=None,
+            )
+
+            # Verify per-user context was fetched
+            mock_get_recent_context.assert_called_once_with(user_phone=mock_deps.user_phone)
+            # Verify group context was NOT fetched
+            mock_get_group_context.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_group_context_formatted_with_sender_names(self, mock_deps, mock_member_list):
+        """Test that group context is formatted with sender names in [Name]: message format."""
+        group_id = "group_123"
+
+        mock_group_context = [
+            {"sender_name": "Alice", "content": "I'll do dishes"},
+            {"sender_name": "Bob", "content": "I'll do laundry"},
+            {"sender_name": "Charlie", "content": "I'll cook"},
+        ]
+
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+            patch("src.agents.choresir_agent.get_group_context") as mock_get_group_context,
+        ):
+            mock_get_group_context.return_value = mock_group_context
+
+            # Mock agent to capture instructions
+            mock_agent = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.output = "Agent response"
+            mock_agent.run.return_value = mock_result
+            mock_get_agent.return_value = mock_agent
+
+            # Mock retry handler to actually call the function
+            async def mock_execute(func):
+                return await func()
+
+            mock_retry_handler = AsyncMock()
+            mock_retry_handler.execute_with_retry.side_effect = mock_execute
+            mock_get_retry_handler.return_value = mock_retry_handler
+
+            # Run agent with group_id
+            await run_agent(
+                user_message="What's happening?",
+                deps=mock_deps,
+                member_list=mock_member_list,
+                group_id=group_id,
+            )
+
+            # Verify agent.run was called and get the instructions
+            mock_agent.run.assert_called_once()
+            call_kwargs = mock_agent.run.call_args.kwargs
+            instructions = call_kwargs.get("instructions", "")
+
+            # Verify instructions include formatted group context with sender names
+            assert "## RECENT GROUP CONVERSATION" in instructions
+            assert "[Alice]: I'll do dishes" in instructions
+            assert "[Bob]: I'll do laundry" in instructions
+            assert "[Charlie]: I'll cook" in instructions
