@@ -137,43 +137,34 @@ async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, 
         return updated_record
 
 
-async def ban_user(*, admin_user_id: str, target_user_id: str) -> dict[str, Any]:
-    """Ban a user (admin-only).
+async def remove_user(*, admin_user_id: str, target_user_id: str) -> None:
+    """Remove a user (admin-only).
 
-    Changes user status to "banned".
+    Deletes the user record from the database.
 
     Args:
-        admin_user_id: ID of the admin performing the ban
-        target_user_id: ID of the user to ban
-
-    Returns:
-        Updated user record
+        admin_user_id: ID of the admin performing the removal
+        target_user_id: ID of the user to remove
 
     Raises:
-        UnauthorizedError: If requesting user is not an admin
+        PermissionError: If requesting user is not an admin
         db_client.RecordNotFoundError: If admin or target user not found
     """
-    with span("user_service.ban_user"):
+    with span("user_service.remove_user"):
         # Guard: Verify admin privileges
         admin_record = await db_client.get_record(collection="users", record_id=admin_user_id)
         if admin_record["role"] != UserRole.ADMIN:
-            msg = f"User {admin_user_id} is not authorized to ban users"
+            msg = f"User {admin_user_id} is not authorized to remove users"
             logger.warning(msg)
             raise PermissionError(msg)
 
         # Guard: Verify target user exists (will raise if not found)
         await db_client.get_record(collection="users", record_id=target_user_id)
 
-        # Ban user
-        updated_record = await db_client.update_record(
-            collection="users",
-            record_id=target_user_id,
-            data={"status": UserStatus.BANNED},
-        )
+        # Delete user
+        await db_client.delete_record(collection="users", record_id=target_user_id)
 
-        logger.info("Banned user %s by admin %s", target_user_id, admin_user_id)
-
-        return updated_record
+        logger.info("Removed user %s by admin %s", target_user_id, admin_user_id)
 
 
 async def get_user_by_phone(*, phone: str) -> dict[str, Any] | None:

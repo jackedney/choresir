@@ -16,6 +16,7 @@ from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
 from src.domain.user import UserStatus
 from src.interface import webhook_security, whatsapp_parser, whatsapp_sender
+from src.services.house_config_service import get_house_config
 
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
@@ -71,6 +72,10 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
     )
 
     if not security_result.is_valid:
+        # For duplicates, return 200 to prevent WhatsApp retries
+        if security_result.error_message == "Duplicate webhook":
+            return {"status": "duplicate"}
+
         logger.warning(
             "Webhook security check failed: %s",
             security_result.error_message,
@@ -114,6 +119,38 @@ async def _update_message_status(*, message_id: str, success: bool, error: str |
         )
 
 
+def _get_sender_phone(message: whatsapp_parser.ParsedMessage) -> str:
+    """Get the actual sender phone number from a message.
+
+    For group messages, returns the actual sender (participant).
+    For individual messages, returns the from_phone.
+
+    Args:
+        message: Parsed message
+
+    Returns:
+        The sender's phone number in E.164 format
+    """
+    if message.is_group_message and message.actual_sender_phone:
+        return message.actual_sender_phone
+    return message.from_phone
+
+
+async def _send_response(*, message: whatsapp_parser.ParsedMessage, text: str) -> whatsapp_sender.SendMessageResult:
+    """Send a response to a message, routing to group or individual as appropriate.
+
+    Args:
+        message: Original parsed message (determines routing)
+        text: Response text to send
+
+    Returns:
+        SendMessageResult from the send operation
+    """
+    if message.is_group_message and message.group_id:
+        return await whatsapp_sender.send_group_message(to_group_id=message.group_id, text=text)
+    return await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=text)
+
+
 async def _handle_user_status(
     *,
     user_record: dict[str, Any],
@@ -127,25 +164,54 @@ async def _handle_user_status(
         Tuple of (success: bool, error_message: str | None)
     """
     status = user_record["status"]
+    sender_phone = _get_sender_phone(message)
 
     if status == UserStatus.PENDING:
-        logger.info("Pending user %s sent message", message.from_phone)
-        response = await choresir_agent.handle_pending_user(user_name=user_record["name"])
-        result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
-        return (result.success, result.error)
+        # Check if user has a pending invite (admin-initiated flow)
+        pending_invite = await db_client.get_first_record(
+            collection="pending_invites",
+            filter_query=f'phone = "{db_client.sanitize_param(sender_phone)}"',
+        )
 
-    if status == UserStatus.BANNED:
-        logger.info("Banned user %s sent message", message.from_phone)
-        response = await choresir_agent.handle_banned_user(user_name=user_record["name"])
-        result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
+        if pending_invite:
+            # Handle invite confirmation
+            normalized_message = (message.text or "").strip().upper()
+            if normalized_message == "YES":
+                # Activate user
+                await db_client.update_record(
+                    collection="users",
+                    record_id=user_record["id"],
+                    data={"status": UserStatus.ACTIVE},
+                )
+                logger.info("invite_confirmed", extra={"user_phone": sender_phone})
+
+                # Delete pending invite
+                await db_client.delete_record(
+                    collection="pending_invites",
+                    record_id=pending_invite["id"],
+                )
+
+                # Get house name for welcome message
+                config = await get_house_config()
+                response = f"Welcome to {config.name}! Your membership is now active."
+            else:
+                response = "To confirm your invitation, please reply YES"
+
+            result = await _send_response(message=message, text=response)
+            return (result.success, result.error)
+
+        # No pending invite - user requested to join via WhatsApp
+        logger.info("Pending user %s sent message", sender_phone)
+        response = await choresir_agent.handle_pending_user(user_name=user_record["name"])
+        result = await _send_response(message=message, text=response)
         return (result.success, result.error)
 
     if status == UserStatus.ACTIVE:
-        logger.info("Processing active user %s message with agent", message.from_phone)
+        logger.info("Processing active user %s message with agent", sender_phone)
 
         # Check per-user agent call rate limit
         try:
-            await rate_limiter.check_agent_rate_limit(message.from_phone)
+            await rate_limiter.check_agent_rate_limit(sender_phone)
         except HTTPException as e:
             # Extract rate limit info from headers
             retry_after = e.headers.get("Retry-After", "3600") if e.headers else "3600"
@@ -154,10 +220,7 @@ async def _handle_user_status(
                 f"You've reached your hourly limit of {limit} messages. "
                 f"Please try again in {int(retry_after) // 60} minutes."
             )
-            result = await whatsapp_sender.send_text_message(
-                to_phone=message.from_phone,
-                text=response,
-            )
+            result = await _send_response(message=message, text=response)
             return (result.success, result.error)
 
         member_list = await choresir_agent.get_member_list(_db=db)
@@ -166,17 +229,14 @@ async def _handle_user_status(
             deps=deps,
             member_list=member_list,
         )
-        result = await whatsapp_sender.send_text_message(
-            to_phone=message.from_phone,
-            text=agent_response,
-        )
+        result = await _send_response(message=message, text=agent_response)
         if not result.success:
-            logger.error("Failed to send response to %s: %s", message.from_phone, result.error)
+            logger.error("Failed to send response to %s: %s", sender_phone, result.error)
         else:
-            logger.info("Successfully processed message for %s", message.from_phone)
+            logger.info("Successfully processed message for %s", sender_phone)
         return (result.success, result.error)
 
-    logger.info("User %s has unknown status: %s", message.from_phone, status)
+    logger.info("User %s has unknown status: %s", sender_phone, status)
     return (False, f"Unknown user status: {status}")
 
 
@@ -203,20 +263,14 @@ async def _handle_button_payload(
     payload = message.button_payload
     if not payload:
         logger.error("Button payload is missing")
-        result = await whatsapp_sender.send_text_message(
-            to_phone=message.from_phone,
-            text=ERROR_MSG_BUTTON_PROCESSING_FAILED,
-        )
+        await _send_response(message=message, text=ERROR_MSG_BUTTON_PROCESSING_FAILED)
         return (False, "Missing button payload")
 
     # Parse payload: VERIFY:APPROVE:log_id or VERIFY:REJECT:log_id
     parts = payload.split(":")
     if len(parts) != Constants.WEBHOOK_BUTTON_PAYLOAD_PARTS or parts[0] != "VERIFY":
         logger.error("Invalid button payload format: %s", payload)
-        result = await whatsapp_sender.send_text_message(
-            to_phone=message.from_phone,
-            text=ERROR_MSG_BUTTON_PROCESSING_FAILED,
-        )
+        await _send_response(message=message, text=ERROR_MSG_BUTTON_PROCESSING_FAILED)
         return (False, f"Invalid payload format: {payload}")
 
     _, decision_str, log_id = parts
@@ -224,8 +278,8 @@ async def _handle_button_payload(
     # Validate decision type
     if decision_str not in ("APPROVE", "REJECT"):
         logger.error("Invalid decision in payload: %s", decision_str)
-        result = await whatsapp_sender.send_text_message(
-            to_phone=message.from_phone,
+        await _send_response(
+            message=message,
             text="Sorry, I couldn't process that button click. Please try typing your response instead.",
         )
         return (False, f"Invalid decision: {decision_str}")
@@ -251,23 +305,17 @@ async def _handle_button_payload(
         else:
             response = f"Rejected. '{chore['title']}' has been moved to conflict resolution."
 
-        result = await whatsapp_sender.send_text_message(
-            to_phone=message.from_phone,
-            text=response,
-        )
+        result = await _send_response(message=message, text=response)
         return (result.success, result.error)
 
     except PermissionError:
-        await whatsapp_sender.send_text_message(
-            to_phone=message.from_phone,
-            text="You cannot verify your own chore claim.",
-        )
+        await _send_response(message=message, text="You cannot verify your own chore claim.")
         return (False, "Self-verification attempted")
 
     except KeyError as e:
         logger.error("Record not found for button payload: %s", e)
-        await whatsapp_sender.send_text_message(
-            to_phone=message.from_phone,
+        await _send_response(
+            message=message,
             text="This verification request may have expired or been processed already.",
         )
         return (False, str(e))
@@ -280,8 +328,8 @@ async def _handle_button_payload(
             e,
             exc_info=True,  # Include stack trace
         )
-        await whatsapp_sender.send_text_message(
-            to_phone=message.from_phone,
+        await _send_response(
+            message=message,
             text="Sorry, an error occurred while processing your verification.",
         )
         return (False, f"Unexpected error: {type(e).__name__}: {e!s}")
@@ -334,17 +382,18 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
     if await _check_duplicate_message(message.message_id):
         return
 
-    logger.info("Processing button click from %s: %s", message.from_phone, message.button_payload)
+    sender_phone = _get_sender_phone(message)
+    logger.info("Processing button click from %s: %s", sender_phone, message.button_payload)
     await _log_message_start(message, "Button")
 
     user_record = await db_client.get_first_record(
         collection="users",
-        filter_query=f'phone = "{sanitize_param(message.from_phone)}"',
+        filter_query=f'phone = "{sanitize_param(sender_phone)}"',
     )
     if not user_record:
-        logger.warning("Unknown user clicked button: %s", message.from_phone)
-        await whatsapp_sender.send_text_message(
-            to_phone=message.from_phone,
+        logger.warning("Unknown user clicked button: %s", sender_phone)
+        await _send_response(
+            message=message,
             text="Sorry, I don't recognize your number. Please contact your household admin.",
         )
         return
@@ -362,27 +411,28 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     if await _check_duplicate_message(message.message_id):
         return
 
-    logger.info("Processing message from %s: %s", message.from_phone, message.text)
+    # Get the actual sender phone (handles group messages)
+    sender_phone = _get_sender_phone(message)
+
+    logger.info("Processing message from %s: %s", sender_phone, message.text)
     await _log_message_start(message, "Processing")
 
     db = db_client.get_client()
-    deps = await choresir_agent.build_deps(db=db, user_phone=message.from_phone)
+    deps = await choresir_agent.build_deps(db=db, user_phone=sender_phone)
 
     if deps is None:
-        logger.info("Unknown user %s, processing unknown user message", message.from_phone)
-        response = await choresir_agent.handle_unknown_user(
-            user_phone=message.from_phone, message_text=message.text or ""
-        )
-        result = await whatsapp_sender.send_text_message(to_phone=message.from_phone, text=response)
+        logger.info("Unknown user %s, processing unknown user message", sender_phone)
+        response = await choresir_agent.handle_unknown_user(user_phone=sender_phone, message_text=message.text or "")
+        result = await _send_response(message=message, text=response)
         await _update_message_status(message_id=message.message_id, success=result.success, error=result.error)
         return
 
     user_record = await db_client.get_first_record(
         collection="users",
-        filter_query=f'phone = "{sanitize_param(message.from_phone)}"',
+        filter_query=f'phone = "{sanitize_param(sender_phone)}"',
     )
     if not user_record:
-        logger.error("User record not found after build_deps succeeded for %s", message.from_phone)
+        logger.error("User record not found after build_deps succeeded for %s", sender_phone)
         await _update_message_status(
             message_id=message.message_id,
             success=False,
@@ -394,12 +444,63 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     await _update_message_status(message_id=message.message_id, success=success, error=error)
 
 
+async def _should_process_message(message: whatsapp_parser.ParsedMessage) -> bool:
+    """Determine if a message should be processed based on group configuration.
+
+    Behavior:
+    - No group configured: Process DMs only, ignore all group messages
+    - Group configured: Process ONLY messages from the configured group, ignore DMs
+
+    Args:
+        message: Parsed message
+
+    Returns:
+        True if the message should be processed, False otherwise
+    """
+    config = await get_house_config()
+
+    if message.is_group_message:
+        # Group message: only process if it's from the configured group
+        if not config.group_chat_id:
+            logger.debug(
+                "Ignoring group message - no group configured",
+                extra={"group_id": message.group_id},
+            )
+            return False
+
+        if message.group_id != config.group_chat_id:
+            logger.debug(
+                "Ignoring message from non-configured group",
+                extra={"group_id": message.group_id, "configured_group": config.group_chat_id},
+            )
+            return False
+
+        # Message is from the configured group - process it
+        return True
+
+    # Individual message (DM)
+    if config.group_chat_id:
+        # Group is configured - ignore DMs
+        logger.debug(
+            "Ignoring DM - group mode is enabled",
+            extra={"from_phone": message.from_phone, "configured_group": config.group_chat_id},
+        )
+        return False
+
+    # No group configured - process DMs (current behavior)
+    return True
+
+
 async def _route_webhook_message(message: whatsapp_parser.ParsedMessage) -> None:
     """Route message to appropriate handler based on type.
 
     Args:
         message: Parsed message
     """
+    # Check if we should process this message based on group configuration
+    if not await _should_process_message(message):
+        return
+
     if message.message_type == "button_reply" and message.button_payload:
         await _handle_button_message(message)
     elif message.text:

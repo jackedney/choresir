@@ -76,49 +76,19 @@ tasks:
     desc: Run PocketBase and FastAPI for local development
     deps: [install-pocketbase]
     cmds:
+      - defer: { task: stop-dev }
       - |
-        echo "Starting development environment..."
-
-        # Start PocketBase in background
         echo "Starting PocketBase on http://127.0.0.1:8090..."
         {{.POCKETBASE_BIN}} serve > pocketbase.log 2>&1 &
-        POCKETBASE_PID=$!
-        echo $POCKETBASE_PID > .pocketbase.pid
+        echo $! > .pocketbase.pid
 
-        # Wait for PocketBase to be ready
-        echo "Waiting for PocketBase to be ready..."
-        for i in {1..10}; do
-          if curl -s http://127.0.0.1:8090/api/health > /dev/null 2>&1; then
-            echo "PocketBase is ready!"
-            break
-          fi
-          sleep 1
+        i=0; while [ $i -lt 10 ]; do
+          curl -s http://127.0.0.1:8090/api/health > /dev/null 2>&1 && break
+          sleep 1; i=$((i + 1))
         done
+        echo "PocketBase is ready!"
 
-        # Create admin account (idempotent - won't fail if already exists)
-        echo "Ensuring PocketBase admin account exists..."
         {{.POCKETBASE_BIN}} superuser upsert admin@test.local testpassword123 > /dev/null 2>&1 || true
-        echo "Admin account ready!"
-
-        # Start FastAPI in background
-        echo "Starting FastAPI on http://0.0.0.0:8001..."
-        NO_COLOR=1 uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 > fastapi.log 2>&1 &
-        FASTAPI_PID=$!
-        echo $FASTAPI_PID > .fastapi.pid
-
-        # Wait for FastAPI to be ready
-        echo "Waiting for FastAPI to be ready..."
-        sleep 5
-
-        # Check if FastAPI started successfully
-        if ! curl -s http://localhost:8001/health > /dev/null 2>&1; then
-          echo "ERROR: FastAPI failed to start. Check fastapi.log for details."
-          echo "Shutting down services..."
-          kill $POCKETBASE_PID 2>/dev/null || true
-          rm -f .pocketbase.pid .fastapi.pid
-          exit 1
-        fi
-        echo "FastAPI is ready!"
 
         echo ""
         echo "Development environment ready!"
@@ -126,11 +96,7 @@ tasks:
         echo "  FastAPI:    http://0.0.0.0:8001"
         echo "  WAHA:       http://localhost:3000 (start with: docker-compose up -d waha)"
         echo ""
-        echo "Press Ctrl+C to stop services..."
-
-        # Wait for interrupt with proper cleanup
-        trap "echo 'Shutting down...'; kill $POCKETBASE_PID $FASTAPI_PID 2>/dev/null || true; rm -f .pocketbase.pid .fastapi.pid; exit 0" INT TERM
-        while true; do sleep 1; done
+      - uv run uvicorn src.main:app --host 0.0.0.0 --port 8001
 
   stop-dev:
     desc: Stop all development services

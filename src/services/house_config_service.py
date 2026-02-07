@@ -18,6 +18,7 @@ class HouseConfig(BaseModel):
     name: str
     password: str
     code: str
+    group_chat_id: str | None = None
 
 
 async def get_house_config() -> HouseConfig:
@@ -25,7 +26,12 @@ async def get_house_config() -> HouseConfig:
     config = await db_client.get_first_record(collection="house_config", filter_query="")
 
     if config:
-        return HouseConfig(name=config["name"], password=config["password"], code=config["code"])
+        return HouseConfig(
+            name=config["name"],
+            password=config["password"],
+            code=config["code"],
+            group_chat_id=config.get("group_chat_id"),
+        )
 
     house_name = settings.house_name or "the house"
     house_code = settings.house_code or ""
@@ -67,7 +73,12 @@ async def ensure_singleton_config() -> HouseConfig | None:
         if len(all_configs) <= 1:
             if all_configs:
                 c = all_configs[0]
-                return HouseConfig(name=c["name"], password=c["password"], code=c["code"])
+                return HouseConfig(
+                    name=c["name"],
+                    password=c["password"],
+                    code=c["code"],
+                    group_chat_id=c.get("group_chat_id"),
+                )
             return None
 
         logger.warning(
@@ -85,6 +96,7 @@ async def ensure_singleton_config() -> HouseConfig | None:
             name=first_config["name"],
             password=first_config["password"],
             code=first_config["code"],
+            group_chat_id=first_config.get("group_chat_id"),
         )
     except Exception as e:
         logger.error("house_config_singleton_check_failed", extra={"error": str(e)})

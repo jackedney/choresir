@@ -1,24 +1,9 @@
 <tr id="member-{{ member.id }}">
-    <td>{{ member.phone }}</td>
     <td>{{ member.name }}</td>
-    <td>
-        {% if member.role == "admin" %}
-            <mark data-mark="blue">admin</mark>
-        {% else %}
-            <mark data-mark="gray">member</mark>
-        {% endif %}
-    </td>
-    <td>
-        {% if member.status == "active" %}
-            <mark data-mark="green">active</mark>
-        {% elif member.status == "pending" %}
-            <mark data-mark="yellow">pending</mark>
-        {% elif member.status == "banned" %}
-            <mark data-mark="red">banned</mark>
-        {% endif %}
-    </td>
-    <td>{{ member.created }}</td>
-    <td>
+    <td>{{ member.phone }}</td>
+    <td><span class="badge badge-{{ member.role }}">{{ member.role }}</span></td>
+    <td><span class="badge badge-{{ member.status }}">{{ member.status }}</span></td>
+    <td class="actions">
         <button hx-get="/admin/members/{{ member.phone | urlencode }}/edit" hx-target="#member-{{ member.id }}" hx-swap="outerHTML" class="outline">Edit</button>
         <button hx-get="/admin/members/{{ member.phone | urlencode }}/remove" hx-target="#member-{{ member.id }}" hx-swap="outerHTML" class="outline contrast">Remove</button>
     </td>

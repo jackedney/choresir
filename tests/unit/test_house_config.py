@@ -57,7 +57,7 @@ def test_house_config_page_renders_without_existing_config(client: TestClient) -
         response = client.get("/admin/house")
 
         assert response.status_code == 200
-        assert "House Configuration" in response.text
+        assert "<h1>Settings</h1>" in response.text
 
 
 def test_house_config_page_renders_with_existing_config(client: TestClient) -> None:
@@ -88,7 +88,7 @@ def test_house_config_page_renders_with_existing_config(client: TestClient) -> N
         response = client.get("/admin/house")
 
         assert response.status_code == 200
-        assert "House Configuration" in response.text
+        assert "<h1>Settings</h1>" in response.text
         assert "TestHouse" in response.text
         assert "TEST123" in response.text
         assert "stored_password" not in response.text

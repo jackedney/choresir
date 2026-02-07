@@ -77,7 +77,7 @@ class TestValidateWebhookNonce:
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")
     async def test_duplicate_webhook_rejected(self, mock_redis):
-        """Test duplicate webhook is rejected."""
+        """Test duplicate webhook is rejected with 200 status to prevent retries."""
         mock_redis.is_available = True
         mock_redis.set_if_not_exists = AsyncMock(return_value=False)
 
@@ -86,7 +86,8 @@ class TestValidateWebhookNonce:
         assert result.is_valid is False
         assert result.error_message is not None
         assert "duplicate" in result.error_message.lower()
-        assert result.http_status_code == 400
+        # Returns 200 to prevent WhatsApp from retrying duplicate messages
+        assert result.http_status_code == 200
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook_security.redis_client")

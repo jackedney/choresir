@@ -29,7 +29,7 @@ def test_login_page_renders(client: TestClient) -> None:
         response = client.get("/admin/login")
 
         assert response.status_code == 200
-        assert "Admin Login" in response.text
+        assert "<h1>Login</h1>" in response.text
         assert "Password" in response.text
         assert 'name="csrf_token"' in response.text
         assert "csrf_token" in response.cookies
@@ -169,7 +169,7 @@ def test_protected_route_with_valid_session_succeeds(client: TestClient) -> None
         response = client.get("/admin/")
 
         assert response.status_code == 200
-        assert "Admin Dashboard" in response.text
+        assert "TestHouse" in response.text
 
 
 def test_logout_clears_session_and_redirects(client: TestClient) -> None:

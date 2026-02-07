@@ -1,20 +1,13 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Login - Admin{% endblock %}
-
-{% block flash_messages %}
-{% if error %}
-<article role="alert" data-theme="danger">
-    <header>
-        <strong>Error</strong>
-    </header>
-    {{ error }}
-</article>
-{% endif %}
-{% endblock %}
+{% block title %}Login{% endblock %}
 
 {% block content %}
-<h1>Admin Login</h1>
+<h1>Login</h1>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
 
 <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />

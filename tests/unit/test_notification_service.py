@@ -181,7 +181,6 @@ class TestSendVerificationRequest:
             {"name": "Alice", "phone": "+11111111111", "status": UserStatus.ACTIVE},
             {"name": "Bob", "phone": "+12222222222", "status": UserStatus.ACTIVE},
             {"name": "Charlie", "phone": "+13333333333", "status": UserStatus.PENDING},
-            {"name": "David", "phone": "+14444444444", "status": UserStatus.BANNED},
         ]
 
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
@@ -198,7 +197,7 @@ class TestSendVerificationRequest:
         )
 
         # Should only send to user2 (active, not claimer)
-        # user3 is pending, user4 is banned, user1 is claimer
+        # user3 is pending, user1 is claimer
         assert len(results) == 1
         assert results[0].phone == "+12222222222"
         assert results[0].user_id == created_users[1]["id"]

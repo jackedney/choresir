@@ -4,6 +4,7 @@ import logging
 import secrets
 from datetime import UTC, datetime
 
+import httpx
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -19,7 +20,7 @@ from src.core.db_client import (
     update_record,
 )
 from src.domain.create_models import HouseConfigCreate, InviteCreate, UserCreate
-from src.domain.update_models import MemberStatusUpdate, MemberUpdate
+from src.domain.update_models import MemberUpdate
 from src.domain.user import UserRole, UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.services.house_config_service import get_house_config as get_house_config_from_service
@@ -110,7 +111,6 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
     total_members = len(users)
     active_members = sum(1 for user in users if user.get("status") == "active")
     pending_members = sum(1 for user in users if user.get("status") == "pending")
-    banned_members = sum(1 for user in users if user.get("status") == "banned")
 
     return templates.TemplateResponse(
         request,
@@ -120,7 +120,6 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
             "total_members": total_members,
             "active_members": active_members,
             "pending_members": pending_members,
-            "banned_members": banned_members,
         },
     )
 
@@ -412,6 +411,15 @@ async def post_add_member(
             context={"errors": [f"Failed to send WhatsApp message: {send_result.error}"], "phone": phone},
         )
 
+    # Delete any existing pending invite (from previous attempts)
+    existing_invite = await get_first_record(
+        collection="pending_invites",
+        filter_query=f'phone = "{sanitize_param(phone)}"',
+    )
+    if existing_invite:
+        await delete_record(collection="pending_invites", record_id=existing_invite["id"])
+        logger.info("deleted_stale_pending_invite", extra={"phone": phone})
+
     # Create pending invite record
     invite_create = InviteCreate(
         phone=phone,
@@ -575,7 +583,7 @@ async def post_remove_member(
     phone: str,
     csrf_token: str | None = Form(None),
 ) -> Response:
-    """Process remove member form and ban the user."""
+    """Process remove member form and delete the user."""
     if not validate_csrf_token(request, csrf_token):
         logger.warning("admin_remove_member_invalid_csrf")
         raise HTTPException(
@@ -592,46 +600,248 @@ async def post_remove_member(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Prevent banning admins
+    # Prevent removing admins
     if user.get("role") == "admin":
+        new_csrf_token = generate_csrf_token()
         if is_htmx_request(request):
-            return templates.TemplateResponse(
+            response = templates.TemplateResponse(
                 request,
                 name="admin/remove_member_inline.html",
-                context={"errors": ["Cannot ban an admin"], "user": user},
+                context={"errors": ["Cannot remove an admin"], "user": user, "csrf_token": new_csrf_token},
             )
-        return templates.TemplateResponse(
-            request,
-            name="admin/remove_member.html",
-            context={"errors": ["Cannot ban an admin"], "user": user},
-        )
+        else:
+            response = templates.TemplateResponse(
+                request,
+                name="admin/remove_member.html",
+                context={"errors": ["Cannot remove an admin"], "user": user, "csrf_token": new_csrf_token},
+            )
+        set_csrf_cookie(response, new_csrf_token)
+        return response
 
-    # Update user status to banned using DTO
-    status_update = MemberStatusUpdate(status="banned")
-    await update_record(
-        collection="users",
-        record_id=user["id"],
-        data=status_update.model_dump(),
-    )
-    logger.info("banned_member", extra={"phone": phone})
+    # Delete the user record
+    await delete_record(collection="users", record_id=user["id"])
+    logger.info("removed_member", extra={"phone": phone})
 
-    # Re-fetch user data to get updated status for HTMX response
-    user = await get_first_record(
-        collection="users",
+    # Clean up any pending invite for this phone
+    pending_invite = await get_first_record(
+        collection="pending_invites",
         filter_query=f'phone = "{sanitize_param(phone)}"',
     )
+    if pending_invite:
+        await delete_record(collection="pending_invites", record_id=pending_invite["id"])
+        logger.info("deleted_pending_invite_on_member_removal", extra={"phone": phone})
 
     if is_htmx_request(request):
-        if not user:
-            response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
-            response.set_cookie("flash_error", "User not found after update", max_age=5)
-            return response
-        return templates.TemplateResponse(
-            request,
-            name="admin/member_row.html",
-            context={"member": user},
-        )
+        # Return empty response to remove the row from the table
+        return Response(content="", status_code=status.HTTP_200_OK)
 
     response = RedirectResponse(url="/admin/members", status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie("flash_success", "Member banned", max_age=5)
+    response.set_cookie("flash_success", "Member removed", max_age=5)
     return response
+
+
+# =============================================================================
+# WhatsApp Setup Routes
+# =============================================================================
+
+
+def _get_waha_headers() -> dict[str, str]:
+    """Get headers for WAHA API requests."""
+    headers = {"Content-Type": "application/json"}
+    if settings.waha_api_key:
+        headers["X-Api-Key"] = settings.waha_api_key
+    return headers
+
+
+@router.get("/whatsapp")
+async def get_whatsapp_setup(
+    *,
+    request: Request,
+    _auth: None = Depends(require_auth),
+) -> Response:
+    """Render WhatsApp setup page."""
+    return templates.TemplateResponse(request, name="admin/whatsapp.html")
+
+
+@router.get("/whatsapp/status")
+async def get_whatsapp_status(
+    *,
+    _auth: None = Depends(require_auth),
+) -> dict:
+    """Get WhatsApp session status from WAHA."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{settings.waha_base_url}/api/sessions/default",
+                headers=_get_waha_headers(),
+            )
+
+            if response.status_code == 404:
+                return {"status": "NOT_FOUND", "phone": None, "webhook_configured": False}
+
+            response.raise_for_status()
+            data = response.json()
+
+            phone = None
+            if data.get("me"):
+                # Extract phone from WAHA format (e.g., "447871681224@c.us" -> "+447871681224")
+                me_id = data["me"].get("id", "")
+                if "@" in me_id:
+                    phone = "+" + me_id.split("@")[0]
+
+            # Check if webhook is configured
+            config = data.get("config") or {}
+            webhooks = config.get("webhooks") or []
+            webhook_configured = len(webhooks) > 0
+
+            return {
+                "status": data.get("status", "UNKNOWN"),
+                "phone": phone,
+                "webhook_configured": webhook_configured,
+            }
+    except httpx.RequestError as e:
+        logger.error("waha_connection_error", extra={"error": str(e)})
+        return {"status": "ERROR", "phone": None, "webhook_configured": False, "error": str(e)}
+
+
+@router.get("/whatsapp/qr")
+async def get_whatsapp_qr(
+    *,
+    _auth: None = Depends(require_auth),
+) -> Response:
+    """Get QR code image from WAHA."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{settings.waha_base_url}/api/default/auth/qr",
+                headers=_get_waha_headers(),
+            )
+            response.raise_for_status()
+
+            return Response(
+                content=response.content,
+                media_type="image/png",
+            )
+    except httpx.RequestError as e:
+        logger.error("waha_qr_fetch_error", extra={"error": str(e)})
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not fetch QR code from WAHA",
+        ) from e
+
+
+@router.post("/whatsapp/start")
+async def start_whatsapp_session(
+    *,
+    _auth: None = Depends(require_auth),
+) -> dict:
+    """Start a new WhatsApp session in WAHA."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{settings.waha_base_url}/api/sessions/default/start",
+                headers=_get_waha_headers(),
+            )
+            response.raise_for_status()
+            return {"success": True}
+    except httpx.RequestError as e:
+        logger.error("waha_start_session_error", extra={"error": str(e)})
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not start WhatsApp session",
+        ) from e
+
+
+def _get_webhook_url() -> str:
+    """Get the webhook URL for WAHA to call back.
+
+    Uses WHATSAPP_HOOK_URL env var if set, otherwise constructs from request context.
+    For Docker, this should be http://host.docker.internal:PORT/webhook
+    """
+    import os
+
+    # Check for explicit env var first
+    hook_url = os.environ.get("WHATSAPP_HOOK_URL")
+    if hook_url:
+        return hook_url
+
+    # Default for local Docker setup
+    return "http://host.docker.internal:8001/webhook"
+
+
+@router.post("/whatsapp/configure-webhook")
+async def configure_whatsapp_webhook(
+    *,
+    _auth: None = Depends(require_auth),
+) -> dict:
+    """Configure webhook on the WAHA session."""
+    webhook_url = _get_webhook_url()
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.put(
+                f"{settings.waha_base_url}/api/sessions/default",
+                headers=_get_waha_headers(),
+                json={
+                    "config": {
+                        "webhooks": [
+                            {
+                                "url": webhook_url,
+                                # Use message.any to include self-sent messages (for testing)
+                                "events": ["message.any"],
+                            }
+                        ]
+                    }
+                },
+            )
+            response.raise_for_status()
+            logger.info("waha_webhook_configured", extra={"webhook_url": webhook_url})
+            return {"success": True, "webhook_url": webhook_url}
+    except httpx.HTTPStatusError as e:
+        logger.error("waha_configure_webhook_error", extra={"error": str(e), "status": e.response.status_code})
+        return {"success": False, "error": f"WAHA returned {e.response.status_code}"}
+    except httpx.RequestError as e:
+        logger.error("waha_configure_webhook_error", extra={"error": str(e)})
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/whatsapp/group-config")
+async def get_group_config(
+    *,
+    _auth: None = Depends(require_auth),
+) -> dict:
+    """Get the current group chat configuration."""
+    config = await get_first_record(collection="house_config", filter_query="")
+    group_chat_id = config.get("group_chat_id") if config else None
+    return {"group_chat_id": group_chat_id}
+
+
+@router.post("/whatsapp/group-config")
+async def post_group_config(
+    *,
+    _auth: None = Depends(require_auth),
+    group_chat_id: str = Form(""),
+) -> dict:
+    """Update the group chat configuration."""
+    # Validate group ID format if provided
+    group_chat_id = group_chat_id.strip()
+    if group_chat_id and not group_chat_id.endswith("@g.us"):
+        return {"success": False, "error": "Group ID must end with @g.us (e.g., 120363400136168625@g.us)"}
+
+    config = await get_first_record(collection="house_config", filter_query="")
+
+    if not config:
+        return {"success": False, "error": "House configuration not found. Please configure house settings first."}
+
+    # Update the group_chat_id (empty string means clear it)
+    await update_record(
+        collection="house_config",
+        record_id=config["id"],
+        data={"group_chat_id": group_chat_id if group_chat_id else None},
+    )
+
+    if group_chat_id:
+        logger.info("group_chat_id_configured", extra={"group_chat_id": group_chat_id})
+        return {"success": True, "message": "Group chat configured successfully"}
+    logger.info("group_chat_id_cleared")
+    return {"success": True, "message": "Group chat configuration cleared. Bot will respond to DMs only."}

@@ -208,8 +208,8 @@ class TestApproveMember:
 
 
 @pytest.mark.unit
-class TestBanUser:
-    """Tests for ban_user function."""
+class TestRemoveUser:
+    """Tests for remove_user function."""
 
     @pytest.fixture
     async def admin_user(self, patched_user_db):
@@ -239,15 +239,16 @@ class TestBanUser:
         }
         return await patched_user_db.create_record("users", user_data)
 
-    async def test_ban_user_success(self, patched_user_db, admin_user, active_user):
-        """Test admin successfully bans user."""
-        result = await user_service.ban_user(admin_user_id=admin_user["id"], target_user_id=active_user["id"])
+    async def test_remove_user_success(self, patched_user_db, admin_user, active_user):
+        """Test admin successfully removes user."""
+        await user_service.remove_user(admin_user_id=admin_user["id"], target_user_id=active_user["id"])
 
-        assert result["id"] == active_user["id"]
-        assert result["status"] == UserStatus.BANNED
+        # Verify user was deleted
+        with pytest.raises(KeyError):
+            await patched_user_db.get_record("users", active_user["id"])
 
-    async def test_ban_user_non_admin_fails(self, patched_user_db, active_user):
-        """Test non-admin cannot ban users."""
+    async def test_remove_user_non_admin_fails(self, patched_user_db, active_user):
+        """Test non-admin cannot remove users."""
         # Create another regular member
         member_data = {
             "phone": "+3333333333",
@@ -260,13 +261,13 @@ class TestBanUser:
         }
         member = await patched_user_db.create_record("users", member_data)
 
-        with pytest.raises(PermissionError, match="not authorized to ban"):
-            await user_service.ban_user(admin_user_id=member["id"], target_user_id=active_user["id"])
+        with pytest.raises(PermissionError, match="not authorized to remove"):
+            await user_service.remove_user(admin_user_id=member["id"], target_user_id=active_user["id"])
 
-    async def test_ban_user_not_found(self, patched_user_db, admin_user):
-        """Test banning non-existent user raises error."""
+    async def test_remove_user_not_found(self, patched_user_db, admin_user):
+        """Test removing non-existent user raises error."""
         with pytest.raises(KeyError):
-            await user_service.ban_user(admin_user_id=admin_user["id"], target_user_id="nonexistent_id")
+            await user_service.remove_user(admin_user_id=admin_user["id"], target_user_id="nonexistent_id")
 
 
 @pytest.mark.unit

@@ -8,6 +8,7 @@ from typing import Any, TypeVar
 
 import httpx
 from pocketbase import PocketBase
+from pocketbase.errors import ClientResponseError
 
 from src.core.config import settings
 
@@ -346,6 +347,15 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         client = get_client()
         result = client.collection(collection).get_first_list_item(filter_query)
         return result.__dict__
+    except ClientResponseError as e:
+        if e.status == 404:  # noqa: PLR2004
+            return None
+        logger.error(
+            "get_first_record_failed",
+            extra={"collection": collection, "filter_query": filter_query, "error": str(e)},
+        )
+        msg = f"Failed to get first record from {collection}: {e}"
+        raise RuntimeError(msg) from e
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:  # noqa: PLR2004
             return None

@@ -22,7 +22,6 @@ class UserStatus(StrEnum):
 
     PENDING = "pending"
     ACTIVE = "active"
-    BANNED = "banned"
 
 
 class User(BaseModel):

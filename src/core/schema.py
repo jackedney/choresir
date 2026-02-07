@@ -63,7 +63,7 @@ def _get_collection_schema(
                     "name": "status",
                     "type": "select",
                     "required": True,
-                    "values": ["pending", "active", "banned"],
+                    "values": ["pending", "active"],
                     "maxSelect": 1,
                 },
             ],
@@ -327,6 +327,7 @@ def _get_collection_schema(
                 {"name": "name", "type": "text", "required": True},
                 {"name": "password", "type": "text", "required": True},
                 {"name": "code", "type": "text", "required": True},
+                {"name": "group_chat_id", "type": "text", "required": False},
             ],
         },
         "pending_invites": {

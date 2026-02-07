@@ -1,19 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Add Member - Admin{% endblock %}
-
-{% block flash_messages %}
-{% if errors %}
-{% for error in errors %}
-<article role="alert" data-theme="danger">
-    <header>
-        <strong>Error</strong>
-    </header>
-    {{ error }}
-</article>
-{% endfor %}
-{% endif %}
-{% endblock %}
+{% block title %}Add Member{% endblock %}
 
 {% block content %}
 <h1>Add Member</h1>
@@ -22,7 +9,7 @@
     <label for="phone">
         Phone Number
         <input type="tel" id="phone" name="phone" value="{{ phone }}" required autofocus pattern="\+[1-9]\d{1,14}" placeholder="+1234567890" />
-        <small>Must be in E.164 format (e.g., +1234567890)</small>
+        <small>E.164 format (e.g., +1234567890)</small>
     </label>
 
     <div role="group">

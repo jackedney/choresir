@@ -80,7 +80,8 @@ Manage your household through a modern web interface at `/admin`:
 - **🔐 Secure Login**: Password-protected admin access (set `ADMIN_PASSWORD` in .env)
 - **🏠 House Configuration**: Update house name, password, and code via web UI
 - **👥 Member Management**: View, add, edit, and remove/ban household members
-- **📱 WhatsApp Invites**: Add members by phone number with automatic WhatsApp invites
+- **📱 WhatsApp Setup**: Connect WhatsApp, view QR code, and configure group chat mode
+- **💬 Group Chat Mode**: Configure ChoresSir to respond in a house group instead of DMs
 - **📊 Dashboard**: Quick overview of member counts and status
 - **🎨 Responsive Design**: Works on desktop and mobile browsers
 

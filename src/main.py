@@ -5,10 +5,11 @@ import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 
-from src.core.config import settings
+from src.core.config import constants, settings
 from src.core.db_client import get_client
 from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
 from src.core.redis_client import redis_client
@@ -139,9 +140,18 @@ app = FastAPI(
 # Instrument FastAPI with Logfire
 instrument_fastapi(app)
 
+# Set up templates
+templates = Jinja2Templates(directory=str(constants.PROJECT_ROOT / "templates"))
+
 # Register routers
 app.include_router(webhook_router)
 app.include_router(admin_router)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def landing_page(request: Request) -> HTMLResponse:
+    """Landing page."""
+    return templates.TemplateResponse("landing.html", {"request": request})
 
 
 @app.get("/health")

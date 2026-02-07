@@ -87,7 +87,7 @@ async def validate_webhook_nonce(message_id: str) -> WebhookSecurityResult:
     )
 
     if not was_set:
-        logger.warning(
+        logger.debug(
             "Duplicate webhook detected: %s",
             message_id,
             extra={"message_id": message_id},
@@ -95,7 +95,7 @@ async def validate_webhook_nonce(message_id: str) -> WebhookSecurityResult:
         return WebhookSecurityResult(
             is_valid=False,
             error_message="Duplicate webhook",
-            http_status_code=400,
+            http_status_code=200,
         )
 
     return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)

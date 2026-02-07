@@ -7,48 +7,61 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
-        .htmx-indicator {
-            opacity: 0;
-            transition: opacity 200ms ease-in;
+        :root {
+            --spacing: 1rem;
         }
-        .htmx-request .htmx-indicator {
-            opacity: 1;
+        body > header {
+            background: var(--card-background-color);
+            border-bottom: 1px solid var(--muted-border-color);
+            padding: var(--spacing);
+            margin-bottom: var(--spacing);
         }
-        .htmx-request.htmx-indicator {
-            opacity: 1;
+        body > header nav {
+            max-width: 1200px;
+            margin: 0 auto;
         }
-        .flash-message {
-            animation: fadeIn 0.3s ease-out;
+        main {
+            padding-bottom: 2rem;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
         }
-        tr.htmx-requesting td {
-            opacity: 0.6;
-        }
+        .badge-admin { background: var(--primary); color: var(--primary-inverse); }
+        .badge-member { background: var(--muted-border-color); color: var(--muted-color); }
+        .badge-active { background: #22c55e; color: white; }
+        .badge-pending { background: #eab308; color: black; }
+        .actions { display: flex; gap: 0.5rem; }
+        .actions button, .actions a { margin: 0; padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+        .htmx-indicator { opacity: 0; transition: opacity 200ms; }
+        .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
+        .alert { padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
+        .alert-success { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        table { font-size: 0.9rem; }
+        th, td { padding: 0.75rem; }
     </style>
 </head>
 <body>
     <header>
         <nav>
-            <ul>
-                <li><strong>Admin</strong></li>
-            </ul>
-            <ul>
-                <li><a href="/admin/logout">Logout</a></li>
-            </ul>
+            <ul><li><a href="/admin"><strong>Admin</strong></a></li></ul>
+            <ul><li><a href="/admin/logout">Logout</a></li></ul>
         </nav>
     </header>
     <main class="container">
-        {% block flash_messages %}
         {% if success_message %}
-        <article role="alert" data-theme="success" class="flash-message">
-            <header><strong>Success</strong></header>
-            {{ success_message }}
-        </article>
+        <div class="alert alert-success">{{ success_message }}</div>
         {% endif %}
-        {% endblock %}
+        {% if errors %}
+        {% for error in errors %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endfor %}
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 </body>

@@ -14,6 +14,11 @@ class ParsedMessage(BaseModel):
     timestamp: str = Field(..., description="Message timestamp (Unix epoch as string)")
     message_type: str = Field(..., description="Type of message (text, image, audio, etc.)")
     button_payload: str | None = Field(None, description="Button payload for interactive message responses")
+    is_group_message: bool = Field(False, description="True if message is from a group chat")
+    group_id: str | None = Field(
+        None, description="Group JID if this is a group message (e.g., 120363400136168625@g.us)"
+    )
+    actual_sender_phone: str | None = Field(None, description="Real sender's phone in group messages")
 
 
 def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
@@ -55,9 +60,26 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
     if from_raw == "status@broadcast":
         return None
 
-    # Clean phone number
+    # Detect group messages (from address ends with @g.us)
+    is_group_message = from_raw.endswith("@g.us")
+    group_id: str | None = None
+    actual_sender_phone: str | None = None
+
+    if is_group_message:
+        # For group messages, "from" is the group ID
+        group_id = from_raw
+        # The actual sender is in the "participant" field
+        participant = payload.get("participant", "")
+        if participant:
+            # Clean participant phone (remove @c.us suffix)
+            clean_participant = participant.replace("@c.us", "")
+            actual_sender_phone = (
+                f"+{clean_participant}" if not clean_participant.startswith("+") else clean_participant
+            )
+
+    # Clean phone number for individual messages
     # Remove @c.us suffix
-    clean_number = from_raw.replace("@c.us", "")
+    clean_number = from_raw.replace("@c.us", "").replace("@g.us", "")
 
     # Ensure E.164 format with + prefix for consistency with existing database records
     # WAHA usually sends '1234567890', we want '+1234567890'
@@ -102,4 +124,7 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
         timestamp=timestamp,
         message_type=app_message_type,
         button_payload=button_payload,
+        is_group_message=is_group_message,
+        group_id=group_id,
+        actual_sender_phone=actual_sender_phone,
     )

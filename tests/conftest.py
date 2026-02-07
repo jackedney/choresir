@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import logging
+import os
 import secrets
 import shutil
 import subprocess
@@ -200,6 +201,8 @@ def pocketbase_server() -> Generator[str]:
 
     # Create admin user for schema management
     try:
+        # Set BROWSER to empty string to prevent PocketBase from opening a browser
+        env = {"BROWSER": "", **os.environ}
         result = subprocess.run(
             [
                 pb_binary,
@@ -213,6 +216,7 @@ def pocketbase_server() -> Generator[str]:
             check=True,
             capture_output=True,
             text=True,
+            env=env,
         )
         logger.info(f"Admin user creation output: {result.stdout}")
         if result.stderr:

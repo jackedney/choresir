@@ -294,16 +294,3 @@ async def handle_pending_user(*, user_name: str) -> str:
         Status message
     """
     return f"Hi {user_name}! Your membership is awaiting approval from an admin."
-
-
-async def handle_banned_user(*, user_name: str) -> str:
-    """
-    Handle message from banned user.
-
-    Args:
-        user_name: Name of banned user
-
-    Returns:
-        Rejection message
-    """
-    return f"Hi {user_name}. Your access to this household has been revoked."
