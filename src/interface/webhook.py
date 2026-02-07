@@ -10,7 +10,7 @@ from pocketbase import PocketBase
 from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
-from src.core.config import Constants
+from src.core.config import Constants, settings
 from src.core.db_client import sanitize_param
 from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
@@ -61,6 +61,9 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
         # Ignore non-message events (e.g., status updates, qr codes)
         return {"status": "ignored"}
 
+    # Extract webhook secret from header
+    webhook_secret = request.headers.get("X-Webhook-Secret")
+
     # Perform security checks (replay attack protection)
     # Note: WAHA timestamp might be slightly different or missing in some events,
     # but our parser extracts it.
@@ -68,6 +71,8 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks) -
         message_id=message.message_id,
         timestamp_str=message.timestamp,
         phone_number=message.from_phone,
+        received_secret=webhook_secret,
+        expected_secret=settings.waha_webhook_secret,
     )
 
     if not security_result.is_valid:

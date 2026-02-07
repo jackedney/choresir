@@ -37,3 +37,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The `Settings` class in `src/core/config.py` contained hardcoded default values for `pocketbase_admin_email` ("admin@test.local") and `pocketbase_admin_password` ("testpassword123"). While intended for development, these defaults could lead to production deployments using insecure credentials if environment variables were omitted.
 **Learning:** Pydantic `BaseSettings` with default values allows the application to start even when critical security configuration is missing from the environment. "Safe defaults" for development can become "Unsafe defaults" for production.
 **Prevention:** Removed default values for critical credentials in `Settings`, forcing them to be explicitly provided via environment variables. Updated `Taskfile.yml` and `conftest.py` to inject these values for development and testing contexts.
+
+## 2026-10-25 - [Webhook Authentication Gap]
+**Vulnerability:** The WAHA webhook endpoint (`/webhook`) accepted POST requests without any authentication, relying solely on message content (timestamp/nonce) which can be spoofed. This allowed potential impersonation of users if the endpoint was exposed.
+**Learning:** Webhook endpoints, even internal ones, should treat the sender as untrusted until authenticated. Relying on network isolation is insufficient defense-in-depth.
+**Prevention:** Implemented a shared secret mechanism (`X-Webhook-Secret`) verified with constant-time comparison (`secrets.compare_digest`). Configuration defaults to "fail open" (optional) to preserve backward compatibility, but enables enforcement when the secret is set.
