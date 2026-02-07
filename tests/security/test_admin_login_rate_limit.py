@@ -5,6 +5,7 @@ from fastapi import Request, status, HTTPException
 
 from src.interface.admin_router import check_login_rate_limit
 
+
 @pytest.mark.asyncio
 async def test_check_login_rate_limit_success():
     """Test rate limit check passes when under limit."""
