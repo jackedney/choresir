@@ -24,6 +24,7 @@ COLLECTIONS = [
     "personal_chore_logs",
     "house_config",
     "bot_messages",
+    "group_context",
 ]
 
 
@@ -347,6 +348,30 @@ def _get_collection_schema(
                 {"name": "sent_at", "type": "date", "required": True},
             ],
             "indexes": ["CREATE UNIQUE INDEX idx_bot_message_id ON bot_messages (message_id)"],
+        },
+        "group_context": {
+            "name": "group_context",
+            "type": "base",
+            "system": False,
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
+            "deleteRule": None,
+            "fields": [
+                {"name": "group_id", "type": "text", "required": True},
+                {"name": "sender_phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
+                {"name": "sender_name", "type": "text", "required": True},
+                {"name": "content", "type": "text", "required": True},
+                {"name": "is_bot", "type": "bool", "required": False},
+                {"name": "created_at", "type": "date", "required": True},
+                {"name": "expires_at", "type": "date", "required": True},
+            ],
+            "indexes": [
+                "CREATE INDEX idx_group_id ON group_context (group_id)",
+                "CREATE INDEX idx_expires_at ON group_context (expires_at)",
+            ],
         },
     }
     return schemas[collection_name]
