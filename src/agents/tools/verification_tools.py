@@ -9,18 +9,78 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
-from src.core import db_client
-from src.services import chore_service, user_service, verification_service
-from src.services.verification_service import VerificationDecision
+from src.services import chore_service, user_service, verification_service, workflow_service
 
 
 logger = logging.getLogger(__name__)
 
 
+def _fuzzy_match_chore(chores: list[dict], title_query: str) -> dict | None:
+    """
+    Fuzzy match a chore by title.
+
+    Args:
+        chores: List of chore records
+        title_query: User's search query
+
+    Returns:
+        Best matching chore or None
+    """
+    matches = _fuzzy_match_all_chores(chores, title_query)
+    return matches[0] if matches else None
+
+
+def _fuzzy_match_all_chores(chores: list[dict], title_query: str) -> list[dict]:
+    """
+    Fuzzy match all chores matching a title query.
+
+    Args:
+        chores: List of chore records
+        title_query: User's search query
+
+    Returns:
+        List of all matching chores (may be empty)
+    """
+    title_lower = title_query.lower().strip()
+    matches: list[dict] = []
+
+    # Exact match (highest priority)
+    for chore in chores:
+        if chore["title"].lower() == title_lower:
+            matches.append(chore)
+
+    if matches:
+        return matches
+
+    # Contains match
+    for chore in chores:
+        if title_lower in chore["title"].lower():
+            matches.append(chore)
+
+    if matches:
+        return matches
+
+    # Partial word match
+    query_words = set(title_lower.split())
+    for chore in chores:
+        chore_words = set(chore["title"].lower().split())
+        if query_words & chore_words:  # Intersection
+            matches.append(chore)
+
+    return matches
+
+
 class VerifyChore(BaseModel):
     """Parameters for verifying a chore completion."""
 
-    log_id: str = Field(description="Log ID of the chore claim to verify")
+    workflow_id: str | None = Field(
+        default=None,
+        description="Workflow ID (optional, for direct reference)",
+    )
+    chore_title_fuzzy: str | None = Field(
+        default=None,
+        description="Chore title or partial match (fuzzy search, used if workflow_id not provided)",
+    )
     decision: Literal["APPROVE", "REJECT"] = Field(description="Verification decision")
     reason: str | None = Field(default=None, description="Optional reason for the decision")
 
@@ -89,6 +149,8 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
     Prevents self-verification. Approvals mark chore as completed.
     Rejections move to conflict resolution (voting).
 
+    Supports referencing by workflow_id directly or by chore title matching.
+
     Args:
         ctx: Agent runtime context with dependencies
         params: Verification parameters
@@ -96,38 +158,99 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
     Returns:
         Success or error message
     """
+    result = None
     try:
-        with logfire.span("tool_verify_chore", log_id=params.log_id, decision=params.decision):
-            # Get the log to find the chore ID
-            log_record = await db_client.get_record(collection="logs", record_id=params.log_id)
-            chore_id = log_record["chore_id"]
+        with logfire.span("tool_verify_chore", workflow_id=params.workflow_id, decision=params.decision):
+            # Validate input
+            if not params.workflow_id and not params.chore_title_fuzzy:
+                return "Error: Either workflow_id or chore_title_fuzzy must be provided."
 
-            # Get chore details for response
-            chore = await chore_service.get_chore_by_id(chore_id=chore_id)
+            # Normalize decision
+            decision_lower = params.decision.lower().strip()
+            if decision_lower not in ("approve", "reject"):
+                return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
 
-            # Perform verification
-            decision_enum = VerificationDecision(params.decision)
-            updated_chore = await verification_service.verify_chore(
-                chore_id=chore_id,
-                verifier_user_id=ctx.deps.user_id,
-                decision=decision_enum,
-                reason=params.reason or "",
-            )
+            # Determine the workflow to resolve
+            workflow: dict | None = None
 
-            if params.decision == "APPROVE":
-                deadline_str = datetime.fromisoformat(updated_chore["deadline"]).strftime("%b %d")
-                return f"Chore '{chore['title']}' approved. Next deadline: {deadline_str}."
-            return f"Chore '{chore['title']}' rejected. Moving to conflict resolution (voting will be implemented)."
+            if params.workflow_id:
+                # Direct workflow ID reference
+                workflow = await workflow_service.get_workflow(workflow_id=params.workflow_id)
+                if not workflow:
+                    return f"Error: Workflow '{params.workflow_id}' not found."
 
-    except PermissionError:
-        logger.warning("Self-verification attempt", extra={"user_id": ctx.deps.user_id, "log_id": params.log_id})
-        return "Error: You cannot verify your own chore claim."
+                if workflow["type"] != workflow_service.WorkflowType.CHORE_VERIFICATION.value:
+                    return f"Error: Workflow '{params.workflow_id}' is not a chore verification workflow."
+
+                if workflow["status"] != workflow_service.WorkflowStatus.PENDING.value:
+                    return f"Error: Workflow '{params.workflow_id}' is not pending (status: {workflow['status']})."
+            else:
+                # Find workflow by chore title matching
+                assert params.chore_title_fuzzy is not None  # Type narrowing: validated above
+                all_chores = await chore_service.get_chores()
+
+                # Find ALL matching chores (not just the first)
+                matched_chores = _fuzzy_match_all_chores(all_chores, params.chore_title_fuzzy)
+
+                if not matched_chores:
+                    return f'No chore found matching "{params.chore_title_fuzzy}".'
+
+                # Find which matched chores have pending verification requests
+                chores_with_pending_verification: list[tuple[dict, dict]] = []
+                for chore in matched_chores:
+                    pending_workflow = await verification_service.get_pending_verification_workflow(
+                        chore_id=chore["id"]
+                    )
+                    if pending_workflow:
+                        chores_with_pending_verification.append((chore, pending_workflow))
+
+                if not chores_with_pending_verification:
+                    return f'No pending verification found for "{params.chore_title_fuzzy}".'
+
+                if len(chores_with_pending_verification) > 1:
+                    # Multiple chores with pending verification - ask for clarification
+                    chore_list = ", ".join(f"'{c['title']}'" for c, _ in chores_with_pending_verification)
+                    return f"Multiple chores with pending verification found: {chore_list}. Please specify which one."
+
+                # Exactly one chore with pending verification - use it
+                _matched_chore, pending_workflow = chores_with_pending_verification[0]
+                workflow = pending_workflow
+
+            # Get resolver name
+            resolver = await user_service.get_user_by_id(user_id=ctx.deps.user_id)
+            resolver_name = resolver.get("name", "Unknown")
+
+            # Process decision using workflow_service
+            if decision_lower == "approve":
+                await workflow_service.resolve_workflow(
+                    workflow_id=workflow["id"],
+                    resolver_user_id=ctx.deps.user_id,
+                    resolver_name=resolver_name,
+                    decision=workflow_service.WorkflowStatus.APPROVED,
+                    reason=params.reason or "",
+                )
+                result = f"Approved verification of '{workflow['target_title']}'."
+            else:
+                await workflow_service.resolve_workflow(
+                    workflow_id=workflow["id"],
+                    resolver_user_id=ctx.deps.user_id,
+                    resolver_name=resolver_name,
+                    decision=workflow_service.WorkflowStatus.REJECTED,
+                    reason=params.reason or "",
+                )
+                result = (
+                    f"Rejected verification of '{workflow['target_title']}'. "
+                    "Moving to conflict resolution (voting will be implemented)."
+                )
+
     except ValueError as e:
         logger.warning("Verification failed", extra={"error": str(e)})
-        return f"Error: {e!s}"
+        result = f"Error: {e!s}"
     except Exception as e:
         logger.error("Unexpected error in tool_verify_chore", extra={"error": str(e)})
-        return "Error: Unable to verify chore. Please try again."
+        result = "Error: Unable to verify chore. Please try again."
+
+    return result
 
 
 async def tool_list_my_chores(ctx: RunContext[Deps], params: ListMyChores) -> str:
