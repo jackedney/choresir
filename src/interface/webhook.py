@@ -16,7 +16,7 @@ from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
 from src.domain.user import UserStatus
 from src.interface import webhook_security, whatsapp_parser, whatsapp_sender
-from src.services.house_config_service import get_house_config
+from src.services.house_config_service import get_house_config, set_group_chat_id
 
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
@@ -448,8 +448,9 @@ async def _should_process_message(message: whatsapp_parser.ParsedMessage) -> boo
     """Determine if a message should be processed based on group configuration.
 
     Behavior:
-    - No group configured: Process DMs only, ignore all group messages
+    - No group configured + group message received: Auto-save group ID and process
     - Group configured: Process ONLY messages from the configured group, ignore DMs
+    - No group configured + DM: Process DMs (legacy behavior)
 
     Args:
         message: Parsed message
@@ -460,12 +461,26 @@ async def _should_process_message(message: whatsapp_parser.ParsedMessage) -> boo
     config = await get_house_config()
 
     if message.is_group_message:
-        # Group message: only process if it's from the configured group
         if not config.group_chat_id:
-            logger.debug(
-                "Ignoring group message - no group configured",
-                extra={"group_id": message.group_id},
-            )
+            # Auto-detect: First group message sets the house group
+            if message.group_id:
+                logger.info(
+                    "Auto-detecting house group chat",
+                    extra={"group_id": message.group_id},
+                )
+                success = await set_group_chat_id(message.group_id)
+                if success:
+                    logger.info(
+                        "House group chat auto-configured",
+                        extra={"group_id": message.group_id},
+                    )
+                    # Process this message since we just configured this group
+                    return True
+                logger.warning(
+                    "Failed to auto-configure group chat",
+                    extra={"group_id": message.group_id},
+                )
+                return False
             return False
 
         if message.group_id != config.group_chat_id:

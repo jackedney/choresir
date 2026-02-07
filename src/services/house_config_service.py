@@ -103,6 +103,34 @@ async def ensure_singleton_config() -> HouseConfig | None:
         return None
 
 
+async def set_group_chat_id(group_id: str) -> bool:
+    """Set the group chat ID in house configuration.
+
+    Args:
+        group_id: The WhatsApp group ID (e.g., 120363400136168625@g.us)
+
+    Returns:
+        True if successfully set, False otherwise
+    """
+    try:
+        config = await db_client.get_first_record(collection="house_config", filter_query="")
+
+        if not config:
+            logger.warning("Cannot set group_chat_id - no house_config exists")
+            return False
+
+        await db_client.update_record(
+            collection="house_config",
+            record_id=config["id"],
+            data={"group_chat_id": group_id},
+        )
+        logger.info("group_chat_id_set", extra={"group_id": group_id})
+        return True
+    except Exception as e:
+        logger.error("group_chat_id_set_failed", extra={"error": str(e), "group_id": group_id})
+        return False
+
+
 async def seed_from_env_vars() -> None:
     """Seed house_config collection from environment variables if empty."""
     try:
