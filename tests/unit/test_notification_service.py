@@ -15,14 +15,15 @@ def patched_notification_db(monkeypatch, in_memory_db):
     # Patch all db_client functions used by notification service
     monkeypatch.setattr("src.services.notification_service.db_client.get_record", in_memory_db.get_record)
     monkeypatch.setattr("src.services.notification_service.db_client.list_records", in_memory_db.list_records)
+    monkeypatch.setattr("src.services.notification_service.db_client.get_first_record", in_memory_db.get_first_record)
     return in_memory_db
 
 
 @pytest.fixture
 def mock_whatsapp_sender(monkeypatch):
-    """Mock the whatsapp_sender.send_text_message function."""
-    mock_send = AsyncMock(return_value=SendMessageResult(success=True, message_id="msg_456"))
-    monkeypatch.setattr("src.services.notification_service.whatsapp_sender.send_text_message", mock_send)
+    """Mock whatsapp_sender.send_group_message function."""
+    mock_send = AsyncMock(return_value=SendMessageResult(success=True, message_id="msg_456", error=None))
+    monkeypatch.setattr("src.services.notification_service.whatsapp_sender.send_group_message", mock_send)
     return mock_send
 
 
@@ -46,78 +47,53 @@ def sample_users():
 
 
 class TestSendVerificationRequest:
-    """Test verification request notifications."""
+    """Test verification request notifications to group chat."""
 
     @pytest.mark.asyncio
-    async def test_excludes_claimer(
+    async def test_sends_to_group_chat(
         self,
         patched_notification_db,
         mock_whatsapp_sender,
         sample_chore,
         sample_users,
     ):
-        """Notifications go to all active users except claimer."""
+        """Sends verification request to configured group chat."""
         # Populate in-memory database
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
-        created_users = []
-        for user in sample_users:
-            created_user = await patched_notification_db.create_record(collection="users", data=user)
-            created_users.append(created_user)
+        claimer = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
-        # Send verification request (first user is claimer)
+        # Set up house config with group chat ID
+        await patched_notification_db.create_record(
+            collection="house_config",
+            data={"name": "Test House", "group_chat_id": "group123@g.us"},
+        )
+
+        # Send verification request
         results = await notification_service.send_verification_request(
             log_id="log123",
             chore_id=chore["id"],
-            claimer_user_id=created_users[0]["id"],
+            claimer_user_id=claimer["id"],
         )
 
-        # Should send to user2 and user3 only (not user1/claimer)
-        assert len(results) == 2
-        phones = {r.phone for r in results}
-        assert "+11111111111" not in phones  # user1 (claimer) excluded
-        assert "+12222222222" in phones  # user2 included
-        assert "+13333333333" in phones  # user3 included
+        # Should have one result for the group message
+        assert (
+            len(results) == 0
+        )  # Returns empty list since we're not creating NotificationResult objects for group messages
 
-        # All should be successful
-        assert all(r.success for r in results)
+        # Verify group message was sent once
+        assert mock_whatsapp_sender.call_count == 1
 
-        # Message should be sent twice
-        assert mock_whatsapp_sender.call_count == 2
+        # Check call arguments
+        call_args = mock_whatsapp_sender.call_args
+        assert call_args.kwargs["to_group_id"] == "group123@g.us"
+        text = call_args.kwargs["text"]
 
-    @pytest.mark.asyncio
-    async def test_sends_verification_request_text(
-        self,
-        patched_notification_db,
-        mock_whatsapp_sender,
-        sample_chore,
-        sample_users,
-    ):
-        """Uses text message with instructions."""
-        # Populate in-memory database
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
-        created_users = []
-        for user in sample_users:
-            created_user = await patched_notification_db.create_record(collection="users", data=user)
-            created_users.append(created_user)
-
-        # Send verification request
-        await notification_service.send_verification_request(
-            log_id="log123",
-            chore_id=chore["id"],
-            claimer_user_id=created_users[0]["id"],
-        )
-
-        # Verify text message was called
-        assert mock_whatsapp_sender.call_count == 2
-
-        # Check first call arguments
-        first_call = mock_whatsapp_sender.call_args_list[0]
-        assert first_call.kwargs["to_phone"] in ["+12222222222", "+13333333333"]
-        assert "Alice" in first_call.kwargs["text"]  # claimer name
-        assert "Dishes" in first_call.kwargs["text"]  # chore title
-        assert "log123" in first_call.kwargs["text"]  # log_id
-        assert "approve log123" in first_call.kwargs["text"]
-        assert "reject log123" in first_call.kwargs["text"]
+        # Verify message content
+        assert "Alice" in text  # claimer name
+        assert "Dishes" in text  # chore title
+        assert "log123" in text  # log_id
+        assert "approve log123" in text
+        assert "reject log123" in text
 
     @pytest.mark.asyncio
     async def test_returns_empty_list_when_chore_not_found(
@@ -128,7 +104,7 @@ class TestSendVerificationRequest:
         """Returns empty list when chore doesn't exist."""
         # Only add users, no chore
         for user in sample_users:
-            await patched_notification_db.create_record(collection="users", data=user)
+            await patched_notification_db.create_record(collection="members", data=user)
 
         # Send verification request with non-existent chore
         results = await notification_service.send_verification_request(
@@ -141,7 +117,7 @@ class TestSendVerificationRequest:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_handles_claimer_not_found(
+    async def test_uses_someone_when_claimer_not_found(
         self,
         patched_notification_db,
         mock_whatsapp_sender,
@@ -151,119 +127,76 @@ class TestSendVerificationRequest:
         """Uses 'Someone' as claimer name when claimer not found."""
         # Populate in-memory database (only chore and users, but claimer doesn't exist)
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
-        for user in sample_users:
-            await patched_notification_db.create_record(collection="users", data=user)
+
+        # Set up house config with group chat ID
+        await patched_notification_db.create_record(
+            collection="house_config",
+            data={"name": "Test House", "group_chat_id": "group123@g.us"},
+        )
 
         # Send verification request with non-existent claimer
-        results = await notification_service.send_verification_request(
+        await notification_service.send_verification_request(
             log_id="log123",
             chore_id=chore["id"],
             claimer_user_id="nonexistent_user",
         )
 
-        # Should still send to all users
-        assert len(results) == 3
+        # Verify group message was sent
+        assert mock_whatsapp_sender.call_count == 1
 
         # Check that "Someone" is used as claimer name in text
-        first_call = mock_whatsapp_sender.call_args_list[0]
-        assert "Someone" in first_call.kwargs["text"]
+        call_args = mock_whatsapp_sender.call_args
+        text = call_args.kwargs["text"]
+        assert "Someone" in text
 
     @pytest.mark.asyncio
-    async def test_only_sends_to_active_users(
+    async def test_returns_empty_when_no_group_configured(
         self,
         patched_notification_db,
-        mock_whatsapp_sender,
         sample_chore,
+        sample_users,
     ):
-        """Only sends notifications to active users."""
-        # Populate with users of different statuses
-        users = [
-            {"name": "Alice", "phone": "+11111111111", "status": UserStatus.ACTIVE},
-            {"name": "Bob", "phone": "+12222222222", "status": UserStatus.ACTIVE},
-            {"name": "Charlie", "phone": "+13333333333", "status": UserStatus.PENDING},
-            {"name": "David", "phone": "+14444444444", "status": UserStatus.BANNED},
-        ]
-
+        """Returns empty list when no group chat ID is configured."""
+        # Populate in-memory database (no house_config)
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
-        created_users = []
-        for user in users:
-            created_user = await patched_notification_db.create_record(collection="users", data=user)
-            created_users.append(created_user)
+        claimer = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
-        # Send verification request (first user is claimer)
+        # Send verification request
         results = await notification_service.send_verification_request(
             log_id="log123",
             chore_id=chore["id"],
-            claimer_user_id=created_users[0]["id"],
+            claimer_user_id=claimer["id"],
         )
 
-        # Should only send to user2 (active, not claimer)
-        # user3 is pending, user4 is banned, user1 is claimer
-        assert len(results) == 1
-        assert results[0].phone == "+12222222222"
-        assert results[0].user_id == created_users[1]["id"]
+        # Should return empty list
+        assert results == []
 
     @pytest.mark.asyncio
-    async def test_handles_send_failures(
+    async def test_handles_send_failure(
         self,
         patched_notification_db,
         sample_chore,
         sample_users,
         monkeypatch,
     ):
-        """Handles send failures gracefully."""
-
-        # Mock send to fail for specific phone
-        async def mock_send_text(**kwargs):
-            if kwargs["to_phone"] == "+12222222222":
-                return SendMessageResult(success=False, error="Rate limit exceeded")
-            return SendMessageResult(success=True, message_id="msg_123")
-
+        """Handles send failure gracefully."""
+        # Mock send to fail
+        mock_send = AsyncMock(
+            return_value=SendMessageResult(success=False, message_id=None, error="Rate limit exceeded")
+        )
         monkeypatch.setattr(
-            "src.services.notification_service.whatsapp_sender.send_text_message",
-            mock_send_text,
+            "src.services.notification_service.whatsapp_sender.send_group_message",
+            mock_send,
         )
 
         # Populate in-memory database
         chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
-        created_users = []
-        for user in sample_users:
-            created_user = await patched_notification_db.create_record(collection="users", data=user)
-            created_users.append(created_user)
+        claimer = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
-        # Send verification request
-        results = await notification_service.send_verification_request(
-            log_id="log123",
-            chore_id=chore["id"],
-            claimer_user_id=created_users[0]["id"],
-        )
-
-        # Should have results for both users
-        assert len(results) == 2
-
-        # Find the failed one
-        failed_results = [r for r in results if not r.success]
-        assert len(failed_results) == 1
-        assert failed_results[0].phone == "+12222222222"
-        assert failed_results[0].error == "Rate limit exceeded"
-
-        # Find the successful one
-        success_results = [r for r in results if r.success]
-        assert len(success_results) == 1
-        assert success_results[0].phone == "+13333333333"
-
-    @pytest.mark.asyncio
-    async def test_returns_empty_list_when_no_other_users(
-        self,
-        patched_notification_db,
-        sample_chore,
-    ):
-        """Returns empty list when only the claimer exists."""
-        # Only add the chore and the claimer
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
-        claimer = await patched_notification_db.create_record(
-            collection="users",
-            data={"name": "Alice", "phone": "+11111111111", "status": UserStatus.ACTIVE},
+        # Set up house config with group chat ID
+        await patched_notification_db.create_record(
+            collection="house_config",
+            data={"name": "Test House", "group_chat_id": "group123@g.us"},
         )
 
         # Send verification request
@@ -273,5 +206,86 @@ class TestSendVerificationRequest:
             claimer_user_id=claimer["id"],
         )
 
-        # Should return empty list (no one to notify)
+        # Should return empty list (no NotificationResult objects for group messages)
+        assert len(results) == 0
+
+        # Verify send was attempted
+        assert mock_send.call_count == 1
+
+
+class TestSendDeletionRequestNotification:
+    """Test deletion request notifications to group chat."""
+
+    @pytest.mark.asyncio
+    async def test_sends_to_group_chat(
+        self,
+        patched_notification_db,
+        monkeypatch,
+        sample_chore,
+        sample_users,
+    ):
+        """Sends deletion request to configured group chat."""
+        # Mock send_group_message
+        mock_send = AsyncMock(return_value=SendMessageResult(success=True, message_id="msg_789", error=None))
+        monkeypatch.setattr(
+            "src.services.notification_service.whatsapp_sender.send_group_message",
+            mock_send,
+        )
+
+        # Populate in-memory database
+        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        requester = await patched_notification_db.create_record(collection="members", data=sample_users[0])
+
+        # Set up house config with group chat ID
+        await patched_notification_db.create_record(
+            collection="house_config",
+            data={"name": "Test House", "group_chat_id": "group123@g.us"},
+        )
+
+        # Send deletion request notification
+        results = await notification_service.send_deletion_request_notification(
+            log_id="log456",
+            chore_id=chore["id"],
+            chore_title="Dishes",
+            requester_user_id=requester["id"],
+        )
+
+        # Should return empty list (no NotificationResult objects for group messages)
+        assert len(results) == 0
+
+        # Verify group message was sent
+        assert mock_send.call_count == 1
+
+        # Check call arguments
+        call_args = mock_send.call_args
+        assert call_args.kwargs["to_group_id"] == "group123@g.us"
+        text = call_args.kwargs["text"]
+
+        # Verify message content
+        assert "Alice" in text  # requester name
+        assert "Dishes" in text  # chore title
+        assert "approve deletion Dishes" in text
+        assert "reject deletion Dishes" in text
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_group_configured(
+        self,
+        patched_notification_db,
+        sample_chore,
+        sample_users,
+    ):
+        """Returns empty list when no group chat ID is configured."""
+        # Populate in-memory database (no house_config)
+        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        requester = await patched_notification_db.create_record(collection="members", data=sample_users[0])
+
+        # Send deletion request notification
+        results = await notification_service.send_deletion_request_notification(
+            log_id="log456",
+            chore_id=chore["id"],
+            chore_title="Dishes",
+            requester_user_id=requester["id"],
+        )
+
+        # Should return empty list
         assert results == []

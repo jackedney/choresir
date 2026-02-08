@@ -6,6 +6,136 @@ from datetime import datetime, timedelta
 from croniter import croniter
 
 
+# Constants for magic numbers
+CRON_PARTS_COUNT = 5
+NOON_HOUR = 12
+HOURS_IN_HALF_DAY = 12
+
+WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+
+def _format_time_string(hour: int, minute: int) -> str:
+    """Format hour and minute into a human-readable time string."""
+    if hour == 0 and minute == 0:
+        return " at midnight"
+    if hour == NOON_HOUR and minute == 0:
+        return " at noon"
+
+    period = "AM" if hour < HOURS_IN_HALF_DAY else "PM"
+    display_hour = hour if hour <= HOURS_IN_HALF_DAY else hour - HOURS_IN_HALF_DAY
+    if display_hour == 0:
+        display_hour = HOURS_IN_HALF_DAY
+
+    if minute == 0:
+        return f" at {display_hour}:00 {period}"
+    return f" at {display_hour}:{minute:02d} {period}"
+
+
+def _parse_time_from_cron(hour: str, minute: str) -> str:
+    """Parse hour and minute from CRON parts into a time string."""
+    if hour == "*" or minute == "*":
+        return ""
+    try:
+        return _format_time_string(int(hour), int(minute))
+    except ValueError:
+        return ""
+
+
+def _format_weekly_schedule(day_of_week: str, time_str: str) -> str | None:
+    """Format a weekly schedule description."""
+    try:
+        if "," in day_of_week:
+            days = [WEEKDAY_NAMES[int(d)] for d in day_of_week.split(",")]
+            return f"every {', '.join(days)}{time_str}"
+        dow = int(day_of_week)
+        return f"every {WEEKDAY_NAMES[dow]}{time_str}"
+    except (ValueError, IndexError):
+        return None
+
+
+def _get_day_suffix(day: int) -> str:
+    """Get the ordinal suffix for a day number."""
+    if day in (1, 21, 31):
+        return "st"
+    if day in (2, 22):
+        return "nd"
+    if day in (3, 23):
+        return "rd"
+    return "th"
+
+
+def _format_monthly_schedule(day_of_month: str, time_str: str) -> str | None:
+    """Format a monthly schedule description."""
+    try:
+        dom = int(day_of_month)
+        suffix = _get_day_suffix(dom)
+        return f"monthly on the {dom}{suffix}{time_str}"
+    except ValueError:
+        return None
+
+
+def _parse_interval_format(cron_expr: str) -> str | None:
+    """Parse INTERVAL format and return human-readable description."""
+    if not cron_expr.startswith("INTERVAL:"):
+        return None
+    parts = cron_expr.split(":")
+    days = int(parts[1])
+    if days == 1:
+        return "daily"
+    return f"every {days} days"
+
+
+def _parse_standard_cron(cron_expr: str) -> str:
+    """Parse standard CRON expression and return human-readable description."""
+    parts = cron_expr.split()
+    if len(parts) != CRON_PARTS_COUNT:
+        return cron_expr  # Return as-is if not valid
+
+    minute, hour, day_of_month, month, day_of_week = parts
+    time_str = _parse_time_from_cron(hour, minute)
+
+    # If time_str is empty, fall back to generic description
+    if not time_str:
+        return f"scheduled ({cron_expr})"
+
+    # Daily (every day of week, every day of month)
+    if day_of_week == "*" and day_of_month == "*" and month == "*":
+        return f"daily{time_str}"
+
+    # Weekly (specific day of week)
+    if day_of_month == "*" and month == "*" and day_of_week != "*":
+        result = _format_weekly_schedule(day_of_week, time_str)
+        if result is not None:
+            return result
+
+    # Monthly (specific day of month)
+    if day_of_week == "*" and month == "*" and day_of_month != "*":
+        result = _format_monthly_schedule(day_of_month, time_str)
+        if result is not None:
+            return result
+
+    # Fallback: return a simplified description
+    return f"scheduled ({cron_expr})"
+
+
+def cron_to_human(cron_expr: str) -> str:
+    """Convert a CRON expression to human-readable text.
+
+    Args:
+        cron_expr: CRON expression (e.g., "0 12 * * 1") or INTERVAL format
+
+    Returns:
+        Human-readable description (e.g., "every Monday at 12:00 PM")
+    """
+    # Handle INTERVAL format (e.g., "INTERVAL:3:0 0 * * *")
+    interval_result = _parse_interval_format(cron_expr)
+    if interval_result is not None:
+        return interval_result
+
+    # Parse standard CRON expression
+    return _parse_standard_cron(cron_expr)
+
+
 def parse_recurrence_to_cron(recurrence: str) -> str:
     """Parse recurrence string to CRON expression.
 

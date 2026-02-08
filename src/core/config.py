@@ -1,9 +1,8 @@
 """Configuration management for choresir."""
 
 from pathlib import Path
-from typing import Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,23 +18,30 @@ class Settings(BaseSettings):
 
     # PocketBase Configuration
     pocketbase_url: str = Field(default="http://127.0.0.1:8090", description="PocketBase server URL")
-    pocketbase_admin_email: str | None = Field(default=None, description="PocketBase admin email for schema sync")
-    pocketbase_admin_password: str | None = Field(default=None, description="PocketBase admin password for schema sync")
+    pocketbase_admin_email: str = Field(default="", description="PocketBase admin email for schema sync")
+    pocketbase_admin_password: str = Field(default="", description="PocketBase admin password for schema sync")
 
-    @model_validator(mode="after")
-    def verify_admin_credentials(self) -> Self:
-        """Verify that admin credentials are set."""
-        if not self.pocketbase_admin_email:
+    @field_validator("pocketbase_admin_email", mode="before")
+    @classmethod
+    def validate_admin_email(cls, v: str | None) -> str:
+        """Validate that admin email is set."""
+        if not v:
             raise ValueError(
                 "PocketBase admin email credential not configured. "
                 "Set POCKETBASE_ADMIN_EMAIL environment variable or add to .env file."
             )
-        if not self.pocketbase_admin_password:
+        return v
+
+    @field_validator("pocketbase_admin_password", mode="before")
+    @classmethod
+    def validate_admin_password(cls, v: str | None) -> str:
+        """Validate that admin password is set."""
+        if not v:
             raise ValueError(
                 "PocketBase admin password credential not configured. "
                 "Set POCKETBASE_ADMIN_PASSWORD environment variable or add to .env file."
             )
-        return self
+        return v
 
     # OpenRouter Configuration
     openrouter_api_key: str | None = Field(default=None, description="OpenRouter API key for LLM access")
@@ -51,10 +57,8 @@ class Settings(BaseSettings):
     # Redis Configuration (optional)
     redis_url: str | None = Field(default=None, description="Redis connection URL (e.g., redis://localhost:6379)")
 
-    # House Onboarding Configuration
-    house_name: str | None = Field(default=None, description="House name for member onboarding")
-    house_code: str | None = Field(default=None, description="House code for member onboarding")
-    house_password: str | None = Field(default=None, description="House password for member onboarding")
+    # House Configuration
+    house_name: str | None = Field(default=None, description="House name (fallback if not set in database)")
 
     # Admin Interface Configuration
     admin_password: str | None = Field(default=None, description="Admin password for web interface access")
@@ -86,8 +90,12 @@ class Settings(BaseSettings):
 
     # AI Model Configuration
     model_id: str = Field(
-        default="anthropic/claude-3.5-sonnet",
-        description="Model ID for OpenRouter (defaults to Claude 3.5 Sonnet)",
+        default="z-ai/glm-4.7",
+        description="Model ID for OpenRouter",
+    )
+    model_provider: str | None = Field(
+        default="google-vertex",
+        description="OpenRouter provider for model routing (e.g., google-vertex, together, seed, etc.)",
     )
 
     # Admin Notification Configuration

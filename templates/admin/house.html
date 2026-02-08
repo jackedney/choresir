@@ -1,40 +1,19 @@
 {% extends "admin/base.html" %}
 
-{% block title %}House Configuration - Admin{% endblock %}
-
-{% block flash_messages %}
-{% if errors %}
-{% for error in errors %}
-<article role="alert" data-theme="danger">
-    <header>
-        <strong>Error</strong>
-    </header>
-    {{ error }}
-</article>
-{% endfor %}
-{% endif %}
-{% endblock %}
+{% block title %}Settings{% endblock %}
 
 {% block content %}
-<h1>House Configuration</h1>
+<h1>Settings</h1>
 
 <form method="post">
     <label for="name">
         House Name
-        <input type="text" id="name" name="name" value="{{ house_name }}" required autofocus />
+        <input type="text" id="name" name="name" value="{{ house_name }}" required autofocus maxlength="50" />
     </label>
 
-    <label for="code">
-        House Code
-        <input type="text" id="code" name="code" value="{{ house_code }}" required />
-    </label>
-
-    <label for="password">
-        House Password
-        <input type="password" id="password" name="password" placeholder="Enter new password to change" />
-        <small>Password is masked when viewing existing config</small>
-    </label>
-
-    <button type="submit">Save Configuration</button>
+    <div role="group">
+        <button type="submit">Save</button>
+        <a href="/admin" role="button" class="secondary">Cancel</a>
+    </div>
 </form>
 {% endblock %}

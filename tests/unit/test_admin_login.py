@@ -29,7 +29,7 @@ def test_login_page_renders(client: TestClient) -> None:
         response = client.get("/admin/login")
 
         assert response.status_code == 200
-        assert "Admin Login" in response.text
+        assert "<h1>Login</h1>" in response.text
         assert "Password" in response.text
         assert 'name="csrf_token"' in response.text
         assert "csrf_token" in response.cookies
@@ -89,8 +89,6 @@ def test_login_with_invalid_password_shows_error(client: TestClient) -> None:
 def test_startup_fails_without_admin_password() -> None:
     """Test that application startup fails when admin_password is missing."""
     settings = Settings(
-        house_code="TEST123",
-        house_password="test_password",
         openrouter_api_key="test_key",
         pocketbase_url="http://localhost:8090",
         pocketbase_admin_email="admin@test.local",
@@ -105,8 +103,6 @@ def test_startup_fails_without_admin_password() -> None:
 def test_startup_fails_without_secret_key() -> None:
     """Test that application startup fails when secret_key is missing."""
     settings = Settings(
-        house_code="TEST123",
-        house_password="test_password",
         openrouter_api_key="test_key",
         pocketbase_url="http://localhost:8090",
         pocketbase_admin_email="admin@test.local",
@@ -159,7 +155,7 @@ def test_protected_route_with_valid_session_succeeds(client: TestClient) -> None
     ):
         mock_settings.admin_password = "correct_password"
         mock_settings.secret_key = "test_secret_key"
-        mock_get_config.return_value = HouseConfig(name="TestHouse", password="test", code="TEST")
+        mock_get_config.return_value = HouseConfig(name="TestHouse")
         mock_list_records.return_value = []
 
         serializer = URLSafeTimedSerializer("test_secret_key", salt="admin-session")
@@ -169,7 +165,7 @@ def test_protected_route_with_valid_session_succeeds(client: TestClient) -> None
         response = client.get("/admin/")
 
         assert response.status_code == 200
-        assert "Admin Dashboard" in response.text
+        assert "TestHouse" in response.text
 
 
 def test_logout_clears_session_and_redirects(client: TestClient) -> None:

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Central list of all collections in the schema
 COLLECTIONS = [
-    "users",
+    "members",
     "chores",
     "logs",
     "robin_hood_swaps",
@@ -23,7 +23,9 @@ COLLECTIONS = [
     "personal_chores",
     "personal_chore_logs",
     "house_config",
-    "pending_invites",
+    "bot_messages",
+    "group_context",
+    "workflows",
 ]
 
 
@@ -46,9 +48,9 @@ def _get_collection_schema(
     ids = collection_ids or {}
 
     schemas = {
-        "users": {
-            "name": "users",
-            "type": "auth",
+        "members": {
+            "name": "members",
+            "type": "base",
             "system": False,
             # API Rules: Admin only (backend uses admin client)
             "listRule": None,
@@ -58,16 +60,17 @@ def _get_collection_schema(
             "deleteRule": None,
             "fields": [
                 {"name": "phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
+                {"name": "name", "type": "text", "required": False},
                 {"name": "role", "type": "select", "required": True, "values": ["admin", "member"], "maxSelect": 1},
                 {
                     "name": "status",
                     "type": "select",
                     "required": True,
-                    "values": ["pending", "active", "banned"],
+                    "values": ["pending_name", "active"],
                     "maxSelect": 1,
                 },
             ],
-            "indexes": ["CREATE UNIQUE INDEX idx_phone ON users (phone)"],
+            "indexes": ["CREATE UNIQUE INDEX idx_members_phone ON members (phone)"],
         },
         "chores": {
             "name": "chores",
@@ -86,15 +89,15 @@ def _get_collection_schema(
                 {
                     "name": "assigned_to",
                     "type": "relation",
-                    "required": True,
-                    "collectionId": ids.get("users", "users"),
+                    "required": False,
+                    "collectionId": ids.get("members", "members"),
                     "maxSelect": 1,
                 },
                 {
                     "name": "current_state",
                     "type": "select",
                     "required": True,
-                    "values": ["TODO", "PENDING_VERIFICATION", "COMPLETED", "CONFLICT", "DEADLOCK"],
+                    "values": ["TODO", "PENDING_VERIFICATION", "COMPLETED", "CONFLICT", "DEADLOCK", "ARCHIVED"],
                     "maxSelect": 1,
                 },
                 {"name": "deadline", "type": "date", "required": True},
@@ -122,7 +125,7 @@ def _get_collection_schema(
                     "name": "user_id",
                     "type": "relation",
                     "required": False,
-                    "collectionId": ids.get("users", "users"),
+                    "collectionId": ids.get("members", "members"),
                     "maxSelect": 1,
                 },
                 {"name": "action", "type": "text", "required": False},
@@ -132,14 +135,14 @@ def _get_collection_schema(
                     "name": "original_assignee_id",
                     "type": "relation",
                     "required": False,
-                    "collectionId": ids.get("users", "users"),
+                    "collectionId": ids.get("members", "members"),
                     "maxSelect": 1,
                 },
                 {
                     "name": "actual_completer_id",
                     "type": "relation",
                     "required": False,
-                    "collectionId": ids.get("users", "users"),
+                    "collectionId": ids.get("members", "members"),
                     "maxSelect": 1,
                 },
                 {"name": "is_swap", "type": "bool", "required": False},
@@ -160,7 +163,7 @@ def _get_collection_schema(
                     "name": "user_id",
                     "type": "relation",
                     "required": True,
-                    "collectionId": ids.get("users", "users"),
+                    "collectionId": ids.get("members", "members"),
                     "maxSelect": 1,
                 },
                 {"name": "week_start_date", "type": "date", "required": True},
@@ -230,7 +233,7 @@ def _get_collection_schema(
                     "name": "added_by",
                     "type": "relation",
                     "required": True,
-                    "collectionId": ids.get("users", "users"),
+                    "collectionId": ids.get("members", "members"),
                     "maxSelect": 1,
                 },
                 {"name": "added_at", "type": "date", "required": True},
@@ -325,12 +328,12 @@ def _get_collection_schema(
             "deleteRule": None,
             "fields": [
                 {"name": "name", "type": "text", "required": True},
-                {"name": "password", "type": "text", "required": True},
-                {"name": "code", "type": "text", "required": True},
+                {"name": "group_chat_id", "type": "text", "required": False},
+                {"name": "activation_key", "type": "text", "required": False},
             ],
         },
-        "pending_invites": {
-            "name": "pending_invites",
+        "bot_messages": {
+            "name": "bot_messages",
             "type": "base",
             "system": False,
             # API Rules: Admin only (backend uses admin client)
@@ -340,11 +343,91 @@ def _get_collection_schema(
             "updateRule": None,
             "deleteRule": None,
             "fields": [
-                {"name": "phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
-                {"name": "invited_at", "type": "date", "required": True},
-                {"name": "invite_message_id", "type": "text", "required": False},
+                {"name": "message_id", "type": "text", "required": True},
+                {"name": "text", "type": "text", "required": True},
+                {"name": "chat_id", "type": "text", "required": True},
+                {"name": "sent_at", "type": "date", "required": True},
             ],
-            "indexes": ["CREATE UNIQUE INDEX idx_pending_invite_phone ON pending_invites (phone)"],
+            "indexes": ["CREATE UNIQUE INDEX idx_bot_message_id ON bot_messages (message_id)"],
+        },
+        "group_context": {
+            "name": "group_context",
+            "type": "base",
+            "system": False,
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
+            "deleteRule": None,
+            "fields": [
+                {"name": "group_id", "type": "text", "required": True},
+                {"name": "sender_phone", "type": "text", "required": True, "pattern": r"^\+[1-9]\d{1,14}$"},
+                {"name": "sender_name", "type": "text", "required": True},
+                {"name": "content", "type": "text", "required": True},
+                {"name": "is_bot", "type": "bool", "required": False},
+                {"name": "created_at", "type": "date", "required": True},
+                {"name": "expires_at", "type": "date", "required": True},
+            ],
+            "indexes": [
+                "CREATE INDEX idx_group_id ON group_context (group_id)",
+                "CREATE INDEX idx_expires_at ON group_context (expires_at)",
+            ],
+        },
+        "workflows": {
+            "name": "workflows",
+            "type": "base",
+            "system": False,
+            # API Rules: Admin only (backend uses admin client)
+            "listRule": None,
+            "viewRule": None,
+            "createRule": None,
+            "updateRule": None,
+            "deleteRule": None,
+            "fields": [
+                {
+                    "name": "type",
+                    "type": "select",
+                    "required": True,
+                    "values": ["deletion_approval", "chore_verification", "personal_verification"],
+                    "maxSelect": 1,
+                },
+                {
+                    "name": "status",
+                    "type": "select",
+                    "required": True,
+                    "values": ["pending", "approved", "rejected", "expired", "cancelled"],
+                    "maxSelect": 1,
+                },
+                {
+                    "name": "requester_user_id",
+                    "type": "relation",
+                    "required": True,
+                    "collectionId": ids.get("members", "members"),
+                    "maxSelect": 1,
+                },
+                {"name": "requester_name", "type": "text", "required": True},
+                {"name": "target_id", "type": "text", "required": True},
+                {"name": "target_title", "type": "text", "required": True},
+                {"name": "created_at", "type": "date", "required": True},
+                {"name": "expires_at", "type": "date", "required": True},
+                {"name": "resolved_at", "type": "date", "required": False},
+                {
+                    "name": "resolver_user_id",
+                    "type": "relation",
+                    "required": False,
+                    "collectionId": ids.get("members", "members"),
+                    "maxSelect": 1,
+                },
+                {"name": "resolver_name", "type": "text", "required": False},
+                {"name": "reason", "type": "text", "required": False},
+                {"name": "metadata", "type": "json", "required": False},
+            ],
+            "indexes": [
+                "CREATE INDEX idx_workflow_status ON workflows (status)",
+                "CREATE INDEX idx_workflow_requester ON workflows (requester_user_id)",
+                "CREATE INDEX idx_workflow_expires_at ON workflows (expires_at)",
+            ],
         },
     }
     return schemas[collection_name]

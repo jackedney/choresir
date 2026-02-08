@@ -3,51 +3,48 @@
 import pytest
 
 from src.domain.chore import ChoreState
+from src.domain.user import UserStatus
 from src.services import chore_service, conflict_service, user_service, verification_service
 from src.services.conflict_service import VoteChoice, VoteResult
 from src.services.verification_service import VerificationDecision
-from tests.conftest import create_test_admin
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_join_house_workflow(mock_db_module, db_client) -> None:
-    """Test: Join House workflow (request → approve → active)."""
-    # Step 1: User requests to join
-    user = await user_service.request_join(
-        phone="+15550001111",
-        name="Diana Newbie",
-        house_code="TEST123",
-        password="testpass",
-    )
+async def test_new_user_registration_workflow(mock_db_module, db_client) -> None:
+    """Test: New user registration via group (pending_name → provide name → active)."""
+    # Step 1: Create pending_name user (simulates first message in group)
+    user = await user_service.create_pending_name_user(phone="+15550001111")
 
     assert user["phone"] == "+15550001111"
-    assert user["name"] == "Diana Newbie"
-    assert user["status"] == "pending"
+    assert user["name"] == "Pending"
+    assert user["status"] == UserStatus.PENDING_NAME
     assert user["role"] == "member"
 
-    # Step 2: Create admin to approve
-    admin = await create_test_admin(
-        phone="+15550000000",
-        name="Admin User",
-        db_client=db_client,
+    # Step 2: User provides their name
+    updated_user = await user_service.update_user_name(
+        user_id=user["id"],
+        name="Diana Newbie",
     )
 
-    # Step 3: Admin approves member
-    approved_user = await user_service.approve_member(
-        admin_user_id=admin["id"],
-        target_phone="+15550001111",
+    assert updated_user["name"] == "Diana Newbie"
+
+    # Step 3: Update status to active
+    active_user = await user_service.update_user_status(
+        user_id=user["id"],
+        status=UserStatus.ACTIVE,
     )
 
-    assert approved_user["status"] == "active"
+    assert active_user["status"] == UserStatus.ACTIVE
 
     # Verify user can be retrieved
     retrieved_user = await db_client.get_first_record(
-        collection="users",
+        collection="members",
         filter_query='phone = "+15550001111"',
     )
     assert retrieved_user is not None
-    assert retrieved_user["status"] == "active"
+    assert retrieved_user["status"] == UserStatus.ACTIVE
+    assert retrieved_user["name"] == "Diana Newbie"
 
 
 @pytest.mark.integration
@@ -67,14 +64,14 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
     assert chore["current_state"] == ChoreState.TODO.value
 
     # Step 2: Bob logs completion
-    log = await verification_service.request_verification(
+    workflow = await verification_service.request_verification(
         chore_id=chore["id"],
         claimer_user_id=sample_users["bob"]["id"],
         notes="All clean!",
     )
 
-    assert log["chore_id"] == chore["id"]
-    assert log["user_id"] == sample_users["bob"]["id"]
+    assert workflow["target_id"] == chore["id"]
+    assert workflow["requester_user_id"] == sample_users["bob"]["id"]
 
     # Verify chore state changed
     updated_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
@@ -164,14 +161,14 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
     assert chore["assigned_to"] == sample_users["bob"]["id"]
 
     # Step 2: Alice logs completion on Bob's behalf
-    log = await verification_service.request_verification(
+    workflow = await verification_service.request_verification(
         chore_id=chore["id"],
         claimer_user_id=sample_users["alice"]["id"],
         notes="Helped Bob out (swap)",
     )
 
-    assert log["user_id"] == sample_users["alice"]["id"]
-    # Note: is_swap functionality may need to be tracked in notes or separate field
+    assert workflow["requester_user_id"] == sample_users["alice"]["id"]
+    # Note: is_swap functionality is tracked in workflow metadata
 
     # Step 3: Charlie verifies
     result = await verification_service.verify_chore(
@@ -187,19 +184,6 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
     # Verify chore is completed
     final_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
     assert final_chore["current_state"] == ChoreState.COMPLETED.value
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_invalid_house_credentials(mock_db_module, db_client) -> None:
-    """Test: Reject join request with invalid credentials."""
-    with pytest.raises(ValueError, match="Invalid house code or password"):
-        await user_service.request_join(
-            phone="+15550009999",
-            name="Evil User",
-            house_code="WRONG",
-            password="wrongpass",
-        )
 
 
 @pytest.mark.integration

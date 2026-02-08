@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agents.base import Deps
-from src.agents.choresir_agent import run_agent
+from src.agents.choresir_agent import _build_workflow_context, run_agent
 from src.core.errors import ErrorCategory
 
 
@@ -17,6 +17,18 @@ def mock_admin_notifier():
         mock_notifier.should_notify_admins.return_value = False
         mock_notifier.notify_admins = AsyncMock()
         yield mock_notifier
+
+
+@pytest.fixture(autouse=True)
+def mock_workflow_service():
+    """Mock workflow service to avoid database queries in error handling tests."""
+    with (
+        patch("src.agents.choresir_agent.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+        patch("src.agents.choresir_agent.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+    ):
+        mock_user_wfs.return_value = []
+        mock_actionable_wfs.return_value = []
+        yield mock_user_wfs, mock_actionable_wfs
 
 
 @pytest.mark.unit
@@ -271,3 +283,291 @@ class TestChoresirAgentErrorHandling:
 
                 # Verify message is not too long (reasonable for WhatsApp)
                 assert len(result) < 200, f"Message too long ({len(result)} chars): {result}"
+
+    @pytest.mark.asyncio
+    async def test_group_id_fetches_group_context(self, mock_deps, mock_member_list):
+        """Test that group_id parameter triggers group context fetching."""
+        group_id = "group_123"
+
+        mock_group_context = [
+            {"sender_name": "Alice", "content": "I'll do the dishes"},
+            {"sender_name": "Bob", "content": "I'll take out trash"},
+        ]
+
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+            patch("src.agents.choresir_agent.get_group_context") as mock_get_group_context,
+        ):
+            # Mock group context fetching
+            mock_get_group_context.return_value = mock_group_context
+
+            # Mock agent execution
+            mock_agent = AsyncMock()
+            mock_agent.run.return_value = MagicMock(output="Response")
+            mock_get_agent.return_value = mock_agent
+            mock_retry_handler = AsyncMock()
+            mock_retry_handler.execute_with_retry.return_value = "Response"
+            mock_get_retry_handler.return_value = mock_retry_handler
+
+            # Run agent with group_id
+            await run_agent(
+                user_message="What's happening?",
+                deps=mock_deps,
+                member_list=mock_member_list,
+                group_id=group_id,
+            )
+
+            # Verify group context was fetched
+            mock_get_group_context.assert_called_once_with(group_id=group_id)
+
+    @pytest.mark.asyncio
+    async def test_none_group_id_uses_per_user_context(self, mock_deps, mock_member_list):
+        """Test that None group_id uses per-user conversation context."""
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+            patch("src.agents.choresir_agent.get_recent_context") as mock_get_recent_context,
+            patch("src.agents.choresir_agent.format_context_for_prompt") as mock_format_context,
+            patch("src.agents.choresir_agent.get_group_context") as mock_get_group_context,
+        ):
+            # Mock per-user context fetching
+            mock_get_recent_context.return_value = []
+            mock_format_context.return_value = "## RECENT CONVERSATION\n..."
+
+            # Mock agent execution
+            mock_agent = AsyncMock()
+            mock_agent.run.return_value = MagicMock(output="Response")
+            mock_get_agent.return_value = mock_agent
+            mock_retry_handler = AsyncMock()
+            mock_retry_handler.execute_with_retry.return_value = "Response"
+            mock_get_retry_handler.return_value = mock_retry_handler
+
+            # Run agent without group_id
+            await run_agent(
+                user_message="What's happening?",
+                deps=mock_deps,
+                member_list=mock_member_list,
+                group_id=None,
+            )
+
+            # Verify per-user context was fetched
+            mock_get_recent_context.assert_called_once_with(user_phone=mock_deps.user_phone)
+            # Verify group context was NOT fetched
+            mock_get_group_context.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_group_context_formatted_with_sender_names(self, mock_deps, mock_member_list):
+        """Test that group context is formatted with sender names in [Name]: message format."""
+        group_id = "group_123"
+
+        mock_group_context = [
+            {"sender_name": "Alice", "content": "I'll do dishes"},
+            {"sender_name": "Bob", "content": "I'll do laundry"},
+            {"sender_name": "Charlie", "content": "I'll cook"},
+        ]
+
+        with (
+            patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
+            patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
+            patch("src.agents.choresir_agent.get_group_context") as mock_get_group_context,
+        ):
+            mock_get_group_context.return_value = mock_group_context
+
+            # Mock agent to capture instructions
+            mock_agent = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.output = "Agent response"
+            mock_agent.run.return_value = mock_result
+            mock_get_agent.return_value = mock_agent
+
+            # Mock retry handler to actually call the function
+            async def mock_execute(func):
+                return await func()
+
+            mock_retry_handler = AsyncMock()
+            mock_retry_handler.execute_with_retry.side_effect = mock_execute
+            mock_get_retry_handler.return_value = mock_retry_handler
+
+            # Run agent with group_id
+            await run_agent(
+                user_message="What's happening?",
+                deps=mock_deps,
+                member_list=mock_member_list,
+                group_id=group_id,
+            )
+
+            # Verify agent.run was called and get the instructions
+            mock_agent.run.assert_called_once()
+            call_kwargs = mock_agent.run.call_args.kwargs
+            instructions = call_kwargs.get("instructions", "")
+
+            # Verify instructions include formatted group context with sender names
+            assert "## RECENT GROUP CONVERSATION" in instructions
+            assert "[Alice]: I'll do dishes" in instructions
+            assert "[Bob]: I'll do laundry" in instructions
+            assert "[Charlie]: I'll cook" in instructions
+
+
+@pytest.mark.unit
+class TestBuildWorkflowContext:
+    """Tests for _build_workflow_context function."""
+
+    @pytest.mark.asyncio
+    async def test_empty_context_when_no_pending_workflows(self):
+        """Test that empty string is returned when there are no pending workflows."""
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = []
+            mock_actionable_wfs.return_value = []
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_user_pending_requests_section(self):
+        """Test that user's pending requests are shown correctly."""
+        user_workflows = [
+            {
+                "id": "wf1",
+                "type": "deletion_approval",
+                "target_title": "Clean kitchen",
+                "requester_name": "Alice",
+            },
+            {
+                "id": "wf2",
+                "type": "chore_verification",
+                "target_title": "Take out trash",
+                "requester_name": "Alice",
+            },
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = user_workflows
+            mock_actionable_wfs.return_value = []
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "## YOUR PENDING REQUESTS" in result
+            assert "Deletion Approval: Clean kitchen" in result
+            assert "Chore Verification: Take out trash" in result
+
+    @pytest.mark.asyncio
+    async def test_actionable_workflows_section_with_numbering(self):
+        """Test that actionable workflows are shown with numbering."""
+        actionable_workflows = [
+            {
+                "id": "wf3",
+                "type": "deletion_approval",
+                "target_title": "Do dishes",
+                "requester_name": "Bob",
+            },
+            {
+                "id": "wf4",
+                "type": "personal_verification",
+                "target_title": "Gym workout",
+                "requester_name": "Charlie",
+            },
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = []
+            mock_actionable_wfs.return_value = actionable_workflows
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "## REQUESTS YOU CAN ACTION" in result
+            assert "1. Deletion Approval: Do dishes (from Bob)" in result
+            assert "2. Personal Verification: Gym workout (from Charlie)" in result
+
+    @pytest.mark.asyncio
+    async def test_both_sections_shown(self):
+        """Test that both sections are shown when user has both pending and actionable workflows."""
+        user_workflows = [
+            {
+                "id": "wf1",
+                "type": "deletion_approval",
+                "target_title": "My chore",
+                "requester_name": "Alice",
+            }
+        ]
+
+        actionable_workflows = [
+            {
+                "id": "wf2",
+                "type": "chore_verification",
+                "target_title": "Other chore",
+                "requester_name": "Bob",
+            }
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = user_workflows
+            mock_actionable_wfs.return_value = actionable_workflows
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "## YOUR PENDING REQUESTS" in result
+            assert "## REQUESTS YOU CAN ACTION" in result
+            assert "Deletion Approval: My chore" in result
+            assert "1. Chore Verification: Other chore (from Bob)" in result
+
+    @pytest.mark.asyncio
+    async def test_hint_message_for_batch_operations(self):
+        """Test that hint message is shown when there are actionable workflows."""
+        actionable_workflows = [
+            {
+                "id": "wf1",
+                "type": "deletion_approval",
+                "target_title": "Some chore",
+                "requester_name": "Bob",
+            }
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = []
+            mock_actionable_wfs.return_value = actionable_workflows
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "User can say: approve 1, reject both, approve all" in result
+
+    @pytest.mark.asyncio
+    async def test_no_hint_when_only_user_pending_workflows(self):
+        """Test that hint is not shown when there are no actionable workflows."""
+        user_workflows = [
+            {
+                "id": "wf1",
+                "type": "deletion_approval",
+                "target_title": "My chore",
+                "requester_name": "Alice",
+            }
+        ]
+
+        with (
+            patch("src.services.workflow_service.get_user_pending_workflows") as mock_user_wfs,
+            patch("src.services.workflow_service.get_actionable_workflows") as mock_actionable_wfs,
+        ):
+            mock_user_wfs.return_value = user_workflows
+            mock_actionable_wfs.return_value = []
+
+            result = await _build_workflow_context(user_id="user_123")
+
+            assert "User can say:" not in result
+            assert "## YOUR PENDING REQUESTS" in result
+            assert "Deletion Approval: My chore" in result

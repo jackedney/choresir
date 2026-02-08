@@ -44,14 +44,16 @@ async def create_chore(
         deadline = chore_state_machine._calculate_next_deadline(schedule_cron=schedule_cron)
 
         # Create chore record
-        chore_data = {
+        chore_data: dict[str, Any] = {
             "title": title,
             "description": description,
             "schedule_cron": schedule_cron,
-            "assigned_to": assigned_to or "",  # Empty string for unassigned
             "current_state": ChoreState.TODO,
             "deadline": deadline.isoformat(),
         }
+        # Only set assigned_to if we have a valid ID (relations can't be empty string)
+        if assigned_to:
+            chore_data["assigned_to"] = assigned_to
 
         record = await db_client.create_record(collection="chores", data=chore_data)
         logger.info("Created chore: %s (assigned to: %s)", title, assigned_to or "unassigned")

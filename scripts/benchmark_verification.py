@@ -16,10 +16,10 @@ The benchmark simulates:
 """
 
 import asyncio
+import logging
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 
 # Add src to pythonpath
@@ -31,27 +31,46 @@ from src.services import chore_service, verification_service
 from src.services.verification_service import VerificationDecision
 
 
-# Global variables for metrics
-call_count = 0
+# Configure logging for benchmark output
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 
-async def mocked_list_records(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:  # noqa: ANN401, ARG001
-    global call_count  # noqa: PLW0603
-    if kwargs.get("collection") == "logs":
-        call_count += 1
+class BenchmarkMetrics:
+    """Singleton container for benchmark metrics."""
+
+    call_count: int = 0
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset the call count."""
+        cls.call_count = 0
+
+    @classmethod
+    def increment(cls) -> None:
+        """Increment the call count."""
+        cls.call_count += 1
+
+
+async def mocked_list_records(
+    *,
+    collection: str = "",
+    page: int = 1,
+    per_page: int = 50,
+    **_kwargs: object,
+) -> list[dict[str, object]]:
+    """Mock list_records for benchmarking."""
+    if collection == "logs":
+        BenchmarkMetrics.increment()
         # Simulate network delay
         await asyncio.sleep(0.005)
-
-        # Get pagination params
-        page = kwargs.get("page", 1)
-        per_page = kwargs.get("per_page", 50)
 
         # Return dummy logs
         # We need logs that match the chores.
         # Chore IDs are chore_0 to chore_49.
         # Let's create logs where user2 claimed all of them.
         # Create in ascending order (oldest first)
-        all_logs = [
+        all_logs: list[dict[str, object]] = [
             {
                 "id": f"log_{i}",
                 "action": "claimed_completion",
@@ -72,23 +91,19 @@ async def mocked_list_records(*args: Any, **kwargs: Any) -> list[dict[str, Any]]
     return []
 
 
-# Mock chore_service.get_chores
-async def mocked_get_chores(**kwargs: Any) -> list[dict[str, Any]]:  # noqa: ARG001, ANN401
-    # Return 50 chores
+async def mocked_get_chores(**_kwargs: object) -> list[dict[str, object]]:
+    """Mock chore_service.get_chores - returns 50 chores."""
     return [{"id": f"chore_{i}", "current_state": ChoreState.PENDING_VERIFICATION} for i in range(50)]
 
 
-# Mock chore_service.complete_chore for verify_chore benchmark
-async def mocked_complete_chore(**kwargs: Any) -> dict[str, Any]:  # noqa: ANN401
+async def mocked_complete_chore(*, chore_id: str = "unknown", **_kwargs: object) -> dict[str, object]:
     """Mock completing a chore - just returns a chore dict."""
-    chore_id = kwargs.get("chore_id", "unknown")
     return {"id": chore_id, "current_state": ChoreState.COMPLETED}
 
 
-# Mock db_client.create_record for verification logs
-async def mocked_create_record(*args: Any, **kwargs: Any) -> dict[str, Any]:  # noqa: ANN401, ARG001
+async def mocked_create_record(*, data: dict[str, object] | None = None, **_kwargs: object) -> dict[str, object]:
     """Mock creating a log record - just returns a log dict."""
-    return {"id": "mock_log_id", **kwargs.get("data", {})}
+    return {"id": "mock_log_id", **(data or {})}
 
 
 async def benchmark_get_pending_verifications() -> tuple[float, int]:
@@ -101,12 +116,11 @@ async def benchmark_get_pending_verifications() -> tuple[float, int]:
     Returns:
         Tuple of (duration in seconds, number of DB calls made)
     """
-    global call_count  # noqa: PLW0603
-    call_count = 0
+    BenchmarkMetrics.reset()
 
     # Patching
-    db_client.list_records = mocked_list_records  # type: ignore[method-assign]
-    chore_service.get_chores = mocked_get_chores  # type: ignore[method-assign]
+    db_client.list_records = mocked_list_records  # type: ignore[assignment]
+    chore_service.get_chores = mocked_get_chores  # type: ignore[assignment]
 
     start_time = time.time()
 
@@ -116,7 +130,7 @@ async def benchmark_get_pending_verifications() -> tuple[float, int]:
     end_time = time.time()
     duration = end_time - start_time
 
-    return duration, call_count
+    return duration, BenchmarkMetrics.call_count
 
 
 async def benchmark_verify_chore() -> tuple[float, int]:
@@ -130,13 +144,12 @@ async def benchmark_verify_chore() -> tuple[float, int]:
     Returns:
         Tuple of (duration in seconds, number of DB calls made)
     """
-    global call_count  # noqa: PLW0603
-    call_count = 0
+    BenchmarkMetrics.reset()
 
     # Patching - all mocks needed for verify_chore
-    db_client.list_records = mocked_list_records  # type: ignore[method-assign]
-    db_client.create_record = mocked_create_record  # type: ignore[method-assign]
-    chore_service.complete_chore = mocked_complete_chore  # type: ignore[method-assign]
+    db_client.list_records = mocked_list_records  # type: ignore[assignment]
+    db_client.create_record = mocked_create_record  # type: ignore[assignment]
+    chore_service.complete_chore = mocked_complete_chore  # type: ignore[assignment]
 
     start_time = time.time()
 
@@ -157,56 +170,56 @@ async def benchmark_verify_chore() -> tuple[float, int]:
     end_time = time.time()
     duration = end_time - start_time
 
-    return duration, call_count
+    return duration, BenchmarkMetrics.call_count
 
 
 async def run_benchmark() -> None:
     """Run all benchmarks and display results."""
-    print("=" * 60)  # noqa: T201
-    print("Verification Service Benchmark")  # noqa: T201
-    print("=" * 60)  # noqa: T201
-    print()  # noqa: T201
+    logger.info("=" * 60)
+    logger.info("Verification Service Benchmark")
+    logger.info("=" * 60)
+    logger.info("")
 
     # Benchmark 1: get_pending_verifications
-    print("Benchmarking get_pending_verifications...")  # noqa: T201
+    logger.info("Benchmarking get_pending_verifications...")
     duration1, calls1 = await benchmark_get_pending_verifications()
 
-    print()  # noqa: T201
+    logger.info("")
 
     # Benchmark 2: verify_chore
-    print("Benchmarking verify_chore...")  # noqa: T201
+    logger.info("Benchmarking verify_chore...")
     duration2, calls2 = await benchmark_verify_chore()
 
     # Display results
-    print()  # noqa: T201
-    print("=" * 60)  # noqa: T201
-    print("Benchmark Results")  # noqa: T201
-    print("=" * 60)  # noqa: T201
-    print()  # noqa: T201
+    logger.info("")
+    logger.info("=" * 60)
+    logger.info("Benchmark Results")
+    logger.info("=" * 60)
+    logger.info("")
 
-    print("get_pending_verifications:")  # noqa: T201
-    print(f"  Time taken: {duration1:.4f}s")  # noqa: T201
-    print(f"  DB calls: {calls1}")  # noqa: T201
-    print()  # noqa: T201
+    logger.info("get_pending_verifications:")
+    logger.info("  Time taken: %.4fs", duration1)
+    logger.info("  DB calls: %d", calls1)
+    logger.info("")
 
-    print("verify_chore:")  # noqa: T201
-    print(f"  Time taken: {duration2:.4f}s")  # noqa: T201
-    print(f"  DB calls: {calls2}")  # noqa: T201
-    print()  # noqa: T201
+    logger.info("verify_chore:")
+    logger.info("  Time taken: %.4fs", duration2)
+    logger.info("  DB calls: %d", calls2)
+    logger.info("")
 
     # Check if both are optimal
     # With 1000 logs and page_size=500, we expect 3 calls (page 1, page 2, page 3 empty)
     # This is constant time - NOT N+1 (which would be 50+ calls for 50 chores)
     expected_calls = 3
     if calls1 == expected_calls and calls2 == expected_calls:
-        print("✅ Both functions use constant DB calls!")  # noqa: T201
-        print(f"   (Made {expected_calls} calls to fetch 1000 logs across 2 pages)")  # noqa: T201
+        logger.info("✅ Both functions use constant DB calls!")
+        logger.info("   (Made %d calls to fetch 1000 logs across 2 pages)", expected_calls)
     else:
-        print("⚠️  Warning: Unexpected number of DB calls")  # noqa: T201
+        logger.info("⚠️  Warning: Unexpected number of DB calls")
         if calls1 != expected_calls:
-            print(f"   - get_pending_verifications made {calls1} calls (expected {expected_calls})")  # noqa: T201
+            logger.info("   - get_pending_verifications made %d calls (expected %d)", calls1, expected_calls)
         if calls2 != expected_calls:
-            print(f"   - verify_chore made {calls2} calls (expected {expected_calls})")  # noqa: T201
+            logger.info("   - verify_chore made %d calls (expected %d)", calls2, expected_calls)
 
 
 if __name__ == "__main__":

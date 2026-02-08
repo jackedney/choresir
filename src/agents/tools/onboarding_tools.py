@@ -13,61 +13,17 @@ from src.services import user_service
 logger = logging.getLogger(__name__)
 
 
-class RequestJoin(BaseModel):
-    """Parameters for requesting to join the household."""
-
-    house_code: str = Field(description="House code provided by existing member")
-    password: str = Field(description="House password for verification")
-    display_name: str = Field(description="User's preferred display name")
-
-
 class ApproveMember(BaseModel):
     """Parameters for approving a pending member."""
 
     target_phone: str = Field(description="Phone number of the user to approve (E.164 format)")
 
 
-async def tool_request_join(ctx: RunContext[Deps], params: RequestJoin) -> str:
-    """
-    Request to join the household.
-
-    Validates house code and password, creates a pending user account.
-
-    Args:
-        ctx: Agent runtime context with dependencies
-        params: Join request parameters
-
-    Returns:
-        Success or error message
-    """
-    try:
-        with logfire.span("tool_request_join", phone=ctx.deps.user_phone):
-            await user_service.request_join(
-                phone=ctx.deps.user_phone,
-                name=params.display_name,
-                house_code=params.house_code,
-                password=params.password,
-            )
-
-            return (
-                f"Welcome, {params.display_name}! "
-                f"Your membership request has been submitted. "
-                f"An admin will review your request shortly."
-            )
-
-    except ValueError as e:
-        logger.warning("Join request failed", extra={"error": str(e)})
-        return f"Error: {e!s}"
-    except Exception as e:
-        logger.error("Unexpected error in tool_request_join", extra={"error": str(e)})
-        return "Error: Unable to process join request. Please try again."
-
-
 async def tool_approve_member(ctx: RunContext[Deps], params: ApproveMember) -> str:
     """
     Approve a pending member (admin-only).
 
-    Changes user status from pending to active.
+    Changes user status from pending_name to active.
 
     Args:
         ctx: Agent runtime context with dependencies
@@ -99,5 +55,4 @@ async def tool_approve_member(ctx: RunContext[Deps], params: ApproveMember) -> s
 
 def register_tools(agent: Agent[Deps, str]) -> None:
     """Register tools with the agent."""
-    agent.tool(tool_request_join)
     agent.tool(tool_approve_member)

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from collections import deque
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -221,7 +222,7 @@ job_tracker = JobTracker()
 
 
 async def retry_job_with_backoff(
-    job_func: Any,  # noqa: ANN401
+    job_func: Callable[[], Awaitable[None]],
     job_name: str,
     max_retries: int = 3,
     base_delay: float = 2.0,

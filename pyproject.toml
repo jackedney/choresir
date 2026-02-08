@@ -80,6 +80,7 @@ ignore = [
     "ANN",     # Don't require type annotations in tests
     "ARG",     # Allow unused arguments in test fixtures
     "PLR2004", # Allow magic values in tests
+    "PLR0913", # Allow many arguments in test functions (common with mocks)
 ]
 "src/interface/admin_router.py" = [
     "PLR2004", # Allow magic values for validation constants (min/max lengths)

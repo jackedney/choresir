@@ -5,7 +5,30 @@ from datetime import datetime, timedelta
 import pytest
 
 from src.core import db_client
-from src.services import personal_chore_service, personal_verification_service
+from src.services import (
+    personal_chore_service,
+    personal_verification_service,
+)
+
+
+@pytest.fixture
+async def setup_test_users():
+    """Create test users for workflow name resolution."""
+    users = {}
+    for i in range(1, 3):
+        user_data = {
+            "id": f"user{i}",
+            "phone": f"+15559999{i}",
+            "name": f"User{i}",
+            "email": f"user{i}@test.local",
+            "role": "member",
+            "status": "active",
+            "created": datetime.now().isoformat(),
+            "updated": datetime.now().isoformat(),
+        }
+        user = await db_client.create_record(collection="members", data=user_data)
+        users[f"user{i}"] = user
+    return users
 
 
 @pytest.mark.unit
@@ -31,14 +54,24 @@ class TestLogPersonalChore:
         assert log.personal_chore_id == chore["id"]
         assert log.owner_phone == "+15551234567"
 
-    async def test_pending_with_active_partner(self, patched_db):
+        # Verify no workflow was created (self-verified)
+        workflows = await db_client.list_records(
+            collection="workflows",
+            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+        )
+        assert len(workflows) == 0
+
+    async def test_pending_with_active_partner(self, patched_db, setup_test_users):
         """Test logging a chore with active accountability partner."""
-        # Create partner user
+        # Create owner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
-                "phone": "+15559999999",
-                "username": "partner",
+                "id": "owner1",
+                "phone": "+15551234567",
+                "name": "Owner1",
+                "email": "owner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )
@@ -48,7 +81,7 @@ class TestLogPersonalChore:
             owner_phone="+15551234567",
             title="Gym",
             recurrence="every 2 days",
-            accountability_partner_phone="+15559999999",
+            accountability_partner_phone="+155599991",
         )
 
         log = await personal_verification_service.log_personal_chore(
@@ -57,16 +90,28 @@ class TestLogPersonalChore:
         )
 
         assert log.verification_status == "PENDING"
-        assert log.accountability_partner_phone == "+15559999999"
+        assert log.accountability_partner_phone == "+155599991"
+
+        # Verify workflow was created
+        workflows = await db_client.list_records(
+            collection="workflows",
+            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+        )
+        assert len(workflows) == 1
+        assert workflows[0]["type"] == "personal_verification"
+        assert workflows[0]["target_id"] == log.id
+        assert workflows[0]["status"] == "pending"
 
     async def test_auto_convert_inactive_partner(self, patched_db):
         """Test auto-converting to self-verified when partner is inactive."""
         # Create inactive partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "InactivePartner",
+                "email": "inactive@test.local",
+                "role": "member",
                 "status": "inactive",
             },
         )
@@ -87,6 +132,13 @@ class TestLogPersonalChore:
         assert log.verification_status == "SELF_VERIFIED"
         assert log.accountability_partner_phone == ""
 
+        # Verify no workflow was created (since auto-converted)
+        workflows = await db_client.list_records(
+            collection="workflows",
+            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+        )
+        assert len(workflows) == 0
+
     async def test_auto_convert_missing_partner(self, patched_db):
         """Test auto-converting to self-verified when partner doesn't exist."""
         # Create chore with non-existent partner
@@ -104,6 +156,13 @@ class TestLogPersonalChore:
 
         assert log.verification_status == "SELF_VERIFIED"
         assert log.accountability_partner_phone == ""
+
+        # Verify no workflow was created (since auto-converted)
+        workflows = await db_client.list_records(
+            collection="workflows",
+            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+        )
+        assert len(workflows) == 0
 
     async def test_log_wrong_owner(self, patched_db):
         """Test logging a chore with wrong owner raises PermissionError."""
@@ -132,12 +191,28 @@ class TestLogPersonalChore:
 class TestVerifyPersonalChore:
     async def test_approve_pending_log(self, patched_db):
         """Test approving a pending verification."""
+        # Create owner user
+        await db_client.create_record(
+            collection="members",
+            data={
+                "id": "owner1",
+                "phone": "+15551234567",
+                "name": "Owner1",
+                "email": "owner1@test.local",
+                "role": "member",
+                "status": "active",
+            },
+        )
+
         # Create partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
+                "id": "partner1",
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )
@@ -156,6 +231,14 @@ class TestVerifyPersonalChore:
             owner_phone="+15551234567",
         )
 
+        # Get workflow
+        workflows = await db_client.list_records(
+            collection="workflows",
+            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+        )
+        assert len(workflows) == 1
+        workflow_id = workflows[0]["id"]
+
         # Approve verification
         updated_log = await personal_verification_service.verify_personal_chore(
             log_id=log.id,
@@ -167,14 +250,35 @@ class TestVerifyPersonalChore:
         assert updated_log.verification_status == "VERIFIED"
         assert updated_log.partner_feedback == "Good job!"
 
+        # Verify workflow was resolved
+        updated_workflow = await db_client.get_record(collection="workflows", record_id=workflow_id)
+        assert updated_workflow["status"] == "approved"
+        assert updated_workflow["resolver_user_id"] == "partner1"
+
     async def test_reject_pending_log(self, patched_db):
         """Test rejecting a pending verification."""
+        # Create owner user
+        await db_client.create_record(
+            collection="members",
+            data={
+                "id": "owner1",
+                "phone": "+15551234567",
+                "name": "Owner1",
+                "email": "owner1@test.local",
+                "role": "member",
+                "status": "active",
+            },
+        )
+
         # Create partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
+                "id": "partner1",
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )
@@ -193,6 +297,14 @@ class TestVerifyPersonalChore:
             owner_phone="+15551234567",
         )
 
+        # Get workflow
+        workflows = await db_client.list_records(
+            collection="workflows",
+            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+        )
+        assert len(workflows) == 1
+        workflow_id = workflows[0]["id"]
+
         # Reject verification
         updated_log = await personal_verification_service.verify_personal_chore(
             log_id=log.id,
@@ -204,14 +316,35 @@ class TestVerifyPersonalChore:
         assert updated_log.verification_status == "REJECTED"
         assert updated_log.partner_feedback == "Try harder next time"
 
+        # Verify workflow was resolved
+        updated_workflow = await db_client.get_record(collection="workflows", record_id=workflow_id)
+        assert updated_workflow["status"] == "rejected"
+        assert updated_workflow["resolver_user_id"] == "partner1"
+
     async def test_verify_wrong_partner(self, patched_db):
         """Test verifying with wrong partner raises PermissionError."""
+        # Create owner user
+        await db_client.create_record(
+            collection="members",
+            data={
+                "id": "owner1",
+                "phone": "+15551234567",
+                "name": "Owner1",
+                "email": "owner1@test.local",
+                "role": "member",
+                "status": "active",
+            },
+        )
+
         # Create partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
+                "id": "partner1",
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )
@@ -240,12 +373,28 @@ class TestVerifyPersonalChore:
 
     async def test_verify_already_verified_log(self, patched_db):
         """Test verifying an already verified log raises ValueError."""
+        # Create owner user
+        await db_client.create_record(
+            collection="members",
+            data={
+                "id": "owner1",
+                "phone": "+15551234567",
+                "name": "Owner1",
+                "email": "owner1@test.local",
+                "role": "member",
+                "status": "active",
+            },
+        )
+
         # Create partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
+                "id": "partner1",
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )
@@ -288,6 +437,58 @@ class TestVerifyPersonalChore:
                 approved=True,
             )
 
+    async def test_self_verification_fails(self, patched_db):
+        """Test that owner cannot verify their own personal chore (self-verification)."""
+        # Create owner user
+        await db_client.create_record(
+            collection="members",
+            data={
+                "id": "owner1",
+                "phone": "+15551234567",
+                "name": "Owner1",
+                "email": "owner1@test.local",
+                "role": "member",
+                "status": "active",
+            },
+        )
+
+        # Create partner user
+        await db_client.create_record(
+            collection="members",
+            data={
+                "id": "partner1",
+                "phone": "+15559999999",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
+                "status": "active",
+            },
+        )
+
+        # Create chore with partner
+        chore = await personal_chore_service.create_personal_chore(
+            owner_phone="+15551234567",
+            title="Gym",
+            recurrence="every 2 days",
+            accountability_partner_phone="+15559999999",
+        )
+
+        # Log chore (creates PENDING log)
+        log = await personal_verification_service.log_personal_chore(
+            chore_id=chore["id"],
+            owner_phone="+15551234567",
+        )
+
+        # Owner tries to verify their own chore - should fail
+        # Fails at partner check (owner is not the accountability partner)
+        with pytest.raises(PermissionError, match="Only accountability partner"):
+            await personal_verification_service.verify_personal_chore(
+                log_id=log.id,
+                verifier_phone="+15551234567",  # Owner tries to verify
+                approved=True,
+                feedback="I did this",
+            )
+
 
 @pytest.mark.unit
 class TestGetPendingPartnerVerifications:
@@ -295,10 +496,13 @@ class TestGetPendingPartnerVerifications:
         """Test getting pending verifications for a partner."""
         # Create partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
+                "id": "partner1",
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )
@@ -341,12 +545,28 @@ class TestGetPendingPartnerVerifications:
 
     async def test_get_pending_verifications_filters_verified(self, patched_db):
         """Test that verified logs are not included in pending verifications."""
+        # Create owner user
+        await db_client.create_record(
+            collection="members",
+            data={
+                "id": "owner1",
+                "phone": "+15551234567",
+                "name": "Owner1",
+                "email": "owner1@test.local",
+                "role": "member",
+                "status": "active",
+            },
+        )
+
         # Create partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
+                "id": "partner1",
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )
@@ -392,12 +612,28 @@ class TestGetPendingPartnerVerifications:
 class TestAutoVerifyExpiredLogs:
     async def test_auto_verify_expired_logs(self, patched_db):
         """Test auto-verifying logs older than 48 hours."""
+        # Create owner user
+        await db_client.create_record(
+            collection="members",
+            data={
+                "id": "owner1",
+                "phone": "+15551234567",
+                "name": "Owner1",
+                "email": "owner1@test.local",
+                "role": "member",
+                "status": "active",
+            },
+        )
+
         # Create partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
+                "id": "partner1",
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )
@@ -504,10 +740,13 @@ class TestGetPersonalStats:
         """Test stats include pending verifications."""
         # Create partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
+                "id": "partner1",
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )
@@ -627,12 +866,28 @@ class TestGetPersonalStats:
 
     async def test_get_stats_excludes_rejected(self, patched_db):
         """Test stats exclude rejected verifications."""
+        # Create owner user
+        await db_client.create_record(
+            collection="members",
+            data={
+                "id": "owner1",
+                "phone": "+15551234567",
+                "name": "Owner1",
+                "email": "owner1@test.local",
+                "role": "member",
+                "status": "active",
+            },
+        )
+
         # Create partner user
         await db_client.create_record(
-            collection="users",
+            collection="members",
             data={
+                "id": "partner1",
                 "phone": "+15559999999",
-                "username": "partner",
+                "name": "Partner1",
+                "email": "partner1@test.local",
+                "role": "member",
                 "status": "active",
             },
         )

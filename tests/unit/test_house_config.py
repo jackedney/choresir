@@ -41,7 +41,7 @@ def test_house_config_page_renders_without_existing_config(client: TestClient) -
 
     mock_get_first_record = AsyncMock(return_value=None)
 
-    mock_get_config = AsyncMock(return_value=HouseConfig(name="DefaultHouse", password="", code=""))
+    mock_get_config = AsyncMock(return_value=HouseConfig(name="DefaultHouse"))
 
     with (
         patch("src.interface.admin_router.settings") as mock_settings,
@@ -52,12 +52,11 @@ def test_house_config_page_renders_without_existing_config(client: TestClient) -
         mock_settings.admin_password = "test_password"
         mock_settings.secret_key = "test_secret_key"
         mock_settings.house_name = None
-        mock_settings.house_code = None
 
         response = client.get("/admin/house")
 
         assert response.status_code == 200
-        assert "House Configuration" in response.text
+        assert "<h1>Settings</h1>" in response.text
 
 
 def test_house_config_page_renders_with_existing_config(client: TestClient) -> None:
@@ -69,8 +68,6 @@ def test_house_config_page_renders_with_existing_config(client: TestClient) -> N
     existing_config = {
         "id": "test_id",
         "name": "TestHouse",
-        "code": "TEST123",
-        "password": "stored_password",
     }
 
     mock_get_first_record = AsyncMock(return_value=existing_config)
@@ -83,15 +80,12 @@ def test_house_config_page_renders_with_existing_config(client: TestClient) -> N
         mock_settings.admin_password = "test_password"
         mock_settings.secret_key = "test_secret_key"
         mock_settings.house_name = None
-        mock_settings.house_code = None
 
         response = client.get("/admin/house")
 
         assert response.status_code == 200
-        assert "House Configuration" in response.text
+        assert "<h1>Settings</h1>" in response.text
         assert "TestHouse" in response.text
-        assert "TEST123" in response.text
-        assert "stored_password" not in response.text
 
 
 @pytest.mark.asyncio

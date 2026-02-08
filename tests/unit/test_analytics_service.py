@@ -37,7 +37,7 @@ def mock_redis():
 async def sample_users(patched_analytics_db):
     """Create sample users for testing."""
     user1 = await patched_analytics_db.create_record(
-        collection="users",
+        collection="members",
         data={
             "name": "Alice",
             "phone": "+1234567890",
@@ -45,7 +45,7 @@ async def sample_users(patched_analytics_db):
         },
     )
     user2 = await patched_analytics_db.create_record(
-        collection="users",
+        collection="members",
         data={
             "name": "Bob",
             "phone": "+1234567891",
@@ -53,7 +53,7 @@ async def sample_users(patched_analytics_db):
         },
     )
     user3 = await patched_analytics_db.create_record(
-        collection="users",
+        collection="members",
         data={
             "name": "Charlie",
             "phone": "+1234567892",
@@ -260,7 +260,7 @@ class TestGetLeaderboardBulkFetch:
             result = await analytics_service.get_leaderboard(period_days=30)
 
         # Verify users collection was queried exactly once (bulk fetch)
-        users_queries = [c for c in list_records_calls if c == "users"]
+        users_queries = [c for c in list_records_calls if c == "members"]
         assert len(users_queries) == 1
 
         # Verify result is correct
@@ -450,7 +450,7 @@ class TestGetUserStatistics:
 
         # Create a user with no completions
         new_user = await patched_analytics_db.create_record(
-            collection="users",
+            collection="members",
             data={
                 "name": "NewUser",
                 "phone": "+9999999999",

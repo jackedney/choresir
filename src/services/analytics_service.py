@@ -245,7 +245,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
             user_completion_counts[user_to_award] = user_completion_counts.get(user_to_award, 0) + 1
 
         # Fetch all users for leaderboard
-        all_users = await db_client.list_records(collection="users", per_page=500)
+        all_users = await db_client.list_records(collection="members", per_page=500)
         users_map = {u["id"]: u for u in all_users}
 
         # Build and sort leaderboard
@@ -368,7 +368,270 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
         return overdue_chore_models
 
 
-async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserStatistics:  # noqa: C901, PLR0912, PLR0915
+async def _get_user_name(user_id: str) -> str:
+    """Get user name from database.
+
+    Args:
+        user_id: User ID
+
+    Returns:
+        User name, or user_id as fallback if name is missing
+
+    Raises:
+        KeyError: If user doesn't exist
+        RuntimeError: If database operation fails
+    """
+    try:
+        user = await db_client.get_record(collection="members", record_id=user_id)
+        user_name = user.get("name")
+        if not user_name:
+            logger.warning("User %s missing 'name' field, using ID as fallback", user_id)
+            return user_id
+        return user_name
+    except KeyError:
+        logger.error("User %s not found", user_id)
+        raise
+    except RuntimeError as e:
+        logger.error("Database error fetching user %s: %s", user_id, e)
+        raise
+
+
+async def _get_user_rank_and_completions(user_id: str, period_days: int) -> tuple[int | None, int, str | None]:
+    """Get user's leaderboard rank and completion count.
+
+    Args:
+        user_id: User ID
+        period_days: Period for leaderboard calculation
+
+    Returns:
+        Tuple of (rank, completions, error_message)
+    """
+    try:
+        leaderboard = await get_leaderboard(period_days=period_days)
+        for idx, entry in enumerate(leaderboard, start=1):
+            if entry.user_id == user_id:
+                logger.info("User %s rank: %s, completions: %d", user_id, idx, entry.completion_count)
+                return idx, entry.completion_count, None
+        logger.info("User %s rank: None, completions: 0", user_id)
+        return None, 0, None
+    except RuntimeError as e:
+        error_msg = f"Database error fetching leaderboard: {e}"
+        logger.error(error_msg)
+        return None, 0, error_msg
+    except Exception as e:
+        error_msg = f"Unexpected error fetching leaderboard: {e}"
+        logger.error(error_msg)
+        return None, 0, error_msg
+
+
+async def _fetch_pending_chore_ids() -> set[str]:
+    """Fetch IDs of all chores pending verification.
+
+    Returns:
+        Set of chore IDs in pending verification state
+    """
+    with span("analytics_service.get_user_statistics.fetch_pending_chores"):
+        pending_verification_chores = await db_client.list_records(
+            collection="chores",
+            filter_query=f'current_state = "{ChoreState.PENDING_VERIFICATION}"',
+            per_page=500,
+        )
+
+    pending_chore_ids: set[str] = set()
+    for chore in pending_verification_chores:
+        chore_id = chore.get("id")
+        if not chore_id:
+            logger.warning("Chore missing 'id' field, skipping: %s", chore)
+            continue
+        pending_chore_ids.add(chore_id)
+
+    logger.info("Found %d pending verification chores", len(pending_chore_ids))
+    return pending_chore_ids
+
+
+async def _fetch_user_claims_for_chunk(
+    user_id: str, chunk: list[str], per_page_limit: int, offset: int
+) -> tuple[set[str], int]:
+    """Fetch user claims for a chunk of chore IDs.
+
+    Args:
+        user_id: User ID to fetch claims for
+        chunk: List of chore IDs to check
+        per_page_limit: Page size for pagination
+        offset: Current offset for logging purposes
+
+    Returns:
+        Tuple of (claimed_chore_ids, logs_fetched_count)
+    """
+    claimed_chore_ids: set[str] = set()
+    or_clause = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
+
+    page = 1
+    chunk_logs_fetched = 0
+    while True:
+        try:
+            user_filter = f'user_id = "{db_client.sanitize_param(user_id)}"'
+            action_filter = 'action = "claimed_completion"'
+            filter_query = f"{user_filter} && {action_filter} && ({or_clause})"
+            logs = await db_client.list_records(
+                collection="logs",
+                filter_query=filter_query,
+                per_page=per_page_limit,
+                page=page,
+                sort="",
+            )
+
+            claimed_chore_ids.update(log["chore_id"] for log in logs)
+            chunk_logs_fetched += len(logs)
+
+            if len(logs) < per_page_limit:
+                break
+
+            page += 1
+            logger.warning(
+                "Pagination triggered for user %s: chunk had >%d claims (unusual). "
+                "Fetching page %d. Consider investigating if this is expected.",
+                user_id,
+                per_page_limit,
+                page,
+            )
+        except RuntimeError as e:
+            logger.error("Database error fetching claims chunk at offset %d, page %d: %s", offset, page, e)
+            break
+        except Exception as e:
+            logger.error("Unexpected error fetching claims chunk at offset %d, page %d: %s", offset, page, e)
+            break
+
+    return claimed_chore_ids, chunk_logs_fetched
+
+
+async def _count_pending_claims_for_user(
+    user_id: str, pending_chore_ids: set[str]
+) -> tuple[int | None, str | None, int, int]:
+    """Count pending claims for a user from pending chores.
+
+    Args:
+        user_id: User ID
+        pending_chore_ids: Set of chore IDs pending verification
+
+    Returns:
+        Tuple of (claims_pending, error_message, chunks_processed, total_logs_fetched)
+    """
+    if not pending_chore_ids:
+        logger.info("No pending verification chores, user %s has 0 pending claims", user_id)
+        return 0, None, 0, 0
+
+    try:
+        with span("analytics_service.get_user_statistics.fetch_pending_claims"):
+            chore_ids_list = list(pending_chore_ids)
+            chunk_size = 50
+            per_page_limit = chunk_size * 2
+            estimated_chunks = (len(chore_ids_list) + chunk_size - 1) // chunk_size
+
+            logger.debug(
+                "Processing pending claims",
+                extra={
+                    "user_id": user_id,
+                    "pending_chores_count": len(pending_chore_ids),
+                    "estimated_chunks": estimated_chunks,
+                    "chunk_size": chunk_size,
+                },
+            )
+
+            claimed_chore_ids: set[str] = set()
+            chunks_processed = 0
+            total_logs_fetched = 0
+
+            for i in range(0, len(chore_ids_list), chunk_size):
+                chunk = chore_ids_list[i : i + chunk_size]
+                chunk_index = i // chunk_size
+
+                chunk_claimed_ids, chunk_logs = await _fetch_user_claims_for_chunk(user_id, chunk, per_page_limit, i)
+                claimed_chore_ids.update(chunk_claimed_ids)
+                total_logs_fetched += chunk_logs
+                chunks_processed += 1
+
+                logger.debug(
+                    "Processed chunk",
+                    extra={
+                        "chunk_index": chunk_index,
+                        "chunk_size": len(chunk),
+                        "logs_fetched": chunk_logs,
+                        "claims_in_chunk": len(chunk_claimed_ids),
+                    },
+                )
+
+                if chunk_logs > chunk_size * 1.5:
+                    logger.warning(
+                        "User %s has %d claims for %d chores in chunk (%.1fx ratio). Expected ~1 claim per chore.",
+                        user_id,
+                        chunk_logs,
+                        len(chunk),
+                        chunk_logs / len(chunk),
+                    )
+
+        claims_pending = len(claimed_chore_ids)
+        logger.info("User %s has %d pending claims", user_id, claims_pending)
+        return claims_pending, None, chunks_processed, total_logs_fetched
+
+    except RuntimeError as e:
+        error_msg = f"Database error fetching pending claims: {e}"
+        logger.error(error_msg)
+        return None, error_msg, 0, 0
+    except Exception as e:
+        error_msg = f"Unexpected error fetching pending claims: {e}"
+        logger.error(error_msg)
+        return None, error_msg, 0, 0
+
+
+async def _get_pending_claims_count(user_id: str) -> tuple[int | None, str | None, int, set[str], int]:
+    """Get pending claims count for a user.
+
+    Args:
+        user_id: User ID
+
+    Returns:
+        Tuple of (claims_pending, error_message, chunks_processed, pending_chore_ids, total_logs_fetched)
+    """
+    try:
+        pending_chore_ids = await _fetch_pending_chore_ids()
+        claims_pending, error_msg, chunks, logs = await _count_pending_claims_for_user(user_id, pending_chore_ids)
+        return claims_pending, error_msg, chunks, pending_chore_ids, logs
+    except RuntimeError as e:
+        error_msg = f"Database error fetching pending verification chores: {e}"
+        logger.error(error_msg)
+        return None, error_msg, 0, set(), 0
+    except Exception as e:
+        error_msg = f"Unexpected error fetching pending verification chores: {e}"
+        logger.error(error_msg)
+        return None, error_msg, 0, set(), 0
+
+
+async def _get_overdue_count(user_id: str) -> tuple[int | None, str | None]:
+    """Get count of overdue chores for a user.
+
+    Args:
+        user_id: User ID
+
+    Returns:
+        Tuple of (overdue_count, error_message)
+    """
+    try:
+        overdue_chores = await get_overdue_chores(user_id=user_id)
+        overdue_count = len(overdue_chores)
+        logger.info("User %s has %d overdue chores", user_id, overdue_count)
+        return overdue_count, None
+    except RuntimeError as e:
+        error_msg = f"Database error fetching overdue chores: {e}"
+        logger.error(error_msg)
+        return None, error_msg
+    except Exception as e:
+        error_msg = f"Unexpected error fetching overdue chores: {e}"
+        logger.error(error_msg)
+        return None, error_msg
+
+
+async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserStatistics:
     """Get comprehensive statistics for a specific user.
 
     Performance characteristics:
@@ -397,232 +660,32 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
     with span("analytics_service.get_user_statistics"):
         start_time = datetime.now(UTC)
 
-        # Initialize performance metrics
-        pending_chore_ids: set[str] = set()
-        chunks_processed = 0
-        total_logs_fetched = 0
-
         # Get user details - CRITICAL, fail fast if user doesn't exist
-        try:
-            user = await db_client.get_record(collection="users", record_id=user_id)
-            user_name = user.get("name")
-            if not user_name:
-                logger.warning("User %s missing 'name' field, using ID as fallback", user_id)
-                user_name = user_id
-        except KeyError:
-            logger.error("User %s not found", user_id)
-            raise
-        except RuntimeError as e:
-            logger.error("Database error fetching user %s: %s", user_id, e)
-            raise
+        user_name = await _get_user_name(user_id)
 
-        # Initialize result dictionary (will be converted to model at the end)
+        # Get leaderboard rank and completions - BEST EFFORT
+        rank, completions, rank_error = await _get_user_rank_and_completions(user_id, period_days)
+
+        # Get pending claims count - BEST EFFORT
+        claims_result = await _get_pending_claims_count(user_id)
+        claims_pending, claims_error, chunks_processed, pending_chore_ids, total_logs_fetched = claims_result
+
+        # Get overdue chores count - BEST EFFORT
+        overdue_chores, overdue_error = await _get_overdue_count(user_id)
+
+        # Build result data
         result_data: dict[str, str | int | None] = {
             "user_id": user_id,
             "user_name": user_name,
-            "completions": 0,
-            "claims_pending": None,
-            "claims_pending_error": None,
-            "overdue_chores": None,
-            "overdue_chores_error": None,
-            "rank": None,
-            "rank_error": None,
+            "completions": completions,
+            "claims_pending": claims_pending,
+            "claims_pending_error": claims_error,
+            "overdue_chores": overdue_chores,
+            "overdue_chores_error": overdue_error,
+            "rank": rank,
+            "rank_error": rank_error,
             "period_days": period_days,
         }
-
-        # Get leaderboard to find rank - BEST EFFORT
-        try:
-            leaderboard = await get_leaderboard(period_days=period_days)
-            for idx, entry in enumerate(leaderboard, start=1):
-                if entry.user_id == user_id:
-                    result_data["rank"] = idx
-                    result_data["completions"] = entry.completion_count
-                    break
-
-            logger.info("User %s rank: %s, completions: %d", user_id, result_data["rank"], result_data["completions"])
-        except RuntimeError as e:
-            error_msg = f"Database error fetching leaderboard: {e}"
-            logger.error(error_msg)
-            result_data["rank_error"] = error_msg
-        except Exception as e:
-            error_msg = f"Unexpected error fetching leaderboard: {e}"
-            logger.error(error_msg)
-            result_data["rank_error"] = error_msg
-
-        # Get pending verification chores - BEST EFFORT
-        try:
-            with span("analytics_service.get_user_statistics.fetch_pending_chores"):
-                pending_verification_chores = await db_client.list_records(
-                    collection="chores",
-                    filter_query=f'current_state = "{ChoreState.PENDING_VERIFICATION}"',
-                    per_page=500,
-                )
-
-            # Validate and collect chore IDs
-            for chore in pending_verification_chores:
-                chore_id = chore.get("id")
-                if not chore_id:
-                    logger.warning("Chore missing 'id' field, skipping: %s", chore)
-                    continue
-                pending_chore_ids.add(chore_id)
-
-            logger.info("Found %d pending verification chores", len(pending_chore_ids))
-
-            # Business Rule: Claim Lifecycle
-            # 1. User claims chore → chore state: TODO → PENDING_VERIFICATION
-            # 2a. Approved → chore state: PENDING_VERIFICATION → COMPLETED
-            # 2b. Rejected → chore state: PENDING_VERIFICATION → CONFLICT
-            # 3. After conflict resolution, chore may return to TODO and be reclaimed
-            #
-            # For statistics, we count the number of distinct chores in PENDING_VERIFICATION
-            # that have been claimed by the user, regardless of claim history.
-
-            # Count claims that are still pending (chore in PENDING_VERIFICATION state)
-            # Note: We count DISTINCT chores, not total claim logs. If a user claimed
-            # the same chore multiple times (e.g., after rejection), it counts as one
-            # pending claim since the chore is the unit of work, not the log entry.
-            claimed_chore_ids: set[str] = set()
-
-            if pending_chore_ids:
-                try:
-                    with span("analytics_service.get_user_statistics.fetch_pending_claims"):
-                        # Optimize: Only fetch claims for the specific chores that are pending
-                        # This avoids fetching thousands of historical claims for completed chores.
-                        # We process in chunks to avoid potentially long filter queries.
-                        chore_ids_list = list(pending_chore_ids)
-                        chunk_size = 50
-                        per_page_limit = chunk_size * 2  # 2x buffer for expected 1 claim per chore
-                        estimated_chunks = (len(chore_ids_list) + chunk_size - 1) // chunk_size
-
-                        logger.debug(
-                            "Processing pending claims",
-                            extra={
-                                "user_id": user_id,
-                                "pending_chores_count": len(pending_chore_ids),
-                                "estimated_chunks": estimated_chunks,
-                                "chunk_size": chunk_size,
-                            },
-                        )
-
-                        for i in range(0, len(chore_ids_list), chunk_size):
-                            chunk = chore_ids_list[i : i + chunk_size]
-                            chunk_index = i // chunk_size
-                            or_clause = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
-
-                            # Fetch claims with pagination handling
-                            page = 1
-                            chunk_claims = 0
-                            chunk_logs_fetched = 0
-                            while True:
-                                try:
-                                    # Split long string to satisfy linter
-                                    user_filter = f'user_id = "{db_client.sanitize_param(user_id)}"'
-                                    action_filter = 'action = "claimed_completion"'
-                                    filter_query = f"{user_filter} && {action_filter} && ({or_clause})"
-                                    logs = await db_client.list_records(
-                                        collection="logs",
-                                        filter_query=filter_query,
-                                        per_page=per_page_limit,
-                                        page=page,
-                                        sort="",  # No sort to avoid issues
-                                    )
-
-                                    # Add unique chore IDs from this chunk
-                                    claimed_chore_ids.update(log["chore_id"] for log in logs)
-
-                                    chunk_claims += len(logs)
-                                    chunk_logs_fetched += len(logs)
-
-                                    # If we got fewer logs than per_page, we've fetched all records
-                                    if len(logs) < per_page_limit:
-                                        break
-
-                                    # Otherwise, there might be more records - fetch next page
-                                    page += 1
-                                    logger.warning(
-                                        "Pagination triggered for user %s: chunk had >%d claims (unusual). "
-                                        "Fetching page %d. Consider investigating if this is expected.",
-                                        user_id,
-                                        per_page_limit,
-                                        page,
-                                    )
-                                except RuntimeError as e:
-                                    error_msg = f"Database error fetching claims chunk at offset {i}, page {page}: {e}"
-                                    logger.error(error_msg)
-                                    # Continue with next chunk, don't fail entire operation
-                                    break
-                                except Exception as e:
-                                    error_msg = (
-                                        f"Unexpected error fetching claims chunk at offset {i}, page {page}: {e}"
-                                    )
-                                    logger.error(error_msg)
-                                    # Continue with next chunk, don't fail entire operation
-                                    break
-
-                            total_logs_fetched += chunk_logs_fetched
-                            chunks_processed += 1
-
-                            logger.debug(
-                                "Processed chunk",
-                                extra={
-                                    "chunk_index": chunk_index,
-                                    "chunk_size": len(chunk),
-                                    "logs_fetched": chunk_logs_fetched,
-                                    "claims_in_chunk": chunk_claims,
-                                },
-                            )
-
-                            # Log if chunk size is unusually large (indicates potential data anomaly)
-                            if chunk_claims > chunk_size * 1.5:
-                                logger.warning(
-                                    "User %s has %d claims for %d chores in chunk (%.1fx ratio). "
-                                    "Expected ~1 claim per chore.",
-                                    user_id,
-                                    chunk_claims,
-                                    len(chunk),
-                                    chunk_claims / len(chunk),
-                                )
-
-                    # Count distinct chores, not total logs
-                    claims_pending = len(claimed_chore_ids)
-                    result_data["claims_pending"] = claims_pending
-                    logger.info("User %s has %d pending claims", user_id, claims_pending)
-
-                except RuntimeError as e:
-                    error_msg = f"Database error fetching pending claims: {e}"
-                    logger.error(error_msg)
-                    result_data["claims_pending_error"] = error_msg
-                except Exception as e:
-                    error_msg = f"Unexpected error fetching pending claims: {e}"
-                    logger.error(error_msg)
-                    result_data["claims_pending_error"] = error_msg
-            else:
-                # No pending chores, so 0 pending claims
-                result_data["claims_pending"] = 0
-                logger.info("No pending verification chores, user %s has 0 pending claims", user_id)
-
-        except RuntimeError as e:
-            error_msg = f"Database error fetching pending verification chores: {e}"
-            logger.error(error_msg)
-            result_data["claims_pending_error"] = error_msg
-        except Exception as e:
-            error_msg = f"Unexpected error fetching pending verification chores: {e}"
-            logger.error(error_msg)
-            result_data["claims_pending_error"] = error_msg
-
-        # Get overdue chores assigned to user - BEST EFFORT
-        try:
-            overdue_chores = await get_overdue_chores(user_id=user_id)
-            result_data["overdue_chores"] = len(overdue_chores)
-            logger.info("User %s has %d overdue chores", user_id, result_data["overdue_chores"])
-        except RuntimeError as e:
-            error_msg = f"Database error fetching overdue chores: {e}"
-            logger.error(error_msg)
-            result_data["overdue_chores_error"] = error_msg
-        except Exception as e:
-            error_msg = f"Unexpected error fetching overdue chores: {e}"
-            logger.error(error_msg)
-            result_data["overdue_chores_error"] = error_msg
 
         # Log comprehensive performance metrics
         elapsed_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
@@ -634,10 +697,10 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                 "pending_chores_count": len(pending_chore_ids),
                 "chunks_processed": chunks_processed,
                 "total_logs_fetched": total_logs_fetched,
-                "claims_pending": result_data.get("claims_pending"),
-                "completions": result_data.get("completions"),
-                "rank": result_data.get("rank"),
-                "overdue_chores": result_data.get("overdue_chores"),
+                "claims_pending": claims_pending,
+                "completions": completions,
+                "rank": rank,
+                "overdue_chores": overdue_chores,
                 "period_days": period_days,
             },
         )
@@ -659,7 +722,7 @@ async def get_household_summary(*, period_days: int = 7) -> HouseholdSummary:
 
         # Get active users count
         active_users = await db_client.list_records(
-            collection="users",
+            collection="members",
             filter_query=f'status = "{UserStatus.ACTIVE}"',
         )
 

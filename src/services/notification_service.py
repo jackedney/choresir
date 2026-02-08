@@ -2,14 +2,11 @@
 
 import logging
 
-from pydantic import ValidationError
-
 from src.core import db_client
-from src.core.config import Constants
 from src.core.logging import span
-from src.domain.user import UserStatus
 from src.interface import whatsapp_sender
 from src.models.service_models import NotificationResult
+from src.services import house_config_service
 
 
 logger = logging.getLogger(__name__)
@@ -21,14 +18,12 @@ async def send_verification_request(
     chore_id: str,
     claimer_user_id: str,
 ) -> list[NotificationResult]:
-    """Send verification request to all household members except claimer.
-
-    Sends interactive message with Approve/Reject buttons.
+    """Send verification request to the group chat.
 
     Args:
-        log_id: Log record ID (used in button payload)
+        log_id: Log record ID (used in verification)
         chore_id: Chore ID
-        claimer_user_id: User who claimed completion (excluded from notifications)
+        claimer_user_id: User who claimed completion
 
     Returns:
         List of NotificationResult objects with send status
@@ -51,109 +46,44 @@ async def send_verification_request(
 
         # 2. Get claimer name
         try:
-            claimer = await db_client.get_record(collection="users", record_id=claimer_user_id)
+            claimer = await db_client.get_record(collection="members", record_id=claimer_user_id)
             claimer_name = claimer.get("name", "Someone")
         except KeyError:
             logger.error("Claimer user not found: %s", claimer_user_id)
             claimer_name = "Someone"
 
-        # 3. Get all active users except claimer
-        # Note: Using f-string is safe here because UserStatus.ACTIVE is a controlled enum value,
-        # not user input. PocketBase also provides additional query sanitization.
-        all_users = await db_client.list_records(
-            collection="users",
-            filter_query=f'status="{UserStatus.ACTIVE}"',
-            per_page=Constants.DEFAULT_PER_PAGE_LIMIT,
-        )
+        # 3. Get house config to retrieve group_chat_id
+        house_config = await house_config_service.get_house_config()
+        group_chat_id = house_config.group_chat_id
 
-        # Filter out the claimer
-        target_users = [user for user in all_users if user["id"] != claimer_user_id]
-
-        if not target_users:
-            logger.warning("No users to notify for verification request")
+        if not group_chat_id:
+            logger.warning("No group_chat_id configured - cannot send verification request")
             return []
 
-        # 4. Send verification message to each user
-        results = []
-        for user in target_users:
-            user_id = user["id"]
-            phone = user["phone"]
+        # 4. Build message
+        text = (
+            f"✅ {claimer_name} claims they completed *{chore_title}*. "
+            f"Can you verify this?\n\n"
+            f"Reply 'approve {log_id}' to approve or 'reject {log_id}' to reject."
+        )
 
-            send_result = await _send_verification_message(
-                to_phone=phone,
-                claimer_name=claimer_name,
-                chore_title=chore_title,
-                log_id=log_id,
+        # 5. Send verification message to the group
+        send_result = await whatsapp_sender.send_group_message(
+            to_group_id=group_chat_id,
+            text=text,
+        )
+
+        results = []
+        if send_result.success:
+            logger.info("Verification request sent to group=%s", group_chat_id)
+        else:
+            logger.error(
+                "Failed to send verification request to group=%s error=%s",
+                group_chat_id,
+                send_result.error,
             )
 
-            try:
-                notification_result = NotificationResult(
-                    user_id=user_id,
-                    phone=phone,
-                    success=send_result.success,
-                    error=send_result.error,
-                )
-                results.append(notification_result)
-            except ValidationError as e:
-                logger.error("Failed to create NotificationResult for user %s: %s", user_id, e)
-                continue
-
-            if send_result.success:
-                logger.info("Verification request sent to user=%s phone=%s", user_id, phone)
-            else:
-                logger.error(
-                    "Failed to send verification request to user=%s phone=%s error=%s",
-                    user_id,
-                    phone,
-                    send_result.error,
-                )
-
-        # 5. Return results
-        logger.info(
-            "Sent %d verification requests (%d successful, %d failed)",
-            len(results),
-            sum(1 for r in results if r.success),
-            sum(1 for r in results if not r.success),
-        )
         return results
-
-
-async def _send_verification_message(
-    *,
-    to_phone: str,
-    claimer_name: str,
-    chore_title: str,
-    log_id: str,
-) -> whatsapp_sender.SendMessageResult:
-    """Send verification message.
-
-    Args:
-        to_phone: Recipient phone number in E.164 format
-        claimer_name: Name of user who claimed the chore
-        chore_title: Title of the chore to verify
-        log_id: Log record ID for button payload
-
-    Returns:
-        SendMessageResult indicating success or failure
-    """
-    logger.debug("Sending text verification message to %s", to_phone)
-
-    # NOTE: This uses simple command format that the AI agent parses.
-    # The agent's tool_verify_chore (in src/agents/tools/verification_tools.py) expects:
-    # - log_id: Log ID to verify
-    # - decision: "APPROVE" or "REJECT"
-    # The agent should understand natural language like "approve <log_id>" and "reject <log_id>"
-    # and convert them to appropriate tool calls. If the agent's parsing logic changes,
-    # this message format should be updated accordingly.
-    text = (
-        f"✅ {claimer_name} claims they completed *{chore_title}*. "
-        f"Can you verify this?\n\n"
-        f"Reply 'approve {log_id}' to approve or 'reject {log_id}' to reject."
-    )
-    return await whatsapp_sender.send_text_message(
-        to_phone=to_phone,
-        text=text,
-    )
 
 
 async def send_personal_verification_request(
@@ -198,6 +128,74 @@ async def send_personal_verification_request(
     except Exception:
         logger.exception("Error sending personal verification request for chore '%s'", chore_title)
         # Don't raise - notification failure shouldn't fail the claim
+
+
+async def send_deletion_request_notification(
+    *,
+    log_id: str,
+    chore_id: str,
+    chore_title: str,
+    requester_user_id: str,
+) -> list[NotificationResult]:
+    """Send deletion request notification to the group chat.
+
+    Args:
+        log_id: Log record ID for the deletion request
+        chore_id: Chore ID being requested for deletion
+        chore_title: Title of the chore
+        requester_user_id: User who requested deletion
+
+    Returns:
+        List of NotificationResult objects with send status
+    """
+    with span("notification_service.send_deletion_request_notification"):
+        logger.info(
+            "Sending deletion request notification for log_id=%s chore_id=%s requester=%s",
+            log_id,
+            chore_id,
+            requester_user_id,
+        )
+
+        # Get requester name
+        try:
+            requester = await db_client.get_record(collection="members", record_id=requester_user_id)
+            requester_name = requester.get("name", "Someone")
+        except KeyError:
+            logger.error("Requester user not found: %s", requester_user_id)
+            requester_name = "Someone"
+
+        # Get house config to retrieve group_chat_id
+        house_config = await house_config_service.get_house_config()
+        group_chat_id = house_config.group_chat_id
+
+        if not group_chat_id:
+            logger.warning("No group_chat_id configured - cannot send deletion request notification")
+            return []
+
+        # Build message
+        text = (
+            f"🗑️ {requester_name} wants to remove the chore *{chore_title}*.\n\n"
+            f"Reply 'approve deletion {chore_title}' to approve or "
+            f"'reject deletion {chore_title}' to reject."
+        )
+
+        # Send notification to the group
+        send_result = await whatsapp_sender.send_group_message(
+            to_group_id=group_chat_id,
+            text=text,
+        )
+
+        results = []
+        if send_result.success:
+            logger.info("Deletion request notification sent to group=%s", group_chat_id)
+        else:
+            logger.error(
+                "Failed to send deletion request notification to group=%s error=%s",
+                group_chat_id,
+                send_result.error,
+            )
+
+        return results
 
 
 async def send_personal_verification_result(
