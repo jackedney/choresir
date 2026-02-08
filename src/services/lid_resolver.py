@@ -10,6 +10,9 @@ from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Number of trailing digits to show when masking phone numbers for logging
+PHONE_MASK_VISIBLE_DIGITS = 4
+
 
 def _get_waha_headers() -> dict[str, str]:
     """Get headers for WAHA API requests."""
@@ -81,5 +84,9 @@ def _parse_lid_response(*, lid: str, data: dict) -> str | None:
         logger.warning("Invalid phone format from LID resolution", extra={"lid": lid, "pn": pn})
         return None
 
-    logger.info("Resolved LID to phone", extra={"lid": lid, "phone": f"+{phone}"})
+    if len(phone) > PHONE_MASK_VISIBLE_DIGITS:
+        masked_phone = f"+{'*' * (len(phone) - PHONE_MASK_VISIBLE_DIGITS)}{phone[-PHONE_MASK_VISIBLE_DIGITS:]}"
+    else:
+        masked_phone = "+****"
+    logger.info("Resolved LID to phone", extra={"lid": lid, "phone": masked_phone})
     return f"+{phone}"

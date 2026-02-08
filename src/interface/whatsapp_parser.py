@@ -7,20 +7,7 @@ from pydantic import BaseModel, Field
 
 
 def _clean_whatsapp_id(whatsapp_id: str) -> str | None:
-    """Clean WhatsApp ID to extract phone number.
-
-    Handles various WhatsApp ID formats:
-    - 1234567890@c.us (individual chat)
-    - 1234567890@s.whatsapp.net (individual chat alternative)
-    - 120363400136168625@g.us (group chat)
-    - 1234567890@lid (linked ID - NOT a phone number, returns None)
-
-    Args:
-        whatsapp_id: Raw WhatsApp ID string
-
-    Returns:
-        Clean phone number string, or None if not a valid phone format
-    """
+    """Return cleaned phone number from a WhatsApp ID or None for non-phone IDs."""
     if not whatsapp_id:
         return None
 

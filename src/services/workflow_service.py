@@ -348,7 +348,9 @@ async def expire_old_workflows() -> int:
                 )
             except Exception as e:
                 logger.error(
-                    f"Error expiring workflow {workflow['id']}: {e}",
+                    "Error expiring workflow",
+                    extra={"workflow_id": workflow["id"], "error": str(e)},
+                    exc_info=True,
                 )
 
         logger.info("Completed workflow expiry", extra={"expired_count": expired_count})
