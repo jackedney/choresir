@@ -18,6 +18,7 @@ from src.core.db_client import (
     sanitize_param,
     update_record,
 )
+from src.core.redis_client import redis_client
 from src.domain.create_models import HouseConfigCreate, InviteCreate, UserCreate
 from src.domain.update_models import MemberStatusUpdate, MemberUpdate
 from src.domain.user import UserRole, UserStatus
@@ -36,6 +37,34 @@ csrf_serializer = URLSafeTimedSerializer(str(settings.secret_key), salt="admin-c
 
 # Placeholder string for obscured text display
 MASKED_TEXT_PLACEHOLDER = "********"
+
+
+async def check_login_rate_limit(request: Request) -> None:
+    """Check rate limit for admin login attempts."""
+    if not redis_client.is_available:
+        return
+
+    client_host = request.client.host if request.client else "unknown"
+    key = f"admin:login:ratelimit:{client_host}"
+
+    # Increment counter
+    count = await redis_client.increment(key)
+    if count is None:
+        return
+
+    # Set expiry on first attempt
+    if count == 1:
+        await redis_client.expire(key, 60)
+
+    if count > 5:
+        logger.warning(
+            "admin_login_rate_limit_exceeded",
+            extra={"ip": client_host, "count": count},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later.",
+        )
 
 
 def generate_csrf_token() -> str:
@@ -143,6 +172,8 @@ async def post_login(
     csrf_token: str | None = Form(None),
 ) -> Response:
     """Process admin login and redirect to dashboard on success."""
+    await check_login_rate_limit(request)
+
     if not validate_csrf_token(request, csrf_token):
         logger.warning("admin_login_invalid_csrf")
         raise HTTPException(

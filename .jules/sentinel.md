@@ -42,3 +42,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The WAHA webhook endpoint (`/webhook`) accepted POST requests without any authentication, relying solely on message content (timestamp/nonce) which can be spoofed. This allowed potential impersonation of users if the endpoint was exposed.
 **Learning:** Webhook endpoints, even internal ones, should treat the sender as untrusted until authenticated. Relying on network isolation is insufficient defense-in-depth.
 **Prevention:** Implemented a shared secret mechanism (`X-Webhook-Secret`) verified with constant-time comparison (`secrets.compare_digest`). Configuration defaults to "fail open" (optional) to preserve backward compatibility, but enables enforcement when the secret is set.
+
+## 2026-10-26 - [Missing Rate Limiting on Admin Login]
+**Vulnerability:** The admin login endpoint (`/admin/login`) did not implement rate limiting, allowing attackers to perform brute-force attacks against the admin password.
+**Learning:** Sensitive authentication endpoints must always be protected by rate limiting to mitigate brute-force and credential stuffing attacks. Relying solely on password complexity is insufficient.
+**Prevention:** Implemented IP-based rate limiting using Redis. The system now limits login attempts to 5 per minute per IP address, returning `429 Too Many Requests` when exceeded.
