@@ -1,9 +1,8 @@
 """Configuration management for choresir."""
 
 from pathlib import Path
-from typing import Self
 
-from pydantic import Field, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,25 +16,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # PocketBase Configuration
-    pocketbase_url: str = Field(default="http://127.0.0.1:8090", description="PocketBase server URL")
-    pocketbase_admin_email: str | None = Field(default=None, description="PocketBase admin email for schema sync")
-    pocketbase_admin_password: str | None = Field(default=None, description="PocketBase admin password for schema sync")
-
-    @model_validator(mode="after")
-    def verify_admin_credentials(self) -> Self:
-        """Verify that admin credentials are set."""
-        if not self.pocketbase_admin_email:
-            raise ValueError(
-                "PocketBase admin email credential not configured. "
-                "Set POCKETBASE_ADMIN_EMAIL environment variable or add to .env file."
-            )
-        if not self.pocketbase_admin_password:
-            raise ValueError(
-                "PocketBase admin password credential not configured. "
-                "Set POCKETBASE_ADMIN_PASSWORD environment variable or add to .env file."
-            )
-        return self
+    # SQLite Configuration
+    sqlite_db_path: str = Field(default="data/choresir.db", description="Path to the SQLite database file")
 
     # OpenRouter Configuration
     openrouter_api_key: str | None = Field(default=None, description="OpenRouter API key for LLM access")
@@ -47,9 +29,6 @@ class Settings(BaseSettings):
 
     # Pydantic Logfire Configuration (optional)
     logfire_token: str | None = Field(default=None, description="Pydantic Logfire token for observability")
-
-    # Redis Configuration (optional)
-    redis_url: str | None = Field(default=None, description="Redis connection URL (e.g., redis://localhost:6379)")
 
     # House Onboarding Configuration
     house_name: str | None = Field(default=None, description="House name for member onboarding")
@@ -159,7 +138,7 @@ class Constants:
 
     # Paths
     PROJECT_ROOT: Path = Path(__file__).parent.parent.parent
-    POCKETBASE_DATA_DIR: Path = PROJECT_ROOT / "pb_data"
+    DATA_DIR: Path = PROJECT_ROOT / "data"
 
 
 def get_settings() -> Settings:

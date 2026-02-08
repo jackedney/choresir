@@ -3,14 +3,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from pocketbase import PocketBase
-
 
 @dataclass
 class Deps:
     """Dependencies injected into agent RunContext."""
 
-    db: PocketBase
     user_id: str
     user_phone: str
     user_name: str

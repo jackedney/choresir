@@ -4,7 +4,6 @@ import logging
 from datetime import datetime
 
 import logfire
-from pocketbase import PocketBase
 
 from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
@@ -19,8 +18,6 @@ from src.services.house_config_service import get_house_config
 
 logger = logging.getLogger(__name__)
 
-
-logger = logging.getLogger(__name__)
 
 # System prompt template
 SYSTEM_PROMPT_TEMPLATE = """You are choresir, a household chore management assistant. Your role is strictly functional.
@@ -181,12 +178,11 @@ async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
         return user_message
 
 
-async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
+async def build_deps(*, user_phone: str) -> Deps | None:
     """
     Build dependencies for agent execution with user context.
 
     Args:
-        db: PocketBase database connection
         user_phone: Phone number of the user
 
     Returns:
@@ -199,7 +195,6 @@ async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
 
     # Build dependencies
     return Deps(
-        db=db,
         user_id=user["id"],
         user_phone=user["phone"],
         user_name=user["name"],
@@ -208,12 +203,9 @@ async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
     )
 
 
-async def get_member_list(*, _db: PocketBase) -> str:
+async def get_member_list() -> str:
     """
     Get formatted list of household members.
-
-    Args:
-        db: PocketBase database connection
 
     Returns:
         Formatted member list string

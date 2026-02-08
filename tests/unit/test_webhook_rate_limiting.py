@@ -96,7 +96,6 @@ async def test_agent_rate_limit_enforced_per_user():
         "name": "Test User",
     }
 
-    mock_db = MagicMock()
     mock_deps = MagicMock()
 
     with (
@@ -122,7 +121,6 @@ async def test_agent_rate_limit_enforced_per_user():
         success, _error = await _handle_user_status(
             user_record=mock_user_record,
             message=mock_message,
-            db=mock_db,
             deps=mock_deps,
         )
 
@@ -148,7 +146,6 @@ async def test_agent_rate_limit_allows_processing_when_under_limit():
         "name": "Test User",
     }
 
-    mock_db = MagicMock()
     mock_deps = MagicMock()
 
     with (
@@ -168,7 +165,6 @@ async def test_agent_rate_limit_allows_processing_when_under_limit():
         success, _error = await _handle_user_status(
             user_record=mock_user_record,
             message=mock_message,
-            db=mock_db,
             deps=mock_deps,
         )
 
