@@ -226,7 +226,7 @@ async def test_partner_leaving_household(mock_db_module, db_client, sample_users
 
     # Step 2: Bob leaves household (delete user)
     await db_client.delete_record(
-        collection="users",
+        collection="members",
         record_id=sample_users["bob"]["id"],
     )
 

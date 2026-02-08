@@ -20,16 +20,12 @@ async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client, s
 
     # Create regular user
     user_data = {
-        "username": "testuser",
-        "email": "test@example.com",
         "phone": "+15551234567",
-        "password": "password123",
-        "passwordConfirm": "password123",
         "name": "Test User",
         "role": "member",
         "status": "active",
     }
-    user = await db_client.create_record(collection="users", data=user_data)
+    user = await db_client.create_record(collection="members", data=user_data)
 
     # Create test deps
     deps = Deps(
@@ -162,16 +158,12 @@ async def test_non_critical_error_no_notification(mock_db_module, db_client, sam
 
     # Create regular user
     user_data = {
-        "username": "testuser",
-        "email": "test@example.com",
         "phone": "+15551234567",
-        "password": "password123",
-        "passwordConfirm": "password123",
         "name": "Test User",
         "role": "member",
         "status": "active",
     }
-    user = await db_client.create_record(collection="users", data=user_data)
+    user = await db_client.create_record(collection="members", data=user_data)
 
     # Create test deps
     deps = Deps(

@@ -310,47 +310,38 @@ def test_client(test_settings: Settings) -> TestClient:
 
 @pytest.fixture
 def sample_users(db_client: MockDBClient, initialized_db: PocketBase) -> dict[str, dict]:
-    """Create sample users for testing."""
-    users = {
+    """Create sample members for testing."""
+    members = {
         "alice": {
             "phone": "+15551234567",
             "name": "Alice Admin",
-            "email": "alice@test.local",
             "role": "admin",
             "status": "active",
-            "password": "test_password",
-            "passwordConfirm": "test_password",
         },
         "bob": {
             "phone": "+15557654321",
             "name": "Bob Member",
-            "email": "bob@test.local",
             "role": "member",
             "status": "active",
-            "password": "test_password",
-            "passwordConfirm": "test_password",
         },
         "charlie": {
             "phone": "+15559876543",
             "name": "Charlie Member",
-            "email": "charlie@test.local",
             "role": "member",
             "status": "active",
-            "password": "test_password",
-            "passwordConfirm": "test_password",
         },
     }
 
     created = {}
-    for key, data in users.items():
-        record = initialized_db.collection("users").create(data)
+    for key, data in members.items():
+        record = initialized_db.collection("members").create(data)
         created[key] = record.__dict__
 
     return created
 
 
 async def create_test_admin(phone: str, name: str, db_client: MockDBClient) -> dict[str, Any]:
-    """Create admin user for testing, bypassing normal join workflow.
+    """Create admin member for testing, bypassing normal join workflow.
 
     This is a test helper - in production, admins are created through
     the normal onboarding process (via request_join) and promoted manually.
@@ -365,20 +356,15 @@ async def create_test_admin(phone: str, name: str, db_client: MockDBClient) -> d
         db_client: Mock database client
 
     Returns:
-        Created admin user record
+        Created admin member record
     """
-    # Generate email from phone for auth collection requirement
-    email = f"{phone.replace('+', '')}@test.local"
     admin_data = {
         "phone": phone,
         "name": name,
-        "email": email,
         "role": "admin",
         "status": "active",
-        "password": "test_password",
-        "passwordConfirm": "test_password",
     }
-    return await db_client.create_record(collection="users", data=admin_data)
+    return await db_client.create_record(collection="members", data=admin_data)
 
 
 @pytest.fixture
@@ -416,7 +402,7 @@ def sample_chores(db_client: MockDBClient, initialized_db: PocketBase, sample_us
 
 @pytest.fixture
 def user_factory(initialized_db: PocketBase):
-    """Factory for creating users with custom data.
+    """Factory for creating members with custom data.
 
     Usage:
         user = user_factory(name="Test User", phone="+1234567890", role="admin")
@@ -424,18 +410,15 @@ def user_factory(initialized_db: PocketBase):
 
     def _create_user(**kwargs):
         random_suffix = "".join(secrets.choice("0123456789") for _ in range(10))
-        user_data = {
+        member_data = {
             "phone": kwargs.get("phone", f"+1{random_suffix}"),
             "name": kwargs.get("name", f"User {uuid.uuid4().hex[:8]}"),
-            "email": kwargs.get("email", f"user_{uuid.uuid4().hex[:8]}@test.local"),
             "role": kwargs.get("role", "member"),
             "status": kwargs.get("status", "active"),
-            "password": kwargs.get("password", "test_password"),
-            "passwordConfirm": kwargs.get("password", "test_password"),
         }
         # Allow override of any fields
-        user_data.update({k: v for k, v in kwargs.items() if k not in user_data})
-        record = initialized_db.collection("users").create(user_data)
+        member_data.update({k: v for k, v in kwargs.items() if k not in member_data})
+        record = initialized_db.collection("members").create(member_data)
         return record.__dict__
 
     return _create_user
@@ -480,7 +463,7 @@ def clean_db(db_client: MockDBClient) -> Generator[MockDBClient]:
     yield db_client
 
     # Cleanup after test - fail loudly if errors occur
-    collections = ["verifications", "chores", "users", "conflicts"]
+    collections = ["verifications", "chores", "members", "conflicts"]
     cleanup_errors = []
 
     for collection in collections:

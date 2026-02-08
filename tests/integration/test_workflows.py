@@ -39,7 +39,7 @@ async def test_new_user_registration_workflow(mock_db_module, db_client) -> None
 
     # Verify user can be retrieved
     retrieved_user = await db_client.get_first_record(
-        collection="users",
+        collection="members",
         filter_query='phone = "+15550001111"',
     )
     assert retrieved_user is not None
