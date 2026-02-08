@@ -1,20 +1,18 @@
 """Pytest configuration and shared fixtures."""
 
-import asyncio
 import logging
 import secrets
 import tempfile
 import uuid
 from collections.abc import AsyncGenerator, Generator
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.core import config
-from src.core.db_client import create_record, get_db, close_db, delete_record, list_records
+from src.core.db_client import close_db, create_record, get_db
 from src.core.schema import COLLECTIONS, init_db
 from src.main import app
 
@@ -87,7 +85,7 @@ def clean_db(manage_database) -> None:
     """Fixture alias for tests that explicitly request clean db."""
     # The autouse fixture manage_database already handles cleaning.
     # This alias ensures tests requesting clean_db don't fail setup.
-    return None
+    return
 
 
 @pytest.fixture

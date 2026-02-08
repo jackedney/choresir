@@ -1,6 +1,5 @@
 """Pytest configuration and fixtures for integration tests."""
 
-import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest

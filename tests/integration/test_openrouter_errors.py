@@ -12,7 +12,7 @@ import pytest
 
 from src.agents.base import Deps
 from src.agents.choresir_agent import run_agent
-from src.core import admin_notifier, db_client
+from src.core import admin_notifier
 from src.core.admin_notifier import notification_rate_limiter
 from src.core.errors import ErrorCategory
 

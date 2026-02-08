@@ -1,6 +1,7 @@
 """Unit tests for Redis client replacement."""
 
 import pytest
+
 from src.core.redis_client import RedisClient
 
 

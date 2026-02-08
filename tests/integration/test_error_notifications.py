@@ -7,7 +7,6 @@ import pytest
 
 from src.agents import choresir_agent
 from src.agents.base import Deps
-from src.core import db_client
 from src.interface import webhook
 from src.interface.whatsapp_parser import ParsedMessage
 
