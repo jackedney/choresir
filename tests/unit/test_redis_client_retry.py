@@ -3,6 +3,7 @@
 import pytest
 from src.core.redis_client import RedisClient
 
+
 @pytest.mark.unit
 class TestRedisClient:
     """Tests for Redis client implementation."""

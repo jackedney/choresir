@@ -98,9 +98,11 @@ def test_client() -> TestClient:
 
 # Factory fixtures for flexible test data creation
 
+
 @pytest.fixture
 def user_factory():
     """Factory for creating users with custom data."""
+
     async def _create_user(**kwargs):
         random_suffix = "".join(secrets.choice("0123456789") for _ in range(10))
         user_data = {
@@ -122,6 +124,7 @@ def user_factory():
 @pytest.fixture
 def chore_factory():
     """Factory for creating chores with custom data."""
+
     async def _create_chore(**kwargs):
         chore_data = {
             "title": kwargs.get("title", f"Chore {uuid.uuid4().hex[:8]}"),
@@ -151,28 +154,15 @@ async def sample_users(user_factory) -> dict[str, dict]:
     bob = await user_factory(name="Bob Member", role="member", phone="+15557654321")
     charlie = await user_factory(name="Charlie Member", role="member", phone="+15559876543")
 
-    return {
-        "alice": alice,
-        "bob": bob,
-        "charlie": charlie
-    }
+    return {"alice": alice, "bob": bob, "charlie": charlie}
 
 
 @pytest.fixture
 async def sample_chores(chore_factory, sample_users) -> dict[str, dict]:
     """Create sample chores for testing."""
-    dishes = await chore_factory(
-        title="Wash Dishes",
-        assigned_to=sample_users["bob"]["id"],
-        schedule_cron="0 20 * * *"
-    )
+    dishes = await chore_factory(title="Wash Dishes", assigned_to=sample_users["bob"]["id"], schedule_cron="0 20 * * *")
     trash = await chore_factory(
-        title="Take Out Trash",
-        assigned_to=sample_users["charlie"]["id"],
-        schedule_cron="0 9 * * 1"
+        title="Take Out Trash", assigned_to=sample_users["charlie"]["id"], schedule_cron="0 9 * * 1"
     )
 
-    return {
-        "dishes": dishes,
-        "trash": trash
-    }
+    return {"dishes": dishes, "trash": trash}

@@ -88,7 +88,7 @@ def _parse_filter(filter_query: str) -> tuple[str, list[Any]]:
 
     # Improved regex: longer operators first, tolerant of whitespace
     # Matches: field, operator, value
-    pattern = re.compile(r'^\s*([\w\.]+)\s*(!=|>=|<=|=|>|<|~)\s*(.+?)\s*$', re.IGNORECASE)
+    pattern = re.compile(r"^\s*([\w\.]+)\s*(!=|>=|<=|=|>|<|~)\s*(.+?)\s*$", re.IGNORECASE)
 
     for part in parts:
         part = part.strip()
@@ -119,7 +119,7 @@ def _parse_filter(filter_query: str) -> tuple[str, list[Any]]:
             else:
                 # Number or unquoted string
                 try:
-                    if '.' in value_str:
+                    if "." in value_str:
                         value = float(value_str)
                     else:
                         value = int(value_str)
@@ -172,7 +172,7 @@ async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, A
         # Prepare data
         data = data.copy()
         if "id" not in data:
-            data["id"] = secrets.token_hex(8) # 16 chars
+            data["id"] = secrets.token_hex(8)  # 16 chars
 
         now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         if "created" not in data:

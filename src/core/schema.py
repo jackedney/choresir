@@ -41,8 +41,8 @@ def _get_collection_schema(collection_name: str) -> dict[str, Any]:
                 # Implicit fields in PB auth collection, needed explicitly here
                 {"name": "name", "type": "text", "required": False},
                 {"name": "email", "type": "email", "required": False},
-                {"name": "password", "type": "text", "required": False}, # PB auth stores password hash
-                {"name": "passwordConfirm", "type": "text", "required": False}, # Not stored typically, but checking
+                {"name": "password", "type": "text", "required": False},  # PB auth stores password hash
+                {"name": "passwordConfirm", "type": "text", "required": False},  # Not stored typically, but checking
             ],
             "indexes": ["CREATE UNIQUE INDEX IF NOT EXISTS idx_phone ON users (phone)"],
         },
@@ -175,11 +175,7 @@ async def init_db() -> None:
         schema = _get_collection_schema(collection)
 
         # Build CREATE TABLE statement
-        columns = [
-            "id TEXT PRIMARY KEY",
-            "created TEXT NOT NULL",
-            "updated TEXT NOT NULL"
-        ]
+        columns = ["id TEXT PRIMARY KEY", "created TEXT NOT NULL", "updated TEXT NOT NULL"]
 
         for field in schema["fields"]:
             name = field["name"]
