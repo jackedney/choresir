@@ -271,18 +271,15 @@ class RetryHandlerSingleton:
     _instance: AgentRetryHandler | None = None
 
     @classmethod
-    def get(cls) -> AgentRetryHandler:
+    def get(cls: "type[RetryHandlerSingleton]") -> AgentRetryHandler:
         """Get or create the retry handler instance."""
         if cls._instance is None:
             cls._instance = AgentRetryHandler()
         return cls._instance
 
     @classmethod
-    def reset(cls) -> None:
-        """Reset the retry handler instance.
-
-        Primarily used for testing to ensure clean state between tests.
-        """
+    def reset(cls: "type[RetryHandlerSingleton]") -> None:
+        """Reset the retry handler instance."""
         cls._instance = None
 
 

@@ -552,6 +552,9 @@ async def get_whatsapp_status(
                 "phone": phone,
                 "webhook_configured": webhook_configured,
             }
+    except httpx.HTTPStatusError as e:
+        logger.error("waha_status_error", extra={"error": str(e), "status_code": e.response.status_code})
+        return {"status": "ERROR", "phone": None, "webhook_configured": False, "error": str(e)}
     except httpx.RequestError as e:
         logger.error("waha_connection_error", extra={"error": str(e)})
         return {"status": "ERROR", "phone": None, "webhook_configured": False, "error": str(e)}

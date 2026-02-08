@@ -16,31 +16,12 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from pocketbase import PocketBase
+from pocketbase.client import ClientResponseError
 
 from src.core.config import Settings
 from src.core.schema import COLLECTIONS, sync_schema
 from src.main import app
-
-
-# Import pocketbase only for integration tests
-try:
-    from pocketbase import PocketBase
-    from pocketbase.client import ClientResponseError
-
-    POCKETBASE_AVAILABLE = True
-except ImportError:
-    POCKETBASE_AVAILABLE = False
-
-    class PocketBase:  # type: ignore[no-redef]
-        """Stub PocketBase class for when the library is not available."""
-
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            raise ImportError("pocketbase is not installed")
-
-    class ClientResponseError(Exception):  # type: ignore[no-redef]
-        """Stub ClientResponseError for when pocketbase is not available."""
-
-        status: int = 0
 
 
 # HTTP status codes
@@ -150,8 +131,6 @@ class MockDBClient:
 @pytest.fixture(scope="session")
 def pocketbase_server() -> Generator[str]:
     """Start ephemeral PocketBase instance for testing."""
-    if not POCKETBASE_AVAILABLE:
-        pytest.skip("PocketBase not available - skipping integration test")
     pb_data_dir = tempfile.mkdtemp(prefix="pb_test_")
     pb_binary = shutil.which("pocketbase")
 
@@ -211,7 +190,8 @@ def pocketbase_server() -> Generator[str]:
     # Create admin user for schema management
     try:
         # Set BROWSER to empty string to prevent PocketBase from opening a browser
-        env = {"BROWSER": "", **os.environ}
+        # Apply BROWSER override last so it always wins over any existing value
+        env = {**os.environ, "BROWSER": ""}
         result = subprocess.run(
             [
                 pb_binary,

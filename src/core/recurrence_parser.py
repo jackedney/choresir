@@ -15,15 +15,7 @@ WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday
 
 
 def _format_time_string(hour: int, minute: int) -> str:
-    """Format hour and minute into a human-readable time string.
-
-    Args:
-        hour: Hour in 24-hour format (0-23)
-        minute: Minute (0-59)
-
-    Returns:
-        Formatted time string (e.g., " at 3:00 PM", " at midnight", " at noon")
-    """
+    """Format hour and minute into a human-readable time string."""
     if hour == 0 and minute == 0:
         return " at midnight"
     if hour == NOON_HOUR and minute == 0:
@@ -40,15 +32,7 @@ def _format_time_string(hour: int, minute: int) -> str:
 
 
 def _parse_time_from_cron(hour: str, minute: str) -> str:
-    """Parse hour and minute from CRON parts into a time string.
-
-    Args:
-        hour: Hour part from CRON expression
-        minute: Minute part from CRON expression
-
-    Returns:
-        Formatted time string, or empty string if parsing fails
-    """
+    """Parse hour and minute from CRON parts into a time string."""
     if hour == "*" or minute == "*":
         return ""
     try:
@@ -58,15 +42,7 @@ def _parse_time_from_cron(hour: str, minute: str) -> str:
 
 
 def _format_weekly_schedule(day_of_week: str, time_str: str) -> str | None:
-    """Format a weekly schedule description.
-
-    Args:
-        day_of_week: Day of week from CRON expression
-        time_str: Formatted time string
-
-    Returns:
-        Human-readable weekly schedule, or None if parsing fails
-    """
+    """Format a weekly schedule description."""
     try:
         if "," in day_of_week:
             days = [WEEKDAY_NAMES[int(d)] for d in day_of_week.split(",")]
@@ -78,14 +54,7 @@ def _format_weekly_schedule(day_of_week: str, time_str: str) -> str | None:
 
 
 def _get_day_suffix(day: int) -> str:
-    """Get the ordinal suffix for a day number.
-
-    Args:
-        day: Day of month (1-31)
-
-    Returns:
-        Ordinal suffix ("st", "nd", "rd", or "th")
-    """
+    """Get the ordinal suffix for a day number."""
     if day in (1, 21, 31):
         return "st"
     if day in (2, 22):
@@ -96,15 +65,7 @@ def _get_day_suffix(day: int) -> str:
 
 
 def _format_monthly_schedule(day_of_month: str, time_str: str) -> str | None:
-    """Format a monthly schedule description.
-
-    Args:
-        day_of_month: Day of month from CRON expression
-        time_str: Formatted time string
-
-    Returns:
-        Human-readable monthly schedule, or None if parsing fails
-    """
+    """Format a monthly schedule description."""
     try:
         dom = int(day_of_month)
         suffix = _get_day_suffix(dom)
@@ -114,14 +75,7 @@ def _format_monthly_schedule(day_of_month: str, time_str: str) -> str | None:
 
 
 def _parse_interval_format(cron_expr: str) -> str | None:
-    """Parse INTERVAL format and return human-readable description.
-
-    Args:
-        cron_expr: CRON expression that may be in INTERVAL format
-
-    Returns:
-        Human-readable description, or None if not an INTERVAL format
-    """
+    """Parse INTERVAL format and return human-readable description."""
     if not cron_expr.startswith("INTERVAL:"):
         return None
     parts = cron_expr.split(":")
@@ -132,20 +86,17 @@ def _parse_interval_format(cron_expr: str) -> str | None:
 
 
 def _parse_standard_cron(cron_expr: str) -> str:
-    """Parse standard CRON expression and return human-readable description.
-
-    Args:
-        cron_expr: Standard CRON expression (e.g., "0 12 * * 1")
-
-    Returns:
-        Human-readable description
-    """
+    """Parse standard CRON expression and return human-readable description."""
     parts = cron_expr.split()
     if len(parts) != CRON_PARTS_COUNT:
         return cron_expr  # Return as-is if not valid
 
     minute, hour, day_of_month, month, day_of_week = parts
     time_str = _parse_time_from_cron(hour, minute)
+
+    # If time_str is empty, fall back to generic description
+    if not time_str:
+        return f"scheduled ({cron_expr})"
 
     # Daily (every day of week, every day of month)
     if day_of_week == "*" and day_of_month == "*" and month == "*":

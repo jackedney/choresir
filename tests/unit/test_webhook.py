@@ -310,13 +310,14 @@ class TestProcessWebhookMessage:
         mock_db.create_record.assert_not_called()
 
     @pytest.mark.asyncio
+    @patch("src.interface.webhook.choresir_agent")
     @patch("src.interface.webhook.get_house_config")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
     @patch("src.interface.webhook.db_client")
     @patch("src.interface.webhook.whatsapp_sender")
     @patch("src.interface.webhook.create_pending_name_user")
     async def test_process_webhook_message_new_group_user(
-        self, mock_create_pending_name_user, mock_sender, mock_db, mock_parser, mock_get_house_config
+        self, mock_create_pending_name_user, mock_sender, mock_db, mock_parser, mock_get_house_config, mock_agent
     ):
         """Test processing message from new user in activated group prompts for name."""
         mock_message = MagicMock()
@@ -345,6 +346,9 @@ class TestProcessWebhookMessage:
         }
 
         mock_sender.send_group_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+
+        # Mock choresir_agent.build_deps to return None to skip agent processing
+        mock_agent.build_deps = AsyncMock(return_value=None)
 
         params = {}
 

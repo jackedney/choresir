@@ -262,15 +262,7 @@ async def tool_get_personal_stats(ctx: RunContext[Deps], params: GetPersonalStat
 
 
 async def tool_list_personal_chores(ctx: RunContext[Deps], _params: ListPersonalChores) -> str:
-    """List personal chores.
-
-    Args:
-        ctx: Agent runtime context with dependencies
-        _params: List filtering parameters (currently unused but required by signature)
-
-    Returns:
-        Formatted list of personal chores
-    """
+    """List personal chores."""
     try:
         with logfire.span("tool_list_personal_chores"):
             chores = await personal_chore_service.get_personal_chores(
