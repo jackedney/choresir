@@ -200,7 +200,7 @@ class TestVerifyChore:
 
     async def test_verify_chore_self_verification_fails(self, patched_verification_db, pending_chore_with_claim):
         """Test that claimer cannot verify their own chore."""
-        with pytest.raises(ValueError, match="Cannot approve own workflow"):
+        with pytest.raises(PermissionError, match="cannot verify their own chore claim"):
             await verification_service.verify_chore(
                 chore_id=pending_chore_with_claim["id"],
                 verifier_user_id="user1",  # Same as claimer
@@ -666,7 +666,7 @@ class TestVerifyChorePagination:
         await self._create_logs(patched_verification_db, 500, chore["id"], action="other_action")
 
         # Self-verification should fail
-        with pytest.raises(ValueError, match="Cannot approve own workflow"):
+        with pytest.raises(PermissionError, match="cannot verify their own chore claim"):
             await verification_service.verify_chore(
                 chore_id=chore["id"],
                 verifier_user_id="user1",  # Same as claimer

@@ -262,18 +262,33 @@ class TestProcessWebhookMessage:
     """Test background webhook message processing."""
 
     @pytest.mark.asyncio
+    @patch("src.interface.webhook.get_house_config")
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
     @patch("src.interface.webhook.db_client")
-    async def test_process_webhook_message_no_text(self, mock_db, mock_parser):
+    async def test_process_webhook_message_no_text(self, mock_db, mock_parser, mock_get_house_config):
         """Test processing skips messages without text."""
-        # Parser returns message without text
-        mock_parser.return_value = MagicMock(text=None, message_type="unknown", button_payload=None)
+        # Create a properly configured mock message without text
+        mock_message = MagicMock()
+        mock_message.text = None
+        mock_message.message_type = "unknown"
+        mock_message.button_payload = None
+        mock_message.is_group_message = True
+        mock_message.group_id = "group123@g.us"
+        mock_message.from_phone = "+1234567890"
+        mock_message.message_id = "msg123"
+        mock_parser.return_value = mock_message
+
+        # Mock house config with matching group
+        mock_get_house_config.return_value = MagicMock(
+            group_chat_id="group123@g.us",
+            activation_key=None,
+        )
 
         params = {"payload": {}}
 
         await process_webhook_message(params)
 
-        # Should parse but not create any records (skip)
+        # Should parse but not create any records (skip - no text content)
         mock_parser.assert_called_once_with(params)
         mock_db.create_record.assert_not_called()
 

@@ -194,13 +194,20 @@ async def verify_chore(
             else workflow_service.WorkflowStatus.REJECTED
         )
 
-        await workflow_service.resolve_workflow(
-            workflow_id=pending_workflow["id"],
-            resolver_user_id=verifier_user_id,
-            resolver_name=verifier.get("name", "Unknown"),
-            decision=workflow_decision,
-            reason=reason,
-        )
+        try:
+            await workflow_service.resolve_workflow(
+                workflow_id=pending_workflow["id"],
+                resolver_user_id=verifier_user_id,
+                resolver_name=verifier.get("name", "Unknown"),
+                decision=workflow_decision,
+                reason=reason,
+            )
+        except ValueError as e:
+            # Convert workflow self-approval error to PermissionError
+            if "Cannot approve own workflow" in str(e):
+                msg = "User cannot verify their own chore claim"
+                raise PermissionError(msg) from e
+            raise
 
         # Create verification log
         action = f"{decision.lower()}_verification"

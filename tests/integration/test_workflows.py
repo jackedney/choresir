@@ -64,14 +64,14 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
     assert chore["current_state"] == ChoreState.TODO.value
 
     # Step 2: Bob logs completion
-    log = await verification_service.request_verification(
+    workflow = await verification_service.request_verification(
         chore_id=chore["id"],
         claimer_user_id=sample_users["bob"]["id"],
         notes="All clean!",
     )
 
-    assert log["chore_id"] == chore["id"]
-    assert log["user_id"] == sample_users["bob"]["id"]
+    assert workflow["target_id"] == chore["id"]
+    assert workflow["requester_user_id"] == sample_users["bob"]["id"]
 
     # Verify chore state changed
     updated_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
@@ -161,14 +161,14 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
     assert chore["assigned_to"] == sample_users["bob"]["id"]
 
     # Step 2: Alice logs completion on Bob's behalf
-    log = await verification_service.request_verification(
+    workflow = await verification_service.request_verification(
         chore_id=chore["id"],
         claimer_user_id=sample_users["alice"]["id"],
         notes="Helped Bob out (swap)",
     )
 
-    assert log["user_id"] == sample_users["alice"]["id"]
-    # Note: is_swap functionality may need to be tracked in notes or separate field
+    assert workflow["requester_user_id"] == sample_users["alice"]["id"]
+    # Note: is_swap functionality is tracked in workflow metadata
 
     # Step 3: Charlie verifies
     result = await verification_service.verify_chore(
