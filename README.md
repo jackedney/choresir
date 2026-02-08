@@ -80,7 +80,8 @@ Manage your household through a modern web interface at `/admin`:
 - **🔐 Secure Login**: Password-protected admin access (set `ADMIN_PASSWORD` in .env)
 - **🏠 House Configuration**: Update house name, password, and code via web UI
 - **👥 Member Management**: View, add, edit, and remove/ban household members
-- **📱 WhatsApp Invites**: Add members by phone number with automatic WhatsApp invites
+- **📱 WhatsApp Setup**: Connect WhatsApp, view QR code, and configure group chat mode
+- **💬 Group Chat Mode**: Configure ChoresSir to respond in a house group instead of DMs
 - **📊 Dashboard**: Quick overview of member counts and status
 - **🎨 Responsive Design**: Works on desktop and mobile browsers
 
@@ -209,11 +210,10 @@ docker-compose up -d
 docker-compose up -d redis waha      # Start dependencies
 task dev                             # Start PocketBase + FastAPI
 
-# 6️⃣ Scan QR Code
-# Open http://localhost:3000/dashboard to scan the WAHA QR code with your WhatsApp app.
-
-# 7️⃣ Access Web Admin Interface
+# 6️⃣ Configure via Web Admin
 # Open http://localhost:8000/admin and log in with ADMIN_PASSWORD
+# - Set your house name in Settings
+# - Go to WhatsApp Setup to connect WhatsApp and activate your group
 ```
 
 <div align="center">
@@ -228,25 +228,23 @@ task dev                             # Start PocketBase + FastAPI
 <tr>
 <td width="80%">
 
-### 🚂 Railway Deployment
+### 🐳 Docker Deployment
 
-**Platform:** Railway (recommended)
-**Cost:** ~$5-10/month
+**Platform:** Docker Compose (any VPS or container platform)
+**Cost:** ~$5-10/month (any VPS provider)
 **Guide:** See [Getting Started > Production](docs/getting-started/) documentation
 
 #### Quick Deploy Steps:
-1. ✅ Create Railway project
-2. 💾 Deploy PocketBase service (with persistent volume)
-3. ⚡ Add Redis plugin (for caching)
-4. 🖥️ Deploy FastAPI service (connect GitHub repo)
-5. 🔐 Set environment variables:
+1. ✅ Clone the repository
+2. 📝 Copy `.env.example` to `.env` and configure:
    - `ADMIN_PASSWORD`: Password for web admin interface access (required)
    - `SECRET_KEY`: Secret key for session signing (required, generate a random string)
    - `REDIS_URL`: Redis connection URL (required)
    - `OPENROUTER_API_KEY`: OpenRouter API key (required)
-   - `HOUSE_NAME`, `HOUSE_CODE`, `HOUSE_PASSWORD`: Optional (fallback values)
-6. 🔗 Update WhatsApp webhook URL
-7. 🌐 Access admin interface at `https://your-app.railway.app/admin`
+   - `HOUSE_NAME`: Optional fallback house name
+3. 🚀 Run `docker-compose up -d`
+4. 🔗 Update WhatsApp webhook URL to your server
+5. 🌐 Access admin interface at `https://your-domain.com/admin`
 
 </td>
 <td width="40%">

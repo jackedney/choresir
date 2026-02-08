@@ -233,7 +233,7 @@ class InMemoryDBClient:
         records = await self.list_records(collection, filter_query=filter_query)
         return records[0] if records else None
 
-    def _parse_filter(self, filter_str: str, record: dict[str, Any]) -> bool:  # noqa: C901, PLR0911, PLR0912, PLR0915
+    def _parse_filter(self, filter_str: str, record: dict[str, Any]) -> bool:
         """Evaluate filter expression against a record.
 
         Supports:
@@ -260,105 +260,126 @@ class InMemoryDBClient:
         if not filter_str:
             return True
 
-        # Handle AND conditions first (before handling OR/parentheses)
-        # This ensures expressions like "A && B && (C || D)" work correctly
-        if "&&" in filter_str:
-            # Check if && is outside of parentheses
-            # Simple check: if there are parentheses, make sure we handle them recursively
-            conditions = [c.strip() for c in filter_str.split("&&")]
-            return all(self._parse_filter(cond, record) for cond in conditions)
-
-        # Handle OR conditions (check for || outside of parentheses)
-        if "||" in filter_str and "(" not in filter_str:
-            conditions = [c.strip() for c in filter_str.split("||")]
-            return any(self._parse_filter(cond, record) for cond in conditions)
-
-        # Handle parentheses with OR conditions like (field = "val1" || field = "val2")
-        if "(" in filter_str and "||" in filter_str:
-            # Extract content within parentheses
-            match = re.search(r"\(([^)]+)\)", filter_str)
-            if match:
-                inner = match.group(1)
-                # Evaluate the OR clause inside parentheses
-                or_conditions = [c.strip() for c in inner.split("||")]
-                return any(self._parse_filter(cond, record) for cond in or_conditions)
+        # Handle compound conditions (AND, OR, parentheses)
+        compound_result = self._evaluate_compound_conditions(filter_str, record)
+        if compound_result is not None:
+            return compound_result
 
         # Remove parentheses if present (for simple single conditions in parens)
         if filter_str.startswith("(") and filter_str.endswith(")"):
             filter_str = filter_str[1:-1].strip()
 
-        # Parse single condition - try comparison operators (longer first)
-        if ">=" in filter_str:
-            parts = filter_str.split(">=", 1)
-            if len(parts) != 2:
-                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
-            field = parts[0].strip()
-            value = parts[1].strip().strip("'\"")
-            record_value = str(record.get(field, ""))
-            return record_value >= value
+        # Parse single condition with comparison operators
+        return self._evaluate_single_condition(filter_str, record)
 
-        if "<=" in filter_str:
-            parts = filter_str.split("<=", 1)
-            if len(parts) != 2:
-                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
-            field = parts[0].strip()
-            value = parts[1].strip().strip("'\"")
-            record_value = str(record.get(field, ""))
-            return record_value <= value
+    def _evaluate_compound_conditions(self, filter_str: str, record: dict[str, Any]) -> bool | None:
+        """Evaluate compound conditions (AND, OR, parentheses).
 
-        # Try != operator (before =)
-        if "!=" in filter_str:
-            parts = filter_str.split("!=", 1)
-            if len(parts) != 2:
-                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
-            field = parts[0].strip()
-            value = parts[1].strip().strip("'\"")
-            return str(record.get(field, "")) != value
+        Returns:
+            True/False if compound condition was evaluated, None if not a compound condition.
+        """
+        # Handle AND conditions first (before handling OR/parentheses)
+        if "&&" in filter_str:
+            return self._evaluate_and_conditions(filter_str, record)
 
-        # Try > operator
-        if ">" in filter_str:
-            parts = filter_str.split(">", 1)
-            if len(parts) != 2:
-                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
-            field = parts[0].strip()
-            value = parts[1].strip().strip("'\"")
-            record_value = str(record.get(field, ""))
-            return record_value > value
+        # Handle OR conditions (check for || outside of parentheses)
+        if "||" in filter_str and "(" not in filter_str:
+            return self._evaluate_or_conditions(filter_str, record)
 
-        # Try < operator
-        if "<" in filter_str:
-            parts = filter_str.split("<", 1)
-            if len(parts) != 2:
-                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
-            field = parts[0].strip()
-            value = parts[1].strip().strip("'\"")
-            record_value = str(record.get(field, ""))
-            return record_value < value
+        # Handle parentheses with OR conditions
+        if "(" in filter_str and "||" in filter_str:
+            return self._evaluate_parentheses(filter_str, record)
 
-        # Try ~ operator (case-insensitive contains, matching PocketBase behavior)
-        if "~" in filter_str:
-            parts = filter_str.split("~", 1)
-            if len(parts) != 2:
-                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
-            field = parts[0].strip()
-            value = parts[1].strip().strip("'\"")
-            return value.lower() in str(record.get(field, "")).lower()
+        return None
 
-        # Try = operator (exact match)
-        if "=" in filter_str:
-            parts = filter_str.split("=", 1)
-            if len(parts) != 2:
-                raise RuntimeError(f"Invalid filter syntax: {filter_str}")
-            field = parts[0].strip()
-            value = parts[1].strip().strip("'\"")
+    def _evaluate_and_conditions(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate AND (&&) conditions."""
+        conditions = [c.strip() for c in filter_str.split("&&")]
+        return all(self._parse_filter(cond, record) for cond in conditions)
 
-            # Handle boolean values
-            if value.lower() in ("true", "false"):
-                return record.get(field) == (value.lower() == "true")
+    def _evaluate_or_conditions(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate OR (||) conditions."""
+        conditions = [c.strip() for c in filter_str.split("||")]
+        return any(self._parse_filter(cond, record) for cond in conditions)
 
-            return str(record.get(field, "")) == value
+    def _evaluate_parentheses(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate parenthesized OR conditions like (field = 'val1' || field = 'val2')."""
+        match = re.search(r"\(([^)]+)\)", filter_str)
+        if match:
+            inner = match.group(1)
+            or_conditions = [c.strip() for c in inner.split("||")]
+            return any(self._parse_filter(cond, record) for cond in or_conditions)
+        return False
+
+    def _evaluate_single_condition(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate a single comparison condition."""
+        # Operators ordered by length (longest first) to avoid partial matches
+        # e.g., ">=" must be checked before ">"
+        operators = [">=", "<=", "!=", ">", "<", "~", "="]
+        comparators = {
+            ">=": self._compare_gte,
+            "<=": self._compare_lte,
+            "!=": self._compare_neq,
+            ">": self._compare_gt,
+            "<": self._compare_lt,
+            "~": self._compare_contains,
+            "=": self._compare_eq,
+        }
+
+        for op in operators:
+            if op in filter_str:
+                return comparators[op](filter_str, record)
 
         raise RuntimeError(f"Invalid filter syntax (no operator found): {filter_str}")
+
+    def _parse_comparison(self, filter_str: str, operator: str) -> tuple[str, str]:
+        """Parse a comparison into field and value parts."""
+        parts = filter_str.split(operator, 1)
+        if len(parts) != 2:
+            raise RuntimeError(f"Invalid filter syntax: {filter_str}")
+        field = parts[0].strip()
+        value = parts[1].strip().strip("'\"")
+        return field, value
+
+    def _compare_gte(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate >= comparison."""
+        field, value = self._parse_comparison(filter_str, ">=")
+        return str(record.get(field, "")) >= value
+
+    def _compare_lte(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate <= comparison."""
+        field, value = self._parse_comparison(filter_str, "<=")
+        return str(record.get(field, "")) <= value
+
+    def _compare_neq(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate != comparison."""
+        field, value = self._parse_comparison(filter_str, "!=")
+        return str(record.get(field, "")) != value
+
+    def _compare_gt(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate > comparison."""
+        field, value = self._parse_comparison(filter_str, ">")
+        return str(record.get(field, "")) > value
+
+    def _compare_lt(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate < comparison."""
+        field, value = self._parse_comparison(filter_str, "<")
+        return str(record.get(field, "")) < value
+
+    def _compare_contains(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate ~ (case-insensitive contains) comparison."""
+        field, value = self._parse_comparison(filter_str, "~")
+        return value.lower() in str(record.get(field, "")).lower()
+
+    def _compare_eq(self, filter_str: str, record: dict[str, Any]) -> bool:
+        """Evaluate = (exact match) comparison."""
+        field, value = self._parse_comparison(filter_str, "=")
+
+        # Handle boolean values
+        if value.lower() in ("true", "false"):
+            return record.get(field) == (value.lower() == "true")
+
+        return str(record.get(field, "")) == value
 
     def _apply_sort(self, records: list[dict], sort: str) -> list[dict]:
         """Sort records by field.

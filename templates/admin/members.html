@@ -1,60 +1,44 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Members - Admin{% endblock %}
+{% block title %}Members{% endblock %}
 
 {% block content %}
-<h1>Members</h1>
-
-<div role="group" style="margin-bottom: 2rem;">
-    <a href="/admin/members/add" role="button">Add Member</a>
-    <a href="/admin" role="button" class="secondary">Back to Dashboard</a>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h1 style="margin: 0;">Members</h1>
 </div>
 
+<p style="color: var(--muted-color); font-size: 0.9rem; margin-bottom: 1.5rem;">
+    Members are automatically registered when they message in the activated group chat.
+    New members need to reply with their name to complete registration.
+</p>
+
 {% if members %}
-    <table role="grid">
-        <thead>
-            <tr>
-                <th>Phone</th>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Join Date</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for member in members %}
-            <tr id="member-{{ member.id }}">
-                <td>{{ member.phone }}</td>
-                <td>{{ member.name }}</td>
-                <td>
-                    {% if member.role == "admin" %}
-                        <mark data-mark="blue">admin</mark>
-                    {% else %}
-                        <mark data-mark="gray">member</mark>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if member.status == "active" %}
-                        <mark data-mark="green">active</mark>
-                    {% elif member.status == "pending" %}
-                        <mark data-mark="yellow">pending</mark>
-                    {% elif member.status == "banned" %}
-                        <mark data-mark="red">banned</mark>
-                    {% endif %}
-                </td>
-                <td>{{ member.created }}</td>
-                <td>
-                    <button hx-get="/admin/members/{{ member.phone | urlencode }}/edit" hx-target="#member-{{ member.id }}" hx-swap="outerHTML" class="outline">Edit</button>
-                    <button hx-get="/admin/members/{{ member.phone | urlencode }}/remove" hx-target="#member-{{ member.id }}" hx-swap="outerHTML" class="outline contrast">Remove</button>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody id="members-table">
+        {% for member in members %}
+        <tr id="member-{{ member.id }}">
+            <td>{{ member.name }}</td>
+            <td>{{ member.phone }}</td>
+            <td><span class="badge badge-{{ member.role }}">{{ member.role }}</span></td>
+            <td><span class="badge badge-{{ member.status }}">{{ member.status }}</span></td>
+            <td class="actions">
+                <button hx-get="/admin/members/{{ member.phone | urlencode }}/edit" hx-target="#member-{{ member.id }}" hx-swap="outerHTML" class="outline">Edit</button>
+                <button hx-get="/admin/members/{{ member.phone | urlencode }}/remove" hx-target="#member-{{ member.id }}" hx-swap="outerHTML" class="outline contrast">Remove</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 {% else %}
-    <article>
-        <p>No members yet</p>
-    </article>
+<p>No members yet. Members will appear here once they message in the activated group chat.</p>
 {% endif %}
 {% endblock %}

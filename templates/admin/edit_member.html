@@ -1,19 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Edit Member - Admin{% endblock %}
-
-{% block flash_messages %}
-{% if errors %}
-{% for error in errors %}
-<article role="alert" data-theme="danger">
-    <header>
-        <strong>Error</strong>
-    </header>
-    {{ error }}
-</article>
-{% endfor %}
-{% endif %}
-{% endblock %}
+{% block title %}Edit Member{% endblock %}
 
 {% block content %}
 <h1>Edit Member</h1>
@@ -22,7 +9,6 @@
     <label for="name">
         Name
         <input type="text" id="name" name="name" value="{{ name | default(user.name) }}" required autofocus maxlength="50" />
-        <small>1-50 characters, letters, spaces, hyphens, and apostrophes</small>
     </label>
 
     <label for="role">
@@ -34,7 +20,7 @@
     </label>
 
     <div role="group">
-        <button type="submit">Save Changes</button>
+        <button type="submit">Save</button>
         <a href="/admin/members" role="button" class="secondary">Cancel</a>
     </div>
 </form>

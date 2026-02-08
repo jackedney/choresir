@@ -73,7 +73,7 @@ async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
 
         # Get all active users
         all_users = await db_client.list_records(
-            collection="users",
+            collection="members",
             filter_query=f'status = "{UserStatus.ACTIVE}"',
         )
 

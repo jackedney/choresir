@@ -1,7 +1,7 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
 import logging
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -15,7 +15,12 @@ from src.core.scheduler_tracker import retry_job_with_backoff
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.models.service_models import LeaderboardEntry, OverdueChore
-from src.services import personal_chore_service, personal_verification_service
+from src.services import (
+    group_context_service,
+    personal_chore_service,
+    personal_verification_service,
+    workflow_service,
+)
 from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
 
 
@@ -37,7 +42,7 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) ->
     """
     try:
         # Get user details
-        user = await db_client.get_record(collection="users", record_id=user_id)
+        user = await db_client.get_record(collection="members", record_id=user_id)
 
         # Skip if not active
         if user["status"] != UserStatus.ACTIVE:
@@ -142,7 +147,7 @@ async def send_daily_report() -> None:
 
         # Get all active users
         active_users = await db_client.list_records(
-            collection="users",
+            collection="members",
             filter_query=f'status = "{UserStatus.ACTIVE}"',
         )
 
@@ -305,7 +310,7 @@ async def send_weekly_leaderboard() -> None:
 
         # Get all active users
         active_users = await db_client.list_records(
-            collection="users",
+            collection="members",
             filter_query=f'status = "{UserStatus.ACTIVE}"',
         )
 
@@ -542,7 +547,7 @@ async def send_personal_chore_reminders() -> None:
 
         # Get all active users
         active_users = await db_client.list_records(
-            collection="users",
+            collection="members",
             filter_query=f'status = "{UserStatus.ACTIVE}"',
         )
 
@@ -584,39 +589,40 @@ async def auto_verify_personal_chores() -> None:
         logger.error(f"Error in auto-verification job: {e}")
 
 
-async def cleanup_expired_invites() -> None:
-    """Remove pending invites older than 7 days.
+async def expire_workflows() -> None:
+    """Expire pending workflows past their expiration time.
 
-    Runs daily at 3am. Cleans up pending invites that have expired
-    to prevent stale records from accumulating.
+    Runs every hour. Finds workflows where expires_at < now and status = PENDING,
+    then updates their status to EXPIRED.
     """
-    logger.info("Running expired invites cleanup job")
+    logger.info("Running workflow expiry job")
 
     try:
-        # Calculate cutoff date (7 days ago)
-        cutoff_date = datetime.now(UTC) - timedelta(days=7)
-        cutoff_iso = cutoff_date.isoformat().replace("+00:00", "Z")
+        # Call workflow service expiry function
+        count = await workflow_service.expire_old_workflows()
 
-        # Get all pending invites older than 7 days
-        old_invites = await db_client.list_records(
-            collection="pending_invites",
-            filter_query=f'invited_at < "{sanitize_param(cutoff_iso)}"',
-            per_page=1000,
-        )
-
-        # Delete old invites
-        deleted_count = 0
-        for invite in old_invites:
-            try:
-                await db_client.delete_record(collection="pending_invites", record_id=invite["id"])
-                deleted_count += 1
-            except Exception as e:
-                logger.warning("Failed to delete expired invite", extra={"invite_id": invite["id"], "error": str(e)})
-
-        logger.info("Completed expired invites cleanup", extra={"deleted_count": deleted_count})
+        logger.info(f"Completed workflow expiry job: {count} workflows expired")
 
     except Exception as e:
-        logger.error("Error in expired invites cleanup job", extra={"error": str(e)})
+        logger.error(f"Error in workflow expiry job: {e}")
+
+
+async def cleanup_group_context() -> None:
+    """Delete expired group context messages.
+
+    Runs every hour. Finds messages where expires_at < now and deletes them
+    to prevent unbounded database growth.
+    """
+    logger.info("Running group context cleanup job")
+
+    try:
+        # Call group context cleanup function
+        count = await group_context_service.cleanup_expired_group_context()
+
+        logger.info(f"Completed group context cleanup job: {count} messages deleted")
+
+    except Exception as e:
+        logger.error(f"Error in group context cleanup job: {e}")
 
 
 def start_scheduler() -> None:
@@ -682,17 +688,27 @@ def start_scheduler() -> None:
     )
     logger.info("Scheduled auto-verification job: hourly")
 
-    # Schedule expired invites cleanup (daily at 3am) with retry
+    # Schedule workflow expiry (hourly) with retry
     scheduler.add_job(
-        lambda: retry_job_with_backoff(cleanup_expired_invites, "cleanup_expired_invites"),
-        trigger=CronTrigger(hour=3, minute=0),
-        id="cleanup_expired_invites",
-        name="Cleanup Expired Invites",
+        lambda: retry_job_with_backoff(expire_workflows, "expire_workflows"),
+        trigger=CronTrigger(hour="*", minute=45),  # Every hour at minute 45 (offset from other hourly jobs)
+        id="expire_workflows",
+        name="Expire Workflows",
         replace_existing=True,
     )
-    logger.info("Scheduled expired invites cleanup job: daily at 3:00")
+    logger.info("Scheduled workflow expiry job: hourly at :45")
 
-    # Start the scheduler
+    # Schedule group context cleanup (hourly) with retry
+    scheduler.add_job(
+        lambda: retry_job_with_backoff(cleanup_group_context, "cleanup_group_context"),
+        trigger=CronTrigger(hour="*", minute=50),  # Every hour at minute 50 (offset from other hourly jobs)
+        id="cleanup_group_context",
+        name="Cleanup Group Context",
+        replace_existing=True,
+    )
+    logger.info("Scheduled group context cleanup job: hourly at :50")
+
+    # Start scheduler
     scheduler.start()
     logger.info("Scheduler started successfully")
 

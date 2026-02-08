@@ -67,7 +67,8 @@ class TestCreateChore:
             assigned_to=None,
         )
 
-        assert result["assigned_to"] == ""  # Empty string for unassigned
+        # When assigned_to is None, the field is not set (relation fields can't be empty string)
+        assert result.get("assigned_to") is None or "assigned_to" not in result
 
     async def test_create_chore_invalid_recurrence(self, patched_chore_db):
         """Test creating a chore with invalid recurrence format fails."""

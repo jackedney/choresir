@@ -1,0 +1,344 @@
+{% extends "admin/base.html" %}
+
+{% block title %}WhatsApp Setup{% endblock %}
+
+{% block content %}
+<h1>WhatsApp Setup</h1>
+
+<nav aria-label="breadcrumb" style="margin-bottom: 1rem;">
+    <a href="/admin">&larr; Back to Dashboard</a>
+</nav>
+
+<article>
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">Connection Status</h3>
+        <span id="status-badge" style="display: none; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem; font-weight: bold;"></span>
+    </header>
+
+    <div id="loading-container">
+        <p aria-busy="true">Checking connection status...</p>
+    </div>
+
+    <div id="stopped-container" style="display: none;">
+        <p style="color: var(--muted-color);">WhatsApp session is not running.</p>
+        <button onclick="startSession()">Start Session</button>
+    </div>
+
+    <div id="qr-container" style="text-align: center; display: none;">
+        <p><strong>Scan this QR code with WhatsApp:</strong></p>
+        <p style="color: var(--muted-color); font-size: 0.9rem;">
+            Open WhatsApp &rarr; Settings &rarr; Linked Devices &rarr; Link a Device
+        </p>
+        <img id="qr-image" src="" alt="WhatsApp QR Code" style="max-width: 300px; margin: 1rem auto;">
+        <p style="color: var(--muted-color); font-size: 0.85rem;">
+            QR code refreshes automatically every 20 seconds
+        </p>
+    </div>
+
+    <div id="connected-container" style="display: none;">
+        <p style="color: #22c55e; font-weight: bold; font-size: 1.1rem;">
+            &#10003; WhatsApp Connected
+        </p>
+        <p>Phone: <strong id="connected-phone"></strong></p>
+        <div id="webhook-status"></div>
+    </div>
+
+    <div id="error-container" style="display: none;">
+        <p style="color: #dc2626;">
+            &#10007; Connection Error
+        </p>
+        <p id="error-message"></p>
+        <button onclick="checkStatus()" class="secondary">Retry</button>
+    </div>
+</article>
+
+<article>
+    <header>
+        <h3>Group Activation</h3>
+    </header>
+
+    <p style="color: var(--muted-color); font-size: 0.9rem; margin-bottom: 1rem;">
+        Generate an activation key, then post it in your WhatsApp group to activate it as the house group.
+        Once activated, anyone who messages in the group will be automatically registered.
+    </p>
+
+    <div id="activation-container">
+        <div id="activation-status">Loading activation status...</div>
+    </div>
+</article>
+
+<article>
+    <header>
+        <h3>Troubleshooting</h3>
+    </header>
+    <ul>
+        <li>Make sure the WAHA service is running (<code>docker-compose up -d waha</code>)</li>
+        <li>The QR code expires quickly - scan it within 20 seconds</li>
+        <li>If the QR code doesn't appear, try refreshing the page</li>
+        <li>Only one WhatsApp account can be linked at a time</li>
+    </ul>
+</article>
+
+<script>
+let statusCheckInterval;
+let qrRefreshInterval;
+
+function hideAllContainers() {
+    document.getElementById('loading-container').style.display = 'none';
+    document.getElementById('stopped-container').style.display = 'none';
+    document.getElementById('qr-container').style.display = 'none';
+    document.getElementById('connected-container').style.display = 'none';
+    document.getElementById('error-container').style.display = 'none';
+}
+
+function updateStatusBadge(status, color) {
+    const badge = document.getElementById('status-badge');
+    badge.style.display = 'inline-block';
+    badge.textContent = status;
+    badge.style.backgroundColor = color;
+    badge.style.color = '#fff';
+}
+
+async function checkStatus() {
+    try {
+        const response = await fetch('/admin/whatsapp/status');
+        const data = await response.json();
+
+        hideAllContainers();
+
+        if (data.status === 'WORKING') {
+            updateStatusBadge('Connected', '#22c55e');
+            document.getElementById('connected-container').style.display = 'block';
+            document.getElementById('connected-phone').textContent = data.phone || 'Unknown';
+            clearInterval(qrRefreshInterval);
+            qrRefreshInterval = null;
+            clearInterval(statusCheckInterval);
+            statusCheckInterval = null;
+
+            // Show webhook status
+            const webhookStatus = document.getElementById('webhook-status');
+            if (data.webhook_configured) {
+                webhookStatus.innerHTML = `
+                    <p style="color: #22c55e; margin-top: 1rem;">&#10003; Webhook configured</p>
+                    <p style="color: var(--muted-color); font-size: 0.9rem;">
+                        Ready to receive messages.
+                    </p>
+                `;
+            } else {
+                webhookStatus.innerHTML = `
+                    <p style="color: #eab308; margin-top: 1rem;">&#9888; Webhook not configured</p>
+                    <p style="color: var(--muted-color); font-size: 0.9rem;">
+                        Messages won't be received until webhook is configured.
+                    </p>
+                    <button onclick="configureWebhook()">Configure Webhook</button>
+                `;
+            }
+        } else if (data.status === 'SCAN_QR_CODE') {
+            updateStatusBadge('Awaiting Scan', '#eab308');
+            document.getElementById('qr-container').style.display = 'block';
+            loadQRCode();
+            // Start QR refresh if not already running
+            if (!qrRefreshInterval) {
+                qrRefreshInterval = setInterval(loadQRCode, 20000);
+            }
+        } else if (data.status === 'STARTING') {
+            updateStatusBadge('Starting', '#3b82f6');
+            document.getElementById('loading-container').style.display = 'block';
+            document.getElementById('loading-container').innerHTML = '<p aria-busy="true">Session is starting... please wait.</p>';
+        } else if (data.status === 'STOPPED' || data.status === 'NOT_FOUND') {
+            updateStatusBadge('Stopped', '#6b7280');
+            document.getElementById('stopped-container').style.display = 'block';
+            clearInterval(qrRefreshInterval);
+            qrRefreshInterval = null;
+        } else if (data.status === 'ERROR') {
+            updateStatusBadge('Error', '#dc2626');
+            document.getElementById('error-container').style.display = 'block';
+            document.getElementById('error-message').textContent = data.error || 'Unknown error';
+        } else {
+            updateStatusBadge(data.status, '#6b7280');
+            document.getElementById('loading-container').style.display = 'block';
+            document.getElementById('loading-container').innerHTML = '<p>Status: ' + data.status + '</p>';
+        }
+    } catch (error) {
+        hideAllContainers();
+        updateStatusBadge('Offline', '#dc2626');
+        document.getElementById('error-container').style.display = 'block';
+        document.getElementById('error-message').textContent =
+            'Could not connect to WAHA service. Make sure it is running.';
+    }
+}
+
+async function loadQRCode() {
+    const qrImage = document.getElementById('qr-image');
+    // Add timestamp to prevent caching
+    qrImage.src = '/admin/whatsapp/qr?' + new Date().getTime();
+}
+
+async function startSession() {
+    try {
+        const response = await fetch('/admin/whatsapp/start', { method: 'POST' });
+        if (response.ok) {
+            // Wait a moment for session to initialize
+            setTimeout(checkStatus, 2000);
+        }
+    } catch (error) {
+        console.error('Failed to start session:', error);
+    }
+}
+
+async function configureWebhook() {
+    const webhookStatus = document.getElementById('webhook-status');
+    webhookStatus.innerHTML = '<p>Configuring webhook...</p>';
+
+    try {
+        const response = await fetch('/admin/whatsapp/configure-webhook', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            webhookStatus.innerHTML = `
+                <p style="color: #22c55e;">&#10003; Webhook configured successfully!</p>
+                <p style="color: var(--muted-color); font-size: 0.9rem;">
+                    Session is restarting... please wait.
+                </p>
+            `;
+            // Restart polling to detect when session is back
+            statusCheckInterval = setInterval(checkStatus, 5000);
+        } else {
+            webhookStatus.innerHTML = `
+                <p style="color: #dc2626;">&#10007; Failed to configure webhook</p>
+                <p>${data.error || 'Unknown error'}</p>
+                <button onclick="configureWebhook()" class="secondary">Retry</button>
+            `;
+        }
+    } catch (error) {
+        webhookStatus.innerHTML = `
+            <p style="color: #dc2626;">&#10007; Failed to configure webhook</p>
+            <p>${error.message}</p>
+            <button onclick="configureWebhook()" class="secondary">Retry</button>
+        `;
+    }
+}
+
+// Activation key functions
+async function loadActivationStatus() {
+    const container = document.getElementById('activation-container');
+    const statusDiv = document.getElementById('activation-status');
+
+    try {
+        const response = await fetch('/admin/whatsapp/activation-status');
+        const data = await response.json();
+
+        if (!data.has_config) {
+            statusDiv.innerHTML = `
+                <p style="color: #eab308;">&#9888; House not configured</p>
+                <p style="color: var(--muted-color); font-size: 0.9rem;">
+                    Please <a href="/admin/house">configure house settings</a> first.
+                </p>
+            `;
+            return;
+        }
+
+        if (data.group_chat_id) {
+            // Group is already configured
+            statusDiv.innerHTML = `
+                <p style="color: #22c55e; font-weight: bold;">&#10003; Group Activated</p>
+                <p>Group ID: <code style="font-size: 0.85rem;">${data.group_chat_id}</code></p>
+                <p style="color: var(--muted-color); font-size: 0.9rem; margin-top: 0.5rem;">
+                    The bot is responding in this group. New users who message will be automatically registered.
+                </p>
+                <button onclick="clearGroup()" class="secondary outline" style="margin-top: 1rem;">Clear Group Configuration</button>
+            `;
+        } else if (data.activation_key) {
+            // Activation key is set, waiting for activation
+            statusDiv.innerHTML = `
+                <p style="color: #eab308; font-weight: bold;">&#9202; Waiting for Activation</p>
+                <p style="margin: 1rem 0;">Post this key in your WhatsApp group:</p>
+                <div style="background: var(--card-background-color); border: 2px dashed var(--muted-border-color); padding: 1.5rem; text-align: center; border-radius: 8px; margin: 1rem 0;">
+                    <code style="font-size: 1.5rem; letter-spacing: 0.1em; font-weight: bold;">${data.activation_key}</code>
+                </div>
+                <p style="color: var(--muted-color); font-size: 0.9rem;">
+                    Once someone posts this exact key in a group with the bot, that group will become the house group.
+                </p>
+                <button onclick="generateActivationKey()" class="secondary" style="margin-top: 1rem;">Generate New Key</button>
+            `;
+        } else {
+            // No activation key, no group - need to generate
+            statusDiv.innerHTML = `
+                <p style="color: var(--muted-color);">No group configured yet.</p>
+                <p style="color: var(--muted-color); font-size: 0.9rem; margin: 1rem 0;">
+                    Generate an activation key and post it in your WhatsApp group to activate it.
+                </p>
+                <button onclick="generateActivationKey()">Generate Activation Key</button>
+            `;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `
+            <p style="color: #dc2626;">Failed to load activation status</p>
+            <p>${error.message}</p>
+        `;
+    }
+}
+
+async function generateActivationKey() {
+    const statusDiv = document.getElementById('activation-status');
+    statusDiv.innerHTML = '<p>Generating activation key...</p>';
+
+    try {
+        const response = await fetch('/admin/whatsapp/generate-activation-key', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            // Reload to show the new key
+            loadActivationStatus();
+        } else {
+            statusDiv.innerHTML = `
+                <p style="color: #dc2626;">&#10007; Failed to generate key</p>
+                <p>${data.error}</p>
+                <button onclick="generateActivationKey()" class="secondary">Retry</button>
+            `;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `
+            <p style="color: #dc2626;">&#10007; Failed to generate key</p>
+            <p>${error.message}</p>
+            <button onclick="generateActivationKey()" class="secondary">Retry</button>
+        `;
+    }
+}
+
+async function clearGroup() {
+    if (!confirm('Are you sure you want to clear the group configuration? You will need to activate a new group.')) {
+        return;
+    }
+
+    const statusDiv = document.getElementById('activation-status');
+    statusDiv.innerHTML = '<p>Clearing group configuration...</p>';
+
+    try {
+        const response = await fetch('/admin/whatsapp/clear-group', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            loadActivationStatus();
+        } else {
+            statusDiv.innerHTML = `
+                <p style="color: #dc2626;">&#10007; Failed to clear group</p>
+                <p>${data.error}</p>
+            `;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `
+            <p style="color: #dc2626;">&#10007; Failed to clear group</p>
+            <p>${error.message}</p>
+        `;
+    }
+}
+
+// Initial checks
+checkStatus();
+loadActivationStatus();
+
+// Poll status every 5 seconds
+statusCheckInterval = setInterval(checkStatus, 5000);
+</script>
+{% endblock %}

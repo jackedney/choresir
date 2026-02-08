@@ -21,7 +21,7 @@ services:
       retries: 5
 
   waha:
-    image: devlikeapro/waha
+    image: devlikeapro/waha:arm
     container_name: choresir-waha
     restart: unless-stopped
     ports:
@@ -29,6 +29,15 @@ services:
     environment:
       WAHA_LOG_LEVEL: info
       WAHA_PRINT_QR: "True"
+      WAHA_API_KEY: 9c62cd2e0b11486189db85c7b4951fec
+      WAHA_DASHBOARD_USERNAME: admin
+      WAHA_DASHBOARD_PASSWORD: 9c62cd2e0b11486189db85c7b4951fec
+      WHATSAPP_SWAGGER_USERNAME: admin
+      WHATSAPP_SWAGGER_PASSWORD: 9c62cd2e0b11486189db85c7b4951fec
+      # Webhook configuration - forwards incoming messages to FastAPI
+      WHATSAPP_HOOK_URL: ${WHATSAPP_HOOK_URL:-http://host.docker.internal:8001/webhook}
+      # Use message.any to include self-sent messages (useful for testing with single phone)
+      WHATSAPP_HOOK_EVENTS: message.any
     volumes:
       - waha-data:/app/sessions
 

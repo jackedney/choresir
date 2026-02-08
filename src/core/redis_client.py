@@ -3,10 +3,10 @@
 import asyncio
 import logging
 from collections import deque
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from datetime import UTC, datetime
 from functools import wraps
-from typing import Any, TypeVar
+from typing import Any, ParamSpec, TypeVar, cast
 
 from redis.asyncio import Redis
 from redis.asyncio.connection import ConnectionPool
@@ -17,13 +17,14 @@ from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Type variable for generic retry decorator
+# Type variables for generic retry decorator
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 def with_retry(
     max_retries: int = 3, base_delay: float = 0.1
-) -> Callable[[Callable[..., Coroutine[Any, Any, T]]], Callable[..., Coroutine[Any, Any, T]]]:
+) -> Callable[[Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]]:
     """Decorator to retry async functions with exponential backoff.
 
     Args:
@@ -34,10 +35,10 @@ def with_retry(
         Decorated function with retry logic
     """
 
-    def decorator(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., Coroutine[Any, Any, T]]:
+    def decorator(func: Callable[P, Coroutine[Any, Any, T]]) -> Callable[P, Coroutine[Any, Any, T]]:
         @wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> T:  # noqa: ANN401
-            last_exception = None
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            last_exception: RedisError | None = None
             for attempt in range(max_retries):
                 try:
                     return await func(*args, **kwargs)
@@ -60,7 +61,8 @@ def with_retry(
                             e,
                         )
             # If we get here, all retries failed
-            raise last_exception  # type: ignore[misc]
+            assert last_exception is not None, "Retry loop exited without exception"
+            raise last_exception
 
         return wrapper
 
@@ -308,8 +310,7 @@ class RedisClient:
             return False
 
         try:
-            result = await self._client.ping()  # type: ignore[misc]
-            return bool(result)
+            return await cast(Awaitable[bool], self._client.ping())
         except RedisError as e:
             logger.warning("Redis PING failed: %s", e)
             return False

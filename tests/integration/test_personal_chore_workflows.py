@@ -224,11 +224,10 @@ async def test_partner_leaving_household(mock_db_module, db_client, sample_users
         accountability_partner_phone=sample_users["bob"]["phone"],
     )
 
-    # Step 2: Bob leaves household (update status to banned)
-    await db_client.update_record(
-        collection="users",
+    # Step 2: Bob leaves household (delete user)
+    await db_client.delete_record(
+        collection="members",
         record_id=sample_users["bob"]["id"],
-        data={"status": "banned"},
     )
 
     # Step 3: Alice logs completion

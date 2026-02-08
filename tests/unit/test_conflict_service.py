@@ -11,6 +11,51 @@ from src.services import chore_service, conflict_service, verification_service
 from src.services.conflict_service import VoteChoice, VoteResult
 
 
+@pytest.fixture
+async def common_users(patched_db):
+    """Create common test users used across tests with well-known IDs."""
+    user1 = await patched_db.create_record(
+        "members",
+        {
+            "id": "user1",
+            "phone": "+1000000001",
+            "name": "User 1",
+            "email": "user1@test.com",
+            "role": UserRole.MEMBER,
+            "status": UserStatus.ACTIVE,
+            "password": "pass",
+            "passwordConfirm": "pass",
+        },
+    )
+    claimer = await patched_db.create_record(
+        "members",
+        {
+            "id": "claimer",
+            "phone": "+1000000002",
+            "name": "Claimer",
+            "email": "claimer@test.com",
+            "role": UserRole.MEMBER,
+            "status": UserStatus.ACTIVE,
+            "password": "pass",
+            "passwordConfirm": "pass",
+        },
+    )
+    rejecter = await patched_db.create_record(
+        "members",
+        {
+            "id": "rejecter",
+            "phone": "+1000000003",
+            "name": "Rejecter",
+            "email": "rejecter@test.com",
+            "role": UserRole.MEMBER,
+            "status": UserStatus.ACTIVE,
+            "password": "pass",
+            "passwordConfirm": "pass",
+        },
+    )
+    return {"user1": user1, "claimer": claimer, "rejecter": rejecter}
+
+
 @pytest.mark.unit
 class TestInitiateVote:
     """Tests for initiate_vote function."""
@@ -19,8 +64,8 @@ class TestInitiateVote:
     async def conflict_chore_with_logs(self, patched_db):
         """Create a chore in CONFLICT state with claim and rejection logs."""
         # Create users
-        await patched_db.create_record(
-            "users",
+        claimer = await patched_db.create_record(
+            "members",
             {
                 "phone": "+1111111111",
                 "name": "Claimer",
@@ -31,8 +76,8 @@ class TestInitiateVote:
                 "passwordConfirm": "pass",
             },
         )
-        await patched_db.create_record(
-            "users",
+        rejecter = await patched_db.create_record(
+            "members",
             {
                 "phone": "+2222222222",
                 "name": "Rejecter",
@@ -45,7 +90,7 @@ class TestInitiateVote:
         )
 
         voter1 = await patched_db.create_record(
-            "users",
+            "members",
             {
                 "phone": "+3333333333",
                 "name": "Voter 1",
@@ -57,7 +102,7 @@ class TestInitiateVote:
             },
         )
         voter2 = await patched_db.create_record(
-            "users",
+            "members",
             {
                 "phone": "+4444444444",
                 "name": "Voter 2",
@@ -74,13 +119,13 @@ class TestInitiateVote:
             title="Conflict Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=voter1["id"],
         )
 
         # Claim
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="claimer_id",
+            claimer_user_id=claimer["id"],
             notes="Done",
         )
 
@@ -89,7 +134,7 @@ class TestInitiateVote:
             "logs",
             {
                 "chore_id": chore["id"],
-                "user_id": "rejecter_id",
+                "user_id": rejecter["id"],
                 "action": "reject_verification",
                 "notes": "Not good",
                 "timestamp": datetime.now().isoformat(),
@@ -141,11 +186,35 @@ class TestCastVote:
         """Create a conflict with votes initiated."""
         # Create voters
         voter1 = await patched_db.create_record(
-            "users",
+            "members",
             {
                 "phone": "+1111111111",
                 "name": "Voter 1",
                 "email": "voter1@test.com",
+                "role": UserRole.MEMBER,
+                "status": UserStatus.ACTIVE,
+                "password": "pass",
+                "passwordConfirm": "pass",
+            },
+        )
+        claimer = await patched_db.create_record(
+            "members",
+            {
+                "phone": "+2222222222",
+                "name": "Claimer",
+                "email": "claimer@test.com",
+                "role": UserRole.MEMBER,
+                "status": UserStatus.ACTIVE,
+                "password": "pass",
+                "passwordConfirm": "pass",
+            },
+        )
+        rejecter = await patched_db.create_record(
+            "members",
+            {
+                "phone": "+3333333333",
+                "name": "Rejecter",
+                "email": "rejecter@test.com",
                 "role": UserRole.MEMBER,
                 "status": UserStatus.ACTIVE,
                 "password": "pass",
@@ -158,19 +227,19 @@ class TestCastVote:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=voter1["id"],
         )
 
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="claimer",
+            claimer_user_id=claimer["id"],
             notes="Done",
         )
 
         # verify_chore initiates vote automatically on REJECT
         conflict_chore = await verification_service.verify_chore(
             chore_id=chore["id"],
-            verifier_user_id="rejecter",
+            verifier_user_id=rejecter["id"],
             decision=verification_service.VerificationDecision.REJECT,
             reason="No",
         )
@@ -227,7 +296,7 @@ class TestCastVote:
                 choice=VoteChoice.NO,
             )
 
-    async def test_cast_vote_no_pending_record_fails(self, patched_db):
+    async def test_cast_vote_no_pending_record_fails(self, patched_db, common_users):
         """Test casting vote without pending vote record fails."""
         # Create conflict chore but don't initiate voting (requires manual steps)
         # Note: verify_chore initiates voting, so we must manually move to conflict
@@ -235,13 +304,13 @@ class TestCastVote:
             title="Test",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=common_users["user1"]["id"],
         )
 
         # Move to pending verification first
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="claimer",
+            claimer_user_id=common_users["claimer"]["id"],
             notes="Done",
         )
 
@@ -265,11 +334,37 @@ class TestTallyVotes:
         """Helper to create a conflict with votes."""
 
         async def _create_scenario(num_yes, num_no):
-            # Create voters
+            # Create claimer and rejecter (these are excluded from voting)
+            claimer = await patched_db.create_record(
+                "members",
+                {
+                    "phone": "+9000000002",
+                    "name": "Claimer",
+                    "email": "claimer@test.com",
+                    "role": UserRole.MEMBER,
+                    "status": UserStatus.ACTIVE,
+                    "password": "pass",
+                    "passwordConfirm": "pass",
+                },
+            )
+            rejecter = await patched_db.create_record(
+                "members",
+                {
+                    "phone": "+9000000003",
+                    "name": "Rejecter",
+                    "email": "rejecter@test.com",
+                    "role": UserRole.MEMBER,
+                    "status": UserStatus.ACTIVE,
+                    "password": "pass",
+                    "passwordConfirm": "pass",
+                },
+            )
+
+            # Create voters - these are the only users who will vote
             voters = []
             for i in range(num_yes + num_no):
                 voter = await patched_db.create_record(
-                    "users",
+                    "members",
                     {
                         "phone": f"+{str(i).zfill(10)}",
                         "name": f"Voter {i}",
@@ -282,29 +377,29 @@ class TestTallyVotes:
                 )
                 voters.append(voter)
 
-            # Create conflict
+            # Create conflict - assign to claimer (who is excluded from voting)
             chore = await chore_service.create_chore(
                 title="Vote Test",
                 description="Test",
                 recurrence="0 10 * * *",
-                assigned_to="user1",
+                assigned_to=claimer["id"],
             )
 
             await verification_service.request_verification(
                 chore_id=chore["id"],
-                claimer_user_id="claimer",
+                claimer_user_id=claimer["id"],
                 notes="Done",
             )
 
             # verify_chore initiates votes automatically
             conflict_chore = await verification_service.verify_chore(
                 chore_id=chore["id"],
-                verifier_user_id="rejecter",
+                verifier_user_id=rejecter["id"],
                 decision=verification_service.VerificationDecision.REJECT,
                 reason="No",
             )
 
-            # Cast votes
+            # Cast votes for all voters
             for i in range(num_yes):
                 await conflict_service.cast_vote(
                     chore_id=conflict_chore["id"],
@@ -350,20 +445,20 @@ class TestTallyVotes:
         assert result == VoteResult.DEADLOCK
         assert updated_chore["current_state"] == ChoreState.DEADLOCK
 
-    async def test_tally_votes_pending_votes_fails(self, patched_db, setup_vote_scenario):
+    async def test_tally_votes_pending_votes_fails(self, patched_db, common_users):
         """Test tally fails if not all votes are cast."""
         # Create scenario with 2 voters but don't cast votes
         chore = await chore_service.create_chore(
             title="Test",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=common_users["user1"]["id"],
         )
 
         # Create voters
         for i in range(2):
             await patched_db.create_record(
-                "users",
+                "members",
                 {
                     "phone": f"+{str(i).zfill(10)}",
                     "name": f"Voter {i}",
@@ -377,14 +472,14 @@ class TestTallyVotes:
 
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="claimer",
+            claimer_user_id=common_users["claimer"]["id"],
             notes="Done",
         )
 
         # verify_chore initiates votes automatically
         conflict_chore = await verification_service.verify_chore(
             chore_id=chore["id"],
-            verifier_user_id="rejecter",
+            verifier_user_id=common_users["rejecter"]["id"],
             decision=verification_service.VerificationDecision.REJECT,
             reason="No",
         )
@@ -400,19 +495,37 @@ class TestGetVoteStatus:
 
     async def test_get_vote_status_complete(self, patched_db):
         """Test getting vote status when all votes are cast."""
-        # Create simple scenario
-        chore = await chore_service.create_chore(
-            title="Test",
-            description="Test",
-            recurrence="0 10 * * *",
-            assigned_to="user1",
+        # Create claimer and rejecter (excluded from voting)
+        claimer = await patched_db.create_record(
+            "members",
+            {
+                "phone": "+9000000001",
+                "name": "Claimer",
+                "email": "claimer@test.com",
+                "role": UserRole.MEMBER,
+                "status": UserStatus.ACTIVE,
+                "password": "pass",
+                "passwordConfirm": "pass",
+            },
+        )
+        rejecter = await patched_db.create_record(
+            "members",
+            {
+                "phone": "+9000000002",
+                "name": "Rejecter",
+                "email": "rejecter@test.com",
+                "role": UserRole.MEMBER,
+                "status": UserStatus.ACTIVE,
+                "password": "pass",
+                "passwordConfirm": "pass",
+            },
         )
 
         # Create 2 voters
         voters = []
         for i in range(2):
             voter = await patched_db.create_record(
-                "users",
+                "members",
                 {
                     "phone": f"+{str(i).zfill(10)}",
                     "name": f"Voter {i}",
@@ -425,16 +538,24 @@ class TestGetVoteStatus:
             )
             voters.append(voter)
 
+        # Create scenario - assign to claimer (excluded from voting)
+        chore = await chore_service.create_chore(
+            title="Test",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to=claimer["id"],
+        )
+
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="claimer",
+            claimer_user_id=claimer["id"],
             notes="Done",
         )
 
         # verify_chore initiates votes automatically
         conflict_chore = await verification_service.verify_chore(
             chore_id=chore["id"],
-            verifier_user_id="rejecter",
+            verifier_user_id=rejecter["id"],
             decision=verification_service.VerificationDecision.REJECT,
             reason="No",
         )
@@ -461,17 +582,36 @@ class TestGetVoteStatus:
 
     async def test_get_vote_status_pending(self, patched_db):
         """Test getting vote status when votes are still pending."""
-        chore = await chore_service.create_chore(
-            title="Test",
-            description="Test",
-            recurrence="0 10 * * *",
-            assigned_to="user1",
+        # Create claimer and rejecter (excluded from voting)
+        claimer = await patched_db.create_record(
+            "members",
+            {
+                "phone": "+9000000001",
+                "name": "Claimer",
+                "email": "claimer@test.com",
+                "role": UserRole.MEMBER,
+                "status": UserStatus.ACTIVE,
+                "password": "pass",
+                "passwordConfirm": "pass",
+            },
+        )
+        rejecter = await patched_db.create_record(
+            "members",
+            {
+                "phone": "+9000000002",
+                "name": "Rejecter",
+                "email": "rejecter@test.com",
+                "role": UserRole.MEMBER,
+                "status": UserStatus.ACTIVE,
+                "password": "pass",
+                "passwordConfirm": "pass",
+            },
         )
 
         # Create 2 voters
         for i in range(2):
             await patched_db.create_record(
-                "users",
+                "members",
                 {
                     "phone": f"+{str(i).zfill(10)}",
                     "name": f"Voter {i}",
@@ -483,16 +623,23 @@ class TestGetVoteStatus:
                 },
             )
 
+        chore = await chore_service.create_chore(
+            title="Test",
+            description="Test",
+            recurrence="0 10 * * *",
+            assigned_to=claimer["id"],
+        )
+
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="claimer",
+            claimer_user_id=claimer["id"],
             notes="Done",
         )
 
         # verify_chore initiates votes automatically
         conflict_chore = await verification_service.verify_chore(
             chore_id=chore["id"],
-            verifier_user_id="rejecter",
+            verifier_user_id=rejecter["id"],
             decision=verification_service.VerificationDecision.REJECT,
             reason="No",
         )

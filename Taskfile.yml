@@ -6,7 +6,7 @@ vars:
   POCKETBASE_BIN: '{{.POCKETBASE_DIR}}/pocketbase'
 
 tasks:
-  install-pocketbase:
+  setup:
     desc: Download and install PocketBase for the current platform
     status:
       - test -f {{.POCKETBASE_BIN}}
@@ -47,7 +47,7 @@ tasks:
 
   test:
     desc: Run all tests (unit and integration)
-    deps: [install-pocketbase]
+    deps: [setup]
     cmds:
       - PATH={{.POCKETBASE_DIR}}:$PATH POCKETBASE_ADMIN_EMAIL=admin@test.local POCKETBASE_ADMIN_PASSWORD=testpassword123 uv run pytest
 
@@ -58,7 +58,7 @@ tasks:
 
   test-integration:
     desc: Run integration tests (requires PocketBase)
-    deps: [install-pocketbase]
+    deps: [setup]
     cmds:
       - PATH={{.POCKETBASE_DIR}}:$PATH POCKETBASE_ADMIN_EMAIL=admin@test.local POCKETBASE_ADMIN_PASSWORD=testpassword123 uv run pytest -m integration
 
@@ -74,51 +74,25 @@ tasks:
 
   dev:
     desc: Run PocketBase and FastAPI for local development
-    deps: [install-pocketbase]
+    deps: [setup]
+    dotenv: ['.env']
     cmds:
+      - defer: { task: stop-dev }
       - |
-        echo "Starting development environment..."
-
-        # Start PocketBase in background
         echo "Starting PocketBase on http://127.0.0.1:8090..."
         {{.POCKETBASE_BIN}} serve > pocketbase.log 2>&1 &
-        POCKETBASE_PID=$!
-        echo $POCKETBASE_PID > .pocketbase.pid
+        echo $! > .pocketbase.pid
 
-        # Wait for PocketBase to be ready
-        echo "Waiting for PocketBase to be ready..."
-        for i in {1..10}; do
-          if curl -s http://127.0.0.1:8090/api/health > /dev/null 2>&1; then
-            echo "PocketBase is ready!"
-            break
-          fi
-          sleep 1
+        i=0; while [ $i -lt 10 ]; do
+          curl -s http://127.0.0.1:8090/api/health > /dev/null 2>&1 && break
+          sleep 1; i=$((i + 1))
         done
+        echo "PocketBase is ready!"
 
-        # Create admin account (idempotent - won't fail if already exists)
-        echo "Ensuring PocketBase admin account exists..."
-        {{.POCKETBASE_BIN}} superuser upsert admin@test.local testpassword123 > /dev/null 2>&1 || true
-        echo "Admin account ready!"
-
-        # Start FastAPI in background
-        echo "Starting FastAPI on http://0.0.0.0:8001..."
-        NO_COLOR=1 uv run uvicorn src.main:app --host 0.0.0.0 --port 8001 > fastapi.log 2>&1 &
-        FASTAPI_PID=$!
-        echo $FASTAPI_PID > .fastapi.pid
-
-        # Wait for FastAPI to be ready
-        echo "Waiting for FastAPI to be ready..."
-        sleep 5
-
-        # Check if FastAPI started successfully
-        if ! curl -s http://localhost:8001/health > /dev/null 2>&1; then
-          echo "ERROR: FastAPI failed to start. Check fastapi.log for details."
-          echo "Shutting down services..."
-          kill $POCKETBASE_PID 2>/dev/null || true
-          rm -f .pocketbase.pid .fastapi.pid
-          exit 1
-        fi
-        echo "FastAPI is ready!"
+        # Use credentials from .env, fallback to defaults
+        ADMIN_EMAIL="${POCKETBASE_ADMIN_EMAIL:-admin@test.local}"
+        ADMIN_PASS="${POCKETBASE_ADMIN_PASSWORD:-testpassword123}"
+        {{.POCKETBASE_BIN}} superuser upsert "$ADMIN_EMAIL" "$ADMIN_PASS" > /dev/null 2>&1 || true
 
         echo ""
         echo "Development environment ready!"
@@ -126,11 +100,7 @@ tasks:
         echo "  FastAPI:    http://0.0.0.0:8001"
         echo "  WAHA:       http://localhost:3000 (start with: docker-compose up -d waha)"
         echo ""
-        echo "Press Ctrl+C to stop services..."
-
-        # Wait for interrupt with proper cleanup
-        trap "echo 'Shutting down...'; kill $POCKETBASE_PID $FASTAPI_PID 2>/dev/null || true; rm -f .pocketbase.pid .fastapi.pid; exit 0" INT TERM
-        while true; do sleep 1; done
+      - uv run uvicorn src.main:app --host 0.0.0.0 --port 8001
 
   stop-dev:
     desc: Stop all development services
@@ -201,39 +171,3 @@ tasks:
       - rm -rf pb_data
       - rm -rf pb_migrations
 
-  deploy:
-    desc: Deploy to Railway (requires Railway CLI)
-    cmds:
-      - |
-        if ! command -v railway &> /dev/null; then
-          echo "Railway CLI not found. Install with: npm install -g @railway/cli"
-          exit 1
-        fi
-      - echo "Deploying to Railway..."
-      - railway up
-
-  deploy-status:
-    desc: Check Railway deployment status
-    cmds:
-      - |
-        if ! command -v railway &> /dev/null; then
-          echo "Railway CLI not found. Install with: npm install -g @railway/cli"
-          exit 1
-        fi
-      - railway status
-
-  deploy-logs:
-    desc: View Railway deployment logs
-    cmds:
-      - |
-        if ! command -v railway &> /dev/null; then
-          echo "Railway CLI not found. Install with: npm install -g @railway/cli"
-          exit 1
-        fi
-      - railway logs
-
-  install-railway-cli:
-    desc: Install Railway CLI
-    cmds:
-      - npm install -g @railway/cli
-      - echo "Railway CLI installed. Run 'railway login' to authenticate."

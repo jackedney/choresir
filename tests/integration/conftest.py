@@ -232,12 +232,12 @@ def test_settings(pocketbase_server: str) -> Settings:
     """Override settings for testing."""
     return Settings(
         pocketbase_url=pocketbase_server,
+        pocketbase_admin_email="admin@test.local",
+        pocketbase_admin_password="testpassword123",
         openrouter_api_key="test_key",
         waha_base_url="http://waha:3000",
         logfire_token="test_logfire",
         house_name="TestHouse",
-        house_code="TEST123",
-        house_password="testpass",
         model_id="anthropic/claude-3.5-sonnet",
     )
 
@@ -311,7 +311,7 @@ def clean_db(db_client: MockDBClient) -> Generator[MockDBClient]:
     yield db_client
 
     # Cleanup after test
-    collections = ["verifications", "chores", "users", "conflicts"]
+    collections = ["verifications", "chores", "members", "conflicts"]
     cleanup_errors = []
 
     for collection in collections:
@@ -333,34 +333,25 @@ def clean_db(db_client: MockDBClient) -> Generator[MockDBClient]:
 
 @pytest.fixture
 async def sample_users(db_client: MockDBClient) -> dict[str, dict]:
-    """Create sample users using MockDBClient for consistency."""
-    users_data = [
+    """Create sample members using MockDBClient for consistency."""
+    members_data = [
         {
-            "username": "alice",
-            "email": "alice@example.com",
+            "key": "alice",
             "phone": "+1234567890",
-            "password": "password123",
-            "passwordConfirm": "password123",
             "name": "Alice Admin",
             "role": "admin",
             "status": "active",
         },
         {
-            "username": "bob",
-            "email": "bob@example.com",
+            "key": "bob",
             "phone": "+1234567891",
-            "password": "password123",
-            "passwordConfirm": "password123",
             "name": "Bob Member",
             "role": "member",
             "status": "active",
         },
         {
-            "username": "charlie",
-            "email": "charlie@example.com",
+            "key": "charlie",
             "phone": "+1234567892",
-            "password": "password123",
-            "passwordConfirm": "password123",
             "name": "Charlie Member",
             "role": "member",
             "status": "active",
@@ -368,9 +359,10 @@ async def sample_users(db_client: MockDBClient) -> dict[str, dict]:
     ]
 
     created_users = {}
-    for user_data in users_data:
-        user = await db_client.create_record(collection="users", data=user_data)
-        created_users[user_data["username"]] = user
+    for member_data in members_data:
+        key = member_data.pop("key")
+        user = await db_client.create_record(collection="members", data=member_data)
+        created_users[key] = user
 
     return created_users
 

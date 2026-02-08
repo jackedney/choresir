@@ -23,7 +23,7 @@ async def list_pending_users() -> None:
     """List all pending users."""
     pending_users = await db_client.list_records(
         collection="users",
-        filter_query=f'status = "{UserStatus.PENDING}"',
+        filter_query=f'status = "{UserStatus.PENDING_NAME}"',
     )
 
     if not pending_users:

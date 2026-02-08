@@ -1,24 +1,17 @@
 <tr id="member-{{ user.id }}">
-    <td colspan="6" style="padding: 2rem;">
-        <article style="margin-bottom: 1rem;">
-            <p><strong>Remove this member?</strong></p>
-            <p>{{ user.name }} ({{ user.phone }})</p>
-            {% if errors %}
-            <div style="color: var(--del-color); margin-top: 0.5rem;">
-                {% for error in errors %}
-                <p>{{ error }}</p>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </article>
-        <form hx-post="/admin/members/{{ user.phone | urlencode }}/remove" hx-target="#member-{{ user.id }}" hx-swap="outerHTML" hx-indicator="#remove-loading-{{ user.id }}">
+    <td colspan="5">
+        <form hx-post="/admin/members/{{ user.phone | urlencode }}/remove" hx-target="#member-{{ user.id }}" hx-swap="outerHTML">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-
-            <div role="group">
-                <button type="submit" data-theme="danger">Ban Member</button>
-                <button type="button" hx-get="/admin/members/{{ user.phone | urlencode }}/row" hx-target="#member-{{ user.id }}" hx-swap="outerHTML" class="secondary">Cancel</button>
-                <span id="remove-loading-{{ user.id }}" class="htmx-indicator">Removing...</span>
+            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <span>Remove <strong>{{ user.name }}</strong>?</span>
+                <div class="actions">
+                    <button type="submit" class="contrast">Remove</button>
+                    <button type="button" hx-get="/admin/members/{{ user.phone | urlencode }}/row" hx-target="#member-{{ user.id }}" hx-swap="outerHTML" class="secondary">Cancel</button>
+                </div>
             </div>
+            {% if errors %}
+            <small style="color: #991b1b; display: block; margin-top: 0.5rem;">{{ errors | join(', ') }}</small>
+            {% endif %}
         </form>
     </td>
 </tr>

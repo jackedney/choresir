@@ -119,7 +119,7 @@ class TestNotifyAdmins:
             # Verify database query for admins
             mock_list_records.assert_called_once()
             call_args = mock_list_records.call_args
-            assert call_args.kwargs["collection"] == "users"
+            assert call_args.kwargs["collection"] == "members"
             assert "role = 'admin'" in call_args.kwargs["filter_query"]
             assert "status = 'active'" in call_args.kwargs["filter_query"]
 

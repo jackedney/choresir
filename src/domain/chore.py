@@ -14,6 +14,7 @@ class ChoreState(StrEnum):
     COMPLETED = "COMPLETED"
     CONFLICT = "CONFLICT"
     DEADLOCK = "DEADLOCK"
+    ARCHIVED = "ARCHIVED"
 
 
 class Chore(BaseModel):
