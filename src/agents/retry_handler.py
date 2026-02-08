@@ -265,16 +265,30 @@ class AgentRetryHandler:
         raise RuntimeError("Unreachable code reached in execute_with_retry")
 
 
-# Global retry handler instance
-_retry_handler: AgentRetryHandler | None = None
+class RetryHandlerSingleton:
+    """Singleton container for the retry handler instance."""
+
+    _instance: AgentRetryHandler | None = None
+
+    @classmethod
+    def get(cls) -> AgentRetryHandler:
+        """Get or create the retry handler instance."""
+        if cls._instance is None:
+            cls._instance = AgentRetryHandler()
+        return cls._instance
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset the retry handler instance.
+
+        Primarily used for testing to ensure clean state between tests.
+        """
+        cls._instance = None
 
 
 def get_retry_handler() -> AgentRetryHandler:
     """Get or create the global retry handler instance."""
-    global _retry_handler  # noqa: PLW0603
-    if _retry_handler is None:
-        _retry_handler = AgentRetryHandler()
-    return _retry_handler
+    return RetryHandlerSingleton.get()
 
 
 def reset_retry_handler() -> None:
@@ -282,5 +296,4 @@ def reset_retry_handler() -> None:
 
     Primarily used for testing to ensure clean state between tests.
     """
-    global _retry_handler  # noqa: PLW0603
-    _retry_handler = None
+    RetryHandlerSingleton.reset()

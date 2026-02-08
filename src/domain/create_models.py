@@ -2,7 +2,7 @@
 
 import re
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.domain.user import UserRole, UserStatus
 
@@ -10,13 +10,20 @@ from src.domain.user import UserRole, UserStatus
 class UserCreate(BaseModel):
     """Pydantic model for creating a user record."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     phone: str = Field(..., description="Phone number in E.164 format")
     name: str = Field(..., description="Display name of the user")
     email: str = Field(..., description="Email address (generated from phone for auth)")
     role: UserRole = Field(default=UserRole.MEMBER, description="User role in household")
     status: UserStatus = Field(default=UserStatus.PENDING_NAME, description="User account status")
     password: str = Field(..., description="User password")
-    passwordConfirm: str = Field(..., description="Password confirmation")  # noqa: N815
+    password_confirm: str = Field(
+        ...,
+        validation_alias="passwordConfirm",
+        serialization_alias="passwordConfirm",
+        description="Password confirmation",
+    )
 
     @field_validator("phone")
     @classmethod

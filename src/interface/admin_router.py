@@ -1,6 +1,7 @@
 """Admin interface router for web UI."""
 
 import logging
+import os
 import secrets
 
 import httpx
@@ -610,8 +611,6 @@ def _get_webhook_url() -> str:
     Uses WHATSAPP_HOOK_URL env var if set, otherwise constructs from request context.
     For Docker, this should be http://host.docker.internal:PORT/webhook
     """
-    import os
-
     # Check for explicit env var first
     hook_url = os.environ.get("WHATSAPP_HOOK_URL")
     if hook_url:

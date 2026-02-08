@@ -1,5 +1,8 @@
 """Tests for WhatsApp webhook endpoints."""
 
+from contextlib import ExitStack
+from dataclasses import dataclass
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,60 +18,87 @@ from src.interface.webhook_security import WebhookSecurityResult
 from src.services.verification_service import VerificationDecision
 
 
+@dataclass
+class WebhookMocks:
+    """Container for webhook test mocks."""
+
+    add_user: Any
+    add_group: Any
+    agent: Any
+    sender: Any
+    db: Any
+    parser: Any
+    get_house_config: Any
+    add_assistant: Any
+
+
+@pytest.fixture
+def webhook_mocks():
+    """Fixture providing all common webhook mocks."""
+    with ExitStack() as stack:
+        mocks = WebhookMocks(
+            add_user=stack.enter_context(patch("src.interface.webhook.add_user_message")),
+            add_group=stack.enter_context(patch("src.interface.webhook.add_group_message")),
+            agent=stack.enter_context(patch("src.interface.webhook.choresir_agent")),
+            sender=stack.enter_context(patch("src.interface.webhook.whatsapp_sender")),
+            db=stack.enter_context(patch("src.interface.webhook.db_client")),
+            parser=stack.enter_context(patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")),
+            get_house_config=stack.enter_context(patch("src.interface.webhook.get_house_config")),
+            add_assistant=stack.enter_context(patch("src.interface.webhook.add_assistant_message")),
+        )
+        yield mocks
+
+
+def _create_group_message_mock(
+    message_id: str = "msg123",
+    from_phone: str = "+1234567890",
+    text: str = "Hello group",
+    group_id: str = "group123@g.us",
+    is_group: bool = True,
+) -> MagicMock:
+    """Create a mock message for group context tests."""
+    mock_message = MagicMock()
+    mock_message.message_id = message_id
+    mock_message.from_phone = from_phone
+    mock_message.text = text
+    mock_message.button_payload = None
+    mock_message.message_type = "text"
+    mock_message.is_group_message = is_group
+    mock_message.group_id = group_id if is_group else None
+    mock_message.actual_sender_phone = from_phone if is_group else None
+    mock_message.reply_to_message_id = None
+    return mock_message
+
+
 class TestGroupContextRecording:
     """Test group context recording in webhook."""
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook.get_house_config")
-    @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    @patch("src.interface.webhook.db_client")
-    @patch("src.interface.webhook.whatsapp_sender")
-    @patch("src.interface.webhook.choresir_agent")
-    @patch("src.interface.webhook.add_group_message")
-    @patch("src.interface.webhook.add_user_message")
-    async def test_group_message_records_user_to_group_context(  # noqa: PLR0913
-        self,
-        mock_add_user,
-        mock_add_group,
-        mock_agent,
-        mock_sender,
-        mock_db,
-        mock_parser,
-        mock_get_house_config,
-    ):
+    async def test_group_message_records_user_to_group_context(self, webhook_mocks: WebhookMocks):
         """Test group message is recorded to group_context, not conversation_context."""
-        mock_message = MagicMock()
-        mock_message.message_id = "msg123"
-        mock_message.from_phone = "+1234567890"
-        mock_message.text = "Hello group"
-        mock_message.button_payload = None
-        mock_message.message_type = "text"
-        mock_message.is_group_message = True
-        mock_message.group_id = "group123@g.us"
-        mock_message.actual_sender_phone = "+1234567890"
-        mock_message.reply_to_message_id = None
-        mock_parser.return_value = mock_message
+        mock_message = _create_group_message_mock()
+        webhook_mocks.parser.return_value = mock_message
 
-        mock_get_house_config.return_value = MagicMock(
+        webhook_mocks.get_house_config.return_value = MagicMock(
             group_chat_id="group123@g.us", activation_key=None, name="Test House"
         )
 
         mock_user_record = {"id": "user123", "name": "Alice", "phone": "+1234567890", "status": "active"}
-        mock_db.get_first_record = AsyncMock(side_effect=[None, mock_user_record])
-        mock_db.create_record = AsyncMock(return_value={"id": "msg123"})
-        mock_db.get_client = MagicMock()
+        webhook_mocks.db.get_first_record = AsyncMock(side_effect=[None, mock_user_record])
+        webhook_mocks.db.create_record = AsyncMock(return_value={"id": "msg123"})
+        webhook_mocks.db.get_client = MagicMock()
 
-        mock_agent.get_member_list = AsyncMock(return_value=[])
-        mock_agent.run_agent = AsyncMock(return_value="Hi Alice!")
-        mock_agent.build_deps = AsyncMock(return_value=MagicMock(user_record=mock_user_record))
+        webhook_mocks.agent.get_member_list = AsyncMock(return_value=[])
+        webhook_mocks.agent.run_agent = AsyncMock(return_value="Hi Alice!")
+        webhook_mocks.agent.build_deps = AsyncMock(return_value=MagicMock(user_record=mock_user_record))
 
-        mock_sender.send_group_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+        webhook_mocks.sender.send_group_message = AsyncMock(return_value=MagicMock(success=True, error=None))
 
         params = {}
 
         await process_webhook_message(params)
 
-        calls = mock_add_group.call_args_list
+        calls = webhook_mocks.add_group.call_args_list
         assert len(calls) == 2
         user_call = calls[0]
         bot_call = calls[1]
@@ -82,113 +112,61 @@ class TestGroupContextRecording:
         assert bot_call.kwargs["sender_name"] == "Alice"
         assert bot_call.kwargs["content"] == "Hi Alice!"
         assert bot_call.kwargs["is_bot"] is True
-        mock_add_user.assert_not_called()
+        webhook_mocks.add_user.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook.get_house_config")
-    @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    @patch("src.interface.webhook.db_client")
-    @patch("src.interface.webhook.whatsapp_sender")
-    @patch("src.interface.webhook.choresir_agent")
-    @patch("src.interface.webhook.add_group_message")
-    @patch("src.interface.webhook.add_assistant_message")
-    async def test_group_bot_response_records_to_group_context(  # noqa: PLR0913
-        self,
-        mock_add_assistant,
-        mock_add_group,
-        mock_agent,
-        mock_sender,
-        mock_db,
-        mock_parser,
-        mock_get_house_config,
-    ):
+    async def test_group_bot_response_records_to_group_context(self, webhook_mocks: WebhookMocks):
         """Test bot response in group is recorded to group_context with is_bot=True."""
-        mock_message = MagicMock()
-        mock_message.message_id = "msg123"
-        mock_message.from_phone = "+1234567890"
-        mock_message.text = "Hello group"
-        mock_message.button_payload = None
-        mock_message.message_type = "text"
-        mock_message.is_group_message = True
-        mock_message.group_id = "group123@g.us"
-        mock_message.actual_sender_phone = "+1234567890"
-        mock_message.reply_to_message_id = None
-        mock_parser.return_value = mock_message
+        mock_message = _create_group_message_mock()
+        webhook_mocks.parser.return_value = mock_message
 
-        mock_get_house_config.return_value = MagicMock(
+        webhook_mocks.get_house_config.return_value = MagicMock(
             group_chat_id="group123@g.us", activation_key=None, name="Test House"
         )
 
         mock_user_record = {"id": "user123", "name": "Alice", "phone": "+1234567890", "status": "active"}
-        mock_db.get_first_record = AsyncMock(side_effect=[None, mock_user_record])
-        mock_db.create_record = AsyncMock(return_value={"id": "msg123"})
-        mock_db.get_client = MagicMock()
+        webhook_mocks.db.get_first_record = AsyncMock(side_effect=[None, mock_user_record])
+        webhook_mocks.db.create_record = AsyncMock(return_value={"id": "msg123"})
+        webhook_mocks.db.get_client = MagicMock()
 
-        mock_agent.get_member_list = AsyncMock(return_value=[])
-        mock_agent.run_agent = AsyncMock(return_value="Hi Alice!")
-        mock_agent.build_deps = AsyncMock(return_value=MagicMock(user_record=mock_user_record))
+        webhook_mocks.agent.get_member_list = AsyncMock(return_value=[])
+        webhook_mocks.agent.run_agent = AsyncMock(return_value="Hi Alice!")
+        webhook_mocks.agent.build_deps = AsyncMock(return_value=MagicMock(user_record=mock_user_record))
 
-        mock_sender.send_group_message = AsyncMock(return_value=MagicMock(success=True, error=None))
+        webhook_mocks.sender.send_group_message = AsyncMock(return_value=MagicMock(success=True, error=None))
 
         params = {}
 
         await process_webhook_message(params)
 
-        calls = mock_add_group.call_args_list
+        calls = webhook_mocks.add_group.call_args_list
         assert len(calls) == 2
         user_call = calls[0]
         bot_call = calls[1]
         assert user_call.kwargs["is_bot"] is False
         assert bot_call.kwargs["is_bot"] is True
         assert bot_call.kwargs["content"] == "Hi Alice!"
-        mock_add_assistant.assert_not_called()
+        webhook_mocks.add_assistant.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook.get_house_config")
-    @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
-    @patch("src.interface.webhook.db_client")
-    @patch("src.interface.webhook.whatsapp_sender")
-    @patch("src.interface.webhook.choresir_agent")
-    @patch("src.interface.webhook.add_group_message")
-    @patch("src.interface.webhook.add_user_message")
-    @patch("src.interface.webhook.add_assistant_message")
-    async def test_dm_message_not_processed_ignores_group_context(  # noqa: PLR0913
-        self,
-        mock_add_assistant,
-        mock_add_user,
-        mock_add_group,
-        mock_agent,
-        mock_sender,
-        mock_db,
-        mock_parser,
-        mock_get_house_config,
-    ):
+    async def test_dm_message_not_processed_ignores_group_context(self, webhook_mocks: WebhookMocks):
         """Test DM message is ignored when group is configured (no group context added)."""
-        mock_message = MagicMock()
-        mock_message.message_id = "msg123"
-        mock_message.from_phone = "+1234567890"
-        mock_message.text = "Hello"
-        mock_message.button_payload = None
-        mock_message.message_type = "text"
-        mock_message.is_group_message = False
-        mock_message.group_id = None
-        mock_message.actual_sender_phone = None
-        mock_message.reply_to_message_id = None
-        mock_parser.return_value = mock_message
+        mock_message = _create_group_message_mock(text="Hello", is_group=False)
+        webhook_mocks.parser.return_value = mock_message
 
         mock_config = MagicMock()
         mock_config.group_chat_id = "group123@g.us"
         mock_config.activation_key = None
         mock_config.name = "Test House"
-        mock_get_house_config.return_value = mock_config
+        webhook_mocks.get_house_config.return_value = mock_config
 
         params = {}
 
         await process_webhook_message(params)
 
-        mock_add_user.assert_not_called()
-        mock_add_assistant.assert_not_called()
-        mock_add_group.assert_not_called()
+        webhook_mocks.add_user.assert_not_called()
+        webhook_mocks.add_assistant.assert_not_called()
+        webhook_mocks.add_group.assert_not_called()
 
 
 class TestReceiveWebhook:

@@ -59,7 +59,115 @@ class ParsedMessage(BaseModel):
     reply_to_message_id: str | None = Field(None, description="Message ID being replied to, if this is a reply/quote")
 
 
-def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:  # noqa: C901, PLR0912
+class _GroupMessageInfo:
+    """Container for group message parsing results."""
+
+    def __init__(
+        self,
+        group_id: str | None = None,
+        actual_sender_phone: str | None = None,
+        participant_lid: str | None = None,
+    ) -> None:
+        self.group_id = group_id
+        self.actual_sender_phone = actual_sender_phone
+        self.participant_lid = participant_lid
+
+
+def _parse_group_message_info(from_raw: str, payload: dict[str, Any]) -> _GroupMessageInfo:
+    """Extract group message information from payload.
+
+    Args:
+        from_raw: The raw "from" field value
+        payload: The webhook payload
+
+    Returns:
+        GroupMessageInfo with group_id, actual_sender_phone, and participant_lid
+    """
+    info = _GroupMessageInfo(group_id=from_raw)
+
+    participant = payload.get("participant", "")
+    if participant:
+        clean_participant = _clean_whatsapp_id(participant)
+        if clean_participant:
+            info.actual_sender_phone = f"+{clean_participant}"
+        elif "@lid" in participant:
+            info.participant_lid = participant
+
+    return info
+
+
+def _resolve_from_phone(
+    is_group_message: bool,
+    clean_number: str | None,
+    actual_sender_phone: str | None,
+) -> str | None:
+    """Resolve the from_phone value based on message context.
+
+    Args:
+        is_group_message: Whether this is a group message
+        clean_number: Cleaned phone number from the "from" field
+        actual_sender_phone: Actual sender phone for group messages
+
+    Returns:
+        The resolved from_phone, or None if invalid individual message
+    """
+    if is_group_message:
+        return f"+{clean_number}" if clean_number else actual_sender_phone or ""
+
+    if not clean_number:
+        return None
+
+    return f"+{clean_number}"
+
+
+def _extract_button_payload(msg_type: str, payload: dict[str, Any]) -> str | None:
+    """Extract button payload from interactive message responses.
+
+    Args:
+        msg_type: The message type from the payload
+        payload: The webhook payload
+
+    Returns:
+        Button payload ID if present, None otherwise
+    """
+    if msg_type == "buttons_response":
+        button_payload = payload.get("selectedButtonId")
+        if not button_payload and "_data" in payload:
+            button_payload = payload["_data"].get("selectedButtonId")
+        return button_payload
+
+    if msg_type == "list_response":
+        button_payload = payload.get("selectedRowId")
+        if not button_payload and "_data" in payload:
+            button_payload = payload["_data"].get("selectedRowId")
+        return button_payload
+
+    return None
+
+
+def _extract_reply_to_message_id(payload: dict[str, Any]) -> str | None:
+    """Extract the reply-to message ID from payload.
+
+    Args:
+        payload: The webhook payload
+
+    Returns:
+        The message ID being replied to, or None
+    """
+    reply_to_raw = payload.get("replyTo")
+    if not reply_to_raw:
+        return None
+
+    if isinstance(reply_to_raw, str):
+        return reply_to_raw
+
+    if isinstance(reply_to_raw, dict):
+        return reply_to_raw.get("id") or reply_to_raw.get("messageId")
+
+    return None
+
+
+def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:
     """Parse WAHA WhatsApp webhook JSON data.
 
     WAHA sends webhooks with structure:
@@ -81,113 +189,43 @@ def parse_waha_webhook(data: dict[str, Any]) -> ParsedMessage | None:  # noqa: C
     Returns:
         ParsedMessage if valid webhook data, None otherwise
     """
-    # Extract payload
-    # Handle both wrapped {event: ..., payload: ...} and direct payload
     payload = data.get("payload", data)
 
-    # Basic validation
     msg_id = payload.get("id")
     from_raw = payload.get("from")
 
     if not msg_id or not from_raw:
         return None
 
-    # Ignore status updates or other events if they sneak in
-    # (WAHA usually sends "message" event for incoming messages)
-    # If "from" is "status@broadcast", ignore it
     if from_raw == "status@broadcast":
         return None
 
-    # Detect group messages (from address ends with @g.us)
     is_group_message = from_raw.endswith("@g.us")
-    group_id: str | None = None
-    actual_sender_phone: str | None = None
-    participant_lid: str | None = None
+    group_info = _GroupMessageInfo()
 
     if is_group_message:
-        # For group messages, "from" is the group ID
-        group_id = from_raw
-        # The actual sender is in the "participant" field
-        participant = payload.get("participant", "")
-        if participant:
-            # Clean participant phone (remove WhatsApp suffixes)
-            # _clean_whatsapp_id returns None for @lid format (linked IDs)
-            clean_participant = _clean_whatsapp_id(participant)
-            if clean_participant:
-                actual_sender_phone = f"+{clean_participant}"
-            elif "@lid" in participant:
-                # Keep the raw @lid for later resolution via WAHA API
-                participant_lid = participant
+        group_info = _parse_group_message_info(from_raw, payload)
 
-    # Clean phone number for individual messages
     clean_number = _clean_whatsapp_id(from_raw)
+    from_phone = _resolve_from_phone(is_group_message, clean_number, group_info.actual_sender_phone)
 
-    # For group messages, use actual_sender_phone as from_phone if available
-    # For individual messages, use cleaned from number
-    if is_group_message:
-        # In group context, actual_sender_phone is the real sender
-        # from_phone should still be set for backwards compatibility
-        from_phone = f"+{clean_number}" if clean_number else actual_sender_phone or ""
-    elif not clean_number:
-        # Individual message must have a valid phone number
-        # Invalid phone format (e.g., @lid) - skip this message
+    if from_phone is None:
         return None
-    else:
-        from_phone = f"+{clean_number}"
 
-    # Extract content
-    body = payload.get("body")
-    timestamp = str(payload.get("timestamp", ""))
     msg_type = payload.get("type", "text")
-
-    # Handle Button Responses
-    # WAHA/WebJS often puts button selection ID in specialized fields
-    # or sometimes just the body contains the text.
-    # For robust button handling (payloads), we look for specific fields.
-    button_payload = None
-
-    # Check for button response details in _data or root payload
-    # Note: WAHA structure varies by engine (WEBJS vs GOWS).
-    # We attempt to find a 'selectedButtonId' or similar.
-    # If using WAHA Plus or specific engines, it might be in `selectedButtonId`.
-    if msg_type == "buttons_response":
-        button_payload = payload.get("selectedButtonId")
-        if not button_payload and "_data" in payload:
-            button_payload = payload["_data"].get("selectedButtonId")
-
-    # Also check list response
-    if msg_type == "list_response":
-        button_payload = payload.get("selectedRowId")
-        if not button_payload and "_data" in payload:
-            button_payload = payload["_data"].get("selectedRowId")
-
-    # Map message type to application types
-    # Application expects: text, button_reply, etc.
-    app_message_type = "text"
-    if button_payload:
-        app_message_type = "button_reply"
-
-    # Extract reply context (replyTo can be a string ID or an object with message details)
-    reply_to_raw = payload.get("replyTo")
-    reply_to_message_id: str | None = None
-    if reply_to_raw:
-        if isinstance(reply_to_raw, str):
-            reply_to_message_id = reply_to_raw
-        elif isinstance(reply_to_raw, dict):
-            # WAHA can send replyTo as an object with message details
-            # Try common field names for the message ID
-            reply_to_message_id = reply_to_raw.get("id") or reply_to_raw.get("messageId")
+    button_payload = _extract_button_payload(msg_type, payload)
+    app_message_type = "button_reply" if button_payload else "text"
 
     return ParsedMessage(
         message_id=msg_id,
         from_phone=from_phone,
-        text=body,
-        timestamp=timestamp,
+        text=payload.get("body"),
+        timestamp=str(payload.get("timestamp", "")),
         message_type=app_message_type,
         button_payload=button_payload,
         is_group_message=is_group_message,
-        group_id=group_id,
-        actual_sender_phone=actual_sender_phone,
-        participant_lid=participant_lid,
-        reply_to_message_id=reply_to_message_id,
+        group_id=group_info.group_id,
+        actual_sender_phone=group_info.actual_sender_phone,
+        participant_lid=group_info.participant_lid,
+        reply_to_message_id=_extract_reply_to_message_id(payload),
     )

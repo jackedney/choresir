@@ -48,47 +48,32 @@ class WorkflowCreateParams:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-async def create_workflow(  # noqa: PLR0913
-    *,
-    workflow_type: WorkflowType,
-    requester_user_id: str,
-    requester_name: str,
-    target_id: str,
-    target_title: str,
-    expires_hours: int = 48,
-    metadata: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+async def create_workflow(*, params: WorkflowCreateParams) -> dict[str, Any]:
     """Create a new workflow.
 
     Args:
-        workflow_type: Type of workflow to create
-        requester_user_id: ID of user requesting the workflow
-        requester_name: Name of user requesting the workflow (denormalized)
-        target_id: ID of target (chore_id or personal_chore_id)
-        target_title: Title of target (denormalized for display)
-        expires_hours: Hours until workflow expires (default 48)
-        metadata: Optional JSON metadata for workflow-specific data
+        params: WorkflowCreateParams dataclass containing all workflow parameters
 
     Returns:
         Created workflow record as dict
     """
     with span("workflow.create_workflow"):
         created_at = datetime.now()
-        expires_at = created_at + timedelta(hours=expires_hours)
+        expires_at = created_at + timedelta(hours=params.expires_hours)
 
         workflow_data = {
-            "type": workflow_type.value,
+            "type": params.workflow_type.value,
             "status": WorkflowStatus.PENDING.value,
-            "requester_user_id": requester_user_id,
-            "requester_name": requester_name,
-            "target_id": target_id,
-            "target_title": target_title,
+            "requester_user_id": params.requester_user_id,
+            "requester_name": params.requester_name,
+            "target_id": params.target_id,
+            "target_title": params.target_title,
             "created_at": created_at.isoformat(),
             "expires_at": expires_at.isoformat(),
         }
 
-        if metadata:
-            workflow_data["metadata"] = metadata
+        if params.metadata:
+            workflow_data["metadata"] = params.metadata
 
         return await db_client.create_record(collection="workflows", data=workflow_data)
 

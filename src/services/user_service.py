@@ -53,7 +53,7 @@ async def create_pending_name_user(*, phone: str) -> dict[str, Any]:
             role=UserRole.MEMBER,
             status=UserStatus.PENDING_NAME,
             password=temp_password,
-            passwordConfirm=temp_password,
+            password_confirm=temp_password,
         )
 
         record = await db_client.create_record(collection="members", data=user_create.model_dump())

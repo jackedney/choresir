@@ -1,5 +1,7 @@
 """Unit tests for chore_tools module."""
 
+from typing import TYPE_CHECKING, Any, cast
+
 import pytest
 
 from src.agents.tools.chore_tools import (
@@ -9,6 +11,12 @@ from src.agents.tools.chore_tools import (
     tool_respond_to_deletion,
 )
 from src.services import chore_service, deletion_service, workflow_service
+
+
+if TYPE_CHECKING:
+    from pydantic_ai import RunContext
+
+    from src.agents.base import Deps
 
 
 @pytest.fixture
@@ -75,11 +83,11 @@ async def pending_deletion_workflow(patched_chore_tools_db, requester, todo_chor
     )
 
 
-def _create_mock_context(resolver: dict) -> object:
-    """Create a minimal mock context object."""
+def _create_mock_context(resolver: dict[str, Any]) -> "RunContext[Deps]":
+    """Create a minimal mock context object for testing."""
 
     class MockDeps:
-        def __init__(self, user_data: dict):
+        def __init__(self, user_data: dict[str, Any]) -> None:
             self.user_id = user_data["id"]
             self.user_phone = user_data["phone"]
             self.user_name = user_data["name"]
@@ -87,10 +95,10 @@ def _create_mock_context(resolver: dict) -> object:
             self.current_time = None
 
     class MockContext:
-        def __init__(self, user_data: dict):
+        def __init__(self, user_data: dict[str, Any]) -> None:
             self.deps = MockDeps(user_data)
 
-    return MockContext(resolver)
+    return cast("RunContext[Deps]", MockContext(resolver))
 
 
 @pytest.mark.unit
@@ -118,6 +126,7 @@ class TestToolRespondToDeletionByWorkflowId:
 
         # Verify workflow was resolved
         updated_workflow = await workflow_service.get_workflow(workflow_id=pending_deletion_workflow["id"])
+        assert updated_workflow is not None
         assert updated_workflow["status"] == workflow_service.WorkflowStatus.APPROVED.value
         assert updated_workflow["resolver_user_id"] == resolver["id"]
 
@@ -141,6 +150,7 @@ class TestToolRespondToDeletionByWorkflowId:
 
         # Verify workflow was rejected
         updated_workflow = await workflow_service.get_workflow(workflow_id=pending_deletion_workflow["id"])
+        assert updated_workflow is not None
         assert updated_workflow["status"] == workflow_service.WorkflowStatus.REJECTED.value
         assert updated_workflow["reason"] == "Still needed"
 
@@ -162,11 +172,13 @@ class TestToolRespondToDeletionByWorkflowId:
         """Test workflow_id with wrong type returns error."""
         # Create a chore verification workflow instead of deletion
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore_id",
-            target_title="Test Chore",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore_id",
+                target_title="Test Chore",
+            )
         )
 
         ctx = _create_mock_context(resolver)
@@ -240,6 +252,7 @@ class TestToolRespondToDeletionByTitle:
 
         # Verify workflow was resolved
         updated_workflow = await workflow_service.get_workflow(workflow_id=pending_deletion_workflow["id"])
+        assert updated_workflow is not None
         assert updated_workflow["status"] == workflow_service.WorkflowStatus.APPROVED.value
 
     async def test_reject_deletion_by_title_matching(self, patched_chore_tools_db, resolver, pending_deletion_workflow):
@@ -344,11 +357,13 @@ class TestToolBatchRespondToWorkflows:
             requester_user_id=requester["id"],
         )
         wf2 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
 
         ctx = _create_mock_context(resolver)
@@ -369,24 +384,30 @@ class TestToolBatchRespondToWorkflows:
         # Verify both workflows were approved
         updated_wf1 = await workflow_service.get_workflow(workflow_id=wf1["id"])
         updated_wf2 = await workflow_service.get_workflow(workflow_id=wf2["id"])
+        assert updated_wf1 is not None
+        assert updated_wf2 is not None
         assert updated_wf1["status"] == workflow_service.WorkflowStatus.APPROVED.value
         assert updated_wf2["status"] == workflow_service.WorkflowStatus.APPROVED.value
 
     async def test_reject_indices_two_workflows(self, patched_chore_tools_db, requester, resolver):
         """Test rejecting multiple workflows by indices."""
         wf1 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore1",
-            target_title="Clean Kitchen",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore1",
+                target_title="Clean Kitchen",
+            )
         )
         wf2 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
 
         ctx = _create_mock_context(resolver)
@@ -407,6 +428,8 @@ class TestToolBatchRespondToWorkflows:
         # Verify both workflows were rejected with reason
         updated_wf1 = await workflow_service.get_workflow(workflow_id=wf1["id"])
         updated_wf2 = await workflow_service.get_workflow(workflow_id=wf2["id"])
+        assert updated_wf1 is not None
+        assert updated_wf2 is not None
         assert updated_wf1["status"] == workflow_service.WorkflowStatus.REJECTED.value
         assert updated_wf2["status"] == workflow_service.WorkflowStatus.REJECTED.value
         assert updated_wf1["reason"] == "Too busy"
@@ -415,18 +438,22 @@ class TestToolBatchRespondToWorkflows:
     async def test_approve_by_workflow_ids(self, patched_chore_tools_db, requester, resolver):
         """Test approving workflows by direct workflow IDs."""
         wf1 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore1",
-            target_title="Clean Kitchen",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore1",
+                target_title="Clean Kitchen",
+            )
         )
         wf2 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
 
         ctx = _create_mock_context(resolver)
@@ -444,11 +471,13 @@ class TestToolBatchRespondToWorkflows:
     async def test_approve_single_workflow(self, patched_chore_tools_db, requester, resolver):
         """Test approving single workflow returns singular message."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore1",
-            target_title="Clean Kitchen",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore1",
+                target_title="Clean Kitchen",
+            )
         )
 
         ctx = _create_mock_context(resolver)
@@ -481,11 +510,13 @@ class TestToolBatchRespondToWorkflows:
     async def test_invalid_decision_returns_error(self, patched_chore_tools_db, requester, resolver):
         """Test invalid decision returns error message."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore1",
-            target_title="Clean Kitchen",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore1",
+                target_title="Clean Kitchen",
+            )
         )
 
         ctx = _create_mock_context(resolver)
@@ -517,19 +548,23 @@ class TestToolBatchRespondToWorkflows:
         """Test that own workflow is skipped during batch resolution."""
         # Create workflow from resolver (should be skipped)
         own_wf = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id=resolver["id"],
-            requester_name=resolver["name"],
-            target_id="chore1",
-            target_title="Own Workflow",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id=resolver["id"],
+                requester_name=resolver["name"],
+                target_id="chore1",
+                target_title="Own Workflow",
+            )
         )
         # Create workflow from requester (should be resolved)
         other_wf = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore2",
-            target_title="Other Workflow",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore2",
+                target_title="Other Workflow",
+            )
         )
 
         ctx = _create_mock_context(resolver)
@@ -548,19 +583,23 @@ class TestToolBatchRespondToWorkflows:
 
         # Verify own workflow is still pending
         own_check = await workflow_service.get_workflow(workflow_id=own_wf["id"])
+        assert own_check is not None
         assert own_check["status"] == workflow_service.WorkflowStatus.PENDING.value
         # Verify other workflow is approved
         other_check = await workflow_service.get_workflow(workflow_id=other_wf["id"])
+        assert other_check is not None
         assert other_check["status"] == workflow_service.WorkflowStatus.APPROVED.value
 
     async def test_out_of_range_index_is_skipped(self, patched_chore_tools_db, requester, resolver):
         """Test that out of range indices are skipped."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore1",
-            target_title="Clean Kitchen",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore1",
+                target_title="Clean Kitchen",
+            )
         )
 
         ctx = _create_mock_context(resolver)
@@ -579,25 +618,31 @@ class TestToolBatchRespondToWorkflows:
     async def test_approve_all_workflows(self, patched_chore_tools_db, requester, resolver):
         """Example from AC: approve 'all' resolves all actionable workflows."""
         wf1 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore1",
-            target_title="Clean Kitchen",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore1",
+                target_title="Clean Kitchen",
+            )
         )
         wf2 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
         wf3 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
-            requester_user_id=requester["id"],
-            requester_name=requester["name"],
-            target_id="personal1",
-            target_title="Buy groceries",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                requester_user_id=requester["id"],
+                requester_name=requester["name"],
+                target_id="personal1",
+                target_title="Buy groceries",
+            )
         )
 
         ctx = _create_mock_context(resolver)
@@ -617,6 +662,9 @@ class TestToolBatchRespondToWorkflows:
         updated_wf1 = await workflow_service.get_workflow(workflow_id=wf1["id"])
         updated_wf2 = await workflow_service.get_workflow(workflow_id=wf2["id"])
         updated_wf3 = await workflow_service.get_workflow(workflow_id=wf3["id"])
+        assert updated_wf1 is not None
+        assert updated_wf2 is not None
+        assert updated_wf3 is not None
         assert all(
             wf["status"] == workflow_service.WorkflowStatus.APPROVED.value
             for wf in [updated_wf1, updated_wf2, updated_wf3]

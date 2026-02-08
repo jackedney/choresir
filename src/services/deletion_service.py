@@ -85,11 +85,13 @@ async def request_chore_deletion(
 
         # Create deletion workflow
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id=requester_user_id,
-            requester_name=requester.get("name", "Unknown"),
-            target_id=chore_id,
-            target_title=chore.get("title", "Unknown"),
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id=requester_user_id,
+                requester_name=requester.get("name", "Unknown"),
+                target_id=chore_id,
+                target_title=chore.get("title", "Unknown"),
+            )
         )
 
         # Create log entry for audit trail

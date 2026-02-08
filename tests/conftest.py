@@ -30,8 +30,17 @@ try:
     POCKETBASE_AVAILABLE = True
 except ImportError:
     POCKETBASE_AVAILABLE = False
-    PocketBase = None  # type: ignore[assignment]
-    ClientResponseError = None  # type: ignore[assignment]
+
+    class PocketBase:  # type: ignore[no-redef]
+        """Stub PocketBase class for when the library is not available."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise ImportError("pocketbase is not installed")
+
+    class ClientResponseError(Exception):  # type: ignore[no-redef]
+        """Stub ClientResponseError for when pocketbase is not available."""
+
+        status: int = 0
 
 
 # HTTP status codes

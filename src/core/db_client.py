@@ -4,6 +4,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
+from http import HTTPStatus
 from typing import Any, TypeVar
 
 import httpx
@@ -15,6 +16,9 @@ from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
+
+# HTTP status code constants
+HTTP_NOT_FOUND = HTTPStatus.NOT_FOUND
 
 
 def sanitize_param(value: str | int | float | bool | None) -> str:
@@ -175,8 +179,21 @@ class PocketBaseConnectionPool:
         return self._client
 
 
-# Global connection pool instance
-_connection_pool: PocketBaseConnectionPool | None = None
+class _ConnectionPoolSingleton:
+    """Singleton container for the PocketBase connection pool."""
+
+    _pool: "PocketBaseConnectionPool | None" = None
+
+    @classmethod
+    def get_pool(cls) -> PocketBaseConnectionPool:
+        """Get or create the connection pool instance."""
+        if cls._pool is None:
+            cls._pool = PocketBaseConnectionPool(
+                url=settings.pocketbase_url,
+                admin_email=settings.pocketbase_admin_email,
+                admin_password=settings.pocketbase_admin_password,
+            )
+        return cls._pool
 
 
 def get_client() -> PocketBase:
@@ -191,16 +208,7 @@ def get_client() -> PocketBase:
     Raises:
         ConnectionError: If unable to establish connection
     """
-    global _connection_pool  # noqa: PLW0603
-
-    if _connection_pool is None:
-        _connection_pool = PocketBaseConnectionPool(
-            url=settings.pocketbase_url,
-            admin_email=settings.pocketbase_admin_email,
-            admin_password=settings.pocketbase_admin_password,
-        )
-
-    return _connection_pool.get_client()
+    return _ConnectionPoolSingleton.get_pool().get_client()
 
 
 async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -233,7 +241,7 @@ async def get_record(*, collection: str, record_id: str) -> dict[str, Any]:
         record = client.collection(collection).get_one(record_id)
         return record.__dict__
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:  # noqa: PLR2004
+        if e.response.status_code == HTTP_NOT_FOUND:
             msg = f"Record not found in {collection}: {record_id}"
             raise KeyError(msg) from e
         logger.error(
@@ -259,7 +267,7 @@ async def update_record(*, collection: str, record_id: str, data: dict[str, Any]
         logger.info("Updated record in %s: %s", collection, record_id)
         return record.__dict__
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:  # noqa: PLR2004
+        if e.response.status_code == HTTP_NOT_FOUND:
             msg = f"Record not found in {collection}: {record_id}"
             raise KeyError(msg) from e
         logger.error(
@@ -284,7 +292,7 @@ async def delete_record(*, collection: str, record_id: str) -> None:
         client.collection(collection).delete(record_id)
         logger.info("Deleted record from %s: %s", collection, record_id)
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:  # noqa: PLR2004
+        if e.response.status_code == HTTP_NOT_FOUND:
             msg = f"Record not found in {collection}: {record_id}"
             raise KeyError(msg) from e
         logger.error(
@@ -349,7 +357,7 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         result = client.collection(collection).get_first_list_item(filter_query)
         return result.__dict__
     except ClientResponseError as e:
-        if e.status == 404:  # noqa: PLR2004
+        if e.status == HTTP_NOT_FOUND:
             return None
         logger.error(
             "get_first_record_failed",
@@ -358,7 +366,7 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         msg = f"Failed to get first record from {collection}: {e}"
         raise RuntimeError(msg) from e
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:  # noqa: PLR2004
+        if e.response.status_code == HTTP_NOT_FOUND:
             return None
         logger.error(
             "get_first_record_failed",

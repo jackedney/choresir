@@ -96,12 +96,10 @@ async def validate_startup_configuration() -> None:
         logger.info("startup_validation_complete", extra={"status": "ok"})
 
     except (ValueError, ConnectionError) as e:
-        logger.error("startup_validation_failed", extra={"error": str(e)})
-        print(f"\n❌ Startup validation failed: {e}\n", file=sys.stderr)  # noqa: T201
+        logger.critical("Startup validation failed: %s", e)
         sys.exit(1)
     except Exception as e:
-        logger.error("startup_validation_unexpected_error", extra={"error": str(e)})
-        print(f"\n❌ Unexpected error during startup validation: {e}\n", file=sys.stderr)  # noqa: T201
+        logger.critical("Unexpected error during startup validation: %s", e)
         sys.exit(1)
 
 

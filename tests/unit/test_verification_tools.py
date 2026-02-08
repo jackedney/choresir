@@ -1,5 +1,7 @@
 """Unit tests for verification_tools module."""
 
+from typing import TYPE_CHECKING, Any, cast
+
 import pytest
 
 from src.agents.tools.verification_tools import (
@@ -9,6 +11,12 @@ from src.agents.tools.verification_tools import (
     tool_verify_chore,
 )
 from src.services import chore_service, verification_service, workflow_service
+
+
+if TYPE_CHECKING:
+    from pydantic_ai import RunContext
+
+    from src.agents.base import Deps
 
 
 @pytest.fixture
@@ -76,11 +84,11 @@ async def pending_verification_workflow(patched_verification_tools_db, claimer, 
     )
 
 
-def _create_mock_context(verifier: dict) -> object:
-    """Create a minimal mock context object."""
+def _create_mock_context(verifier: dict[str, Any]) -> "RunContext[Deps]":
+    """Create a minimal mock context object for testing."""
 
     class MockDeps:
-        def __init__(self, user_data: dict):
+        def __init__(self, user_data: dict[str, Any]) -> None:
             self.user_id = user_data["id"]
             self.user_phone = user_data["phone"]
             self.user_name = user_data["name"]
@@ -88,10 +96,10 @@ def _create_mock_context(verifier: dict) -> object:
             self.current_time = None
 
     class MockContext:
-        def __init__(self, user_data: dict):
+        def __init__(self, user_data: dict[str, Any]) -> None:
             self.deps = MockDeps(user_data)
 
-    return MockContext(verifier)
+    return cast("RunContext[Deps]", MockContext(verifier))
 
 
 @pytest.mark.unit
@@ -117,6 +125,7 @@ class TestToolVerifyChoreByWorkflowId:
 
         # Verify workflow was resolved
         updated_workflow = await workflow_service.get_workflow(workflow_id=pending_verification_workflow["id"])
+        assert updated_workflow is not None
         assert updated_workflow["status"] == workflow_service.WorkflowStatus.APPROVED.value
         assert updated_workflow["resolver_user_id"] == verifier["id"]
 
@@ -140,6 +149,7 @@ class TestToolVerifyChoreByWorkflowId:
 
         # Verify workflow was rejected
         updated_workflow = await workflow_service.get_workflow(workflow_id=pending_verification_workflow["id"])
+        assert updated_workflow is not None
         assert updated_workflow["status"] == workflow_service.WorkflowStatus.REJECTED.value
         assert updated_workflow["reason"] == "Not properly done"
 
@@ -161,11 +171,13 @@ class TestToolVerifyChoreByWorkflowId:
         """Test workflow_id with wrong type returns error."""
         # Create a deletion workflow instead of verification
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id=claimer["id"],
-            requester_name=claimer["name"],
-            target_id="chore_id",
-            target_title="Test Chore",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id=claimer["id"],
+                requester_name=claimer["name"],
+                target_id="chore_id",
+                target_title="Test Chore",
+            )
         )
 
         ctx = _create_mock_context(verifier)
@@ -238,6 +250,7 @@ class TestToolVerifyChoreByTitle:
 
         # Verify workflow was resolved
         updated_workflow = await workflow_service.get_workflow(workflow_id=pending_verification_workflow["id"])
+        assert updated_workflow is not None
         assert updated_workflow["status"] == workflow_service.WorkflowStatus.APPROVED.value
 
     async def test_reject_verification_by_title_matching(

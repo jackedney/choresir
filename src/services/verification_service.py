@@ -101,12 +101,14 @@ async def request_verification(
         }
 
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id=claimer_user_id,
-            requester_name=claimer.get("name", "Unknown"),
-            target_id=chore_id,
-            target_title=chore.get("title", "Unknown"),
-            metadata=metadata,
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id=claimer_user_id,
+                requester_name=claimer.get("name", "Unknown"),
+                target_id=chore_id,
+                target_title=chore.get("title", "Unknown"),
+                metadata=metadata,
+            )
         )
 
         # Create log entry with Robin Hood tracking (audit trail)

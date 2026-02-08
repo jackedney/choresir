@@ -127,11 +127,13 @@ async def log_personal_chore(
 
                 # Create workflow for personal verification
                 workflow = await workflow_service.create_workflow(
-                    workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
-                    requester_user_id=owner_user_id,
-                    requester_name=owner_name,
-                    target_id=log_record["id"],
-                    target_title=chore["title"],
+                    params=workflow_service.WorkflowCreateParams(
+                        workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                        requester_user_id=owner_user_id,
+                        requester_name=owner_name,
+                        target_id=log_record["id"],
+                        target_title=chore["title"],
+                    )
                 )
 
                 await notification_service.send_personal_verification_request(

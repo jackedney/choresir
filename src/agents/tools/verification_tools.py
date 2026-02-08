@@ -139,9 +139,107 @@ def _format_chore_list(chores: list[dict], user_name: str) -> str:
     return "\n".join(lines)
 
 
-async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:  # noqa: C901, PLR0911, PLR0912
+async def _get_verification_workflow_by_id(workflow_id: str) -> dict | str:
+    """Get and validate a verification workflow by ID.
+
+    Args:
+        workflow_id: The workflow ID to look up
+
+    Returns:
+        The workflow dict if valid, or an error message string
     """
-    Verify or reject a chore completion claim.
+    workflow = await workflow_service.get_workflow(workflow_id=workflow_id)
+    if not workflow:
+        return f"Error: Workflow '{workflow_id}' not found."
+
+    if workflow["type"] != workflow_service.WorkflowType.CHORE_VERIFICATION.value:
+        return f"Error: Workflow '{workflow_id}' is not a chore verification workflow."
+
+    if workflow["status"] != workflow_service.WorkflowStatus.PENDING.value:
+        return f"Error: Workflow '{workflow_id}' is not pending (status: {workflow['status']})."
+
+    return workflow
+
+
+async def _get_verification_workflow_by_chore_title(chore_title_fuzzy: str) -> dict | str:
+    """Find a verification workflow by chore title matching.
+
+    Args:
+        chore_title_fuzzy: The chore title to fuzzy match
+
+    Returns:
+        The workflow dict if found, or an error message string
+    """
+    all_chores = await chore_service.get_chores()
+    matched_chores = _fuzzy_match_all_chores(all_chores, chore_title_fuzzy)
+
+    if not matched_chores:
+        return f'No chore found matching "{chore_title_fuzzy}".'
+
+    # Find which matched chores have pending verification requests
+    chores_with_pending_verification: list[tuple[dict, dict]] = []
+    for chore in matched_chores:
+        pending_workflow = await verification_service.get_pending_verification_workflow(chore_id=chore["id"])
+        if pending_workflow:
+            chores_with_pending_verification.append((chore, pending_workflow))
+
+    if not chores_with_pending_verification:
+        return f'No pending verification found for "{chore_title_fuzzy}".'
+
+    if len(chores_with_pending_verification) > 1:
+        chore_list = ", ".join(f"'{c['title']}'" for c, _ in chores_with_pending_verification)
+        return f"Multiple chores with pending verification found: {chore_list}. Please specify which one."
+
+    # Exactly one chore with pending verification - use it
+    _matched_chore, pending_workflow = chores_with_pending_verification[0]
+    return pending_workflow
+
+
+async def _resolve_verification_workflow(
+    workflow: dict,
+    user_id: str,
+    decision_lower: str,
+    reason: str,
+) -> str:
+    """Resolve a verification workflow with the given decision.
+
+    Args:
+        workflow: The workflow to resolve
+        user_id: The resolving user's ID
+        decision_lower: The normalized decision ('approve' or 'reject')
+        reason: Reason for the decision
+
+    Returns:
+        Success message
+    """
+    resolver = await user_service.get_user_by_id(user_id=user_id)
+    resolver_name = resolver.get("name", "Unknown")
+
+    if decision_lower == "approve":
+        await workflow_service.resolve_workflow(
+            workflow_id=workflow["id"],
+            resolver_user_id=user_id,
+            resolver_name=resolver_name,
+            decision=workflow_service.WorkflowStatus.APPROVED,
+            reason=reason,
+        )
+        return f"Approved verification of '{workflow['target_title']}'."
+
+    await workflow_service.resolve_workflow(
+        workflow_id=workflow["id"],
+        resolver_user_id=user_id,
+        resolver_name=resolver_name,
+        decision=workflow_service.WorkflowStatus.REJECTED,
+        reason=reason,
+    )
+    return (
+        f"Rejected verification of '{workflow['target_title']}'. "
+        "Moving to conflict resolution (voting will be implemented)."
+    )
+
+
+async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
+    """Verify or reject a chore completion claim.
 
     Prevents self-verification. Approvals mark chore as completed.
     Rejections move to conflict resolution (voting).
@@ -155,7 +253,6 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str: 
     Returns:
         Success or error message
     """
-    result = None
     try:
         with logfire.span("tool_verify_chore", workflow_id=params.workflow_id, decision=params.decision):
             # Validate input
@@ -168,86 +265,30 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str: 
                 return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
 
             # Determine the workflow to resolve
-            workflow: dict | None = None
-
             if params.workflow_id:
-                # Direct workflow ID reference
-                workflow = await workflow_service.get_workflow(workflow_id=params.workflow_id)
-                if not workflow:
-                    return f"Error: Workflow '{params.workflow_id}' not found."
-
-                if workflow["type"] != workflow_service.WorkflowType.CHORE_VERIFICATION.value:
-                    return f"Error: Workflow '{params.workflow_id}' is not a chore verification workflow."
-
-                if workflow["status"] != workflow_service.WorkflowStatus.PENDING.value:
-                    return f"Error: Workflow '{params.workflow_id}' is not pending (status: {workflow['status']})."
+                workflow_result = await _get_verification_workflow_by_id(params.workflow_id)
             else:
-                # Find workflow by chore title matching
                 assert params.chore_title_fuzzy is not None  # Type narrowing: validated above
-                all_chores = await chore_service.get_chores()
+                workflow_result = await _get_verification_workflow_by_chore_title(params.chore_title_fuzzy)
 
-                # Find ALL matching chores (not just the first)
-                matched_chores = _fuzzy_match_all_chores(all_chores, params.chore_title_fuzzy)
+            # Check if we got an error message instead of a workflow
+            if isinstance(workflow_result, str):
+                return workflow_result
 
-                if not matched_chores:
-                    return f'No chore found matching "{params.chore_title_fuzzy}".'
-
-                # Find which matched chores have pending verification requests
-                chores_with_pending_verification: list[tuple[dict, dict]] = []
-                for chore in matched_chores:
-                    pending_workflow = await verification_service.get_pending_verification_workflow(
-                        chore_id=chore["id"]
-                    )
-                    if pending_workflow:
-                        chores_with_pending_verification.append((chore, pending_workflow))
-
-                if not chores_with_pending_verification:
-                    return f'No pending verification found for "{params.chore_title_fuzzy}".'
-
-                if len(chores_with_pending_verification) > 1:
-                    # Multiple chores with pending verification - ask for clarification
-                    chore_list = ", ".join(f"'{c['title']}'" for c, _ in chores_with_pending_verification)
-                    return f"Multiple chores with pending verification found: {chore_list}. Please specify which one."
-
-                # Exactly one chore with pending verification - use it
-                _matched_chore, pending_workflow = chores_with_pending_verification[0]
-                workflow = pending_workflow
-
-            # Get resolver name
-            resolver = await user_service.get_user_by_id(user_id=ctx.deps.user_id)
-            resolver_name = resolver.get("name", "Unknown")
-
-            # Process decision using workflow_service
-            if decision_lower == "approve":
-                await workflow_service.resolve_workflow(
-                    workflow_id=workflow["id"],
-                    resolver_user_id=ctx.deps.user_id,
-                    resolver_name=resolver_name,
-                    decision=workflow_service.WorkflowStatus.APPROVED,
-                    reason=params.reason or "",
-                )
-                result = f"Approved verification of '{workflow['target_title']}'."
-            else:
-                await workflow_service.resolve_workflow(
-                    workflow_id=workflow["id"],
-                    resolver_user_id=ctx.deps.user_id,
-                    resolver_name=resolver_name,
-                    decision=workflow_service.WorkflowStatus.REJECTED,
-                    reason=params.reason or "",
-                )
-                result = (
-                    f"Rejected verification of '{workflow['target_title']}'. "
-                    "Moving to conflict resolution (voting will be implemented)."
-                )
+            # Resolve the workflow
+            return await _resolve_verification_workflow(
+                workflow=workflow_result,
+                user_id=ctx.deps.user_id,
+                decision_lower=decision_lower,
+                reason=params.reason or "",
+            )
 
     except ValueError as e:
         logger.warning("Verification failed", extra={"error": str(e)})
-        result = f"Error: {e!s}"
+        return f"Error: {e!s}"
     except Exception as e:
         logger.error("Unexpected error in tool_verify_chore", extra={"error": str(e)})
-        result = "Error: Unable to verify chore. Please try again."
-
-    return result
+        return "Error: Unable to verify chore. Please try again."
 
 
 async def tool_list_my_chores(ctx: RunContext[Deps], params: ListMyChores) -> str:

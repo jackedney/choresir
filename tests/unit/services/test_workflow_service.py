@@ -27,11 +27,13 @@ class TestCreateWorkflow:
     ):
         """Creates a deletion approval workflow."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         assert workflow["type"] == "deletion_approval"
@@ -48,11 +50,13 @@ class TestCreateWorkflow:
     ):
         """Creates a chore verification workflow."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user789",
-            requester_name="Bob",
-            target_id="chore999",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user789",
+                requester_name="Bob",
+                target_id="chore999",
+                target_title="Take Out Trash",
+            )
         )
 
         assert workflow["type"] == "chore_verification"
@@ -65,11 +69,13 @@ class TestCreateWorkflow:
     ):
         """Creates a personal verification workflow."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
-            requester_user_id="user456",
-            requester_name="Charlie",
-            target_id="personal_chore123",
-            target_title="Buy groceries",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                requester_user_id="user456",
+                requester_name="Charlie",
+                target_id="personal_chore123",
+                target_title="Buy groceries",
+            )
         )
 
         assert workflow["type"] == "personal_verification"
@@ -82,11 +88,13 @@ class TestCreateWorkflow:
     ):
         """Sets expires_at to 48 hours from now by default."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         created_at = datetime.fromisoformat(workflow["created_at"])
@@ -101,12 +109,14 @@ class TestCreateWorkflow:
     ):
         """Sets expires_at to custom hours value."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
-            expires_hours=1,
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+                expires_hours=1,
+            )
         )
 
         created_at = datetime.fromisoformat(workflow["created_at"])
@@ -123,12 +133,14 @@ class TestCreateWorkflow:
         metadata = {"is_swap": True, "notes": "This is a Robin Hood swap"}
 
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
-            metadata=metadata,
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+                metadata=metadata,
+            )
         )
 
         assert workflow["metadata"] == metadata
@@ -140,11 +152,13 @@ class TestCreateWorkflow:
     ):
         """Creates workflow with default 48 hour expiration."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         assert "created_at" in workflow
@@ -161,11 +175,13 @@ class TestGetWorkflow:
     ):
         """Returns workflow when valid ID is provided."""
         created = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         workflow = await workflow_service.get_workflow(workflow_id=created["id"])
@@ -205,25 +221,31 @@ class TestGetPendingWorkflows:
     ):
         """Returns all pending workflows regardless of type."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Dishes",
+            )
         )
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user2",
-            requester_name="Bob",
-            target_id="chore2",
-            target_title="Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user2",
+                requester_name="Bob",
+                target_id="chore2",
+                target_title="Trash",
+            )
         )
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
-            requester_user_id="user3",
-            requester_name="Charlie",
-            target_id="personal1",
-            target_title="Groceries",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                requester_user_id="user3",
+                requester_name="Charlie",
+                target_id="personal1",
+                target_title="Groceries",
+            )
         )
 
         pending = await workflow_service.get_pending_workflows()
@@ -237,18 +259,22 @@ class TestGetPendingWorkflows:
     ):
         """Filters workflows by type when specified."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Dishes",
+            )
         )
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user2",
-            requester_name="Bob",
-            target_id="chore2",
-            target_title="Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user2",
+                requester_name="Bob",
+                target_id="chore2",
+                target_title="Trash",
+            )
         )
 
         pending_deletions = await workflow_service.get_pending_workflows(
@@ -270,11 +296,13 @@ class TestGetPendingWorkflows:
     ):
         """Excludes workflows that are not in pending status."""
         pending_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Dishes",
+            )
         )
 
         await patched_workflow_db.update_record(
@@ -304,11 +332,13 @@ class TestGetPendingWorkflows:
     ):
         """Example from acceptance criteria: create workflow, get_pending_workflows returns it."""
         created = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         pending = await workflow_service.get_pending_workflows()
@@ -324,12 +354,14 @@ class TestGetPendingWorkflows:
     ):
         """Example from acceptance criteria: create workflow with expires_hours=1, expires_at is 1 hour from now."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
-            expires_hours=1,
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+                expires_hours=1,
+            )
         )
 
         created_at = datetime.fromisoformat(workflow["created_at"])
@@ -358,25 +390,31 @@ class TestGetUserPendingWorkflows:
     ):
         """Returns pending workflows where requester_user_id matches the user."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="jack_user_id",
-            requester_name="Jack",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="jack_user_id",
+                requester_name="Jack",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="jack_user_id",
-            requester_name="Jack",
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="jack_user_id",
+                requester_name="Jack",
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="lottie_user_id",
-            requester_name="Lottie",
-            target_id="chore3",
-            target_title="Clean Kitchen",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="lottie_user_id",
+                requester_name="Lottie",
+                target_id="chore3",
+                target_title="Clean Kitchen",
+            )
         )
 
         jacks_pending = await workflow_service.get_user_pending_workflows(user_id="jack_user_id")
@@ -391,11 +429,13 @@ class TestGetUserPendingWorkflows:
     ):
         """Example from acceptance criteria: Jack creates workflow, Jack's get_user_pending_workflows includes it."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="jack_user_id",
-            requester_name="Jack",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="jack_user_id",
+                requester_name="Jack",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
 
         jacks_pending = await workflow_service.get_user_pending_workflows(user_id="jack_user_id")
@@ -411,11 +451,13 @@ class TestGetUserPendingWorkflows:
     ):
         """Excludes workflows that are not in pending status for the user."""
         pending_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Dishes",
+            )
         )
 
         await patched_workflow_db.update_record(
@@ -435,11 +477,13 @@ class TestGetUserPendingWorkflows:
     ):
         """Negative case: no pending workflows returns empty list."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="other_user",
-            requester_name="Other",
-            target_id="chore1",
-            target_title="Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="other_user",
+                requester_name="Other",
+                target_id="chore1",
+                target_title="Dishes",
+            )
         )
 
         pending = await workflow_service.get_user_pending_workflows(user_id="user123")
@@ -467,25 +511,31 @@ class TestGetActionableWorkflows:
     ):
         """Returns pending workflows where requester_user_id does not match the user."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="lottie_user_id",
-            requester_name="Lottie",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="lottie_user_id",
+                requester_name="Lottie",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="bob_user_id",
-            requester_name="Bob",
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="bob_user_id",
+                requester_name="Bob",
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="jack_user_id",
-            requester_name="Jack",
-            target_id="chore3",
-            target_title="Clean Kitchen",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="jack_user_id",
+                requester_name="Jack",
+                target_id="chore3",
+                target_title="Clean Kitchen",
+            )
         )
 
         jacks_actionable = await workflow_service.get_actionable_workflows(user_id="jack_user_id")
@@ -501,11 +551,13 @@ class TestGetActionableWorkflows:
     ):
         """Example from acceptance criteria: Jack creates workflow, Lottie's get_actionable_workflows includes it."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="jack_user_id",
-            requester_name="Jack",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="jack_user_id",
+                requester_name="Jack",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
 
         lotties_actionable = await workflow_service.get_actionable_workflows(user_id="lottie_user_id")
@@ -521,11 +573,13 @@ class TestGetActionableWorkflows:
     ):
         """Example from acceptance criteria: Jack creates workflow, Jack's get_actionable_workflows excludes it."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="jack_user_id",
-            requester_name="Jack",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="jack_user_id",
+                requester_name="Jack",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
 
         jacks_actionable = await workflow_service.get_actionable_workflows(user_id="jack_user_id")
@@ -539,11 +593,13 @@ class TestGetActionableWorkflows:
     ):
         """Excludes workflows that are not in pending status."""
         other_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="other_user",
-            requester_name="Other",
-            target_id="chore1",
-            target_title="Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="other_user",
+                requester_name="Other",
+                target_id="chore1",
+                target_title="Dishes",
+            )
         )
 
         await patched_workflow_db.update_record(
@@ -573,11 +629,13 @@ class TestGetActionableWorkflows:
     ):
         """Returns empty list when only workflows are from the user themselves."""
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Dishes",
+            )
         )
 
         actionable = await workflow_service.get_actionable_workflows(user_id="user123")
@@ -595,11 +653,13 @@ class TestResolveWorkflow:
     ):
         """Example from acceptance criteria: resolve workflow as APPROVED, status becomes APPROVED."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         resolved = await workflow_service.resolve_workflow(
@@ -622,11 +682,13 @@ class TestResolveWorkflow:
     ):
         """Resolves workflow as REJECTED with a reason."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         resolved = await workflow_service.resolve_workflow(
@@ -650,11 +712,13 @@ class TestResolveWorkflow:
     ):
         """Negative case: requester tries to approve own workflow raises ValueError."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         with pytest.raises(ValueError, match="Cannot approve own workflow"):
@@ -672,11 +736,13 @@ class TestResolveWorkflow:
     ):
         """Negative case: resolve already-resolved workflow raises ValueError."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         await patched_workflow_db.update_record(
@@ -714,11 +780,13 @@ class TestResolveWorkflow:
     ):
         """Raises ValueError when decision is not APPROVED or REJECTED."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         with pytest.raises(ValueError, match="Invalid decision"):
@@ -736,11 +804,13 @@ class TestResolveWorkflow:
     ):
         """Resolution sets resolved_at timestamp."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         resolved = await workflow_service.resolve_workflow(
@@ -761,11 +831,13 @@ class TestResolveWorkflow:
     ):
         """Accepts empty string for reason parameter."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         resolved = await workflow_service.resolve_workflow(
@@ -789,25 +861,31 @@ class TestBatchResolveWorkflows:
     ):
         """Example from acceptance criteria: batch resolve 3 workflows, all 3 returned as resolved."""
         workflow1 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
         workflow2 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
         workflow3 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="personal1",
-            target_title="Buy groceries",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="personal1",
+                target_title="Buy groceries",
+            )
         )
 
         resolved = await workflow_service.batch_resolve_workflows(
@@ -828,18 +906,22 @@ class TestBatchResolveWorkflows:
     ):
         """Example from acceptance criteria: batch resolve includes own workflow, that one skipped, others resolved."""
         own_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
         other_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user2",
-            requester_name="Bob",
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user2",
+                requester_name="Bob",
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
 
         resolved = await workflow_service.batch_resolve_workflows(
@@ -864,18 +946,22 @@ class TestBatchResolveWorkflows:
     ):
         """Skips workflows not in PENDING status."""
         pending_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
         approved_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
 
         await patched_workflow_db.update_record(
@@ -916,11 +1002,13 @@ class TestBatchResolveWorkflows:
     ):
         """Skips workflows that don't exist."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
 
         resolved = await workflow_service.batch_resolve_workflows(
@@ -940,18 +1028,22 @@ class TestBatchResolveWorkflows:
     ):
         """Resolves workflows as REJECTED with a reason."""
         workflow1 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
         workflow2 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
 
         resolved = await workflow_service.batch_resolve_workflows(
@@ -973,11 +1065,13 @@ class TestBatchResolveWorkflows:
     ):
         """Raises ValueError when decision is not APPROVED or REJECTED."""
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
 
         with pytest.raises(ValueError, match="Invalid decision"):
@@ -995,25 +1089,31 @@ class TestBatchResolveWorkflows:
     ):
         """Handles mixed scenarios: own workflow, non-pending, not found, and valid."""
         own_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
         pending_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user2",
-            requester_name="Bob",
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user2",
+                requester_name="Bob",
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
         approved_workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
-            requester_user_id="user3",
-            requester_name="Charlie",
-            target_id="personal1",
-            target_title="Buy groceries",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                requester_user_id="user3",
+                requester_name="Charlie",
+                target_id="personal1",
+                target_title="Buy groceries",
+            )
         )
 
         await patched_workflow_db.update_record(
@@ -1045,18 +1145,22 @@ class TestBatchResolveWorkflows:
     ):
         """Sets resolved_at timestamp for all resolved workflows."""
         workflow1 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
         workflow2 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
 
         resolved = await workflow_service.batch_resolve_workflows(
@@ -1084,11 +1188,13 @@ class TestExpireOldWorkflows:
         """Example from acceptance criteria: workflow with expires_at in past gets status EXPIRED."""
         # Create workflow with expires_at in the past
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         # Manually set expires_at to the past
@@ -1118,11 +1224,13 @@ class TestExpireOldWorkflows:
         """Example from acceptance criteria: workflow with expires_at in future remains PENDING."""
         # Create workflow with default expires_at (48 hours in future)
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         # Expire old workflows
@@ -1144,11 +1252,13 @@ class TestExpireOldWorkflows:
         """Negative case from acceptance criteria: already resolved workflow is not touched."""
         # Create and approve a workflow
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         # Set expires_at to the past
@@ -1178,25 +1288,31 @@ class TestExpireOldWorkflows:
         """Expires multiple workflows at once."""
         # Create multiple workflows
         workflow1 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user1",
-            requester_name="Alice",
-            target_id="chore1",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user1",
+                requester_name="Alice",
+                target_id="chore1",
+                target_title="Wash Dishes",
+            )
         )
         workflow2 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
-            requester_user_id="user2",
-            requester_name="Bob",
-            target_id="chore2",
-            target_title="Take Out Trash",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                requester_user_id="user2",
+                requester_name="Bob",
+                target_id="chore2",
+                target_title="Take Out Trash",
+            )
         )
         workflow3 = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
-            requester_user_id="user3",
-            requester_name="Charlie",
-            target_id="personal1",
-            target_title="Buy groceries",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                requester_user_id="user3",
+                requester_name="Charlie",
+                target_id="personal1",
+                target_title="Buy groceries",
+            )
         )
 
         # Set first two to have expired
@@ -1238,11 +1354,13 @@ class TestExpireOldWorkflows:
         """Returns zero when there are no expired workflows."""
         # Create workflow with future expires_at
         await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         # Expire old workflows
@@ -1259,11 +1377,13 @@ class TestExpireOldWorkflows:
         """Expires workflows where expires_at is exactly at current time."""
         # Create workflow
         workflow = await workflow_service.create_workflow(
-            workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
-            requester_user_id="user123",
-            requester_name="Alice",
-            target_id="chore456",
-            target_title="Wash Dishes",
+            params=workflow_service.WorkflowCreateParams(
+                workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
+                requester_user_id="user123",
+                requester_name="Alice",
+                target_id="chore456",
+                target_title="Wash Dishes",
+            )
         )
 
         # Set expires_at to exactly now
