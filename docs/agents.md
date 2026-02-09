@@ -65,7 +65,6 @@ my_tools.register_tools(agent_instance)
 ```python
 @dataclass
 class Deps:
-    db: PocketBase
     user_id: str
     user_phone: str
     user_name: str
@@ -73,4 +72,4 @@ class Deps:
     current_time: datetime
 ```
 
-Built before agent run via `build_deps(db=..., user_phone=...)`.
+Built before agent run via `build_deps(user_phone=...)`.

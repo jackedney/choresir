@@ -16,8 +16,6 @@
         <link rel="prev" href="../architecture/">
       
       
-        <link rel="next" href="../adr/">
-      
       
         
       
@@ -427,7 +425,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/" class="md-nav__link">
+      <a href="../adr/index.md" class="md-nav__link">
         
   
   
@@ -455,7 +453,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/001-stack/" class="md-nav__link">
+      <a href="../adr/001-stack.md" class="md-nav__link">
         
   
   
@@ -483,7 +481,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/002-agent-framework/" class="md-nav__link">
+      <a href="../adr/002-agent-framework.md" class="md-nav__link">
         
   
   
@@ -511,7 +509,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/003-verification/" class="md-nav__link">
+      <a href="../adr/003-verification.md" class="md-nav__link">
         
   
   
@@ -539,7 +537,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/004-conflict/" class="md-nav__link">
+      <a href="../adr/004-conflict.md" class="md-nav__link">
         
   
   
@@ -567,7 +565,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/005-models/" class="md-nav__link">
+      <a href="../adr/005-models.md" class="md-nav__link">
         
   
   
@@ -595,7 +593,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/006-standards/" class="md-nav__link">
+      <a href="../adr/006-standards.md" class="md-nav__link">
         
   
   
@@ -623,7 +621,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/007-operations/" class="md-nav__link">
+      <a href="../adr/007-operations.md" class="md-nav__link">
         
   
   
@@ -651,7 +649,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/008-gamification/" class="md-nav__link">
+      <a href="../adr/008-gamification.md" class="md-nav__link">
         
   
   
@@ -679,7 +677,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/009-interactive-verification/" class="md-nav__link">
+      <a href="../adr/009-interactive-verification.md" class="md-nav__link">
         
   
   
@@ -707,7 +705,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/010-smart-pantry/" class="md-nav__link">
+      <a href="../adr/010-smart-pantry.md" class="md-nav__link">
         
   
   
@@ -735,7 +733,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/011-version-management/" class="md-nav__link">
+      <a href="../adr/011-version-management.md" class="md-nav__link">
         
   
   
@@ -763,7 +761,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/012-nlp-approach/" class="md-nav__link">
+      <a href="../adr/012-nlp-approach.md" class="md-nav__link">
         
   
   
@@ -791,7 +789,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/013-redis-caching/" class="md-nav__link">
+      <a href="../adr/013-redis-caching.md" class="md-nav__link">
         
   
   
@@ -819,7 +817,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/014-robin-hood-protocol/" class="md-nav__link">
+      <a href="../adr/014-robin-hood-protocol.md" class="md-nav__link">
         
   
   
@@ -847,7 +845,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/015-type-safety/" class="md-nav__link">
+      <a href="../adr/015-type-safety.md" class="md-nav__link">
         
   
   
@@ -875,7 +873,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/016-conversational-house-joining/" class="md-nav__link">
+      <a href="../adr/016-conversational-house-joining.md" class="md-nav__link">
         
   
   
@@ -903,7 +901,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adr/019-personal-chores/" class="md-nav__link">
+      <a href="../adr/019-personal-chores.md" class="md-nav__link">
         
   
   
@@ -1087,14 +1085,13 @@
 <h2 id="deps-structure">Deps Structure</h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nd">@dataclass</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">Deps</span><span class="p">:</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">db</span><span class="p">:</span> <span class="n">PocketBase</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">user_phone</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">user_name</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">user_role</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">current_time</span><span class="p">:</span> <span class="n">datetime</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">user_phone</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">user_name</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">user_role</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">current_time</span><span class="p">:</span> <span class="n">datetime</span>
 </span></code></pre></div>
-<p>Built before agent run via <code>build_deps(db=..., user_phone=...)</code>.</p>
+<p>Built before agent run via <code>build_deps(user_phone=...)</code>.</p>
 
 
 

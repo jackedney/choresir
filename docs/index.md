@@ -1,6 +1,6 @@
 # WhatsApp Home Boss
 
-A WhatsApp-powered household management bot. Python + FastAPI + Pydantic AI + PocketBase.
+A WhatsApp-powered household management bot. Python + FastAPI + Pydantic AI + SQLite.
 
 ## Commands
 
@@ -28,7 +28,7 @@ A WhatsApp-powered household management bot. Python + FastAPI + Pydantic AI + Po
 ## Stack
 
 - Python 3.12+ / FastAPI
-- PocketBase (SQLite)
+- SQLite with aiosqlite
 - Pydantic AI agents
 - WAHA (WhatsApp HTTP API)
 - OpenRouter (LLM)
