@@ -1,11 +1,11 @@
-"""Rate limiting middleware using Redis sliding window algorithm."""
+"""Rate limiting middleware using in-memory cache sliding window algorithm."""
 
 import logging
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
 
-from src.core.cache_client import cache_client as redis_client
+from src.core.cache_client import cache_client
 from src.core.config import Constants
 
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class RateLimiter:
-    """Rate limiter using Redis sliding window algorithm."""
+    """Rate limiter using in-memory cache sliding window algorithm."""
 
     async def check_rate_limit(
         self,
@@ -24,7 +24,7 @@ class RateLimiter:
     ) -> None:
         """Check if request is within rate limit.
 
-        Uses Redis sliding window algorithm:
+        Uses in-memory cache sliding window algorithm:
         - Increment counter for the current window
         - Set expiry on first increment
         - Raise exception if limit exceeded
@@ -38,8 +38,8 @@ class RateLimiter:
         Raises:
             RateLimitExceeded: If rate limit is exceeded
         """
-        if not redis_client.is_available:
-            logger.debug("rate_limit_check_skipped", extra={"reason": "redis_unavailable"})
+        if not cache_client.is_available:
+            logger.debug("rate_limit_check_skipped", extra={"reason": "cache_unavailable"})
             return
 
         # Generate key for current window
@@ -49,15 +49,15 @@ class RateLimiter:
 
         try:
             # Increment counter
-            count = await redis_client.increment(key)
+            count = await cache_client.increment(key)
 
             if count is None:
-                logger.warning("rate_limit_check_failed", extra={"reason": "redis_increment_failed"})
+                logger.warning("rate_limit_check_failed", extra={"reason": "increment_failed"})
                 return
 
             # Set expiry on first increment
             if count == 1:
-                await redis_client.expire(key, window_seconds)
+                await cache_client.expire(key, window_seconds)
 
             # Check if limit exceeded
             if count > limit:
