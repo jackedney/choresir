@@ -4,6 +4,7 @@
 
 import json
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +21,226 @@ logger = logging.getLogger(__name__)
 # Database connection singleton
 _db_path: Path | None = None
 _db_connection: aiosqlite.Connection | None = None
+
+
+def parse_filter(filter_query: str) -> tuple[str, list[Any]]:
+    """Parse PocketBase-style filter query into SQL WHERE clause with parameters.
+
+    Converts PocketBase filter syntax to parameterized SQL WHERE clause.
+    Supports: =, ~ (LIKE), !=, >, <, >=, <=, && (AND), || (OR), parentheses.
+
+    Args:
+        filter_query: PocketBase filter expression
+
+    Returns:
+        Tuple of (WHERE clause string, list of bind values)
+
+    Raises:
+        ValueError: If filter syntax is invalid
+
+    Example:
+        >>> sql, params = parse_filter('name = "test" && active = true')
+        >>> sql
+        'name = ? AND active = ?'
+        >>> params
+        ['test', 1]
+    """
+    if not filter_query:
+        return "", []
+
+    tokens = _tokenize_filter(filter_query)
+    where_clause, params, _ = _parse_expression(tokens, 0)
+
+    if where_clause:
+        return where_clause, params
+
+    msg = f"Invalid filter syntax: {filter_query}"
+    raise ValueError(msg)
+
+
+def _tokenize_filter(filter_query: str) -> list[str]:
+    """Tokenize filter query string into meaningful components.
+
+    Args:
+        filter_query: Filter expression string
+
+    Returns:
+        List of tokens
+    """
+    pattern = r"""
+        \|\||&&|>=|<=|!=|>|<|=|~|
+        \(|\)|
+        "[^"]*"|
+        '.*?'|
+        [^\s"'\(\)\|\&]+
+    """
+    tokens = re.findall(pattern, filter_query, re.VERBOSE)
+    return [token.strip() for token in tokens if token.strip()]
+
+
+def _parse_expression(tokens: list[str], pos: int) -> tuple[str, list[Any], int]:
+    """Parse filter expression tokens into SQL WHERE clause.
+
+    Args:
+        tokens: List of tokens
+        pos: Current position in tokens
+
+    Returns:
+        Tuple of (WHERE clause string, list of bind values, next position)
+    """
+    if pos >= len(tokens):
+        return "", [], pos
+
+    # Parse OR expressions (lowest precedence)
+    left, params, next_pos = _parse_and_expression(tokens, pos)
+
+    if next_pos < len(tokens) and tokens[next_pos] == "||":
+        next_pos += 1
+        right, right_params, final_pos = _parse_expression(tokens, next_pos)
+        if right:
+            return f"({left} OR {right})", params + right_params, final_pos
+        return left, params, next_pos
+
+    return left, params, next_pos
+
+
+def _parse_and_expression(tokens: list[str], pos: int) -> tuple[str, list[Any], int]:
+    """Parse AND expression tokens.
+
+    Args:
+        tokens: List of tokens
+        pos: Current position in tokens
+
+    Returns:
+        Tuple of (WHERE clause string, list of bind values, next position)
+    """
+    if pos >= len(tokens):
+        return "", [], pos
+
+    # Parse NOT expressions
+    left, params, next_pos = _parse_not_expression(tokens, pos)
+
+    if next_pos < len(tokens) and tokens[next_pos] == "&&":
+        next_pos += 1
+        right, right_params, final_pos = _parse_and_expression(tokens, next_pos)
+        if right:
+            return f"({left} AND {right})", params + right_params, final_pos
+        return left, params, next_pos
+
+    return left, params, next_pos
+
+
+def _parse_not_expression(tokens: list[str], pos: int) -> tuple[str, list[Any], int]:
+    """Parse NOT expression tokens.
+
+    Args:
+        tokens: List of tokens
+        pos: Current position in tokens
+
+    Returns:
+        Tuple of (WHERE clause string, list of bind values, next position)
+    """
+    if pos >= len(tokens):
+        return "", [], pos
+
+    # Handle parentheses
+    if tokens[pos] == "(":
+        inner_pos = pos + 1
+        inner, params, next_pos = _parse_expression(tokens, inner_pos)
+        if next_pos < len(tokens) and tokens[next_pos] == ")":
+            return f"({inner})", params, next_pos + 1
+
+    # Parse primary expression (field operator value)
+    return _parse_condition(tokens, pos)
+
+
+def _parse_condition(tokens: list[str], pos: int) -> tuple[str, list[Any], int]:
+    """Parse a single condition (field operator value).
+
+    Args:
+        tokens: List of tokens
+        pos: Current position in tokens
+
+    Returns:
+        Tuple of (WHERE clause string, list of bind values, next position)
+    """
+    if pos + 2 >= len(tokens):
+        return "", [], pos
+
+    field = tokens[pos]
+    operator = tokens[pos + 1]
+    value_token = tokens[pos + 2]
+
+    # Validate field name
+    if not field or field in ("(", ")", "&&", "||"):
+        msg = f"Invalid field name: {field}"
+        raise ValueError(msg)
+
+    # Parse value (handle quoted strings and literals)
+    value = _parse_value(value_token)
+
+    # Convert operator to SQL
+    sql_operator, sql_value = _convert_operator(operator, value)
+
+    return f"{field} {sql_operator} ?", [sql_value], pos + 3
+
+
+def _parse_value(token: str) -> str:
+    """Parse value token.
+
+    Args:
+        token: Value token
+
+    Returns:
+        Parsed value as string
+    """
+    # Handle double-quoted strings
+    if token.startswith('"') and token.endswith('"'):
+        return token[1:-1]
+
+    # Handle single-quoted strings
+    if token.startswith("'") and token.endswith("'"):
+        return token[1:-1]
+
+    # Handle boolean values
+    if token.lower() == "true":
+        return "1"
+    if token.lower() == "false":
+        return "0"
+
+    # Handle numeric values (return as is, SQLite will convert)
+    if re.match(r"^-?\d+\.?\d*$", token):
+        return token
+
+    # Handle unquoted identifiers (should be quoted)
+    return token
+
+
+def _convert_operator(operator: str, value: str) -> tuple[str, Any]:
+    """Convert PocketBase operator to SQL operator.
+
+    Args:
+        operator: PocketBase operator
+        value: Value to convert if needed (for booleans)
+
+    Returns:
+        Tuple of (SQL operator, converted value)
+    """
+    operator_map = {
+        "=": ("=", value),
+        "~": ("LIKE", f"%{value}%"),
+        "!=": ("!=", value),
+        ">": (">", value),
+        "<": ("<", value),
+        ">=": (">=", value),
+        "<=": ("<=", value),
+    }
+
+    if operator not in operator_map:
+        msg = f"Unknown operator: {operator}"
+        raise ValueError(msg)
+
+    return operator_map[operator]
 
 
 def get_db_path() -> Path:
@@ -359,7 +580,7 @@ async def list_records(
         collection: Name of the collection/table
         page: Page number (1-indexed)
         per_page: Number of records per page
-        filter_query: Filter expression (currently not supported, included for API compatibility)
+        filter_query: Filter expression (PocketBase syntax)
         sort: Sort field (currently not supported, included for API compatibility)
 
     Returns:
@@ -367,13 +588,28 @@ async def list_records(
 
     Raises:
         RuntimeError: If collection access fails
+        ValueError: If filter syntax is invalid
     """
     try:
         conn = await get_connection()
 
-        # Build query with pagination
         query = f"SELECT * FROM {collection}"
         params = []
+
+        # Apply filter if provided
+        if filter_query:
+            where_clause, filter_params = parse_filter(filter_query)
+            if where_clause:
+                query += f" WHERE {where_clause}"
+                params.extend(filter_params)
+
+        # Apply sort if provided
+        if sort:
+            # Parse sort: "-field" for descending, "field" for ascending
+            sort_field = sort.lstrip("-")
+            sort_order = "DESC" if sort.startswith("-") else "ASC"
+            query += f" ORDER BY {sort_field} {sort_order}"
+            logger.info("Applying sort", extra={"field": sort_field, "order": sort_order})
 
         # Apply pagination
         offset = (page - 1) * per_page
@@ -384,15 +620,7 @@ async def list_records(
         rows = await cursor.fetchall()
 
         columns = [desc[0] for desc in cursor.description]
-        records = [dict(zip(columns, row, strict=False)) for row in rows]
-
-        # TODO: Implement filter_query and sort in US-003
-        if filter_query:
-            logger.warning("filter_query not yet implemented in SQLite backend", extra={"filter": filter_query})
-        if sort:
-            logger.warning("sort not yet implemented in SQLite backend", extra={"sort": sort})
-
-        return records
+        return [dict(zip(columns, row, strict=False)) for row in rows]
     except aiosqlite.OperationalError as e:
         if "no such table" in str(e):
             msg = f"Table {collection} does not exist. Call init_db() first."
@@ -412,21 +640,29 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
 
     Args:
         collection: Name of the collection/table
-        filter_query: Filter expression (currently not supported)
+        filter_query: Filter expression (PocketBase syntax)
 
     Returns:
         First matching record or None
 
     Raises:
         RuntimeError: If collection access fails
+        ValueError: If filter syntax is invalid
     """
     try:
-        # TODO: Implement filter_query in US-003
-        if filter_query:
-            logger.warning("filter_query not yet implemented in SQLite backend", extra={"filter": filter_query})
-
         conn = await get_connection()
-        cursor = await conn.execute(f"SELECT * FROM {collection} LIMIT 1")
+        query = f"SELECT * FROM {collection}"
+        params = []
+
+        # Apply filter if provided
+        if filter_query:
+            where_clause, filter_params = parse_filter(filter_query)
+            if where_clause:
+                query += f" WHERE {where_clause}"
+                params.extend(filter_params)
+
+        query += " LIMIT 1"
+        cursor = await conn.execute(query, tuple(params))
         row = await cursor.fetchone()
 
         if row is None:

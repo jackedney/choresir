@@ -2,73 +2,26 @@
 
 import logging
 import re
-from dataclasses import dataclass
+import secrets
 from datetime import datetime
 
 import logfire
-from pocketbase import PocketBase
-from pydantic_ai.messages import ModelMessage
 
 from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
 from src.agents.retry_handler import get_retry_handler
 from src.core import admin_notifier, db_client
+from src.core.config import settings
+from src.core.db_client import _DBClient
 from src.core.errors import classify_agent_error
-from src.domain.user import UserStatus
-from src.services import user_service, workflow_service
-from src.services.conversation_context_service import (
-    format_context_for_prompt,
-    get_recent_context,
-)
-from src.services.group_context_service import (
-    format_group_context_for_prompt,
-    get_group_context,
-)
-
-
-@dataclass
-class PromptContext:
-    """Context data for building the system prompt."""
-
-    user_name: str
-    user_phone: str
-    user_role: str
-    current_time: str
-    member_list: str
-    pending_context: str = ""
-    conversation_context: str = ""
-
-
-logger = logging.getLogger(__name__)
-
-# Regex pattern to strip special tokens from LLM output
-# These tokens can leak from various models (Qwen, DeepSeek, etc.)
-_SPECIAL_TOKEN_PATTERN = re.compile(
-    r"<\|(?:FunctionCallEnd|endoftext|im_start|im_end|pad|eos|bos|assistant|user|system)\|>",
-    re.IGNORECASE,
-)
+from src.domain.user import User, UserStatus
+from src.services import session_service, user_service
 
 
 logger = logging.getLogger(__name__)
 
 
-def _sanitize_llm_output(text: str) -> str:
-    """Remove leaked special tokens from LLM output.
-
-    Some models (Qwen, DeepSeek, etc.) may leak special tokens like
-    <|FunctionCallEnd|> into their output. This function strips them.
-
-    Args:
-        text: Raw LLM output text
-
-    Returns:
-        Sanitized text with special tokens removed
-    """
-    sanitized = _SPECIAL_TOKEN_PATTERN.sub("", text)
-    # Clean up any resulting double spaces or leading/trailing whitespace
-    sanitized = re.sub(r"\s{2,}", " ", sanitized)
-    return sanitized.strip()
-
+logger = logging.getLogger(__name__)
 
 # System prompt template
 SYSTEM_PROMPT_TEMPLATE = """You are choresir, a household chore management assistant. Your role is strictly functional.
@@ -100,66 +53,31 @@ You have access to tools for:
 
 Use tools to perform actions. Always confirm understanding before using destructive tools.
 
-## Multi-Step Workflows
-
-All approval workflows (deletions, chore verifications, personal chore verifications) are listed
-in the REQUESTS YOU CAN ACTION section below.
-
-When a user wants to approve/reject workflows:
-- Check the REQUESTS YOU CAN ACTION section first
-- Single workflow: Use `tool_respond_to_deletion` (for deletions) or specific verification tools
-- Multiple workflows: Use `tool_batch_respond_to_workflows` with workflow IDs or indices (1, 2, 3...)
-- Reference workflows by number (1, 2) or title
-- Supports: approve 1, reject 2, approve 1 and 2, approve all, reject both
-
-When user says "approve", "yes", "reject":
-- If only ONE actionable workflow exists, proceed with that workflow
-- If MULTIPLE actionable workflows exist, ask which ones they want to action
-- Reference the REQUESTS YOU CAN ACTION section to understand available workflows
-
 ## Personal Chores vs Household Chores
 
 You manage TWO separate systems:
 
 1. **Household Chores**: Shared responsibilities tracked on the leaderboard
-   - Commands: "Done dishes", "Create chore", "Delete chore", "Stats"
+   - Commands: "Done dishes", "Create chore", "Stats"
    - Visible to all household members
    - Require verification from other members
-   - Deletion requires approval from another member (two-step process)
 
 2. **Personal Chores**: Private individual tasks
-   - Commands: "/personal add", "/personal done", "/personal remove", "/personal stats"
+   - Commands: "/personal add", "/personal done", "/personal stats"
    - Completely private (only owner can see)
    - Optional accountability partner for verification
    - NOT included in household leaderboard or reports
-   - Can be removed immediately by owner (no approval needed)
 
 ## Command Routing Rules
 
-CRITICAL ROUTING RULES:
 - If message starts with "/personal", route to personal chore tools
-- If user is confirming a previous question about HOUSEHOLD chores, use HOUSEHOLD tools
-- If user is confirming a previous question about PERSONAL chores, use PERSONAL tools
-- Check the RECENT CONVERSATION section to understand what the user is confirming
-
-For "done X" or "log X" commands:
+- If message says "done X" or "log X", check for name collision:
   1. Search household chores for "X"
   2. Search user's personal chores for "X"
   3. If BOTH match, ask: "Did you mean household [X] or your personal [X]?"
   4. If only one matches, proceed with that one
 - For stats/list commands without "/personal", default to household
 - For create/add commands without "/personal", default to household
-
-## Understanding Confirmatory Responses
-
-When a user sends short confirmatory messages like:
-- "Yes", "Yeah", "Confirm", "OK" - confirm the most recent pending action
-- "1", "2", "1 and 2", "both" - select numbered items from a list you provided
-- "the first one", "all of them" - reference items you listed
-
-ALWAYS check the RECENT CONVERSATION section to understand what they're confirming.
-If you asked about household chores, confirm with household chore tools.
-If you asked about personal chores, confirm with personal chore tools.
 
 ## Personal Chore Disambiguation
 
@@ -181,68 +99,23 @@ CRITICAL: Personal chores are completely private.
 - NEVER show personal chore completions in household reports
 - Accountability partners can only verify, not view stats
 - All personal chore notifications must be sent via DM only
-{pending_context}"""
+"""
 
 
-def _build_system_prompt(ctx: PromptContext) -> str:
+def _build_system_prompt(
+    *, user_name: str, user_phone: str, user_role: str, current_time: str, member_list: str
+) -> str:
     """Build the system prompt with injected context."""
     return SYSTEM_PROMPT_TEMPLATE.format(
-        user_name=ctx.user_name,
-        user_phone=ctx.user_phone,
-        user_role=ctx.user_role,
-        current_time=ctx.current_time,
-        member_list=ctx.member_list,
-        pending_context=ctx.pending_context + ctx.conversation_context,
+        user_name=user_name,
+        user_phone=user_phone,
+        user_role=user_role,
+        current_time=current_time,
+        member_list=member_list,
     )
 
 
-async def _build_workflow_context(user_id: str) -> str:
-    """Build context string for pending workflows.
-
-    Shows workflows initiated by the user (awaiting others) and workflows from others
-    that the user can action (approve/reject).
-
-    Args:
-        user_id: User ID to check for pending workflows
-
-    Returns:
-        Context string to append to system prompt, or empty string if none
-    """
-    user_workflows = await workflow_service.get_user_pending_workflows(user_id=user_id)
-    actionable_workflows = await workflow_service.get_actionable_workflows(user_id=user_id)
-
-    if not user_workflows and not actionable_workflows:
-        return ""
-
-    lines = []
-
-    # Section 1: Workflows user initiated (awaiting others)
-    if user_workflows:
-        lines.extend(["", "## YOUR PENDING REQUESTS", "", "You have requested the following (awaiting approval):"])
-        for wf in user_workflows:
-            workflow_type = wf["type"].replace("_", " ").title()
-            lines.append(f"- {workflow_type}: {wf['target_title']}")
-
-    # Section 2: Workflows from others user can action
-    if actionable_workflows:
-        lines.extend(["", "## REQUESTS YOU CAN ACTION", "", "You can approve/reject the following:"])
-        for idx, wf in enumerate(actionable_workflows, start=1):
-            workflow_type = wf["type"].replace("_", " ").title()
-            lines.append(f"{idx}. {workflow_type}: {wf['target_title']} (from {wf['requester_name']})")
-
-        lines.extend(["", "User can say: approve 1, reject both, approve all"])
-
-    return "\n".join(lines)
-
-
-async def run_agent(
-    *,
-    user_message: str,
-    deps: Deps,
-    member_list: str,
-    message_history: list[ModelMessage] | None = None,
-    group_id: str | None = None,
-) -> str:
+async def run_agent(*, user_message: str, deps: Deps, member_list: str) -> str:
     """
     Run the choresir agent with the given message and context.
 
@@ -250,50 +123,23 @@ async def run_agent(
         user_message: The message from the user
         deps: The injected dependencies (db, user info, current time)
         member_list: Formatted list of household members
-        message_history: Optional conversation history for context
-        group_id: Optional WhatsApp group ID for shared group context
 
     Returns:
         The agent's response as a string
     """
-    # Build workflow context for this user
-    pending_context = await _build_workflow_context(deps.user_id)
-
-    # Build conversation context from recent messages
-    # Use group context for group chats, per-user context for DMs
-    conversation_context = ""
-    if group_id:
-        try:
-            group_context = await get_group_context(group_id=group_id)
-            conversation_context = format_group_context_for_prompt(group_context)
-        except Exception as e:
-            logger.warning("Failed to get group context: %s", e)
-    else:
-        try:
-            recent_context = await get_recent_context(user_phone=deps.user_phone)
-            conversation_context = format_context_for_prompt(recent_context)
-        except Exception as e:
-            logger.warning("Failed to get conversation context: %s", e)
-
     # Build system prompt with context
-    prompt_ctx = PromptContext(
+    instructions = _build_system_prompt(
         user_name=deps.user_name,
         user_phone=deps.user_phone,
         user_role=deps.user_role,
         current_time=deps.current_time.isoformat(),
         member_list=member_list,
-        pending_context=pending_context,
-        conversation_context=conversation_context,
     )
-    instructions = _build_system_prompt(prompt_ctx)
 
     try:
         # Get agent instance (lazy initialization)
         agent = get_agent()
         retry_handler = get_retry_handler()
-
-        # Use provided message history or empty list
-        history = message_history or []
 
         # Define the agent execution function for retry wrapper
         async def execute_agent() -> str:
@@ -301,11 +147,10 @@ async def run_agent(
                 result = await agent.run(
                     user_message,
                     deps=deps,
-                    message_history=history,
+                    message_history=[],
                     instructions=instructions,
                 )
-                # Sanitize output to remove any leaked special tokens
-                return _sanitize_llm_output(result.output)
+                return result.output
 
         # Run the agent with intelligent retry logic
         return await retry_handler.execute_with_retry(execute_agent)
@@ -325,7 +170,7 @@ async def run_agent(
             try:
                 timestamp = datetime.now().isoformat()
                 message = (
-                    f"OpenRouter quota exceeded. User {deps.user_name} ({deps.user_phone}) affected at {timestamp}"
+                    f"⚠️ OpenRouter quota exceeded. User {deps.user_name} ({deps.user_phone}) affected at {timestamp}"
                 )
                 await admin_notifier.notify_admins(
                     message=message,
@@ -337,13 +182,13 @@ async def run_agent(
         return user_message
 
 
-async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
+async def build_deps(*, db: _DBClient, user_phone: str) -> Deps | None:
     """
     Build dependencies for agent execution with user context.
 
     Args:
         db: PocketBase database connection
-        user_phone: Phone number of the user
+        user_phone: Phone number of user
 
     Returns:
         Deps object or None if user not found
@@ -364,7 +209,7 @@ async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
     )
 
 
-async def get_member_list(*, _db: PocketBase) -> str:
+async def get_member_list(*, _db: _DBClient) -> str:
     """
     Get formatted list of household members.
 
@@ -376,7 +221,7 @@ async def get_member_list(*, _db: PocketBase) -> str:
     """
     # Get all active members
     members = await db_client.list_records(
-        collection="members",
+        collection="users",
         filter_query=f'status = "{UserStatus.ACTIVE}"',
         sort="+name",
     )
@@ -393,6 +238,92 @@ async def get_member_list(*, _db: PocketBase) -> str:
     return "\n".join(lines)
 
 
+async def handle_unknown_user(*, user_phone: str, message_text: str) -> str:
+    """
+    Handle message from unknown user.
+
+    Checks if the message contains join credentials and processes them.
+    Otherwise returns an onboarding prompt.
+
+    Args:
+        user_phone: Phone number of unknown user
+        message_text: The message text from the user
+
+    Returns:
+        Join success message or onboarding prompt
+    """
+    # Check for active join session first
+    session = await session_service.get_session(phone=user_phone)
+
+    # Check for /cancel command (before step handlers so it works during any step)
+    if re.match(r"^/cancel$", message_text, re.IGNORECASE):
+        if session:
+            await session_service.delete_session(phone=user_phone)
+            return "Join process cancelled. Send '/house join {house_name}' to start again."
+        return "Nothing to cancel."
+
+    if session:
+        step = session.get("step")
+        if step == "awaiting_password":
+            return await handle_join_password_step(user_phone, message_text)
+        if step == "awaiting_name":
+            return await handle_join_name_step(user_phone, message_text)
+
+    # Check for /house join {house_name} command
+    house_join_match = re.match(r"^/house\s+join\s+(.+)$", message_text, re.IGNORECASE)
+    if house_join_match:
+        house_name = house_join_match.group(1).strip()
+        return await handle_house_join(phone=user_phone, house_name=house_name)
+
+    # Try legacy join format or return onboarding prompt
+    return await _handle_legacy_join_or_onboard(user_phone, message_text)
+
+
+async def _handle_legacy_join_or_onboard(user_phone: str, message_text: str) -> str:
+    """Handle legacy join format (Code/Password/Name) or return onboarding prompt."""
+    # Try to parse join request: Code: XXX, Password: YYY, Name: ZZZ
+    # Pattern matches case-insensitive and handles various formatting
+    # Supports quoted passwords for spaces/commas: Password: "my pass"
+    pattern = r'code:\s*([A-Z0-9]+).*?password:\s*(?:"([^"]+)|([^\s,]+)).*?name:\s*(.+?)(?:\s*$|\.)'
+    match = re.search(pattern, message_text, re.IGNORECASE | re.DOTALL)
+
+    if not match:
+        # No join request detected, return onboarding prompt
+        house_name = settings.house_name or "the house"
+        return (
+            "Welcome! You're not yet a member of this household.\n\n"
+            "To join, type:\n"
+            f"/house join {house_name}\n\n"
+            "You'll then be asked for the password and your preferred name."
+        )
+
+    house_code = match.group(1).strip()
+    # Password is in group 2 (quoted) or group 3 (unquoted)
+    password = (match.group(2) or match.group(3)).strip()
+    name = match.group(4).strip()
+
+    # Attempt to process the join request
+    try:
+        await user_service.request_join(
+            phone=user_phone,
+            name=name,
+            house_code=house_code,
+            password=password,
+        )
+        return (
+            f"Welcome, {name}! Your membership request has been submitted. An admin will review your request shortly."
+        )
+    except ValueError as e:
+        logger.warning(f"Join request failed for {user_phone}: {e}")
+        return (
+            f"Sorry, I couldn't process your join request: {e}\n\n"
+            "Please check your house code and password and try again."
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error processing join request for {user_phone}: {e}")
+        return "Sorry, an error occurred while processing your join request. Please try again later."
+
+
 async def handle_pending_user(*, user_name: str) -> str:
     """
     Handle message from pending user.
@@ -403,4 +334,195 @@ async def handle_pending_user(*, user_name: str) -> str:
     Returns:
         Status message
     """
-    return f"Hi {user_name}! Please reply with your name to complete registration."
+    return f"Hi {user_name}! Your membership is awaiting approval from an admin."
+
+
+async def handle_banned_user(*, user_name: str) -> str:
+    """
+    Handle message from banned user.
+
+    Args:
+        user_name: Name of banned user
+
+    Returns:
+        Rejection message
+    """
+    return f"Hi {user_name}. Your access to this household has been revoked."
+
+
+async def handle_house_join(phone: str, house_name: str) -> str:
+    """
+    Handle /house join {house_name} command.
+
+    Steps:
+    1. Check if user is already a member
+    2. Validate house_name matches configured house (case-insensitive)
+    3. Create join session with step="awaiting_password"
+    4. Return password prompt message
+
+    Args:
+        phone: User's phone number in E.164 format
+        house_name: House name provided by user
+
+    Returns:
+        Response message for user
+    """
+    # Guard: Validate house name is configured
+    if not settings.house_name:
+        logger.error("House name not configured in settings")
+        return "Sorry, house joining is not available at this time. Please contact an administrator."
+
+    # Guard: Check if user is already a member
+    existing_user = await user_service.get_user_by_phone(phone=phone)
+    if existing_user and existing_user.get("status") == UserStatus.ACTIVE:
+        return "You're already a member of this household!"
+
+    # Guard: Validate house name matches configured value (case-insensitive)
+    normalized_house_name = house_name.strip().lower()
+    if normalized_house_name != settings.house_name.lower():
+        return "Invalid house name. Please check and try again."
+
+    # Create join session with initial state
+    # Store the original house_name (preserving case) for display purposes
+    await session_service.create_session(
+        phone=phone,
+        house_name=house_name.strip(),
+        step="awaiting_password",
+    )
+
+    # Return password prompt
+    return "Please provide the house password:"
+
+
+async def handle_join_password_step(phone: str, password: str) -> str:
+    """
+    Handle password submission during join flow.
+
+    Steps:
+    1. Get session for phone (returns None if expired)
+    2. Check rate limiting (5 second delay)
+    3. Validate password with constant-time comparison
+    4. On failure: increment attempts, return error
+    5. On success: update session to "awaiting_name", return name prompt
+
+    Args:
+        phone: User's phone number in E.164 format
+        password: Password submitted by user
+
+    Returns:
+        Response message for user
+    """
+    # Get session (returns None if expired)
+    session = await session_service.get_session(phone=phone)
+    if not session:
+        return "Your session has expired. Please restart by typing '/house join {house_name}'."
+
+    # Check rate limiting
+    if session_service.is_rate_limited(session=session):
+        return "Please wait a few seconds before trying again."
+
+    # Validate password is configured
+    if not settings.house_password:
+        logger.error("House password not configured in settings")
+        return "Sorry, house joining is not available at this time. Please contact an administrator."
+
+    # Validate password with constant-time comparison (prevents timing attacks)
+    is_valid = secrets.compare_digest(
+        password.encode("utf-8"),
+        settings.house_password.encode("utf-8"),
+    )
+
+    if not is_valid:
+        # Increment attempt counter and update last_attempt_at
+        await session_service.increment_password_attempts(phone=phone)
+        return f"Invalid password. Please try again or type '/house join {session['house_name']}' to restart."
+
+    # Success! Update session to next step
+    await session_service.update_session(
+        phone=phone,
+        updates={"step": "awaiting_name"},
+    )
+
+    # Return name prompt with security reminder
+    return (
+        "⚠️ For security, please delete your previous message containing the password\n\n"
+        "What name would you like to use?"
+    )
+
+
+async def handle_join_name_step(phone: str, name: str) -> str:
+    """
+    Handle name submission during join flow.
+
+    Steps:
+    1. Get session for phone (must be in "awaiting_name" step)
+    2. Validate name using User model validator
+    3. Create join request via user_service
+    4. Delete session (flow complete)
+    5. Return welcome message
+
+    Args:
+        phone: User's phone number in E.164 format
+        name: Name submitted by user
+
+    Returns:
+        Response message for user
+    """
+    # Get session (returns None if expired)
+    session = await session_service.get_session(phone=phone)
+    if not session:
+        house_name = settings.house_name or "the house"
+        return f"Your join session has expired. Please restart with '/house join {house_name}'."
+
+    # Verify session is in the correct step
+    if session.get("step") != "awaiting_name":
+        logger.warning(
+            "Session for %s is in wrong step: %s (expected awaiting_name)",
+            phone,
+            session.get("step"),
+        )
+        house_name = session.get("house_name", settings.house_name or "the house")
+        return f"Something went wrong. Please restart with '/house join {house_name}'."
+
+    # Strip whitespace from name (normalize user input)
+    name = name.strip()
+
+    # Validate name using User model validator
+    try:
+        # Use the User model validator to validate the name
+        # We create a temporary User instance just for validation
+        User(id="temp", phone=phone, name=name)
+    except ValueError as e:
+        # Name validation failed - keep session alive for retry
+        logger.info("Invalid name submitted by %s: %s", phone, str(e))
+        return (
+            "That name isn't usable. Please provide a different name (letters, spaces, hyphens, and apostrophes only)."
+        )
+
+    # Create join request
+    try:
+        if not settings.house_code or not settings.house_password:
+            logger.error("House credentials not configured in settings")
+            await session_service.delete_session(phone=phone)
+            return "Sorry, house joining is not available at this time. Please contact an administrator."
+
+        await user_service.request_join(
+            phone=phone,
+            name=name,
+            house_code=settings.house_code,
+            password=settings.house_password,
+        )
+    except Exception as e:
+        # Join request failed - delete session anyway (flow is complete)
+        logger.error("Failed to create join request for %s: %s", phone, str(e))
+        await session_service.delete_session(phone=phone)
+        return (
+            "Sorry, something went wrong while processing your request. "
+            "Please try again later or contact an administrator."
+        )
+
+    # Success! Delete session (flow complete)
+    await session_service.delete_session(phone=phone)
+
+    # Return welcome message
+    return f"Welcome {name}! Your membership request has been submitted. An admin will review shortly."

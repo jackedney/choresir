@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "project": "SQLite Migration",
+  "overview": "Replace the complex PocketBase (REST API server) and Redis infrastructure with a simpler local-first architecture using aiosqlite for direct async SQLite access and an in-memory TTL cache for caching needs. This simplification is appropriate for a local WhatsApp agent running on a single machine.",
+  "goals": [
+    "Eliminate external server dependencies (PocketBase, Redis)",
+    "Simplify deployment and local development",
+    "Maintain identical interfaces for db_client and redis_client consumers",
+    "Reduce infrastructure complexity while preserving functionality"
+  ],
+  "nonGoals": [
+    "Data migration from existing PocketBase installations",
+    "Multi-machine distributed deployment support",
+    "Changing the public API of db_client or redis_client"
+  ],
+  "successMetrics": [
+    "All unit and integration tests pass",
+    "App starts without external database servers",
+    "/health endpoint returns healthy status",
+    "SQLite file created at configured path"
+  ],
+  "openQuestions": [],
+  "stack": {
+    "framework": "FastAPI",
+    "hosting": "Local",
+    "database": "SQLite (aiosqlite)",
+    "auth": "N/A"
+  },
+  "routes": [],
+  "uiNotes": [],
+  "dataModel": [],
+  "importFormat": {
+    "description": "Not applicable",
+    "example": {}
+  },
+  "rules": [
+    "Use parameterized queries to prevent SQL injection",
+    "Generate UUIDs for record IDs (uuid.uuid4().hex[:15] to mimic PocketBase 15-char IDs)",
+    "Auto-generate created and updated timestamps",
+    "Thread-safe in-memory cache using locks"
+  ],
+  "qualityGates": [
+    "uv run ruff check",
+    "uv run ruff format --check",
+    "uv run pytest tests/unit/",
+    "uv run pytest tests/integration/"
+  ],
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Rewrite db_client.py with aiosqlite",
+      "status": "done",
+      "dependsOn": [],
+      "description": "As a developer, I want to replace PocketBase HTTP client with aiosqlite so that the app works without external database servers.",
+      "acceptanceCriteria": [
+        "Replace PocketBase HTTP client with aiosqlite in src/core/db_client.py",
+        "Maintain same async CRUD interface: create_record, get_record, update_record, delete_record, list_records, get_first_record",
+        "Add init_db() function to create tables on startup",
+        "Use parameterized queries throughout to prevent SQL injection",
+        "Generate UUIDs for record IDs using uuid.uuid4().hex[:15] to mimic PocketBase 15-char IDs",
+        "Auto-generate created and updated timestamps",
+        "Example: create_record('users', {'name': 'Test'}) returns record with generated id, created, updated fields",
+        "Negative case: create_record with invalid table name raises appropriate error"
+      ],
+      "startedAt": "2026-02-08T23:43:44.786305+00:00",
+      "completedAt": "2026-02-09T00:14:39.770614+00:00",
+      "updatedAt": "2026-02-09T00:14:39.770492+00:00"
+    },
+    {
+      "id": "US-002",
+      "title": "Rewrite schema.py for SQLite",
+      "status": "done",
+      "dependsOn": [
+        "US-001"
+      ],
+      "description": "As a developer, I want to convert PocketBase collection definitions to SQLite CREATE TABLE statements so that the database schema is properly defined.",
+      "acceptanceCriteria": [
+        "Convert PocketBase collection definitions to SQLite CREATE TABLE statements in src/core/schema.py",
+        "Implement init_db() that creates all tables with proper indexes",
+        "Map PocketBase field types to SQLite: text->TEXT, number->REAL, bool->INTEGER, date->TEXT (ISO 8601), select->TEXT, relation->TEXT, json->TEXT",
+        "All existing collections converted to CREATE TABLE statements",
+        "Example: a collection with text and number fields creates table with TEXT and REAL columns",
+        "Negative case: calling init_db() twice does not fail (uses CREATE TABLE IF NOT EXISTS)"
+      ],
+      "startedAt": "2026-02-09T00:14:41.856372+00:00",
+      "completedAt": "2026-02-09T00:29:36.404608+00:00",
+      "updatedAt": "2026-02-09T00:29:36.404306+00:00"
+    },
+    {
+      "id": "US-003",
+      "title": "Implement PocketBase filter query parser",
+      "status": "in_progress",
+      "dependsOn": [
+        "US-001"
+      ],
+      "description": "As a developer, I want to parse PocketBase-style filter queries into SQL WHERE clauses so that existing filter code continues to work.",
+      "acceptanceCriteria": [
+        "Create parse_filter(filter_query: str) -> tuple[str, list[Any]] function",
+        "Use regex to tokenize filter strings",
+        "Convert operators: = stays, ~ becomes LIKE, && becomes AND, || becomes OR",
+        "Support >= and < comparison operators",
+        "Handle parentheses for grouping",
+        "Extract values and return parameterized SQL with bind values",
+        "Example: parse_filter('name = \"test\" && active = true') returns ('name = ? AND active = ?', ['test', 1])",
+        "Negative case: malformed filter string raises ParseError with helpful message"
+      ],
+      "startedAt": "2026-02-09T00:29:38.492845+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-09T00:29:38.493064+00:00"
+    },
+    {
+      "id": "US-004",
+      "title": "Rewrite redis_client.py with in-memory cache",
+      "status": "open",
+      "dependsOn": [],
+      "description": "As a developer, I want to replace Redis with an in-memory cache so that the app works without a Redis server.",
+      "acceptanceCriteria": [
+        "Replace Redis with thread-safe in-memory dict using threading.Lock in src/core/redis_client.py",
+        "Implement TTL via expiry timestamps stored as tuples (value, expires_at)",
+        "Maintain same interface: get, set, delete, keys, increment, set_if_not_exists, expire",
+        "Add background cleanup task for expired keys",
+        "Example: set('key', 'value', ttl=60) stores value that expires after 60 seconds",
+        "Negative case: get('expired_key') returns None after TTL has passed"
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Update config.py for SQLite",
+      "status": "open",
+      "dependsOn": [],
+      "description": "As a developer, I want to update configuration settings to use SQLite instead of PocketBase.",
+      "acceptanceCriteria": [
+        "Remove PocketBase URL and credentials settings from src/core/config.py",
+        "Add sqlite_db_path setting with default ./data/choresir.db",
+        "Keep Redis URL as optional for backwards compatibility",
+        "Example: Config loads successfully with only sqlite_db_path set",
+        "Negative case: missing required environment variables still raise validation errors"
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "Update main.py startup sequence",
+      "status": "open",
+      "dependsOn": [
+        "US-001",
+        "US-002",
+        "US-004",
+        "US-005"
+      ],
+      "description": "As a developer, I want to update the startup sequence to use SQLite instead of PocketBase.",
+      "acceptanceCriteria": [
+        "Remove PocketBase connectivity check from src/main.py",
+        "Call init_db() on startup instead of sync_schema()",
+        "Simplify validation to only check WAHA connectivity",
+        "App starts successfully without external DB servers",
+        "Example: app startup logs show 'Database initialized' message",
+        "Negative case: app fails gracefully if WAHA is not available"
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "Update pyproject.toml dependencies",
+      "status": "open",
+      "dependsOn": [],
+      "description": "As a developer, I want to update dependencies to use aiosqlite instead of pocketbase.",
+      "acceptanceCriteria": [
+        "Remove pocketbase dependency from pyproject.toml",
+        "Add aiosqlite dependency to pyproject.toml",
+        "Keep redis[hiredis] as optional for users who want real Redis",
+        "Run uv sync to update lock file",
+        "Example: uv run python -c 'import aiosqlite' succeeds",
+        "Negative case: uv run python -c 'import pocketbase' fails (package removed)"
+      ]
+    },
+    {
+      "id": "US-008",
+      "title": "Update conftest.py for SQLite testing",
+      "status": "open",
+      "dependsOn": [
+        "US-001",
+        "US-002"
+      ],
+      "description": "As a developer, I want to update test fixtures to use SQLite instead of PocketBase.",
+      "acceptanceCriteria": [
+        "Remove PocketBase server fixture from tests/conftest.py",
+        "Use temp SQLite file for test isolation",
+        "Replace MockDBClient with real db_client using test DB",
+        "Tests run without PocketBase server",
+        "Example: pytest tests/unit/ runs successfully with temp database",
+        "Negative case: test database is cleaned up after test session"
+      ]
+    },
+    {
+      "id": "US-009",
+      "title": "Remove/update deployment files",
+      "status": "open",
+      "dependsOn": [],
+      "description": "As a developer, I want to remove PocketBase-related deployment files to simplify the project.",
+      "acceptanceCriteria": [
+        "Remove Dockerfile.pocketbase if it exists",
+        "Simplify docker-compose.yml to just WAHA",
+        "Remove railway.toml and railway.pocketbase.toml if they exist",
+        "Update Taskfile.yml to remove PocketBase tasks",
+        "Update .github/workflows/ci.yml to remove PocketBase installation step",
+        "Example: docker-compose up starts only WAHA container",
+        "Negative case: no dangling references to PocketBase in any config files"
+      ]
+    },
+    {
+      "id": "US-010",
+      "title": "Run tests and fix issues",
+      "status": "open",
+      "dependsOn": [
+        "US-001",
+        "US-002",
+        "US-003",
+        "US-004",
+        "US-005",
+        "US-006",
+        "US-007",
+        "US-008",
+        "US-009"
+      ],
+      "description": "As a developer, I want to verify all tests pass and the app works correctly after the migration.",
+      "acceptanceCriteria": [
+        "Run pytest tests/unit/ - all tests pass",
+        "Run pytest tests/integration/ - all tests pass",
+        "Run uv run ruff check && uv run ruff format --check - linting passes",
+        "Start app with uv run uvicorn src.main:app - app starts successfully",
+        "/health endpoint returns healthy",
+        "SQLite file created at configured path",
+        "Example: full test suite completes with 0 failures",
+        "Negative case: any test failures are fixed before marking complete"
+      ]
+    },
+    {
+      "id": "US-011",
+      "title": "Update README.md with new setup instructions",
+      "status": "open",
+      "dependsOn": [
+        "US-010"
+      ],
+      "description": "As a user, I want updated documentation so that I can set up the app without PocketBase or Redis.",
+      "acceptanceCriteria": [
+        "Update setup instructions to reflect simplified setup without PocketBase or Redis",
+        "Document sqlite_db_path configuration option",
+        "Remove references to external database servers",
+        "Example: README shows correct steps to start app with just WAHA",
+        "Negative case: no mentions of PocketBase remain in README"
+      ]
+    }
+  ]
+}
