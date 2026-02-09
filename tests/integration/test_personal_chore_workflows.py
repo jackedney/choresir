@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from src.core.db_client import create_record
 from src.services import (
     personal_chore_service,
     personal_verification_service,
@@ -156,7 +157,7 @@ async def test_auto_verify_after_48_hours(mock_db_module, db_client, sample_user
         "partner_feedback": "",
         "notes": "",
     }
-    log = await db_client.create_record(collection="personal_chore_logs", data=log_data)
+    log = await create_record(collection="personal_chore_logs", data=log_data)
 
     assert log["verification_status"] == "PENDING"
 

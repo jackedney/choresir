@@ -98,7 +98,7 @@ def test_client(test_settings: Settings) -> TestClient:
 
 
 @pytest.fixture
-async def sample_users() -> dict[str, dict]:
+async def sample_users(db_client) -> dict[str, dict]:
     """Create sample members for testing."""
     members = {
         "alice": {
@@ -155,7 +155,7 @@ async def create_test_admin(phone: str, name: str) -> dict[str, Any]:
 
 
 @pytest.fixture
-async def sample_chores(sample_users: dict) -> dict[str, dict]:
+async def sample_chores(db_client, sample_users: dict) -> dict[str, dict]:
     """Create sample chores for testing."""
     chores = {
         "dishes": {

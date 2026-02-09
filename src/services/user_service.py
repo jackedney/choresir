@@ -1,7 +1,6 @@
 """User service for onboarding and member management."""
 
 import logging
-import secrets
 from typing import Any
 
 from src.core import db_client
@@ -40,20 +39,11 @@ async def create_pending_name_user(*, phone: str) -> dict[str, Any]:
             logger.warning(msg)
             raise ValueError(msg)
 
-        # Generate dummy email for user record
-        email = f"{phone.replace('+', '').replace('-', '')}@choresir.local"
-
-        # Generate secure random password for initial account creation
-        temp_password = secrets.token_urlsafe(32)
-
         user_create = UserCreate(
             phone=phone,
             name="Pending",
-            email=email,
             role=UserRole.MEMBER,
             status=UserStatus.PENDING_NAME,
-            password=temp_password,
-            password_confirm=temp_password,
         )
 
         record = await db_client.create_record(collection="members", data=user_create.model_dump())

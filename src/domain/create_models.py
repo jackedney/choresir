@@ -14,16 +14,8 @@ class UserCreate(BaseModel):
 
     phone: str = Field(..., description="Phone number in E.164 format")
     name: str = Field(..., description="Display name of the user")
-    email: str = Field(..., description="Email address (generated from phone for auth)")
     role: UserRole = Field(default=UserRole.MEMBER, description="User role in household")
     status: UserStatus = Field(default=UserStatus.PENDING_NAME, description="User account status")
-    password: str = Field(..., description="User password")
-    password_confirm: str = Field(
-        ...,
-        validation_alias="passwordConfirm",
-        serialization_alias="passwordConfirm",
-        description="Password confirmation",
-    )
 
     @field_validator("phone")
     @classmethod

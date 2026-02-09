@@ -7,6 +7,7 @@ import pytest
 
 from src.agents import choresir_agent
 from src.agents.base import Deps
+from src.core.db_client import create_record
 from src.interface import webhook
 from src.interface.whatsapp_parser import ParsedMessage
 
@@ -25,11 +26,11 @@ async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client, s
         "role": "member",
         "status": "active",
     }
-    user = await db_client.create_record(collection="members", data=user_data)
+    user = await create_record(collection="members", data=user_data)
 
     # Create test deps
     deps = Deps(
-        db=db_client._pb,
+        db=None,  # SQLite - no db client object needed
         user_id=user["id"],
         user_phone=user["phone"],
         user_name=user["name"],
@@ -163,11 +164,11 @@ async def test_non_critical_error_no_notification(mock_db_module, db_client, sam
         "role": "member",
         "status": "active",
     }
-    user = await db_client.create_record(collection="members", data=user_data)
+    user = await create_record(collection="members", data=user_data)
 
     # Create test deps
     deps = Deps(
-        db=db_client._pb,
+        db=None,  # SQLite - no db client object needed
         user_id=user["id"],
         user_phone=user["phone"],
         user_name=user["name"],

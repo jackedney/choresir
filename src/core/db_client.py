@@ -98,7 +98,7 @@ def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]
     """Parse filter syntax into SQL WHERE clause and parameters.
 
     Supports:
-    - field = 'value'           -> WHERE field = ?
+    - field = 'value' or field = "value"  -> WHERE field = ?
     - field != 'value'          -> WHERE field != ?
     - field > 'value'           -> WHERE field > ?
     - field < 'value'           -> WHERE field < ?
@@ -106,6 +106,8 @@ def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]
     - field <= 'value'          -> WHERE field <= ?
     - field ~ 'pattern'         -> WHERE field LIKE ?
     - field1 = 'v1' && field2 = 'v2' -> WHERE field1 = ? AND field2 = ?
+
+    Values can be quoted with either single (') or double (") quotes.
 
     Args:
         filter_query: Filter string
@@ -126,7 +128,7 @@ def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]
 
     for comparison in comparisons:
         match = re.match(
-            r"(\w+)\s*(=|!=|>|<|>=|<=|~)\s*'([^']*)'",
+            r"""(\w+)\s*(=|!=|>|<|>=|<=|~)\s*(['"])([^'"]*)\3""",
             comparison,
         )
         if not match:
@@ -135,7 +137,7 @@ def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]
 
         field = match.group(1)
         op = match.group(2)
-        raw_value = match.group(3)
+        raw_value = match.group(4)  # Value is now in group 4 since group 3 is the quote
 
         op_map = {
             "=": "=",

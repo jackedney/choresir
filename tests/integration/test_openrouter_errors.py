@@ -37,7 +37,7 @@ class TestOpenRouterErrorFlow:
 
         # Setup dependencies for agent
         deps = Deps(
-            db=db_client._pb,
+            db=None,  # SQLite - no db client object needed
             user_id=sample_users["bob"]["id"],
             user_phone=sample_users["bob"]["phone"],
             user_name=sample_users["bob"]["name"],
@@ -96,7 +96,7 @@ class TestOpenRouterErrorFlow:
         4. Admin is NOT notified (transient error)
         """
         deps = Deps(
-            db=db_client._pb,
+            db=None,  # SQLite - no db client object needed
             user_id=sample_users["bob"]["id"],
             user_phone=sample_users["bob"]["phone"],
             user_name=sample_users["bob"]["name"],
@@ -140,7 +140,7 @@ class TestOpenRouterErrorFlow:
         _admin = sample_users["alice"]
 
         deps = Deps(
-            db=db_client._pb,
+            db=None,  # SQLite - no db client object needed
             user_id=sample_users["bob"]["id"],
             user_phone=sample_users["bob"]["phone"],
             user_name=sample_users["bob"]["name"],
@@ -185,7 +185,7 @@ class TestOpenRouterErrorFlow:
         4. Admin is NOT notified (transient issue)
         """
         deps = Deps(
-            db=db_client._pb,
+            db=None,  # SQLite - no db client object needed
             user_id=sample_users["bob"]["id"],
             user_phone=sample_users["bob"]["phone"],
             user_name=sample_users["bob"]["name"],
@@ -305,7 +305,7 @@ class TestAdminNotificationFailures:
         _admin = sample_users["alice"]
 
         deps = Deps(
-            db=db_client._pb,
+            db=None,  # SQLite - no db client object needed
             user_id=sample_users["bob"]["id"],
             user_phone=sample_users["bob"]["phone"],
             user_name=sample_users["bob"]["name"],
@@ -351,7 +351,7 @@ class TestAdminNotificationFailures:
         4. User still receives error message
         """
         deps = Deps(
-            db=db_client._pb,
+            db=None,  # SQLite - no db client object needed
             user_id=sample_users["bob"]["id"],
             user_phone=sample_users["bob"]["phone"],
             user_name=sample_users["bob"]["name"],
@@ -395,7 +395,7 @@ class TestErrorClassificationIntegration:
         3. User receives quota exceeded message
         """
         deps = Deps(
-            db=db_client._pb,
+            db=None,  # SQLite - no db client object needed
             user_id=sample_users["bob"]["id"],
             user_phone=sample_users["bob"]["phone"],
             user_name=sample_users["bob"]["name"],
@@ -428,7 +428,7 @@ class TestErrorClassificationIntegration:
         4. No admin notification
         """
         deps = Deps(
-            db=db_client._pb,
+            db=None,  # SQLite - no db client object needed
             user_id=sample_users["bob"]["id"],
             user_phone=sample_users["bob"]["phone"],
             user_name=sample_users["bob"]["name"],
