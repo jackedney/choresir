@@ -74,21 +74,6 @@ Track your personal tasks privately within the same WhatsApp interface:
 /personal add meditate every morning
 ```
 
-### Web Admin Interface 🆕
-
-Manage your household through a modern web interface at `/admin`:
-- **🔐 Secure Login**: Password-protected admin access (set `ADMIN_PASSWORD` in .env)
-- **🏠 House Configuration**: Update house name, password, and code via web UI
-- **👥 Member Management**: View, add, edit, and remove/ban household members
-- **📱 WhatsApp Setup**: Connect WhatsApp, view QR code, and configure group chat mode
-- **💬 Group Chat Mode**: Configure ChoresSir to respond in a house group instead of DMs
-- **📊 Dashboard**: Quick overview of member counts and status
-- **🎨 Responsive Design**: Works on desktop and mobile browsers
-
-**Access:**
-- Local: `http://localhost:8000/admin`
-- Production: `https://your-domain.com/admin`
-
 ## 🛠️ Tech Stack
 
 <div align="center">
@@ -128,13 +113,8 @@ Manage your household through a modern web interface at `/admin`:
 </tr>
 <tr>
 <td>💾 <strong>Database</strong></td>
-<td><img src="https://img.shields.io/badge/PocketBase-B8DBE4?style=flat&logo=pocketbase&logoColor=black" alt="PocketBase"></td>
-<td>Self-hosted SQLite backend + Admin UI</td>
-</tr>
-<tr>
-<td>⚡ <strong>Cache</strong></td>
-<td><img src="https://img.shields.io/badge/Redis-DC382D?style=flat&logo=redis&logoColor=white" alt="Redis"></td>
-<td>High-performance caching for leaderboards & analytics</td>
+<td><img src="https://img.shields.io/badge/SQLite-07405E?style=flat&logo=sqlite&logoColor=white" alt="SQLite"></td>
+<td>Local SQLite database (aiosqlite)</td>
 </tr>
 <tr>
 <td>💬 <strong>Interface</strong></td>
@@ -160,6 +140,7 @@ Manage your household through a modern web interface at `/admin`:
 
 **Required Accounts:**
 - [OpenRouter](https://openrouter.ai) - AI model access (~$3/month)
+- [ngrok](https://ngrok.com) - Local webhook tunnel (free)
 
 </td>
 <td width="50%">
@@ -183,37 +164,21 @@ Detailed setup instructions are available in the [Getting Started](docs/getting-
 # 1️⃣ Install dependencies
 uv sync
 
-# 2️⃣ Download PocketBase
-task setup
-
-# 3️⃣ Start Redis (choose one method):
-# Option A: Docker (recommended)
-docker run -d -p 6379:6379 redis:7-alpine
-
-# Option B: Docker Compose
-docker-compose up -d redis
-
-# Option C: Local installation
-# macOS: brew install redis && brew services start redis
-# Linux: sudo apt-get install redis-server && sudo systemctl start redis
-
-# 4️⃣ Configure environment
+# 2️⃣ Configure environment
 cp .env.example .env
 # Edit .env with your tokens (OpenRouter API key, etc.)
-# IMPORTANT: Set ADMIN_PASSWORD to access the web admin interface
 
-# 5️⃣ Start services
-# Option A: Full Docker (Recommended)
+# 3️⃣ Start services
+# Option A: Docker Compose (Recommended)
 docker-compose up -d
 
-# Option B: Dev Mode
-docker-compose up -d redis waha      # Start dependencies
-task dev                             # Start PocketBase + FastAPI
+# Option B: Dev Mode (requires 2 terminals)
+docker-compose up -d waha            # Start WAHA
+uv run fastapi dev src/main.py       # Terminal 1: API Server
+ngrok http 8000                      # Terminal 2: Public Webhook (if not using local WAHA)
 
-# 6️⃣ Configure via Web Admin
-# Open http://localhost:8000/admin and log in with ADMIN_PASSWORD
-# - Set your house name in Settings
-# - Go to WhatsApp Setup to connect WhatsApp and activate your group
+# 4️⃣ Scan QR Code
+# Open http://localhost:3000/dashboard to scan the WAHA QR code with your WhatsApp app.
 ```
 
 <div align="center">
@@ -228,23 +193,17 @@ task dev                             # Start PocketBase + FastAPI
 <tr>
 <td width="80%">
 
-### 🐳 Docker Deployment
+### 🚂 Railway Deployment
 
-**Platform:** Docker Compose (any VPS or container platform)
-**Cost:** ~$5-10/month (any VPS provider)
+**Platform:** Railway (recommended)
+**Cost:** ~$2-5/month
 **Guide:** See [Getting Started > Production](docs/getting-started/) documentation
 
 #### Quick Deploy Steps:
-1. ✅ Clone the repository
-2. 📝 Copy `.env.example` to `.env` and configure:
-   - `ADMIN_PASSWORD`: Password for web admin interface access (required)
-   - `SECRET_KEY`: Secret key for session signing (required, generate a random string)
-   - `REDIS_URL`: Redis connection URL (required)
-   - `OPENROUTER_API_KEY`: OpenRouter API key (required)
-   - `HOUSE_NAME`: Optional fallback house name
-3. 🚀 Run `docker-compose up -d`
-4. 🔗 Update WhatsApp webhook URL to your server
-5. 🌐 Access admin interface at `https://your-domain.com/admin`
+1. ✅ Create Railway project
+2. 🖥️ Deploy FastAPI service (connect GitHub repo)
+3. 🔐 Set environment variables
+4. 🔗 Update WhatsApp webhook URL
 
 </td>
 <td width="40%">
@@ -255,10 +214,8 @@ task dev                             # Start PocketBase + FastAPI
 
 | Service | Monthly Cost |
 |---------|--------------|
-| PocketBase | ~$3-5 |
-| Redis | ~$1-3 |
 | FastAPI | ~$2-5 |
-| **Total** | **$6-13** |
+| **Total** | **$2-5** |
 
 </div>
 
