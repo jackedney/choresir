@@ -227,7 +227,7 @@
     {
       "id": "US-010",
       "title": "Run tests and fix issues",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001",
         "US-002",
@@ -251,13 +251,13 @@
         "Negative case: any test failures are fixed before marking complete"
       ],
       "startedAt": "2026-02-09T02:09:29.736430+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-09T02:09:29.736626+00:00"
+      "completedAt": "2026-02-09T02:41:01.230882+00:00",
+      "updatedAt": "2026-02-09T02:41:01.230584+00:00"
     },
     {
       "id": "US-011",
       "title": "Update README.md with new setup instructions",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-010"
       ],
@@ -268,7 +268,10 @@
         "Remove references to external database servers",
         "Example: README shows correct steps to start app with just WAHA",
         "Negative case: no mentions of PocketBase remain in README"
-      ]
+      ],
+      "startedAt": "2026-02-09T02:41:03.323409+00:00",
+      "completedAt": "2026-02-09T02:49:14.821095+00:00",
+      "updatedAt": "2026-02-09T02:49:14.820774+00:00"
     }
   ]
 }

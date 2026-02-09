@@ -989,3 +989,41 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Application starts successfully and /health endpoint returns healthy
   - SQLite database file is created with all expected tables including new join_sessions
 ---
+
+---
+
+## [Mon Feb 9 02:47:45 2026] - US-011: Update README.md with new setup instructions
+Thread: 
+Run: 20260208-234344-647 (iteration 11)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-11.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-11.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: e30f485 docs(setup): remove PocketBase and Redis references
+- Post-commit status: clean (except PRD JSON and temporary ralph files managed by loop)
+- Verification:
+  - Command: uv run ruff check -> PASS
+  - Command: uv run ruff format --check -> PASS
+  - Command: uv run pytest tests/unit/ -> PASS (457 tests)
+  - Command: grep -i "pocketbase" README.md .env.example -> PASS (no PocketBase references found)
+- Files changed:
+  - README.md
+  - .env.example
+- What was implemented:
+  Updated README.md and .env.example to reflect simplified setup without external database servers:
+  - Tech Stack: Replaced PocketBase badge with SQLite badge, removed Redis cache row
+  - Minimal Local Setup: Removed PocketBase download step, removed Redis start instructions, simplified to only require WAHA and FastAPI
+  - Production Deployment: Updated cost breakdown from $6-13 to $2-5, removed PocketBase service and Redis plugin steps
+  - Configuration: Removed PocketBase configuration from .env.example, added sqlite_db_path optional configuration, marked Redis as optional with in-memory cache fallback
+  - Verified no PocketBase references remain in README.md
+- **Learnings for future iterations:**
+  - Pattern: Documentation updates must account for all mentions of removed components - search thoroughly (grep -i) to catch all references
+  - Pattern: Cost breakdown updates should reflect actual infrastructure changes (removing PocketBase ~$3-5 and Redis ~$1-3 reduces total from $6-13 to $2-5)
+  - Pattern: .env.example should document optional variables with clear comments explaining their purpose and defaults
+  - Pattern: Docker Compose services should match current architecture - README now correctly references docker-compose up -d (WAHA only) vs previous setup requiring PocketBase and Redis
+  - Pattern: Tech stack table should accurately reflect current components - SQLite badge (local database) vs PocketBase badge (external server)
+  - Gotcha: Pre-commit hook runs quality gates automatically - all Python files passed ruff check, format, and type checking
+  - Context: Unit tests (457) pass, confirming no functional regressions from documentation changes
+  - Context: The in-memory Redis replacement (built-in cache) means Redis is now optional in .env.example
+  - Context: docker-compose.yml already simplified in US-009 (only WAHA service) - README now reflects this simplified setup
+---
