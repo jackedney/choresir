@@ -695,3 +695,47 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Gotcha: When editing files with large diffs, check for duplicate code blocks (had duplicate try-except in keys() and set_if_not_exists() methods)
   - Gotcha: Remove unused imports after refactoring (removed Redis, ConnectionPool, RedisError, TypeVar, wraps, etc.)
 ---
+
+## [2026-02-09 01:04:00 GMT] - US-005: Update config.py for SQLite
+Thread:
+Run: 20260208-234344-647 (iteration 5)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-5.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-5.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 6b7660c refactor(config): replace PocketBase settings with SQLite
+- Post-commit status: clean
+- Verification:
+  - Command: uv run ruff check . -> PASS
+  - Command: uv run ruff format --check -> PASS
+  - Command: uv run ty check src -> PASS
+  - Command: uv run pytest tests/unit/ -> PASS (459 tests)
+- Files changed:
+  - src/core/config.py
+  - src/core/db_client.py
+  - src/core/schema.py
+  - src/main.py
+  - tests/conftest.py
+  - tests/integration/conftest.py
+- What was implemented:
+  - Removed pocketbase_url, pocketbase_admin_email, pocketbase_admin_password fields from Settings class
+  - Added sqlite_db_path field with default ./data/choresir.db
+  - Updated POCKETBASE_DATA_DIR constant to SQL_DATA_DIR
+  - Updated schema.py init_db() to use settings.sqlite_db_path instead of settings.pocketbase_url
+  - Removed fallback logic that checked for HTTP URLs in db_path
+  - Updated db_client.py get_db_path() to use settings.sqlite_db_path
+  - Removed TODO comment about replacing pocketbase_url in US-005
+  - Updated main.py sync_schema() call to use empty strings for admin_email and admin_password
+  - Updated test_settings fixtures to remove pocketbase_url parameter
+  - Kept redis_url as optional field for backwards compatibility
+  - Verified config loads successfully with default sqlite_db_path
+  - Verified missing required credentials still raise validation errors
+- **Learnings for future iterations:**
+  - Pattern: Type checker (ty) requires all code to use existing fields - updating main.py and test fixtures is necessary when removing config fields
+  - Pattern: Backward compatibility wrappers (sync_schema) should ignore obsolete parameters rather than requiring callers to remove them immediately
+  - Pattern: When updating constants (POCKETBASE_DATA_DIR -> SQL_DATA_DIR), verify they're not used elsewhere with grep
+  - Context: US-006 will update main.py startup sequence to remove PocketBase connectivity check
+  - Context: US-008 will update test fixtures to use SQLite instead of PocketBase
+  - Gotcha: Pre-commit hook ty check will fail if any code references removed fields - must update all callers before committing
+  - Gotcha: When modifying test fixtures, ensure changes don't break tests in dependent stories
+---
