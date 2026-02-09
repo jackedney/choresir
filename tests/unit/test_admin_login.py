@@ -90,9 +90,6 @@ def test_startup_fails_without_admin_password() -> None:
     """Test that application startup fails when admin_password is missing."""
     settings = Settings(
         openrouter_api_key="test_key",
-        pocketbase_url="http://localhost:8090",
-        pocketbase_admin_email="admin@test.local",
-        pocketbase_admin_password="test_password",
         admin_password=None,
         secret_key="test_secret",
     )
@@ -104,9 +101,6 @@ def test_startup_fails_without_secret_key() -> None:
     """Test that application startup fails when secret_key is missing."""
     settings = Settings(
         openrouter_api_key="test_key",
-        pocketbase_url="http://localhost:8090",
-        pocketbase_admin_email="admin@test.local",
-        pocketbase_admin_password="test_password",
         admin_password="admin_password",
         secret_key=None,
     )

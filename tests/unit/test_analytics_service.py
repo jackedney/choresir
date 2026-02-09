@@ -517,41 +517,41 @@ class TestInvalidateLeaderboardCache:
     """Tests for invalidate_leaderboard_cache function."""
 
     async def test_invalidate_cache_deletes_all_keys(self, mock_redis):
-        """Verify all leaderboard cache keys are deleted with retry logic."""
-        # Mock Redis keys() to return multiple leaderboard keys
+        """Verify all leaderboard cache keys are deleted."""
+        # Mock cache keys() to return multiple leaderboard keys
         mock_redis.keys = AsyncMock(
             return_value=["choresir:leaderboard:7", "choresir:leaderboard:30", "choresir:leaderboard:90"]
         )
-        mock_redis.delete_with_retry = AsyncMock(return_value=True)
+        mock_redis.delete = AsyncMock(return_value=True)
 
         await analytics_service.invalidate_leaderboard_cache()
 
         # Verify pattern was used to find keys
         mock_redis.keys.assert_called_once_with("choresir:leaderboard:*")
 
-        # Verify all keys were deleted with retry in one call
-        mock_redis.delete_with_retry.assert_called_once_with(
+        # Verify all keys were deleted in one call
+        mock_redis.delete.assert_called_once_with(
             "choresir:leaderboard:7", "choresir:leaderboard:30", "choresir:leaderboard:90"
         )
 
     async def test_invalidate_cache_no_keys_found(self, mock_redis):
         """No-op when no leaderboard cache keys exist."""
-        # Mock Redis keys() to return empty list
+        # Mock cache keys() to return empty list
         mock_redis.keys = AsyncMock(return_value=[])
-        mock_redis.delete_with_retry = AsyncMock()
+        mock_redis.delete = AsyncMock()
 
         await analytics_service.invalidate_leaderboard_cache()
 
         # Verify keys() was called
         mock_redis.keys.assert_called_once_with("choresir:leaderboard:*")
 
-        # Verify delete_with_retry was NOT called (no keys to delete)
-        mock_redis.delete_with_retry.assert_not_called()
+        # Verify delete was NOT called (no keys to delete)
+        mock_redis.delete.assert_not_called()
 
     async def test_invalidate_cache_redis_unavailable(self, mock_redis):
-        """Gracefully handles Redis connection errors."""
-        # Mock Redis keys() to raise connection error
-        mock_redis.keys = AsyncMock(side_effect=ConnectionError("Redis unavailable"))
+        """Gracefully handles cache connection errors."""
+        # Mock cache keys() to raise connection error
+        mock_redis.keys = AsyncMock(side_effect=ConnectionError("Cache unavailable"))
 
         # Should not raise exception
         await analytics_service.invalidate_leaderboard_cache()
@@ -559,26 +559,26 @@ class TestInvalidateLeaderboardCache:
         # Function should complete without error
 
     async def test_invalidate_cache_delete_fails(self, mock_redis):
-        """Gracefully handles Redis delete errors (queues for retry)."""
-        # Mock Redis keys() to return keys, but delete_with_retry() fails
+        """Gracefully handles cache delete errors."""
+        # Mock cache keys() to return keys, but delete() fails
         mock_redis.keys = AsyncMock(return_value=["choresir:leaderboard:7", "choresir:leaderboard:30"])
-        mock_redis.delete_with_retry = AsyncMock(return_value=False)  # Returns False on failure
+        mock_redis.delete = AsyncMock(return_value=False)
 
         # Should not raise exception
         await analytics_service.invalidate_leaderboard_cache()
 
         # Keys should have been found
         mock_redis.keys.assert_called_once()
-        # Delete with retry should have been attempted
-        mock_redis.delete_with_retry.assert_called_once()
+        # Delete should have been attempted
+        mock_redis.delete.assert_called_once()
 
     async def test_invalidate_cache_single_key(self, mock_redis):
         """Works correctly with a single cache key."""
-        # Mock Redis keys() to return single key
+        # Mock cache keys() to return single key
         mock_redis.keys = AsyncMock(return_value=["choresir:leaderboard:30"])
-        mock_redis.delete_with_retry = AsyncMock(return_value=True)
+        mock_redis.delete = AsyncMock(return_value=True)
 
         await analytics_service.invalidate_leaderboard_cache()
 
-        # Verify single key was deleted with retry
-        mock_redis.delete_with_retry.assert_called_once_with("choresir:leaderboard:30")
+        # Verify single key was deleted
+        mock_redis.delete.assert_called_once_with("choresir:leaderboard:30")
