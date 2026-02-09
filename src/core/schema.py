@@ -1,7 +1,6 @@
 """SQLite schema management (code-first approach)."""
 
 import logging
-from pathlib import Path
 
 import aiosqlite
 
@@ -166,19 +165,13 @@ async def init_db(*, db_path: str | None = None) -> None:
     Uses CREATE TABLE IF NOT EXISTS to make this idempotent.
 
     Args:
-        db_path: Optional path to SQLite database file. If not provided, uses settings.pocketbase_url
-            (will be replaced with sqlite_db_path in US-005).
+        db_path: Optional path to SQLite database file. If not provided, uses settings.sqlite_db_path.
 
     Raises:
         RuntimeError: If database initialization fails
     """
     if db_path is None:
-        db_path = settings.pocketbase_url
-        if db_path.startswith("http://") or db_path.startswith("https://"):
-            # Temporary: use local data directory until US-005 adds sqlite_db_path config
-            db_dir = Path(__file__).parent.parent.parent / "data"
-            db_dir.mkdir(exist_ok=True)
-            db_path = str(db_dir / "choresir.db")
+        db_path = settings.sqlite_db_path
 
     try:
         async with aiosqlite.connect(db_path) as conn:

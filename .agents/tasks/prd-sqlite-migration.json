@@ -89,7 +89,7 @@
     {
       "id": "US-003",
       "title": "Implement PocketBase filter query parser",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "US-001"
       ],
@@ -105,13 +105,13 @@
         "Negative case: malformed filter string raises ParseError with helpful message"
       ],
       "startedAt": "2026-02-09T00:29:38.492845+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-09T00:29:38.493064+00:00"
+      "completedAt": "2026-02-09T00:42:36.797021+00:00",
+      "updatedAt": "2026-02-09T00:42:36.796678+00:00"
     },
     {
       "id": "US-004",
       "title": "Rewrite redis_client.py with in-memory cache",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want to replace Redis with an in-memory cache so that the app works without a Redis server.",
       "acceptanceCriteria": [
@@ -121,12 +121,15 @@
         "Add background cleanup task for expired keys",
         "Example: set('key', 'value', ttl=60) stores value that expires after 60 seconds",
         "Negative case: get('expired_key') returns None after TTL has passed"
-      ]
+      ],
+      "startedAt": "2026-02-09T00:42:38.886219+00:00",
+      "completedAt": "2026-02-09T01:01:00.549222+00:00",
+      "updatedAt": "2026-02-09T01:01:00.548967+00:00"
     },
     {
       "id": "US-005",
       "title": "Update config.py for SQLite",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want to update configuration settings to use SQLite instead of PocketBase.",
       "acceptanceCriteria": [
@@ -135,7 +138,10 @@
         "Keep Redis URL as optional for backwards compatibility",
         "Example: Config loads successfully with only sqlite_db_path set",
         "Negative case: missing required environment variables still raise validation errors"
-      ]
+      ],
+      "startedAt": "2026-02-09T01:01:02.641201+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-09T01:01:02.641369+00:00"
     },
     {
       "id": "US-006",

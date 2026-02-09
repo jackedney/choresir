@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,32 +16,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # PocketBase Configuration
-    pocketbase_url: str = Field(default="http://127.0.0.1:8090", description="PocketBase server URL")
-    pocketbase_admin_email: str = Field(default="", description="PocketBase admin email for schema sync")
-    pocketbase_admin_password: str = Field(default="", description="PocketBase admin password for schema sync")
-
-    @field_validator("pocketbase_admin_email", mode="before")
-    @classmethod
-    def validate_admin_email(cls, v: str | None) -> str:
-        """Validate that admin email is set."""
-        if not v:
-            raise ValueError(
-                "PocketBase admin email credential not configured. "
-                "Set POCKETBASE_ADMIN_EMAIL environment variable or add to .env file."
-            )
-        return v
-
-    @field_validator("pocketbase_admin_password", mode="before")
-    @classmethod
-    def validate_admin_password(cls, v: str | None) -> str:
-        """Validate that admin password is set."""
-        if not v:
-            raise ValueError(
-                "PocketBase admin password credential not configured. "
-                "Set POCKETBASE_ADMIN_PASSWORD environment variable or add to .env file."
-            )
-        return v
+    # SQLite Configuration
+    sqlite_db_path: str = Field(default="./data/choresir.db", description="SQLite database file path")
 
     # OpenRouter Configuration
     openrouter_api_key: str | None = Field(default=None, description="OpenRouter API key for LLM access")
@@ -49,7 +25,6 @@ class Settings(BaseSettings):
     # WAHA Configuration
     waha_base_url: str = Field(default="http://waha:3000", description="WAHA Base URL")
     waha_api_key: str | None = Field(default=None, description="WAHA API Key (optional)")
-    waha_webhook_secret: str | None = Field(default=None, description="WAHA Webhook Secret for authentication")
 
     # Pydantic Logfire Configuration (optional)
     logfire_token: str | None = Field(default=None, description="Pydantic Logfire token for observability")
@@ -57,15 +32,10 @@ class Settings(BaseSettings):
     # Redis Configuration (optional)
     redis_url: str | None = Field(default=None, description="Redis connection URL (e.g., redis://localhost:6379)")
 
-    # House Configuration
-    house_name: str | None = Field(default=None, description="House name (fallback if not set in database)")
-
-    # Admin Interface Configuration
-    admin_password: str | None = Field(default=None, description="Admin password for web interface access")
-    secret_key: str | None = Field(default=None, description="Secret key for session signing")
-
-    # Environment Configuration
-    is_production: bool = Field(default=False, description="Production mode flag for secure cookies and other settings")
+    # House Onboarding Configuration
+    house_name: str | None = Field(default=None, description="House name for member onboarding")
+    house_code: str | None = Field(default=None, description="House code for member onboarding")
+    house_password: str | None = Field(default=None, description="House password for member onboarding")
 
     def require_credential(self, field_name: str, service_name: str) -> str:
         """Validate that a required credential is set, raising a clear error if missing.
@@ -90,12 +60,8 @@ class Settings(BaseSettings):
 
     # AI Model Configuration
     model_id: str = Field(
-        default="z-ai/glm-4.7",
-        description="Model ID for OpenRouter",
-    )
-    model_provider: str | None = Field(
-        default="google-vertex",
-        description="OpenRouter provider for model routing (e.g., google-vertex, together, seed, etc.)",
+        default="anthropic/claude-3.5-sonnet",
+        description="Model ID for OpenRouter (defaults to Claude 3.5 Sonnet)",
     )
 
     # Admin Notification Configuration
@@ -167,7 +133,7 @@ class Constants:
 
     # Paths
     PROJECT_ROOT: Path = Path(__file__).parent.parent.parent
-    POCKETBASE_DATA_DIR: Path = PROJECT_ROOT / "pb_data"
+    SQL_DATA_DIR: Path = PROJECT_ROOT / "data"
 
 
 def get_settings() -> Settings:

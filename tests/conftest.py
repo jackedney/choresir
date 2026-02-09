@@ -3,7 +3,6 @@
 import asyncio
 import contextlib
 import logging
-import os
 import secrets
 import shutil
 import subprocess
@@ -16,12 +15,22 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from pocketbase import PocketBase
-from pocketbase.client import ClientResponseError
 
 from src.core.config import Settings
 from src.core.schema import COLLECTIONS, sync_schema
 from src.main import app
+
+
+# Import pocketbase only for integration tests
+try:
+    from pocketbase import PocketBase
+    from pocketbase.client import ClientResponseError
+
+    POCKETBASE_AVAILABLE = True
+except ImportError:
+    POCKETBASE_AVAILABLE = False
+    PocketBase = None  # type: ignore[assignment]
+    ClientResponseError = None  # type: ignore[assignment]
 
 
 # HTTP status codes
@@ -131,6 +140,8 @@ class MockDBClient:
 @pytest.fixture(scope="session")
 def pocketbase_server() -> Generator[str]:
     """Start ephemeral PocketBase instance for testing."""
+    if not POCKETBASE_AVAILABLE:
+        pytest.skip("PocketBase not available - skipping integration test")
     pb_data_dir = tempfile.mkdtemp(prefix="pb_test_")
     pb_binary = shutil.which("pocketbase")
 
@@ -189,9 +200,6 @@ def pocketbase_server() -> Generator[str]:
 
     # Create admin user for schema management
     try:
-        # Set BROWSER to empty string to prevent PocketBase from opening a browser
-        # Apply BROWSER override last so it always wins over any existing value
-        env = {**os.environ, "BROWSER": ""}
         result = subprocess.run(
             [
                 pb_binary,
@@ -205,7 +213,6 @@ def pocketbase_server() -> Generator[str]:
             check=True,
             capture_output=True,
             text=True,
-            env=env,
         )
         logger.info(f"Admin user creation output: {result.stdout}")
         if result.stderr:
@@ -231,12 +238,11 @@ def pocketbase_server() -> Generator[str]:
 def test_settings(pocketbase_server: str) -> Settings:
     """Override settings for testing."""
     return Settings(
-        pocketbase_url=pocketbase_server,
-        pocketbase_admin_email="admin@test.local",
-        pocketbase_admin_password="testpassword123",
         openrouter_api_key="test_key",
         waha_base_url="http://waha:3000",
         logfire_token="test_logfire",
+        house_code="TEST123",
+        house_password="testpass",
         model_id="anthropic/claude-3.5-sonnet",
     )
 
@@ -244,13 +250,7 @@ def test_settings(pocketbase_server: str) -> Settings:
 @pytest.fixture(scope="session")
 def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBase:
     """Initialize PocketBase schema and return authenticated client."""
-    asyncio.run(
-        sync_schema(
-            admin_email="admin@test.local",
-            admin_password="testpassword123",
-            pocketbase_url=pocketbase_server,
-        )
-    )
+    asyncio.run(sync_schema(admin_email="admin@test.local", admin_password="testpassword123"))
 
     # Create authenticated client for tests
     client = PocketBase(pocketbase_server)
@@ -290,38 +290,47 @@ def test_client(test_settings: Settings) -> TestClient:
 
 @pytest.fixture
 def sample_users(db_client: MockDBClient, initialized_db: PocketBase) -> dict[str, dict]:
-    """Create sample members for testing."""
-    members = {
+    """Create sample users for testing."""
+    users = {
         "alice": {
             "phone": "+15551234567",
             "name": "Alice Admin",
+            "email": "alice@test.local",
             "role": "admin",
             "status": "active",
+            "password": "test_password",
+            "passwordConfirm": "test_password",
         },
         "bob": {
             "phone": "+15557654321",
             "name": "Bob Member",
+            "email": "bob@test.local",
             "role": "member",
             "status": "active",
+            "password": "test_password",
+            "passwordConfirm": "test_password",
         },
         "charlie": {
             "phone": "+15559876543",
             "name": "Charlie Member",
+            "email": "charlie@test.local",
             "role": "member",
             "status": "active",
+            "password": "test_password",
+            "passwordConfirm": "test_password",
         },
     }
 
     created = {}
-    for key, data in members.items():
-        record = initialized_db.collection("members").create(data)
+    for key, data in users.items():
+        record = initialized_db.collection("users").create(data)
         created[key] = record.__dict__
 
     return created
 
 
 async def create_test_admin(phone: str, name: str, db_client: MockDBClient) -> dict[str, Any]:
-    """Create admin member for testing, bypassing normal join workflow.
+    """Create admin user for testing, bypassing normal join workflow.
 
     This is a test helper - in production, admins are created through
     the normal onboarding process (via request_join) and promoted manually.
@@ -336,15 +345,20 @@ async def create_test_admin(phone: str, name: str, db_client: MockDBClient) -> d
         db_client: Mock database client
 
     Returns:
-        Created admin member record
+        Created admin user record
     """
+    # Generate email from phone for auth collection requirement
+    email = f"{phone.replace('+', '')}@test.local"
     admin_data = {
         "phone": phone,
         "name": name,
+        "email": email,
         "role": "admin",
         "status": "active",
+        "password": "test_password",
+        "passwordConfirm": "test_password",
     }
-    return await db_client.create_record(collection="members", data=admin_data)
+    return await db_client.create_record(collection="users", data=admin_data)
 
 
 @pytest.fixture
@@ -382,7 +396,7 @@ def sample_chores(db_client: MockDBClient, initialized_db: PocketBase, sample_us
 
 @pytest.fixture
 def user_factory(initialized_db: PocketBase):
-    """Factory for creating members with custom data.
+    """Factory for creating users with custom data.
 
     Usage:
         user = user_factory(name="Test User", phone="+1234567890", role="admin")
@@ -390,15 +404,18 @@ def user_factory(initialized_db: PocketBase):
 
     def _create_user(**kwargs):
         random_suffix = "".join(secrets.choice("0123456789") for _ in range(10))
-        member_data = {
+        user_data = {
             "phone": kwargs.get("phone", f"+1{random_suffix}"),
             "name": kwargs.get("name", f"User {uuid.uuid4().hex[:8]}"),
+            "email": kwargs.get("email", f"user_{uuid.uuid4().hex[:8]}@test.local"),
             "role": kwargs.get("role", "member"),
             "status": kwargs.get("status", "active"),
+            "password": kwargs.get("password", "test_password"),
+            "passwordConfirm": kwargs.get("password", "test_password"),
         }
         # Allow override of any fields
-        member_data.update({k: v for k, v in kwargs.items() if k not in member_data})
-        record = initialized_db.collection("members").create(member_data)
+        user_data.update({k: v for k, v in kwargs.items() if k not in user_data})
+        record = initialized_db.collection("users").create(user_data)
         return record.__dict__
 
     return _create_user
@@ -443,7 +460,7 @@ def clean_db(db_client: MockDBClient) -> Generator[MockDBClient]:
     yield db_client
 
     # Cleanup after test - fail loudly if errors occur
-    collections = ["verifications", "chores", "members", "conflicts"]
+    collections = ["verifications", "chores", "users", "conflicts"]
     cleanup_errors = []
 
     for collection in collections:

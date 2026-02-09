@@ -251,15 +251,7 @@ def get_db_path() -> Path:
     """
     global _db_path  # noqa: PLW0603 - Singleton pattern for db path
     if _db_path is None:
-        # Use data directory for database storage
-        db_path = settings.pocketbase_url  # TODO: Replace with sqlite_db_path config in US-005
-        if db_path.startswith("http://") or db_path.startswith("https://"):
-            # Temporary: use local data directory until US-005 adds sqlite_db_path config
-            db_dir = Path(__file__).parent.parent.parent / "data"
-            db_dir.mkdir(exist_ok=True)
-            _db_path = db_dir / "choresir.db"
-        else:
-            _db_path = Path(db_path)
+        _db_path = Path(settings.sqlite_db_path)
     return _db_path
 
 

@@ -5,20 +5,17 @@ import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
-from src.core.config import constants, settings
+from src.core.config import settings
 from src.core.db_client import get_client
 from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
 from src.core.redis_client import redis_client
 from src.core.scheduler import start_scheduler, stop_scheduler
 from src.core.scheduler_tracker import job_tracker
 from src.core.schema import sync_schema
-from src.interface.admin_router import router as admin_router
 from src.interface.webhook import router as webhook_router
-from src.services.house_config_service import ensure_singleton_config, seed_from_env_vars
 
 
 logger = logging.getLogger(__name__)
@@ -80,12 +77,12 @@ async def validate_startup_configuration() -> None:
 
     try:
         # Validate required credentials
+        settings.require_credential("house_code", "House onboarding code")
+        settings.require_credential("house_password", "House onboarding password")
         settings.require_credential("openrouter_api_key", "OpenRouter API key")
         settings.require_credential("pocketbase_url", "PocketBase URL")
         settings.require_credential("pocketbase_admin_email", "PocketBase admin email")
         settings.require_credential("pocketbase_admin_password", "PocketBase admin password")
-        settings.require_credential("admin_password", "Admin password for web interface")
-        settings.require_credential("secret_key", "Secret key for session signing")
 
         logger.info("startup_validation", extra={"stage": "credentials", "status": "ok"})
 
@@ -96,10 +93,12 @@ async def validate_startup_configuration() -> None:
         logger.info("startup_validation_complete", extra={"status": "ok"})
 
     except (ValueError, ConnectionError) as e:
-        logger.critical("Startup validation failed: %s", e)
+        logger.error("startup_validation_failed", extra={"error": str(e)})
+        print(f"\n❌ Startup validation failed: {e}\n", file=sys.stderr)  # noqa: T201
         sys.exit(1)
     except Exception as e:
-        logger.critical("Unexpected error during startup validation: %s", e)
+        logger.error("startup_validation_unexpected_error", extra={"error": str(e)})
+        print(f"\n❌ Unexpected error during startup validation: {e}\n", file=sys.stderr)  # noqa: T201
         sys.exit(1)
 
 
@@ -114,12 +113,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await validate_startup_configuration()
 
     instrument_pydantic_ai()
-    await sync_schema(
-        admin_email=settings.pocketbase_admin_email,
-        admin_password=settings.pocketbase_admin_password,
-    )
-    await seed_from_env_vars()
-    await ensure_singleton_config()
+    await sync_schema(admin_email="", admin_password="")
     start_scheduler()
     yield
     # Shutdown
@@ -136,18 +130,8 @@ app = FastAPI(
 # Instrument FastAPI with Logfire
 instrument_fastapi(app)
 
-# Set up templates
-templates = Jinja2Templates(directory=str(constants.PROJECT_ROOT / "templates"))
-
 # Register routers
 app.include_router(webhook_router)
-app.include_router(admin_router)
-
-
-@app.get("/", response_class=HTMLResponse)
-async def landing_page(request: Request) -> HTMLResponse:
-    """Landing page."""
-    return templates.TemplateResponse("landing.html", {"request": request})
 
 
 @app.get("/health")
@@ -166,9 +150,6 @@ async def scheduler_health_check() -> JSONResponse:
         "weekly_leaderboard",
         "personal_chore_reminders",
         "auto_verify_personal",
-        "expire_deletion_requests",
-        "expire_workflows",
-        "cleanup_group_context",
     ]
 
     job_statuses = {}

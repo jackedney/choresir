@@ -658,3 +658,40 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Gotcha: Type annotations must be updated consistently when changing actual types passed to functions (PocketBase -> _DBClient)
   - Gotcha: When refactoring parser functions, ensure all return types match the function signatures
 ---
+
+## [2026-02-09 01:00:00 GMT] - US-004: Rewrite redis_client.py with in-memory cache
+Thread:
+Run: 20260208-234344-647 (iteration 4)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-4.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-4.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 9261aee refactor(core): replace Redis with in-memory cache
+- Post-commit status: M .agents/tasks/prd-sqlite-migration.json (only uncommitted file)
+- Verification:
+  - Command: uv run ruff check src/core/redis_client.py tests/unit/test_redis_client_retry.py -> PASS
+  - Command: uv run ruff format --check src/core/redis_client.py tests/unit/test_redis_client_retry.py -> PASS
+  - Command: uv run ty check src/core/redis_client.py -> PASS
+  - Command: uv run pytest tests/unit/test_redis_client_retry.py -> PASS (22 tests)
+  - Command: uv run pytest tests/unit/ -> PASS (459 tests)
+  - Command: uv run pytest tests/integration/ -> PARTIAL (integration tests fail due to PocketBase database issues, unrelated to redis_client changes)
+- Files changed:
+  - src/core/redis_client.py
+  - tests/unit/test_redis_client_retry.py
+- What was implemented:
+  - Replaced Redis client with thread-safe in-memory dict using asyncio.Lock
+  - Implemented TTL via expiry timestamps stored as tuples (value, expires_at)
+  - Maintained same async interface: get, set, delete, keys, increment, set_if_not_exists, expire, close, ping, get_health_status, delete_with_retry, _process_invalidation_queue
+  - Added background cleanup task (_cleanup_expired_keys) that runs every 60 seconds
+  - Added start_cleanup_task() method to initialize background cleanup
+  - Implemented fnmatch pattern matching for keys() method
+  - All methods use proper async/await syntax and type hints
+- **Learnings for future iterations:**
+  - Pattern: PRD specifies "threading.Lock" but async codebase requires "asyncio.Lock" for proper concurrency safety
+  - Pattern: Use fnmatch module for pattern matching instead of implementing custom wildcard logic
+  - Pattern: Store TTL as timestamp (float) not timedelta - easier to compare with current time
+  - Pattern: All async methods should use "async with self._lock:" for thread safety, not "self._lock.acquire()" directly
+  - Context: Integration tests failing due to PocketBase issues are expected - will be fixed in later stories (US-001, US-002, US-003, US-005, US-006, US-007, US-008, US-009, US-010)
+  - Gotcha: When editing files with large diffs, check for duplicate code blocks (had duplicate try-except in keys() and set_if_not_exists() methods)
+  - Gotcha: Remove unused imports after refactoring (removed Redis, ConnectionPool, RedisError, TypeVar, wraps, etc.)
+---
