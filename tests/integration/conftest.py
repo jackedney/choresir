@@ -1,236 +1,67 @@
 """Pytest configuration and fixtures for integration tests."""
 
-import asyncio
-import contextlib
-import logging
-import shutil
-import subprocess
 import tempfile
-import time
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, patch
+from pathlib import Path
+from typing import Any
 
 import pytest
-from pocketbase import PocketBase
 
 from src.agents import choresir_agent as choresir_agent_module
 from src.agents.retry_handler import reset_retry_handler
 from src.core import admin_notifier as admin_notifier_module, config as config_module, db_client as db_module
 from src.core.config import Settings
-from src.core.schema import COLLECTIONS, sync_schema
+from src.core.db_client import (
+    create_record,
+    delete_record,
+    get_first_record,
+    get_record,
+    list_records,
+    update_record,
+)
+from src.core.schema import init_db
 from src.services import user_service as user_service_module
-from tests.conftest import MockDBClient
 
 
-# HTTP status codes
-HTTP_NOT_FOUND = 404
-
-logger = logging.getLogger(__name__)
-
-
-# Helper functions for mock_db_module fixture
-def _make_mock_create_record(pb: PocketBase):
-    """Create mock create_record function."""
-
-    async def mock_create_record(*, collection: str, data: dict) -> dict:
-        try:
-            record = pb.collection(collection).create(data)
-            return record.__dict__
-        except Exception as e:
-            raise RuntimeError(f"Failed to create record in {collection}: {e}") from e
-
-    return mock_create_record
-
-
-def _make_mock_get_record(pb: PocketBase):
-    """Create mock get_record function."""
-
-    async def mock_get_record(*, collection: str, record_id: str) -> dict:
-        try:
-            record = pb.collection(collection).get_one(record_id)
-            return record.__dict__
-        except Exception as e:
-            if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise KeyError(f"Record not found in {collection}: {record_id}") from e
-            raise RuntimeError(f"Failed to get record from {collection}: {e}") from e
-
-    return mock_get_record
-
-
-def _make_mock_update_record(pb: PocketBase):
-    """Create mock update_record function."""
-
-    async def mock_update_record(*, collection: str, record_id: str, data: dict) -> dict:
-        try:
-            record = pb.collection(collection).update(record_id, data)
-            return record.__dict__
-        except Exception as e:
-            if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise KeyError(f"Record not found in {collection}: {record_id}") from e
-            raise RuntimeError(f"Failed to update record in {collection}: {e}") from e
-
-    return mock_update_record
-
-
-def _make_mock_delete_record(pb: PocketBase):
-    """Create mock delete_record function."""
-
-    async def mock_delete_record(*, collection: str, record_id: str) -> None:
-        try:
-            pb.collection(collection).delete(record_id)
-        except Exception as e:
-            if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                raise KeyError(f"Record not found in {collection}: {record_id}") from e
-            raise RuntimeError(f"Failed to delete record from {collection}: {e}") from e
-
-    return mock_delete_record
-
-
-def _make_mock_list_records(pb: PocketBase):
-    """Create mock list_records function."""
-
-    async def mock_list_records(
-        *,
-        collection: str,
-        page: int = 1,
-        per_page: int = 50,
-        filter_query: str = "",
-        sort: str = "",
-    ) -> list[dict]:
-        try:
-            # Only include filter and sort in query_params if they're not empty
-            query_params = {}
-            if sort:
-                query_params["sort"] = sort
-            if filter_query:
-                query_params["filter"] = filter_query
-
-            result = pb.collection(collection).get_list(
-                page=page,
-                per_page=per_page,
-                query_params=query_params,
-            )
-            return [item.__dict__ for item in result.items]
-        except Exception as e:
-            raise RuntimeError(f"Failed to list records from {collection}: {e}") from e
-
-    return mock_list_records
-
-
-def _make_mock_get_first_record(pb: PocketBase):
-    """Create mock get_first_record function."""
-
-    async def mock_get_first_record(*, collection: str, filter_query: str) -> dict | None:
-        try:
-            result = pb.collection(collection).get_first_list_item(filter_query)
-            return result.__dict__
-        except Exception as e:
-            if hasattr(e, "status") and e.status == HTTP_NOT_FOUND:
-                return None
-            raise RuntimeError(f"Failed to get first record from {collection}: {e}") from e
-
-    return mock_get_first_record
+logger = __import__("logging").getLogger(__name__)
 
 
 @pytest.fixture(scope="session")
-def pocketbase_server() -> Generator[str]:
-    """Start ephemeral PocketBase instance for testing."""
-    pb_data_dir = tempfile.mkdtemp(prefix="pb_test_")
-    pb_binary = shutil.which("pocketbase")
+def temp_db_path() -> Generator[Path, None, None]:
+    """Create a temporary SQLite database file for the test session.
 
-    if pb_binary is None:
-        pytest.skip("PocketBase binary not found in PATH")
+    The database file is created and initialized at the start of the session,
+    and cleaned up after all tests complete.
+    """
+    temp_dir = tempfile.mkdtemp(prefix="test_db_")
+    db_path = Path(temp_dir) / "test.db"
 
-    assert pb_binary is not None  # For type checker (pytest.skip already handles None case)
+    yield db_path
 
-    # Disable automigrate and set migrationsDir to the ephemeral data dir to prevent
-    # stray migration files (e.g., in system temp) from causing failures.
-    # This project uses a code-first schema approach (src/core/schema.py) instead
-    # of PocketBase migrations.
-    process = subprocess.Popen(
-        [
-            pb_binary,
-            "serve",
-            "--dir",
-            pb_data_dir,
-            "--http",
-            "127.0.0.1:8091",
-            "--automigrate=false",
-            f"--migrationsDir={pb_data_dir}/migrations",
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    import shutil
 
-    pb_url = "http://127.0.0.1:8091"
-    max_wait = 10  # seconds
-    start_time = time.time()
-
-    # Wait for PocketBase to be ready
-    while time.time() - start_time < max_wait:
-        try:
-            client = PocketBase(pb_url)
-            client.health.check()
-            break
-        except Exception:
-            time.sleep(0.5)
-    else:
-        # Capture output for debugging
-        stdout, stderr = b"", b""
-        with contextlib.suppress(Exception):
-            stdout, stderr = process.communicate(timeout=1)
-        process.kill()
-        shutil.rmtree(pb_data_dir, ignore_errors=True)
-        error_msg = "PocketBase failed to start within 10 seconds"
-        if stdout:
-            error_msg += f"\nStdout: {stdout.decode()[:500]}"
-        if stderr:
-            error_msg += f"\nStderr: {stderr.decode()[:500]}"
-        pytest.fail(error_msg)
-
-    # Give PocketBase a moment to fully initialize
-    time.sleep(1)
-
-    # Create admin user for schema management
-    try:
-        result = subprocess.run(
-            [
-                pb_binary,
-                "superuser",
-                "upsert",
-                "admin@test.local",
-                "testpassword123",
-                "--dir",
-                pb_data_dir,
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        logger.info(f"Admin user creation output: {result.stdout}")
-        if result.stderr:
-            logger.warning(f"Admin user creation stderr: {result.stderr}")
-
-        # Give time for admin to be persisted
-        time.sleep(1)
-
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to create admin user: {e.stderr}")
-        process.kill()
-        shutil.rmtree(pb_data_dir, ignore_errors=True)
-        pytest.fail(f"Failed to create admin user: {e.stderr}")
-
-    yield pb_url
-
-    process.kill()
-    process.wait()
-    shutil.rmtree(pb_data_dir, ignore_errors=True)
+    shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @pytest.fixture(scope="session")
-def test_settings(pocketbase_server: str) -> Settings:
-    """Override settings for testing."""
+async def test_db(temp_db_path: Path) -> AsyncGenerator[None, None]:
+    """Initialize the test SQLite database with all tables.
+
+    This fixture runs once per test session to initialize the database schema.
+    Tests should use the db_client functions directly to interact with the database.
+    """
+    await init_db(db_path=str(temp_db_path))
+    logger.info(f"Test database initialized at {temp_db_path}")
+    yield
+
+
+@pytest.fixture(scope="session")
+def test_settings(temp_db_path: Path) -> Settings:
+    """Override settings for testing.
+
+    Uses the temporary database path from the temp_db_path fixture.
+    """
     return Settings(
         openrouter_api_key="test_key",
         waha_base_url="http://waha:3000",
@@ -239,43 +70,104 @@ def test_settings(pocketbase_server: str) -> Settings:
         house_code="TEST123",
         house_password="testpass",
         model_id="anthropic/claude-3.5-sonnet",
+        sqlite_db_path=str(temp_db_path),
     )
 
 
-@pytest.fixture(scope="session")
-def initialized_db(pocketbase_server: str, test_settings: Settings) -> PocketBase:
-    """Initialize PocketBase schema and return authenticated client."""
-    asyncio.run(sync_schema(admin_email="admin@test.local", admin_password="testpassword123"))
+@pytest.fixture
+async def clean_db(test_db) -> AsyncGenerator[None, None]:
+    """Ensure clean database state for each test.
 
-    # Create authenticated client for tests
-    client = PocketBase(pocketbase_server)
-    client.admins.auth_with_password("admin@test.local", "testpassword123")
+    Cleans all tables before each test to ensure test isolation.
+    """
+    from src.core.schema import TABLES
 
-    return client
+    tables = TABLES
+    for table in tables:
+        try:
+            records = await list_records(collection=table, per_page=1000)
+            for record in records:
+                await delete_record(collection=table, record_id=record["id"])
+        except Exception as e:
+            logger.warning(f"Failed to clean table {table}: {e}")
+
+    yield
+
+    cleanup_errors = []
+
+    for table in ["verifications", "chores", "users", "conflicts"]:
+        try:
+            records = await list_records(collection=table, per_page=1000)
+            for record in records:
+                try:
+                    await delete_record(collection=table, record_id=record["id"])
+                except Exception as e:
+                    cleanup_errors.append(f"{table}/{record['id']}: {e!s}")
+        except Exception as e:
+            cleanup_errors.append(f"{table} (list): {e!s}")
+
+    if cleanup_errors:
+        error_msg = "Database cleanup failed:\n" + "\n".join(cleanup_errors)
+        pytest.fail(error_msg)
 
 
 @pytest.fixture
-def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypatch):
-    """Patch the db_client module to use the test PocketBase instance."""
-    # Patch all the db_client functions using helper factories
-    mock_list_records = _make_mock_list_records(initialized_db)
-    monkeypatch.setattr(db_module, "create_record", _make_mock_create_record(initialized_db))
-    monkeypatch.setattr(db_module, "get_record", _make_mock_get_record(initialized_db))
-    monkeypatch.setattr(db_module, "update_record", _make_mock_update_record(initialized_db))
-    monkeypatch.setattr(db_module, "delete_record", _make_mock_delete_record(initialized_db))
-    monkeypatch.setattr(db_module, "list_records", mock_list_records)
-    monkeypatch.setattr(db_module, "get_first_record", _make_mock_get_first_record(initialized_db))
+def db_client():
+    """Provide db_client module for tests.
 
-    # Patch get_client to return the already-authenticated test PocketBase instance
-    def mock_get_client() -> PocketBase:
-        return initialized_db
+    In the new SQLite approach, tests can use the db_client module
+    functions directly. This fixture provides backward compatibility with
+    tests that expect a db_client object.
+    """
 
-    monkeypatch.setattr(db_module, "get_client", mock_get_client)
+    class _DBClient:
+        """Adapter class for backward compatibility with MockDBClient interface."""
 
-    # Patch admin_notifier's imported list_records to use the same mock
-    monkeypatch.setattr(admin_notifier_module, "list_records", mock_list_records)
+        _pb = None  # Kept for backward compatibility
 
-    # Patch the global settings to use test settings
+        async def create_record(self, collection: str, data: dict[str, Any]) -> dict[str, Any]:
+            return await create_record(collection=collection, data=data)
+
+        async def get_record(self, collection: str, record_id: str) -> dict[str, Any]:
+            return await get_record(collection=collection, record_id=record_id)
+
+        async def update_record(self, collection: str, record_id: str, data: dict[str, Any]) -> dict[str, Any]:
+            return await update_record(collection=collection, record_id=record_id, data=data)
+
+        async def delete_record(self, collection: str, record_id: str) -> None:
+            await delete_record(collection=collection, record_id=record_id)
+
+        async def list_records(
+            self,
+            collection: str,
+            page: int = 1,
+            per_page: int = 50,
+            filter_query: str = "",
+            sort: str = "",
+        ) -> list[dict[str, Any]]:
+            return await list_records(
+                collection=collection,
+                page=page,
+                per_page=per_page,
+                filter_query=filter_query,
+                sort=sort,
+            )
+
+        async def get_first_record(self, collection: str, filter_query: str) -> dict[str, Any] | None:
+            return await get_first_record(collection=collection, filter_query=filter_query)
+
+    return _DBClient()
+
+
+@pytest.fixture
+def mock_db_module(test_settings: Settings, monkeypatch):
+    """Patch db_client module and settings for testing with SQLite.
+
+    This fixture replaces the old PocketBase-based mock_db_module with
+    SQLite-compatible patches. It ensures tests use the test database
+    path and settings.
+    """
+    # Patch global settings to use test settings
     monkeypatch.setattr(config_module, "settings", test_settings)
     monkeypatch.setattr(db_module, "settings", test_settings)
     monkeypatch.setattr(user_service_module, "settings", test_settings)
@@ -286,93 +178,35 @@ def mock_db_module(initialized_db: PocketBase, test_settings: Settings, monkeypa
 
 
 @pytest.fixture
-def db_client(initialized_db: PocketBase) -> Generator[MockDBClient]:
-    """Provide clean database for each test with async wrapper interface."""
-    # Clean in reverse dependency order: logs → chores → users
-    for collection in reversed(COLLECTIONS):
-        try:
-            records = initialized_db.collection(collection).get_full_list()
-            for record in records:
-                initialized_db.collection(collection).delete(record.id)
-        except Exception as e:
-            logger.warning(f"Failed to clean collection {collection}: {e}")
+async def sample_users(clean_db) -> dict[str, dict]:
+    """Create sample users for testing."""
+    users = []
+    for _, (_key, phone, name, role) in enumerate(
+        [
+            ("alice", "+1234567890", "Alice Admin", "admin"),
+            ("bob", "+1234567891", "Bob Member", "member"),
+            ("charlie", "+1234567892", "Charlie Member", "member"),
+        ],
+        start=1,
+    ):
+        users.append(
+            await create_record(
+                collection="members",
+                data={
+                    "phone": phone,
+                    "name": name,
+                    "role": role,
+                    "status": "active",
+                },
+            )
+        )
 
-    yield MockDBClient(initialized_db)
-
-
-@pytest.fixture
-def clean_db(db_client: MockDBClient) -> Generator[MockDBClient]:
-    """Ensure clean database state, failing loudly on cleanup errors."""
-    yield db_client
-
-    # Cleanup after test
-    collections = ["verifications", "chores", "users", "conflicts"]
-    cleanup_errors = []
-
-    for collection in collections:
-        try:
-            # Use asyncio.run to call async method
-            records = asyncio.run(db_client.list_records(collection=collection))
-            for record in records:
-                try:
-                    asyncio.run(db_client.delete_record(collection=collection, record_id=record["id"]))
-                except Exception as e:
-                    cleanup_errors.append(f"{collection}/{record['id']}: {e!s}")
-        except Exception as e:
-            cleanup_errors.append(f"{collection} (list): {e!s}")
-
-    if cleanup_errors:
-        error_msg = "Database cleanup failed:\n" + "\n".join(cleanup_errors)
-        pytest.fail(error_msg)
+    return {key: user for key, user in zip(["alice", "bob", "charlie"], users, strict=True)}
 
 
 @pytest.fixture
-async def sample_users(db_client: MockDBClient) -> dict[str, dict]:
-    """Create sample users using MockDBClient for consistency."""
-    users_data = [
-        {
-            "username": "alice",
-            "email": "alice@example.com",
-            "phone": "+1234567890",
-            "password": "password123",
-            "passwordConfirm": "password123",
-            "name": "Alice Admin",
-            "role": "admin",
-            "status": "active",
-        },
-        {
-            "username": "bob",
-            "email": "bob@example.com",
-            "phone": "+1234567891",
-            "password": "password123",
-            "passwordConfirm": "password123",
-            "name": "Bob Member",
-            "role": "member",
-            "status": "active",
-        },
-        {
-            "username": "charlie",
-            "email": "charlie@example.com",
-            "phone": "+1234567892",
-            "password": "password123",
-            "passwordConfirm": "password123",
-            "name": "Charlie Member",
-            "role": "member",
-            "status": "active",
-        },
-    ]
-
-    created_users = {}
-    for user_data in users_data:
-        user = await db_client.create_record(collection="users", data=user_data)
-        created_users[user_data["username"]] = user
-
-    return created_users
-
-
-@pytest.fixture
-async def sample_chores(db_client: MockDBClient, sample_users: dict[str, dict]) -> list[dict]:
-    """Create sample chores using MockDBClient for consistency."""
+async def sample_chores(clean_db, sample_users: dict[str, dict]) -> list[dict]:
+    """Create sample chores for testing."""
     chores_data = [
         {
             "title": "Wash dishes",
@@ -402,7 +236,7 @@ async def sample_chores(db_client: MockDBClient, sample_users: dict[str, dict]) 
 
     created_chores = []
     for chore_data in chores_data:
-        chore = await db_client.create_record(collection="chores", data=chore_data)
+        chore = await create_record(collection="chores", data=chore_data)
         created_chores.append(chore)
 
     return created_chores
@@ -413,7 +247,6 @@ def reset_agent_retry_handler():
     """Reset the global retry handler before each test to ensure clean state."""
     reset_retry_handler()
     yield
-    # Clean up after test as well
     reset_retry_handler()
 
 
@@ -424,5 +257,7 @@ def mock_retry_handler_sleep():
     The retry handler uses asyncio.sleep for exponential backoff between retries.
     In tests, we want to verify the retry behavior without waiting for actual delays.
     """
+    from unittest.mock import AsyncMock, patch
+
     with patch("src.agents.retry_handler.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         yield mock_sleep
