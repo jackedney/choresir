@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,32 +16,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # PocketBase Configuration
-    pocketbase_url: str = Field(default="http://127.0.0.1:8090", description="PocketBase server URL")
-    pocketbase_admin_email: str = Field(default="", description="PocketBase admin email for schema sync")
-    pocketbase_admin_password: str = Field(default="", description="PocketBase admin password for schema sync")
-
-    @field_validator("pocketbase_admin_email", mode="before")
-    @classmethod
-    def validate_admin_email(cls, v: str | None) -> str:
-        """Validate that admin email is set."""
-        if not v:
-            raise ValueError(
-                "PocketBase admin email credential not configured. "
-                "Set POCKETBASE_ADMIN_EMAIL environment variable or add to .env file."
-            )
-        return v
-
-    @field_validator("pocketbase_admin_password", mode="before")
-    @classmethod
-    def validate_admin_password(cls, v: str | None) -> str:
-        """Validate that admin password is set."""
-        if not v:
-            raise ValueError(
-                "PocketBase admin password credential not configured. "
-                "Set POCKETBASE_ADMIN_PASSWORD environment variable or add to .env file."
-            )
-        return v
+    # SQLite Configuration
+    sqlite_db_path: str = Field(default="./data/choresir.db", description="Path to SQLite database file")
 
     # OpenRouter Configuration
     openrouter_api_key: str | None = Field(default=None, description="OpenRouter API key for LLM access")
@@ -167,7 +143,7 @@ class Constants:
 
     # Paths
     PROJECT_ROOT: Path = Path(__file__).parent.parent.parent
-    POCKETBASE_DATA_DIR: Path = PROJECT_ROOT / "pb_data"
+    DATA_DIR: Path = PROJECT_ROOT / "data"
 
 
 def get_settings() -> Settings:
