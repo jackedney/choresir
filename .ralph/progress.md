@@ -780,5 +780,47 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
     - ✅ App starts successfully without external DB servers
     - ✅ App startup logs show 'Database initialized' message
     - ✅ App fails gracefully if WAHA is not available
-  - Gotcha: Integration test conftest.py uses PocketBase MockDBClient - will be migrated to SQLite in US-008
+   - Gotcha: Integration test conftest.py uses PocketBase MockDBClient - will be migrated to SQLite in US-008
+---
+
+## [2026-02-09 01:44:00 GMT] - US-007: Update pyproject.toml dependencies
+Thread: 
+Run: 20260208-234344-647 (iteration 7)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-7.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-7.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: a8395bf chore(deps): replace pocketbase with aiosqlite
+- Post-commit status: clean
+- Verification:
+  - Command: uv run ruff check -> PASS
+  - Command: uv run ruff format --check -> PASS
+  - Command: uv run pytest tests/unit/ -> PASS (457 tests)
+  - Command: uv run python -c 'import aiosqlite' -> PASS (aiosqlite version 0.22.1)
+  - Command: uv run python -c 'import pocketbase' -> FAIL (ModuleNotFoundError as expected)
+- Files changed:
+  - pyproject.toml
+  - uv.lock
+  - .ralph/ (progress and run logs)
+- What was implemented:
+  - Removed pocketbase>=0.13.0 dependency from pyproject.toml
+  - Added aiosqlite>=0.20.0 dependency to pyproject.toml
+  - Moved redis[hiredis]>=5.0.0 from main dependencies to optional-dependencies redis group
+  - Ran uv sync to update lock file
+  - Verified aiosqlite imports successfully
+  - Verified pocketbase import fails as expected
+  - All unit tests pass (457 tests)
+  - Integration tests fail as expected (will be fixed in US-008)
+- **Learnings for future iterations:**
+  - Pattern: Moving dependencies from main to optional requires creating new group in [project.optional-dependencies] section
+  - Pattern: uv sync updates both pyproject.toml dependencies and uv.lock file
+  - Context: US-007 acceptance criteria all met:
+    - ✅ Remove pocketbase dependency from pyproject.toml
+    - ✅ Add aiosqlite dependency to pyproject.toml
+    - ✅ Keep redis[hiredis] as optional for users who want real Redis
+    - ✅ Run uv sync to update lock file
+    - ✅ uv run python -c 'import aiosqlite' succeeds
+    - ✅ uv run python -c 'import pocketbase' fails (package removed)
+  - Context: Integration test failures expected - conftest.py still references pocketbase module (will be fixed in US-008)
+  - Gotcha: Global quality gates specify running integration tests, but they fail due to PocketBase imports - this is expected and will be fixed in US-008
 ---
