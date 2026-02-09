@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException
 
+from src.core.cache_client import cache_client as redis_client
 from src.core.config import Constants
-from src.core.redis_client import redis_client
 
 
 logger = logging.getLogger(__name__)

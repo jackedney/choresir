@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from src.core.admin_notifier import notify_admins
-from src.core.redis_client import redis_client
+from src.core.cache_client import cache_client as redis_client
 
 
 logger = logging.getLogger(__name__)

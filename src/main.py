@@ -9,10 +9,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from src.core.cache_client import cache_client as redis_client
 from src.core.config import constants, settings
 from src.core.db_client import get_client
 from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
-from src.core.redis_client import redis_client
 from src.core.scheduler import start_scheduler, stop_scheduler
 from src.core.scheduler_tracker import job_tracker
 from src.core.schema import sync_schema
