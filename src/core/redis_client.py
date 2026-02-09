@@ -1,116 +1,46 @@
 """Redis client for caching."""
 
 import asyncio
+import fnmatch
 import logging
 from collections import deque
-from collections.abc import Awaitable, Callable, Coroutine
 from datetime import UTC, datetime
-from functools import wraps
-from typing import Any, ParamSpec, TypeVar, cast
-
-from redis.asyncio import Redis
-from redis.asyncio.connection import ConnectionPool
-from redis.exceptions import RedisError
-
-from src.core.config import settings
+from typing import Any
 
 
 logger = logging.getLogger(__name__)
 
-# Type variables for generic retry decorator
-T = TypeVar("T")
-P = ParamSpec("P")
-
-
-def with_retry(
-    max_retries: int = 3, base_delay: float = 0.1
-) -> Callable[[Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]]:
-    """Decorator to retry async functions with exponential backoff.
-
-    Args:
-        max_retries: Maximum number of retry attempts (default: 3)
-        base_delay: Base delay in seconds for exponential backoff (default: 0.1)
-
-    Returns:
-        Decorated function with retry logic
-    """
-
-    def decorator(func: Callable[P, Coroutine[Any, Any, T]]) -> Callable[P, Coroutine[Any, Any, T]]:
-        @wraps(func)
-        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-            last_exception: RedisError | None = None
-            for attempt in range(max_retries):
-                try:
-                    return await func(*args, **kwargs)
-                except RedisError as e:
-                    last_exception = e
-                    if attempt < max_retries - 1:
-                        delay = base_delay * (2**attempt)
-                        logger.warning(
-                            "Redis operation failed (attempt %d/%d): %s. Retrying in %.2fs",
-                            attempt + 1,
-                            max_retries,
-                            e,
-                            delay,
-                        )
-                        await asyncio.sleep(delay)
-                    else:
-                        logger.error(
-                            "Redis operation failed after %d attempts: %s",
-                            max_retries,
-                            e,
-                        )
-            # If we get here, all retries failed
-            assert last_exception is not None, "Retry loop exited without exception"
-            raise last_exception
-
-        return wrapper
-
-    return decorator
-
 
 class RedisClient:
-    """Async Redis client wrapper with connection pooling."""
+    """Async in-memory cache client with TTL support."""
 
     def __init__(self) -> None:
-        """Initialize Redis client."""
-        self._client: Redis | None = None
-        self._pool: ConnectionPool | None = None
-        self._enabled = bool(settings.redis_url)
+        """Initialize in-memory cache client."""
+        self._enabled = True
+        self._lock = asyncio.Lock()
+        self._cache: dict[str, tuple[str, float | None]] = {}
 
         # Health tracking
         self._last_successful_operation: datetime | None = None
         self._failure_count = 0
         self._total_operations = 0
 
-        # Fallback queue for cache invalidation when Redis is unavailable
+        # Fallback queue for cache invalidation when cache is unavailable
         self._invalidation_queue: deque[tuple[str, ...]] = deque(maxlen=1000)
 
-        if self._enabled and settings.redis_url:
-            try:
-                # Create connection pool for efficient connection reuse
-                self._pool = ConnectionPool.from_url(
-                    settings.redis_url,
-                    decode_responses=True,
-                    max_connections=10,
-                )
-                self._client = Redis(connection_pool=self._pool)
-                logger.info("Redis client initialized with URL: %s", settings.redis_url)
-            except RedisError as e:
-                logger.warning("Failed to initialize Redis client: %s. Running without cache.", e)
-                self._enabled = False
-                self._client = None
-                self._pool = None
-        else:
-            logger.info("Redis URL not configured. Running without cache.")
+        # Background cleanup task
+        self._cleanup_task: asyncio.Task[None] | None = None
+        self._shutdown_event = asyncio.Event()
+
+        logger.info("In-memory cache client initialized")
 
     @property
     def is_available(self) -> bool:
-        """Check if Redis is available."""
-        return self._enabled and self._client is not None
+        """Check if cache is available."""
+        return self._enabled
 
     def get_health_status(self) -> dict[str, Any]:
-        """Get Redis health status.
+        """Get cache health status.
 
         Returns:
             Dict with health status including last successful operation,
@@ -125,43 +55,52 @@ class RedisClient:
             "failure_count": self._failure_count,
             "total_operations": self._total_operations,
             "pending_invalidations": len(self._invalidation_queue),
+            "cache_size": len(self._cache),
         }
 
     def _record_success(self) -> None:
-        """Record successful Redis operation."""
+        """Record successful cache operation."""
         self._last_successful_operation = datetime.now(UTC)
         self._total_operations += 1
 
     def _record_failure(self) -> None:
-        """Record failed Redis operation."""
+        """Record failed cache operation."""
         self._failure_count += 1
         self._total_operations += 1
 
     async def get(self, key: str) -> str | None:
-        """Get value from Redis.
+        """Get value from cache.
 
         Args:
             key: Cache key
 
         Returns:
-            Cached value or None if not found or error occurred
+            Cached value or None if not found or expired
         """
-        if not self.is_available or not self._client:
-            return None
+        async with self._lock:
+            if not self.is_available:
+                return None
 
-        try:
-            value = await self._client.get(key)
-            self._record_success()
-            if value:
+            try:
+                entry = self._cache.get(key)
+                if entry is None:
+                    return None
+
+                value, expires_at = entry
+                if expires_at is not None and datetime.now(UTC).timestamp() > expires_at:
+                    del self._cache[key]
+                    return None
+
+                self._record_success()
                 logger.debug("Cache hit for key: %s", key)
-            return value
-        except RedisError as e:
-            self._record_failure()
-            logger.warning("Redis GET error for key %s: %s", key, e)
-            return None
+                return value
+            except Exception as e:
+                self._record_failure()
+                logger.warning("Cache GET error for key %s: %s", key, e)
+                return None
 
     async def set(self, key: str, value: str, ttl_seconds: int) -> bool:
-        """Set value in Redis with TTL.
+        """Set value in cache with TTL.
 
         Args:
             key: Cache key
@@ -171,21 +110,23 @@ class RedisClient:
         Returns:
             True if successful, False otherwise
         """
-        if not self.is_available or not self._client:
-            return False
+        async with self._lock:
+            if not self.is_available:
+                return False
 
-        try:
-            await self._client.setex(key, ttl_seconds, value)
-            self._record_success()
-            logger.debug("Cached key: %s (TTL: %ds)", key, ttl_seconds)
-            return True
-        except RedisError as e:
-            self._record_failure()
-            logger.warning("Redis SET error for key %s: %s", key, e)
-            return False
+            try:
+                expires_at = datetime.now(UTC).timestamp() + ttl_seconds if ttl_seconds > 0 else None
+                self._cache[key] = (value, expires_at)
+                self._record_success()
+                logger.debug("Cached key: %s (TTL: %ds)", key, ttl_seconds)
+                return True
+            except Exception as e:
+                self._record_failure()
+                logger.warning("Cache SET error for key %s: %s", key, e)
+                return False
 
     async def delete(self, *keys: str) -> bool:
-        """Delete one or more keys from Redis.
+        """Delete one or more keys from cache.
 
         Args:
             *keys: Cache keys to delete
@@ -193,21 +134,24 @@ class RedisClient:
         Returns:
             True if successful, False otherwise
         """
-        if not self.is_available or not self._client:
-            return False
+        async with self._lock:
+            if not self.is_available:
+                return False
 
-        if not keys:
-            return False
+            if not keys:
+                return False
 
-        try:
-            await self._client.delete(*keys)
-            self._record_success()
-            logger.debug("Deleted %d cache key(s)", len(keys))
-            return True
-        except RedisError as e:
-            self._record_failure()
-            logger.warning("Redis DELETE error: %s", e)
-            return False
+            try:
+                for key in keys:
+                    if key in self._cache:
+                        del self._cache[key]
+                self._record_success()
+                logger.debug("Deleted %d cache key(s)", len(keys))
+                return True
+            except Exception as e:
+                self._record_failure()
+                logger.warning("Cache DELETE error: %s", e)
+                return False
 
     async def delete_with_retry(self, *keys: str) -> bool:
         """Delete keys with retry logic for critical operations.
@@ -218,33 +162,7 @@ class RedisClient:
         Returns:
             True if successful, False otherwise
         """
-        if not self.is_available or not self._client:
-            # Add to fallback queue for later processing
-            self._invalidation_queue.append(keys)
-            logger.info("Redis unavailable, queued %d key(s) for invalidation", len(keys))
-            return False
-
-        if not keys:
-            return False
-
-        @with_retry(max_retries=3, base_delay=0.1)
-        async def _delete_operation() -> None:
-            if self._client:
-                await self._client.delete(*keys)
-
-        try:
-            await _delete_operation()
-            self._record_success()
-            logger.debug("Deleted %d cache key(s) with retry", len(keys))
-            # Process any pending invalidations since Redis is now available
-            await self._process_invalidation_queue()
-            return True
-        except RedisError as e:
-            self._record_failure()
-            # Add to fallback queue after retry attempts exhausted
-            self._invalidation_queue.append(keys)
-            logger.error("Redis DELETE failed after retries: %s. Queued for later.", e)
-            return False
+        return await self.delete(*keys)
 
     async def _process_invalidation_queue(self) -> None:
         """Process pending cache invalidations from fallback queue."""
@@ -252,27 +170,15 @@ class RedisClient:
             return
 
         processed = 0
-        failed = 0
 
         while self._invalidation_queue:
             keys = self._invalidation_queue.popleft()
-            try:
-                if self._client:
-                    await self._client.delete(*keys)
-                    processed += 1
-                    self._record_success()
-            except RedisError as e:
-                self._record_failure()
-                # Re-queue if still failing
-                self._invalidation_queue.append(keys)
-                failed += 1
-                logger.warning("Failed to process queued invalidation: %s", e)
-                break  # Stop processing to avoid infinite loop
+            success = await self.delete(*keys)
+            if success:
+                processed += 1
 
         if processed > 0:
             logger.info("Processed %d queued cache invalidations", processed)
-        if failed > 0:
-            logger.warning("Failed to process %d queued invalidations", failed)
 
     async def keys(self, pattern: str) -> list[str]:
         """Find keys matching a pattern.
@@ -283,37 +189,38 @@ class RedisClient:
         Returns:
             List of matching keys, empty list if none found or error occurred
         """
-        if not self.is_available or not self._client:
-            return []
+        async with self._lock:
+            if not self.is_available:
+                return []
 
-        try:
-            keys = await self._client.keys(pattern)
-            # Handle both bytes and string responses
-            return [k.decode() if isinstance(k, bytes) else k for k in keys]
-        except RedisError as e:
-            logger.warning("Redis KEYS error for pattern %s: %s", pattern, e)
-            return []
+            try:
+                current_time = datetime.now(UTC).timestamp()
+                return [
+                    k
+                    for k, (_, expires_at) in self._cache.items()
+                    if (expires_at is None or expires_at > current_time) and fnmatch.fnmatch(k, pattern)
+                ]
+            except Exception as e:
+                logger.warning("Cache KEYS error for pattern %s: %s", pattern, e)
+                return []
 
     async def close(self) -> None:
-        """Close Redis connection."""
-        if self._client:
-            await self._client.aclose()
-            logger.info("Redis client closed")
+        """Close cache client and stop background cleanup."""
+        if self._cleanup_task and not self._cleanup_task.done():
+            self._shutdown_event.set()
+            try:
+                await asyncio.wait_for(self._cleanup_task, timeout=2.0)
+            except TimeoutError:
+                self._cleanup_task.cancel()
+            logger.info("Cache client closed")
 
     async def ping(self) -> bool:
-        """Ping Redis to check connection.
+        """Ping cache to check connection.
 
         Returns:
-            True if Redis is responsive, False otherwise
+            True if cache is responsive, False otherwise
         """
-        if not self.is_available or not self._client:
-            return False
-
-        try:
-            return await cast(Awaitable[bool], self._client.ping())
-        except RedisError as e:
-            logger.warning("Redis PING failed: %s", e)
-            return False
+        return self.is_available
 
     async def set_if_not_exists(self, key: str, value: str, ttl_seconds: int) -> bool:
         """Set value only if key doesn't exist (atomic).
@@ -326,15 +233,26 @@ class RedisClient:
         Returns:
             True if key was set (didn't exist), False if key already exists or error
         """
-        if not self.is_available or not self._client:
-            return False
+        async with self._lock:
+            if not self.is_available:
+                return False
 
-        try:
-            result = await self._client.set(key, value, ex=ttl_seconds, nx=True)
-            return bool(result)
-        except RedisError as e:
-            logger.warning("Redis SETNX error for key %s: %s", key, e)
-            return False
+            try:
+                entry = self._cache.get(key)
+                if entry is not None:
+                    _, expires_at = entry
+                    if expires_at is None or datetime.now(UTC).timestamp() > expires_at:
+                        del self._cache[key]
+                    else:
+                        return False
+
+                expires_at = datetime.now(UTC).timestamp() + ttl_seconds if ttl_seconds > 0 else None
+                self._cache[key] = (value, expires_at)
+                self._record_success()
+                return True
+            except Exception as e:
+                logger.warning("Cache SETNX error for key %s: %s", key, e)
+                return False
 
     async def increment(self, key: str) -> int | None:
         """Increment key value atomically.
@@ -345,14 +263,34 @@ class RedisClient:
         Returns:
             New value after increment, or None on error
         """
-        if not self.is_available or not self._client:
-            return None
+        async with self._lock:
+            if not self.is_available:
+                return None
 
-        try:
-            return await self._client.incr(key)
-        except RedisError as e:
-            logger.warning("Redis INCR error for key %s: %s", key, e)
-            return None
+            try:
+                entry = self._cache.get(key)
+                if entry is None:
+                    self._cache[key] = ("1", None)
+                    self._record_success()
+                    return 1
+
+                value, expires_at = entry
+                if expires_at is not None and datetime.now(UTC).timestamp() > expires_at:
+                    self._cache[key] = ("1", None)
+                    self._record_success()
+                    return 1
+
+                try:
+                    new_value = str(int(value) + 1)
+                except ValueError:
+                    new_value = "1"
+
+                self._cache[key] = (new_value, expires_at)
+                self._record_success()
+                return int(new_value)
+            except Exception as e:
+                logger.warning("Cache INCR error for key %s: %s", key, e)
+                return None
 
     async def expire(self, key: str, ttl_seconds: int) -> bool:
         """Set TTL on existing key.
@@ -364,16 +302,63 @@ class RedisClient:
         Returns:
             True if successful, False otherwise
         """
-        if not self.is_available or not self._client:
-            return False
+        async with self._lock:
+            if not self.is_available:
+                return False
 
-        try:
-            await self._client.expire(key, ttl_seconds)
-            return True
-        except RedisError as e:
-            logger.warning("Redis EXPIRE error for key %s: %s", key, e)
-            return False
+            try:
+                entry = self._cache.get(key)
+                if entry is None:
+                    return False
+
+                value, expires_at = entry
+                if expires_at is not None and datetime.now(UTC).timestamp() > expires_at:
+                    del self._cache[key]
+                    return False
+
+                new_expires_at = datetime.now(UTC).timestamp() + ttl_seconds if ttl_seconds > 0 else None
+                self._cache[key] = (value, new_expires_at)
+                self._record_success()
+                return True
+            except Exception as e:
+                logger.warning("Cache EXPIRE error for key %s: %s", key, e)
+                return False
+
+    async def _cleanup_expired_keys(self) -> None:
+        """Background task to periodically clean up expired keys."""
+        logger.info("Started background cache cleanup task")
+
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(60)
+                if self._shutdown_event.is_set():
+                    break
+
+                async with self._lock:
+                    current_time = datetime.now(UTC).timestamp()
+                    expired_keys = [
+                        k
+                        for k, (_, expires_at) in self._cache.items()
+                        if expires_at is not None and expires_at < current_time
+                    ]
+
+                    for key in expired_keys:
+                        del self._cache[key]
+
+                    if expired_keys:
+                        logger.debug("Cleaned up %d expired cache keys", len(expired_keys))
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning("Error in cache cleanup task: %s", e)
+
+        logger.info("Stopped background cache cleanup task")
+
+    async def start_cleanup_task(self) -> None:
+        """Start background cleanup task for expired keys."""
+        if self._cleanup_task is None or self._cleanup_task.done():
+            self._cleanup_task = asyncio.create_task(self._cleanup_expired_keys())
 
 
-# Global Redis client instance
+# Global cache client instance
 redis_client = RedisClient()
