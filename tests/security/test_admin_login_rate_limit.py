@@ -33,11 +33,13 @@ async def test_check_login_rate_limit_exceeded():
         request = AsyncMock(spec=Request)
         request.client.host = "127.0.0.1"
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(HTTPException) as exc_info:
             await check_login_rate_limit(request)
 
-        assert exc.value.status_code == status.HTTP_429_TOO_MANY_REQUESTS
-        assert "Too many login attempts" in exc.value.detail
+        exc = exc_info.value
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert "Too many login attempts" in exc.detail
 
 
 @pytest.mark.asyncio

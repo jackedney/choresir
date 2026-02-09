@@ -14,7 +14,7 @@ class InMemoryDBClient:
     """Pure Python in-memory database for unit testing.
 
     Provides a simple in-memory implementation of database operations
-    without requiring PocketBase to be running. Supports basic CRUD
+    without requiring a database to be running. Supports basic CRUD
     operations and simple filtering/sorting.
     """
 
@@ -239,7 +239,7 @@ class InMemoryDBClient:
         Supports:
         - field = "value" (exact match)
         - field != "value" (not equal)
-        - field ~ "substring" (case-insensitive contains, matching PocketBase)
+        - field ~ "substring" (case-insensitive contains)
         - field >= "value" (greater than or equal)
         - field > "value" (greater than)
         - field <= "value" (less than or equal)
