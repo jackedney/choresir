@@ -12,7 +12,6 @@ from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
 from src.agents.retry_handler import get_retry_handler
 from src.core import admin_notifier, db_client
-from src.core.db_client import PocketBase
 from src.core.errors import classify_agent_error
 from src.domain.user import UserStatus
 from src.services import user_service, workflow_service
@@ -337,12 +336,12 @@ async def run_agent(
         return user_message
 
 
-async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
+async def build_deps(*, db: object, user_phone: str) -> Deps | None:
     """
     Build dependencies for agent execution with user context.
 
     Args:
-        db: PocketBase database connection
+        db: Database connection (unused, retained for API compatibility)
         user_phone: Phone number of the user
 
     Returns:
@@ -364,12 +363,12 @@ async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
     )
 
 
-async def get_member_list(*, _db: PocketBase) -> str:
+async def get_member_list(*, _db: object) -> str:
     """
     Get formatted list of household members.
 
     Args:
-        db: PocketBase database connection
+        db: Database connection (unused, retained for API compatibility)
 
     Returns:
         Formatted member list string

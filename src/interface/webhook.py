@@ -11,7 +11,7 @@ from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
 from src.core.config import Constants, settings
-from src.core.db_client import PocketBase, sanitize_param
+from src.core.db_client import sanitize_param
 from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
 from src.domain.user import UserStatus
@@ -293,10 +293,17 @@ async def _handle_user_status(
     *,
     user_record: dict[str, Any],
     message: whatsapp_parser.ParsedMessage,
-    db: PocketBase,
+    db: object,
     deps: Deps,
 ) -> tuple[bool, str | None]:
-    """Handle message based on user status.
+    """
+    Handle message based on user status.
+
+    Args:
+        user_record: User database record
+        message: Parsed message from WhatsApp
+        db: Database connection (unused, retained for API compatibility)
+        deps: Agent dependencies
 
     Returns:
         Tuple of (success: bool, error_message: str | None)
@@ -591,8 +598,7 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     logger.info("Processing message from %s: %s", sender_phone, message.text)
     await _log_message_start(message, "Processing", sender_phone)
 
-    db = db_client.get_client()
-    deps = await choresir_agent.build_deps(db=db, user_phone=sender_phone)
+    deps = await choresir_agent.build_deps(db=None, user_phone=sender_phone)
 
     if deps is None:
         # Unknown user - if this is a group message from the configured group, auto-register
@@ -621,8 +627,43 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
         )
         return
 
-    success, error = await _handle_user_status(user_record=user_record, message=message, db=db, deps=deps)
-    await _update_message_status(message_id=message.message_id, success=success, error=error)
+    # Record user message in conversation context
+    user_text = message.text or ""
+    await _record_message_context(
+        message=message,
+        sender_phone=sender_phone,
+        user_name=user_record["name"],
+        content=user_text,
+        is_bot=False,
+    )
+
+    # Build message history from quoted message (if this is a reply)
+    message_history = await _build_message_history(message)
+
+    member_list = await choresir_agent.get_member_list(_db=None)
+    agent_response = await choresir_agent.run_agent(
+        user_message=user_text,
+        deps=deps,
+        member_list=member_list,
+        message_history=message_history if message_history else None,
+        group_id=message.group_id if message.is_group_message else None,
+    )
+
+    # Record assistant response in conversation context
+    await _record_message_context(
+        message=message,
+        sender_phone=sender_phone,
+        user_name=user_record["name"],
+        content=agent_response,
+        is_bot=True,
+    )
+
+    result = await _send_response(message=message, text=agent_response)
+    await _update_message_status(message_id=message.message_id, success=result.success, error=result.error)
+    if not result.success:
+        logger.error("Failed to send response to %s: %s", sender_phone, result.error)
+    else:
+        logger.info("Successfully processed message for %s", sender_phone)
 
 
 async def _activate_group(group_id: str, message: whatsapp_parser.ParsedMessage) -> None:

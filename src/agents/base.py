@@ -2,15 +2,14 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-
-from src.core.db_client import PocketBase
+from typing import Any
 
 
 @dataclass
 class Deps:
     """Dependencies injected into agent RunContext."""
 
-    db: PocketBase
+    db: Any
     user_id: str
     user_phone: str
     user_name: str

@@ -20,7 +20,7 @@ class ChoreState(StrEnum):
 class Chore(BaseModel):
     """Chore data transfer object."""
 
-    id: str = Field(..., description="Unique chore ID from PocketBase")
+    id: str = Field(..., description="Unique chore ID from database")
     title: str = Field(..., description="Chore title (e.g., 'Wash Dishes')")
     description: str = Field(default="", description="Detailed chore description")
     schedule_cron: str = Field(

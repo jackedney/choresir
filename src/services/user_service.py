@@ -40,7 +40,7 @@ async def create_pending_name_user(*, phone: str) -> dict[str, Any]:
             logger.warning(msg)
             raise ValueError(msg)
 
-        # Generate email from phone for PocketBase auth collection requirement
+        # Generate dummy email for user record
         email = f"{phone.replace('+', '').replace('-', '')}@choresir.local"
 
         # Generate secure random password for initial account creation

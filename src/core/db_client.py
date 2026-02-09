@@ -16,40 +16,6 @@ from src.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-class _PocketBaseStub:
-    """Temporary stub for PocketBase type compatibility during migration.
-
-    This stub provides minimal interface to allow type checking and imports to work
-    during the SQLite migration. Will be removed in US-017.
-    """
-
-    def __init__(self) -> None:
-        self.auth_store = _AuthStoreStub()
-
-
-class _AuthStoreStub:
-    """Stub for PocketBase auth_store."""
-
-    def __init__(self) -> None:
-        self.token = "stub_token"  # noqa: S105 - stub value, not a real password
-
-
-def get_client() -> _PocketBaseStub:
-    """Temporary stub function for PocketBase client during migration.
-
-    This will be removed in US-017 when all PocketBase references are eliminated.
-
-    Returns:
-        Stub object compatible with PocketBase type annotations
-    """
-    return _PocketBaseStub()
-
-
-# Re-export stub as PocketBase for type compatibility during migration
-# This will be removed in US-017
-PocketBase = _PocketBaseStub
-
-
 def _validate_collection_name(collection: str) -> None:
     """Validate that a collection name is safe for use in SQL queries.
 
@@ -129,7 +95,7 @@ def _parse_value(value: str, *, is_like: bool = False) -> str | int | float | No
 
 
 def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]]:
-    """Parse PocketBase-style filter syntax into SQL WHERE clause and parameters.
+    """Parse filter syntax into SQL WHERE clause and parameters.
 
     Supports:
     - field = 'value'           -> WHERE field = ?
@@ -142,7 +108,7 @@ def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]
     - field1 = 'v1' && field2 = 'v2' -> WHERE field1 = ? AND field2 = ?
 
     Args:
-        filter_query: PocketBase-style filter string
+        filter_query: Filter string
 
     Returns:
         Tuple of (WHERE clause, parameter values list)
@@ -448,7 +414,7 @@ async def list_records(
         collection: Table/collection name
         page: Page number (1-indexed)
         per_page: Records per page
-        filter_query: PocketBase-style filter string
+        filter_query: Filter string
         sort: Sort field (default: id ASC)
 
     Returns:
@@ -493,7 +459,7 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
 
     Args:
         collection: Table/collection name
-        filter_query: PocketBase-style filter string
+        filter_query: Filter string
 
     Returns:
         First matching record as dictionary, or None if not found
