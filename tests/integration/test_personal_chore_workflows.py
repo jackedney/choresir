@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from src.core.db_client import create_record
+from src.core.db_client import create_record, delete_record, get_record
 from src.services import (
     personal_chore_service,
     personal_verification_service,
@@ -167,7 +167,7 @@ async def test_auto_verify_after_48_hours(mock_db_module, db_client, sample_user
     assert count == 1
 
     # Step 4: Verify log is now VERIFIED
-    updated_log = await db_client.get_record(
+    updated_log = await get_record(
         collection="personal_chore_logs",
         record_id=log["id"],
     )
@@ -226,7 +226,7 @@ async def test_partner_leaving_household(mock_db_module, db_client, sample_users
     )
 
     # Step 2: Bob leaves household (delete user)
-    await db_client.delete_record(
+    await delete_record(
         collection="members",
         record_id=sample_users["bob"]["id"],
     )

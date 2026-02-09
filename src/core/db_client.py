@@ -54,6 +54,38 @@ def sanitize_param(value: str | int | float | bool | None) -> str:
     return json.dumps(str(value))[1:-1]
 
 
+def _convert_record_ids(record: dict[str, Any]) -> dict[str, Any]:
+    """Convert integer IDs to strings for Pydantic model compatibility.
+
+    SQLite returns integer IDs, but Pydantic models expect string IDs.
+    This function converts the 'id' field and any foreign key fields
+    from integers to strings.
+
+    Args:
+        record: Record dictionary from SQLite
+
+    Returns:
+        Record with ID fields converted to strings
+    """
+    # Common foreign key field names that should be converted
+    fk_fields = {
+        "id",
+        "assigned_to",
+        "claimer_user_id",
+        "verifier_user_id",
+        "requester_user_id",
+        "target_id",
+        "personal_chore_id",
+    }
+
+    converted = record.copy()
+    for key, value in converted.items():
+        # Convert if it's a known FK field, ends in _id, or is the primary id
+        if isinstance(value, int) and (key in fk_fields or key.endswith("_id")):
+            converted[key] = str(value)
+    return converted
+
+
 def get_db_path(db_path: str | None = None) -> Path:
     """Get the SQLite database file path.
 
@@ -95,6 +127,101 @@ def _parse_value(value: str, *, is_like: bool = False) -> str | int | float | No
     return value
 
 
+def _get_sql_operator(op: str) -> str:
+    """Map filter operator to SQL operator."""
+    op_map = {
+        "=": "=",
+        "!=": "!=",
+        ">": ">",
+        "<": "<",
+        ">=": ">=",
+        "<=": "<=",
+        "~": "LIKE",
+    }
+    sql_op = op_map.get(op)
+    if not sql_op:
+        msg = f"Unsupported operator: {op}"
+        raise ValueError(msg)
+    return sql_op
+
+
+def _parse_single_comparison(comparison: str) -> tuple[str, str | int | float | None]:
+    """Parse a single comparison expression.
+
+    Args:
+        comparison: Expression like 'field = "value"'
+
+    Returns:
+        Tuple of (SQL condition, parameter value)
+
+    Raises:
+        ValueError: If comparison syntax is invalid
+    """
+    match = re.match(
+        r"""(\w+)\s*(=|!=|>|<|>=|<=|~)\s*(['"])([^'"]*)\3""",
+        comparison,
+    )
+    if not match:
+        msg = f"Invalid filter syntax: {comparison}"
+        raise ValueError(msg)
+
+    field = match.group(1)
+    op = match.group(2)
+    raw_value = match.group(4)
+
+    sql_op = _get_sql_operator(op)
+    is_like = sql_op == "LIKE"
+    value = _parse_value(raw_value, is_like=is_like)
+
+    return f"{field} {sql_op} ?", value
+
+
+def _parse_or_group(or_group: str) -> tuple[str, list[str | int | float | None]]:
+    """Parse a parenthesized OR group.
+
+    Args:
+        or_group: Expression like '(field1 = "v1" || field2 = "v2")'
+
+    Returns:
+        Tuple of (SQL condition, parameter values list)
+    """
+    inner = or_group[1:-1]  # Remove parentheses
+    or_parts = [p.strip() for p in inner.split("||")]
+    or_conditions = []
+    or_params = []
+
+    for part in or_parts:
+        cond, value = _parse_single_comparison(part)
+        or_conditions.append(cond)
+        or_params.append(value)
+
+    return f"({' OR '.join(or_conditions)})", or_params
+
+
+def _split_and_conditions(filter_query: str) -> list[str]:
+    """Split filter query by && while preserving parenthesized groups."""
+    parts = []
+    current = ""
+    paren_depth = 0
+
+    for char in filter_query:
+        if char == "(":
+            paren_depth += 1
+        elif char == ")":
+            paren_depth -= 1
+
+        current += char
+
+        if paren_depth == 0 and current.endswith("&&"):
+            parts.append(current[:-2].strip())
+            current = ""
+
+    if current.strip():
+        parts.append(current.strip())
+
+    return parts
+
+
 def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]]:
     """Parse filter syntax into SQL WHERE clause and parameters.
 
@@ -107,8 +234,10 @@ def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]
     - field <= 'value'          -> WHERE field <= ?
     - field ~ 'pattern'         -> WHERE field LIKE ?
     - field1 = 'v1' && field2 = 'v2' -> WHERE field1 = ? AND field2 = ?
+    - (field1 = 'v1' || field2 = 'v2') -> WHERE (field1 = ? OR field2 = ?)
 
     Values can be quoted with either single (') or double (") quotes.
+    Use parentheses to group OR conditions.
 
     Args:
         filter_query: Filter string
@@ -122,44 +251,23 @@ def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]
     if not filter_query:
         return "", []
 
+    parts = _split_and_conditions(filter_query)
     conditions = []
     params = []
 
-    comparisons = [c.strip() for c in filter_query.split("&&")]
+    for raw_part in parts:
+        part = raw_part.strip()
 
-    for comparison in comparisons:
-        match = re.match(
-            r"""(\w+)\s*(=|!=|>|<|>=|<=|~)\s*(['"])([^'"]*)\3""",
-            comparison,
-        )
-        if not match:
-            msg = f"Invalid filter syntax: {comparison}"
-            raise ValueError(msg)
-
-        field = match.group(1)
-        op = match.group(2)
-        raw_value = match.group(4)  # Value is now in group 4 since group 3 is the quote
-
-        op_map = {
-            "=": "=",
-            "!=": "!=",
-            ">": ">",
-            "<": "<",
-            ">=": ">=",
-            "<=": "<=",
-            "~": "LIKE",
-        }
-
-        sql_op = op_map.get(op)
-        if not sql_op:
-            msg = f"Unsupported operator: {op}"
-            raise ValueError(msg)
-
-        is_like = sql_op == "LIKE"
-        value = _parse_value(raw_value, is_like=is_like)
-
-        conditions.append(f"{field} {sql_op} ?")
-        params.append(value)
+        # Handle parenthesized OR groups
+        if part.startswith("(") and part.endswith(")"):
+            cond, cond_params = _parse_or_group(part)
+            conditions.append(cond)
+            params.extend(cond_params)
+        else:
+            # Handle regular condition
+            cond, value = _parse_single_comparison(part)
+            conditions.append(cond)
+            params.append(value)
 
     return " AND ".join(conditions), params
 
@@ -349,7 +457,7 @@ async def get_record(*, collection: str, record_id: str) -> dict[str, Any]:
         record = dict(zip(columns, row, strict=True))
 
         logger.info("Retrieved record from %s: %s", collection, record_id)
-        return record
+        return _convert_record_ids(record)
     except KeyError:
         raise
     except Exception as e:
@@ -488,7 +596,7 @@ async def list_records(
         rows = await cursor.fetchall()
 
         columns = [description[0] for description in cursor.description]
-        records = [dict(zip(columns, row, strict=True)) for row in rows]
+        records = [_convert_record_ids(dict(zip(columns, row, strict=True))) for row in rows]
 
         logger.info("Listed records from %s: %d results", collection, len(records))
         return records
@@ -534,7 +642,7 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         record = dict(zip(columns, row, strict=True))
 
         logger.info("Retrieved first record from %s", collection)
-        return record
+        return _convert_record_ids(record)
     except Exception as e:
         logger.error(
             "get_first_record_failed", extra={"collection": collection, "filter_query": filter_query, "error": str(e)}
