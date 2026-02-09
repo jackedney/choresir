@@ -168,7 +168,7 @@ dependencies = [
     { name = "mkdocs-material" },
     { name = "openai" },
     { name = "pydantic" },
-    { name = "pydantic-ai-slim" },
+    { name = "pydantic-ai-slim", extra = ["openrouter"] },
     { name = "python-dateutil" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
@@ -202,7 +202,7 @@ requires-dist = [
     { name = "mkdocs-material", specifier = ">=9.7.1" },
     { name = "openai", specifier = ">=2.17.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pydantic-ai-slim", specifier = ">=0.0.14" },
+    { name = "pydantic-ai-slim", extras = ["openrouter"], specifier = ">=0.0.14" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
@@ -1121,6 +1121,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ce/5c/3a577825b9c1da8f287be7f2ee6fe9aab48bc8a80e65c8518052c589f51c/pydantic_ai_slim-1.56.0.tar.gz", hash = "sha256:9f9f9c56b1c735837880a515ae5661b465b40207b25f3a3434178098b2137f05", size = 415265 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/4b/34682036528eeb9aaf093c2073540ddf399ab37b99d282a69ca41356f1aa/pydantic_ai_slim-1.56.0-py3-none-any.whl", hash = "sha256:d657e4113485020500b23b7390b0066e2a0277edc7577eaad2290735ca5dd7d5", size = 542270 },
+]
+
+[package.optional-dependencies]
+openrouter = [
+    { name = "openai" },
 ]
 
 [[package]]

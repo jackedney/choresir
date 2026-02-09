@@ -230,11 +230,17 @@ def chore_factory() -> Any:
 
 
 @pytest.fixture
-async def clean_db(sqlite_db: Path) -> AsyncGenerator[None, None]:
+async def clean_db(sqlite_db: Path, db_client) -> AsyncGenerator[None, None]:
     """Ensure clean database state, failing loudly on cleanup errors.
 
     This fixture ensures cleanup happens after the test,
     failing the test if cleanup encounters any errors.
+    Uses the patched db_client connection to ensure cleanup operates
+    on the correct test database.
+
+    Args:
+        sqlite_db: Path to the test database
+        db_client: Patched db_client fixture for test database access
     """
     yield
 

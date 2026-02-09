@@ -1,5 +1,6 @@
 """SQLite database client wrapper with CRUD operations."""
 
+import asyncio
 import json
 import logging
 import re
@@ -163,60 +164,93 @@ def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]
     return " AND ".join(conditions), params
 
 
-_db_connections: dict[int, aiosqlite.Connection] = {}
-_db_lock = threading.Lock()
+_db_connections: dict[tuple[int, int, str], aiosqlite.Connection] = {}
+_db_lock = asyncio.Lock()
 
 
 async def get_connection(*, db_path: str | None = None) -> aiosqlite.Connection:
-    """Get or create a thread-local SQLite connection.
+    """Get or create a connection unique to thread, event loop, and database path.
 
     Auto-creates the parent directory if it doesn't exist.
+    Uses async lock to prevent connection races.
 
     Args:
         db_path: Optional custom database path
 
     Returns:
-        SQLite connection for the current thread
+        SQLite connection for the current (thread, loop, db_path) combination
 
     Raises:
         OSError: If directory creation fails
     """
     thread_id = threading.get_ident()
-
-    if thread_id in _db_connections:
-        return _db_connections[thread_id]
-
+    loop = asyncio.get_event_loop()
+    loop_id = id(loop)
     path = get_db_path(db_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    cache_key = (thread_id, loop_id, str(path))
 
-    conn = await aiosqlite.connect(str(path))
-    await conn.execute("PRAGMA foreign_keys = ON")
-    await conn.execute("PRAGMA journal_mode = WAL")
+    # Check if we have a cached connection and verify the loop is still valid
+    if cache_key in _db_connections:
+        cached_conn = _db_connections[cache_key]
+        if not loop.is_closed():
+            return cached_conn
+        # Loop is closed, remove stale connection
+        async with _db_lock:
+            _db_connections.pop(cache_key, None)
 
-    with _db_lock:
-        _db_connections[thread_id] = conn
+    # Create new connection with async lock to prevent races
+    async with _db_lock:
+        # Double-check after acquiring lock
+        if cache_key in _db_connections:
+            return _db_connections[cache_key]
 
-    logger.info("Created new SQLite connection", extra={"db_path": str(path), "thread_id": thread_id})
-    return conn
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        conn = await aiosqlite.connect(str(path))
+        await conn.execute("PRAGMA foreign_keys = ON")
+        await conn.execute("PRAGMA journal_mode = WAL")
+
+        _db_connections[cache_key] = conn
+
+        logger.info(
+            "Created new SQLite connection",
+            extra={"db_path": str(path), "thread_id": thread_id, "loop_id": loop_id},
+        )
+        return conn
 
 
-async def close_connection() -> None:
-    """Close the current thread's SQLite connection.
+async def close_connection(*, db_path: str | None = None) -> None:
+    """Close the SQLite connection for current thread, loop, and db_path.
 
     Silently ignores errors if connection is already closed.
+
+    Args:
+        db_path: Optional custom database path
     """
     thread_id = threading.get_ident()
+    loop = asyncio.get_event_loop()
+    loop_id = id(loop)
+    path = get_db_path(db_path)
+    cache_key = (thread_id, loop_id, str(path))
 
-    if thread_id not in _db_connections:
+    if cache_key not in _db_connections:
         return
 
     try:
-        conn = _db_connections[thread_id]
-        await conn.close()
-        del _db_connections[thread_id]
-        logger.info("Closed SQLite connection", extra={"thread_id": thread_id})
+        async with _db_lock:
+            if cache_key in _db_connections:
+                conn = _db_connections[cache_key]
+                await conn.close()
+                del _db_connections[cache_key]
+                logger.info(
+                    "Closed SQLite connection",
+                    extra={"thread_id": thread_id, "loop_id": loop_id, "db_path": str(path)},
+                )
     except Exception as e:
-        logger.warning("Error closing SQLite connection", extra={"error": str(e), "thread_id": thread_id})
+        logger.warning(
+            "Error closing SQLite connection",
+            extra={"error": str(e), "thread_id": thread_id, "loop_id": loop_id},
+        )
 
 
 async def init_db(*, db_path: str | None = None) -> None:
@@ -435,11 +469,19 @@ async def list_records(
             where_clause, params = parse_filter(filter_query)
             where_clause = f"WHERE {where_clause}"
 
-        sort = sanitize_param(sort) if sort else "id ASC"
+        # Validate sort parameter to prevent SQL injection in ORDER BY clause
+        # Only allow: column_name [ASC|DESC]
+        safe_sort = "id ASC"
+        if sort:
+            sort_pattern = re.match(r"^[A-Za-z_][A-Za-z0-9_]*\s*(ASC|DESC)?$", sort.strip(), re.IGNORECASE)
+            if sort_pattern:
+                safe_sort = sort.strip()
+            else:
+                logger.warning("Invalid sort parameter, using default", extra={"sort": sort})
 
         offset = (page - 1) * per_page
 
-        query = f"SELECT * FROM {collection} {where_clause} ORDER BY {sort} LIMIT ? OFFSET ?"  # noqa: S608 - collection is validated
+        query = f"SELECT * FROM {collection} {where_clause} ORDER BY {safe_sort} LIMIT ? OFFSET ?"  # noqa: S608 - collection is validated
         params.extend([per_page, offset])
 
         cursor = await conn.execute(query, params)
@@ -474,7 +516,13 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         conn = await get_connection()
 
         where_clause, params = parse_filter(filter_query)
-        query = f"SELECT * FROM {collection} WHERE {where_clause} LIMIT 1"  # noqa: S608 - collection is validated
+
+        # Guard against empty filter_query to avoid invalid WHERE clause
+        if where_clause:
+            query = f"SELECT * FROM {collection} WHERE {where_clause} LIMIT 1"  # noqa: S608 - collection is validated
+        else:
+            query = f"SELECT * FROM {collection} LIMIT 1"  # noqa: S608 - collection is validated
+            params = []
 
         cursor = await conn.execute(query, params)
         row = await cursor.fetchone()
