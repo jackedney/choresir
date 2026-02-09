@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from pocketbase import PocketBase
+from src.core.db_client import PocketBase
 
 
 @dataclass

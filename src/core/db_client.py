@@ -16,6 +16,40 @@ from src.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+class _PocketBaseStub:
+    """Temporary stub for PocketBase type compatibility during migration.
+
+    This stub provides minimal interface to allow type checking and imports to work
+    during the SQLite migration. Will be removed in US-017.
+    """
+
+    def __init__(self) -> None:
+        self.auth_store = _AuthStoreStub()
+
+
+class _AuthStoreStub:
+    """Stub for PocketBase auth_store."""
+
+    def __init__(self) -> None:
+        self.token = "stub_token"  # noqa: S105 - stub value, not a real password
+
+
+def get_client() -> _PocketBaseStub:
+    """Temporary stub function for PocketBase client during migration.
+
+    This will be removed in US-017 when all PocketBase references are eliminated.
+
+    Returns:
+        Stub object compatible with PocketBase type annotations
+    """
+    return _PocketBaseStub()
+
+
+# Re-export stub as PocketBase for type compatibility during migration
+# This will be removed in US-017
+PocketBase = _PocketBaseStub
+
+
 def _validate_collection_name(collection: str) -> None:
     """Validate that a collection name is safe for use in SQL queries.
 

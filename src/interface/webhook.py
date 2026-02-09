@@ -5,14 +5,13 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from pocketbase import PocketBase
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
 
 from src.agents import choresir_agent
 from src.agents.base import Deps
 from src.core import admin_notifier, db_client
 from src.core.config import Constants, settings
-from src.core.db_client import sanitize_param
+from src.core.db_client import PocketBase, sanitize_param
 from src.core.errors import classify_agent_error, classify_error_with_response
 from src.core.rate_limiter import rate_limiter
 from src.domain.user import UserStatus

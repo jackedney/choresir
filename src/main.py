@@ -9,13 +9,11 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from src.core.cache_client import cache_client as redis_client
 from src.core.config import constants, settings
-from src.core.db_client import get_client
+from src.core.db_client import init_db
 from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
 from src.core.scheduler import start_scheduler, stop_scheduler
 from src.core.scheduler_tracker import job_tracker
-from src.core.schema import sync_schema
 from src.interface.admin_router import router as admin_router
 from src.interface.webhook import router as webhook_router
 from src.services.house_config_service import ensure_singleton_config, seed_from_env_vars
@@ -24,78 +22,29 @@ from src.services.house_config_service import ensure_singleton_config, seed_from
 logger = logging.getLogger(__name__)
 
 
-async def check_pocketbase_connectivity() -> None:
-    """Verify PocketBase connectivity and authentication.
-
-    Raises:
-        ConnectionError: If unable to connect or authenticate
-    """
-    try:
-        client = get_client()
-        # Verify we have an authenticated connection
-        if not client.auth_store.token:
-            raise ConnectionError("PocketBase authentication failed: No token present")
-
-        logger.info("startup_validation", extra={"service": "pocketbase", "status": "ok"})
-    except Exception as e:
-        logger.error("startup_validation", extra={"service": "pocketbase", "status": "failed", "error": str(e)})
-        raise ConnectionError(f"PocketBase connectivity check failed: {e}") from e
-
-
-async def check_redis_connectivity() -> None:
-    """Verify Redis connectivity (optional service).
-
-    Only checks if Redis is configured. Logs warning if unavailable but doesn't fail.
-
-    Raises:
-        ConnectionError: Only if Redis is configured but connectivity test fails critically
-    """
-    if not redis_client.is_available:
-        logger.info("startup_validation", extra={"service": "redis", "status": "disabled"})
-        return
-
-    try:
-        result = await redis_client.ping()
-        if result:
-            logger.info("startup_validation", extra={"service": "redis", "status": "ok"})
-        else:
-            logger.warning("startup_validation", extra={"service": "redis", "status": "unavailable"})
-    except Exception as e:
-        logger.warning("startup_validation", extra={"service": "redis", "status": "unavailable", "error": str(e)})
-
-
 async def validate_startup_configuration() -> None:
-    """Validate all required credentials and external service connectivity.
+    """Validate all required credentials.
 
     Performs comprehensive startup validation:
     - Validates all required credentials
-    - Tests connectivity to external services
     - Fails fast with clear error messages
 
     Raises:
         ValueError: If required credentials are missing
-        ConnectionError: If external services are unreachable
     """
     logger.info("startup_validation_begin")
 
     try:
         # Validate required credentials
         settings.require_credential("openrouter_api_key", "OpenRouter API key")
-        settings.require_credential("pocketbase_url", "PocketBase URL")
-        settings.require_credential("pocketbase_admin_email", "PocketBase admin email")
-        settings.require_credential("pocketbase_admin_password", "PocketBase admin password")
         settings.require_credential("admin_password", "Admin password for web interface")
         settings.require_credential("secret_key", "Secret key for session signing")
 
         logger.info("startup_validation", extra={"stage": "credentials", "status": "ok"})
 
-        # Check external service connectivity
-        await check_pocketbase_connectivity()
-        await check_redis_connectivity()
-
         logger.info("startup_validation_complete", extra={"status": "ok"})
 
-    except (ValueError, ConnectionError) as e:
+    except ValueError as e:
         logger.critical("Startup validation failed: %s", e)
         sys.exit(1)
     except Exception as e:
@@ -110,14 +59,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Configure logging first so validation logs are captured
     configure_logfire()
 
-    # Validate all credentials and external service connectivity
+    # Validate all credentials
     await validate_startup_configuration()
 
     instrument_pydantic_ai()
-    await sync_schema(
-        admin_email=settings.pocketbase_admin_email,
-        admin_password=settings.pocketbase_admin_password,
-    )
+    await init_db()
     await seed_from_env_vars()
     await ensure_singleton_config()
     start_scheduler()

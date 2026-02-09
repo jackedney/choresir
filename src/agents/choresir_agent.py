@@ -6,13 +6,13 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import logfire
-from pocketbase import PocketBase
 from pydantic_ai.messages import ModelMessage
 
 from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
 from src.agents.retry_handler import get_retry_handler
 from src.core import admin_notifier, db_client
+from src.core.db_client import PocketBase
 from src.core.errors import classify_agent_error
 from src.domain.user import UserStatus
 from src.services import user_service, workflow_service
