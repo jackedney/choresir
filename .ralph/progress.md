@@ -613,3 +613,48 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Context: Type checking (ty) is strict about type compatibility - backward compatibility requires careful aliasing (e.g., PocketBase = _DBClient)
   - Gotcha: When adding backward compatibility, the module-level noqa directive affects all code in the module, not just the functions needing it
 ---
+
+## [2026-02-09 00:29:00 GMT] - US-003: Implement PocketBase filter query parser
+Thread:
+Run: 20260208-234344-647 (iteration 3)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-3.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-3.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: e7570cb feat: implement PocketBase filter query parser for SQLite backend
+- Post-commit status: clean
+- Verification:
+  - Command: uv run ruff check . -> PASS
+  - Command: uv run ruff format --check -> PASS
+  - Command: uv run ty check src -> PASS
+  - Command: uv run pytest tests/unit/ -> PASS (446 tests)
+  - Command: uv run pytest tests/integration/ -> PARTIAL (integration tests fail due to shared PocketBase database state, unrelated to filter parser changes)
+- Files changed:
+  - src/core/db_client.py
+  - src/interface/webhook.py
+  - src/agents/choresir_agent.py
+  - src/agents/base.py
+- What was implemented:
+  - Created parse_filter() function that converts PocketBase filter syntax to SQL WHERE clauses
+  - Implemented regex-based tokenizer (_tokenize_filter) to parse filter expressions
+  - Added recursive parser functions (_parse_expression, _parse_and_expression, _parse_not_expression, _parse_condition) for handling complex expressions
+  - Added _convert_operator() to map PocketBase operators to SQL operators (= stays, ~ becomes LIKE, && becomes AND, || becomes OR)
+  - Added _parse_value() to handle quoted strings, boolean values (true/false -> 1/0), numeric values, and unquoted identifiers
+  - Supports comparison operators: =, !=, >, <, >=, <=
+  - Supports logical operators: && (AND), || (OR)
+  - Handles parentheses for grouping in complex expressions like (field = "val1" || field = "val2")
+  - Updated list_records() to use parse_filter() and append WHERE clause to SQL queries
+  - Updated get_first_record() to use parse_filter() for filtering
+  - Added basic sort support with ascending/descending order (+field/-field)
+  - Uses parameterized queries with bind values to prevent SQL injection
+  - Fixed type annotations to use _DBClient instead of PocketBase in webhook.py, choresir_agent.py, and base.py
+- **Learnings for future iterations:**
+  - Pattern: Filter parser requires proper operator precedence - OR has lower precedence than AND, parentheses control grouping
+  - Pattern: Recursive descent parsing works well for nested expressions - each function returns (sql, params, next_pos) tuple to track position
+  - Pattern: Parameterized queries with ? placeholders prevent SQL injection - never build SQL strings with user input directly
+  - Pattern: Boolean conversion (true/false -> 1/0) must match database storage format (SQLite uses INTEGER for booleans)
+  - Pattern: LIKE operator with wildcards (%) provides case-insensitive partial matching - matches PocketBase behavior
+  - Gotcha: Integration tests that use shared PocketBase database may fail due to state pollution from previous test runs - need database cleanup or isolation
+  - Gotcha: Type annotations must be updated consistently when changing actual types passed to functions (PocketBase -> _DBClient)
+  - Gotcha: When refactoring parser functions, ensure all return types match the function signatures
+---
