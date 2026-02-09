@@ -4,60 +4,59 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.core.config import Settings
-from src.main import (
-    check_pocketbase_connectivity,
-    check_redis_connectivity,
-    validate_startup_configuration,
-)
-
-
-# Credential validation tests
-def test_startup_fails_without_openrouter_api_key() -> None:
-    """Test that application startup fails when openrouter_api_key is missing."""
-    settings = Settings(openrouter_api_key=None)
-    with pytest.raises(ValueError, match="OpenRouter API key credential not configured"):
-        settings.require_credential("openrouter_api_key", "OpenRouter API key")
-
-
-def test_startup_fails_with_empty_openrouter_api_key() -> None:
-    """Test that application startup fails when openrouter_api_key is empty string."""
-    settings = Settings(openrouter_api_key="")
-    with pytest.raises(ValueError, match="OpenRouter API key credential not configured"):
-        settings.require_credential("openrouter_api_key", "OpenRouter API key")
-
-
-def test_startup_succeeds_with_valid_credentials() -> None:
-    """Test that validation passes when credentials are properly set."""
-    settings = Settings(openrouter_api_key="sk-test-123", admin_password="secret")
-    api_key = settings.require_credential("openrouter_api_key", "OpenRouter API key")
-    admin_pwd = settings.require_credential("admin_password", "Admin password")
-    assert api_key == "sk-test-123"
-    assert admin_pwd == "secret"
-
-
-# Connectivity check tests
-@pytest.mark.asyncio
-async def test_check_pocketbase_connectivity_success() -> None:
-    """Test successful PocketBase connectivity check."""
-    mock_client = Mock()
-    mock_client.auth_store.token = "test_token"
-
-    with patch("src.main.get_client", return_value=mock_client):
-        await check_pocketbase_connectivity()
+from src.main import check_redis_connectivity, check_waha_connectivity, validate_startup_configuration
 
 
 @pytest.mark.asyncio
-async def test_check_pocketbase_connectivity_no_token() -> None:
-    """Test PocketBase connectivity check fails when no token present."""
-    mock_client = Mock()
-    mock_client.auth_store.token = None
+async def test_check_waha_connectivity_success() -> None:
+    """Test successful WAHA connectivity check."""
+    mock_response = Mock()
+    mock_response.is_success = True
+
+    with patch("httpx.AsyncClient") as mock_client:
+        mock_client.return_value.__aenter__.return_value.get.return_value = mock_response
+        await check_waha_connectivity()
+
+
+@pytest.mark.asyncio
+async def test_check_waha_connectivity_failure() -> None:
+    """Test WAHA connectivity check fails on non-200 status."""
+    mock_response = Mock()
+    mock_response.is_success = False
+    mock_response.status_code = 500
 
     with (
-        patch("src.main.get_client", return_value=mock_client),
-        pytest.raises(ConnectionError, match="PocketBase connectivity check failed"),
+        patch("httpx.AsyncClient") as mock_client,
+        pytest.raises(ConnectionError, match="WAHA connectivity check failed"),
     ):
-        await check_pocketbase_connectivity()
+        mock_client.return_value.__aenter__.return_value.get.return_value = mock_response
+        await check_waha_connectivity()
+
+
+@pytest.mark.asyncio
+async def test_check_waha_connectivity_with_api_key() -> None:
+    """Test WAHA connectivity check sends API key when configured."""
+    mock_response = Mock()
+    mock_response.is_success = True
+    mock_client_context = Mock()
+    mock_get = AsyncMock(return_value=mock_response)
+    mock_client_context.get = mock_get
+    mock_client_context.__aenter__ = AsyncMock(return_value=mock_client_context)
+    mock_client_context.__aexit__ = AsyncMock()
+
+    with (
+        patch("src.main.settings") as mock_settings,
+        patch("httpx.AsyncClient") as mock_client_class,
+    ):
+        mock_settings.waha_base_url = "http://waha:3000"
+        mock_settings.waha_api_key = "test_key"
+        mock_client_class.return_value = mock_client_context
+
+        await check_waha_connectivity()
+
+        mock_get.assert_called_once()
+        call_kwargs = mock_get.call_args[1]
+        assert call_kwargs["headers"]["X-Api-Key"] == "test_key"
 
 
 @pytest.mark.asyncio
@@ -107,12 +106,12 @@ async def test_validate_startup_configuration_missing_credential() -> None:
 async def test_validate_startup_configuration_service_unreachable() -> None:
     """Test validation fails and exits when service is unreachable."""
 
-    async def mock_check_pocketbase() -> None:
-        raise ConnectionError("PocketBase unreachable")
+    async def mock_check_waha() -> None:
+        raise ConnectionError("WAHA unreachable")
 
     with (
         patch("src.main.settings") as mock_settings,
-        patch("src.main.check_pocketbase_connectivity", side_effect=mock_check_pocketbase),
+        patch("src.main.check_waha_connectivity", side_effect=mock_check_waha),
         pytest.raises(SystemExit) as exc_info,
     ):
         mock_settings.require_credential.return_value = "test_value"
@@ -121,3 +120,17 @@ async def test_validate_startup_configuration_service_unreachable() -> None:
     exc = exc_info.value
     assert isinstance(exc, SystemExit)
     assert exc.code == 1
+
+
+@pytest.mark.asyncio
+async def test_validate_startup_configuration_all_checks_pass() -> None:
+    """Test validation passes when all checks succeed."""
+    with (
+        patch("src.main.settings") as mock_settings,
+        patch("src.main.check_waha_connectivity", new_callable=AsyncMock),
+        patch("src.main.check_redis_connectivity", new_callable=AsyncMock),
+    ):
+        mock_settings.require_credential.return_value = "test_value"
+        await validate_startup_configuration()
+
+        mock_settings.require_credential.assert_called_once()

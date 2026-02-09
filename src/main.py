@@ -5,38 +5,43 @@ import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from src.core.config import settings
-from src.core.db_client import get_client
+from src.core.config import constants, settings
+from src.core.db_client import init_db
 from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
 from src.core.redis_client import redis_client
 from src.core.scheduler import start_scheduler, stop_scheduler
 from src.core.scheduler_tracker import job_tracker
-from src.core.schema import sync_schema
 from src.interface.webhook import router as webhook_router
 
 
 logger = logging.getLogger(__name__)
 
 
-async def check_pocketbase_connectivity() -> None:
-    """Verify PocketBase connectivity and authentication.
+async def check_waha_connectivity() -> None:
+    """Verify WAHA connectivity.
 
     Raises:
-        ConnectionError: If unable to connect or authenticate
+        ConnectionError: If unable to connect to WAHA
     """
     try:
-        client = get_client()
-        # Verify we have an authenticated connection
-        if not client.auth_store.token:
-            raise ConnectionError("PocketBase authentication failed: No token present")
+        url = f"{settings.waha_base_url}/api/sessions"
+        headers = {}
+        if settings.waha_api_key:
+            headers["X-Api-Key"] = settings.waha_api_key
 
-        logger.info("startup_validation", extra={"service": "pocketbase", "status": "ok"})
+        async with httpx.AsyncClient(timeout=constants.API_TIMEOUT_SECONDS) as client:
+            response = await client.get(url, headers=headers)
+            if response.is_success:
+                logger.info("startup_validation", extra={"service": "waha", "status": "ok"})
+            else:
+                raise ConnectionError(f"WAHA returned status {response.status_code}")
     except Exception as e:
-        logger.error("startup_validation", extra={"service": "pocketbase", "status": "failed", "error": str(e)})
-        raise ConnectionError(f"PocketBase connectivity check failed: {e}") from e
+        logger.error("startup_validation", extra={"service": "waha", "status": "failed", "error": str(e)})
+        raise ConnectionError(f"WAHA connectivity check failed: {e}") from e
 
 
 async def check_redis_connectivity() -> None:
@@ -77,17 +82,12 @@ async def validate_startup_configuration() -> None:
 
     try:
         # Validate required credentials
-        settings.require_credential("house_code", "House onboarding code")
-        settings.require_credential("house_password", "House onboarding password")
         settings.require_credential("openrouter_api_key", "OpenRouter API key")
-        settings.require_credential("pocketbase_url", "PocketBase URL")
-        settings.require_credential("pocketbase_admin_email", "PocketBase admin email")
-        settings.require_credential("pocketbase_admin_password", "PocketBase admin password")
 
         logger.info("startup_validation", extra={"stage": "credentials", "status": "ok"})
 
         # Check external service connectivity
-        await check_pocketbase_connectivity()
+        await check_waha_connectivity()
         await check_redis_connectivity()
 
         logger.info("startup_validation_complete", extra={"status": "ok"})
@@ -112,8 +112,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Validate all credentials and external service connectivity
     await validate_startup_configuration()
 
+    # Initialize database
+    await init_db()
+    logger.info("Database initialized")
+
     instrument_pydantic_ai()
-    await sync_schema(admin_email="", admin_password="")
     start_scheduler()
     yield
     # Shutdown
