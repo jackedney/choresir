@@ -739,3 +739,46 @@ Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run
   - Gotcha: Pre-commit hook ty check will fail if any code references removed fields - must update all callers before committing
   - Gotcha: When modifying test fixtures, ensure changes don't break tests in dependent stories
 ---
+
+## [Sun Feb 9 01:15:00 GMT 2026] - US-006: Update main.py startup sequence
+Thread: 
+Run: 20260208-234344-647 (iteration 6)
+Run log: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-6.log
+Run summary: /Users/jackedney/conductor/repos/whatsapp-home-boss/.ralph/runs/run-20260208-234344-647-iter-6.md
+- Guardrails reviewed: yes
+- No-commit run: false
+- Commit: 61fc7ea refactor(startup): update startup sequence to use SQLite
+- Post-commit status: clean (code changes committed, PRD JSON not committed as expected)
+- Verification:
+  - Command: uv run ruff check . -> PASS
+  - Command: uv run ruff format --check -> PASS
+  - Command: uv run ty check src -> PASS
+  - Command: uv run pytest tests/unit/test_startup_validation.py -> PASS (8 tests)
+  - Command: uv run pytest tests/unit/ -> PASS (457 tests)
+  - Command: uv run pytest tests/integration/ -> PARTIAL (integration tests fail due to PocketBase fixtures, will be fixed in US-008)
+- Files changed:
+  - src/main.py (removed PocketBase connectivity, added WAHA connectivity, replaced sync_schema with init_db)
+  - tests/unit/test_startup_validation.py (updated tests for new startup validation)
+- What was implemented:
+  - Removed check_pocketbase_connectivity() function
+  - Added check_waha_connectivity() to verify WhatsApp HTTP API availability
+  - Removed PocketBase credential validations (house_code, house_password, pocketbase_url, pocketbase_admin_email, pocketbase_admin_password)
+  - Kept only required credential: openrouter_api_key
+  - Replaced sync_schema() call with init_db() from db_client
+  - Added "Database initialized" log message after init_db() call
+  - Updated unit tests to test new WAHA connectivity check
+  - Integration tests remain failing due to PocketBase fixtures (will be addressed in US-008)
+- **Learnings for future iterations:**
+  - Pattern: Integration test failures expected when refactoring database layer - US-008 will update conftest.py for SQLite
+  - Pattern: Pre-commit hooks (ruff, ty, pytest) all passed successfully with new code
+  - Pattern: App now requires only WAHA (messaging) and OpenRouter (AI) - no external database servers needed
+  - Pattern: init_db() is idempotent with CREATE TABLE IF NOT EXISTS - safe to call on every startup
+  - Context: US-006 acceptance criteria all met:
+    - ✅ Remove PocketBase connectivity check from src/main.py
+    - ✅ Call init_db() on startup instead of sync_schema()
+    - ✅ Simplify validation to only check WAHA connectivity
+    - ✅ App starts successfully without external DB servers
+    - ✅ App startup logs show 'Database initialized' message
+    - ✅ App fails gracefully if WAHA is not available
+  - Gotcha: Integration test conftest.py uses PocketBase MockDBClient - will be migrated to SQLite in US-008
+---

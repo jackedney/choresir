@@ -129,7 +129,7 @@
     {
       "id": "US-005",
       "title": "Update config.py for SQLite",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want to update configuration settings to use SQLite instead of PocketBase.",
       "acceptanceCriteria": [
@@ -140,13 +140,13 @@
         "Negative case: missing required environment variables still raise validation errors"
       ],
       "startedAt": "2026-02-09T01:01:02.641201+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-09T01:01:02.641369+00:00"
+      "completedAt": "2026-02-09T01:15:39.702265+00:00",
+      "updatedAt": "2026-02-09T01:15:39.702145+00:00"
     },
     {
       "id": "US-006",
       "title": "Update main.py startup sequence",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-001",
         "US-002",
@@ -161,12 +161,15 @@
         "App starts successfully without external DB servers",
         "Example: app startup logs show 'Database initialized' message",
         "Negative case: app fails gracefully if WAHA is not available"
-      ]
+      ],
+      "startedAt": "2026-02-09T01:15:41.792785+00:00",
+      "completedAt": "2026-02-09T01:33:43.301174+00:00",
+      "updatedAt": "2026-02-09T01:33:43.301060+00:00"
     },
     {
       "id": "US-007",
       "title": "Update pyproject.toml dependencies",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [],
       "description": "As a developer, I want to update dependencies to use aiosqlite instead of pocketbase.",
       "acceptanceCriteria": [
@@ -176,7 +179,10 @@
         "Run uv sync to update lock file",
         "Example: uv run python -c 'import aiosqlite' succeeds",
         "Negative case: uv run python -c 'import pocketbase' fails (package removed)"
-      ]
+      ],
+      "startedAt": "2026-02-09T01:33:45.387614+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-09T01:33:45.387778+00:00"
     },
     {
       "id": "US-008",

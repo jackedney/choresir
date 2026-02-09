@@ -121,6 +121,15 @@ wheels = [
 ]
 
 [[package]]
+name = "aiosqlite"
+version = "0.22.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/8a/64761f4005f17809769d23e518d915db74e6310474e733e3593cfc854ef1/aiosqlite-0.22.1.tar.gz", hash = "sha256:043e0bd78d32888c0a9ca90fc788b38796843360c855a7262a532813133a0650", size = 14821 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/00/b7/e3bf5133d697a08128598c8d0abc5e16377b51465a33756de24fa7dee953/aiosqlite-0.22.1-py3-none-any.whl", hash = "sha256:21c002eb13823fad740196c5a2e9d8e62f6243bd9e7e4a1f87fb5e44ecb4fceb", size = 17405 },
+]
+
+[[package]]
 name = "annotated-doc"
 version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -418,6 +427,7 @@ name = "choresir"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiosqlite" },
     { name = "apscheduler" },
     { name = "croniter" },
     { name = "fastapi", extra = ["standard"] },
@@ -425,12 +435,10 @@ dependencies = [
     { name = "logfire", extra = ["fastapi"] },
     { name = "mkdocs" },
     { name = "mkdocs-material" },
-    { name = "pocketbase" },
     { name = "pydantic" },
     { name = "pydantic-ai" },
     { name = "python-dateutil" },
     { name = "python-dotenv" },
-    { name = "redis", extra = ["hiredis"] },
 ]
 
 [package.optional-dependencies]
@@ -439,6 +447,9 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
     { name = "ty" },
+]
+redis = [
+    { name = "redis", extra = ["hiredis"] },
 ]
 
 [package.dev-dependencies]
@@ -449,6 +460,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "apscheduler", specifier = ">=3.10.0" },
     { name = "croniter", specifier = ">=3.0.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.0" },
@@ -456,14 +468,13 @@ requires-dist = [
     { name = "logfire", extras = ["fastapi"], specifier = ">=2.5.0" },
     { name = "mkdocs", specifier = ">=1.6.1" },
     { name = "mkdocs-material", specifier = ">=9.7.1" },
-    { name = "pocketbase", specifier = ">=0.13.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-ai", specifier = ">=0.0.14" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "redis", extras = ["hiredis"], specifier = ">=5.0.0" },
+    { name = "redis", extras = ["hiredis"], marker = "extra == 'redis'", specifier = ">=5.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.12" },
 ]
@@ -2223,18 +2234,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538 },
-]
-
-[[package]]
-name = "pocketbase"
-version = "0.15.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "httpx" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3d/4e/3397e1021325f026458b7a7cffa2353b6827f05db9d6054b65318f4a70d3/pocketbase-0.15.0.tar.gz", hash = "sha256:dd3a8ce20da09a83f5e0a5b55fc72d40874f562c15d886d5ec5a072e346d3fd9", size = 16825 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8f/ac/880b1290e0378c781941d071070dac16871212d2f8b2222daadacd28f59e/pocketbase-0.15.0-py3-none-any.whl", hash = "sha256:f5a77e73a661859353cf2f51422ee54b77374c21ea1781cf7e0baffb6e110cc7", size = 28024 },
 ]
 
 [[package]]

@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 11,
+  "remaining": 5,
+  "quality_gates": [
+    "uv run ruff check",
+    "uv run ruff format --check",
+    "uv run pytest tests/unit/",
+    "uv run pytest tests/integration/"
+  ],
+  "id": "US-007",
+  "title": "Update pyproject.toml dependencies"
+}
