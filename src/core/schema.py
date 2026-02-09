@@ -113,6 +113,14 @@ TABLE_SCHEMAS = {
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL
 """,
+    "join_sessions": f"""{_STANDARD_COLUMNS},
+    phone TEXT NOT NULL UNIQUE,
+    house_name TEXT NOT NULL,
+    step TEXT NOT NULL,
+    password_attempts_count INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+""",
     "workflows": f"""{_STANDARD_COLUMNS},
     type TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -145,6 +153,7 @@ INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_personal_chore_logs_chore ON personal_chore_logs (personal_chore_id)",
     "CREATE INDEX IF NOT EXISTS idx_personal_chore_logs_owner ON personal_chore_logs (owner_phone)",
     "CREATE INDEX IF NOT EXISTS idx_personal_chore_logs_verification ON personal_chore_logs (verification_status)",
+    "CREATE INDEX IF NOT EXISTS idx_join_sessions_phone ON join_sessions (phone)",
     "CREATE INDEX IF NOT EXISTS idx_workflow_status ON workflows (status)",
     "CREATE INDEX IF NOT EXISTS idx_workflow_requester ON workflows (requester_user_id)",
     "CREATE INDEX IF NOT EXISTS idx_workflow_expires_at ON workflows (expires_at)",

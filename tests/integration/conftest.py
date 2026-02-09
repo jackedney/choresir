@@ -80,35 +80,23 @@ async def clean_db(test_db) -> AsyncGenerator[None, None]:
 
     Cleans all tables before each test to ensure test isolation.
     """
+    import aiosqlite
+
+    from src.core.db_client import get_db_path
     from src.core.schema import TABLES
 
-    tables = TABLES
-    for table in tables:
+    conn = await aiosqlite.connect(get_db_path())
+
+    for table in TABLES:
         try:
-            records = await list_records(collection=table, per_page=1000)
-            for record in records:
-                await delete_record(collection=table, record_id=record["id"])
+            await conn.execute(f"DELETE FROM {table}")  # noqa: S608
         except Exception as e:
             logger.warning(f"Failed to clean table {table}: {e}")
 
+    await conn.commit()
+    await conn.close()
+
     yield
-
-    cleanup_errors = []
-
-    for table in ["verifications", "chores", "users", "conflicts"]:
-        try:
-            records = await list_records(collection=table, per_page=1000)
-            for record in records:
-                try:
-                    await delete_record(collection=table, record_id=record["id"])
-                except Exception as e:
-                    cleanup_errors.append(f"{table}/{record['id']}: {e!s}")
-        except Exception as e:
-            cleanup_errors.append(f"{table} (list): {e!s}")
-
-    if cleanup_errors:
-        error_msg = "Database cleanup failed:\n" + "\n".join(cleanup_errors)
-        pytest.fail(error_msg)
 
 
 @pytest.fixture

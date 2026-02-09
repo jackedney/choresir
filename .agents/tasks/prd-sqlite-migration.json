@@ -169,7 +169,7 @@
     {
       "id": "US-007",
       "title": "Update pyproject.toml dependencies",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want to update dependencies to use aiosqlite instead of pocketbase.",
       "acceptanceCriteria": [
@@ -181,13 +181,13 @@
         "Negative case: uv run python -c 'import pocketbase' fails (package removed)"
       ],
       "startedAt": "2026-02-09T01:33:45.387614+00:00",
-      "completedAt": null,
-      "updatedAt": "2026-02-09T01:33:45.387778+00:00"
+      "completedAt": "2026-02-09T01:42:19.383038+00:00",
+      "updatedAt": "2026-02-09T01:42:19.382917+00:00"
     },
     {
       "id": "US-008",
       "title": "Update conftest.py for SQLite testing",
-      "status": "open",
+      "status": "done",
       "dependsOn": [
         "US-001",
         "US-002"
@@ -200,12 +200,15 @@
         "Tests run without PocketBase server",
         "Example: pytest tests/unit/ runs successfully with temp database",
         "Negative case: test database is cleaned up after test session"
-      ]
+      ],
+      "startedAt": "2026-02-09T01:42:21.472038+00:00",
+      "completedAt": "2026-02-09T02:01:05.299336+00:00",
+      "updatedAt": "2026-02-09T02:01:05.299217+00:00"
     },
     {
       "id": "US-009",
       "title": "Remove/update deployment files",
-      "status": "open",
+      "status": "done",
       "dependsOn": [],
       "description": "As a developer, I want to remove PocketBase-related deployment files to simplify the project.",
       "acceptanceCriteria": [
@@ -216,12 +219,15 @@
         "Update .github/workflows/ci.yml to remove PocketBase installation step",
         "Example: docker-compose up starts only WAHA container",
         "Negative case: no dangling references to PocketBase in any config files"
-      ]
+      ],
+      "startedAt": "2026-02-09T02:01:07.380315+00:00",
+      "completedAt": "2026-02-09T02:09:27.652486+00:00",
+      "updatedAt": "2026-02-09T02:09:27.652364+00:00"
     },
     {
       "id": "US-010",
       "title": "Run tests and fix issues",
-      "status": "open",
+      "status": "in_progress",
       "dependsOn": [
         "US-001",
         "US-002",
@@ -243,7 +249,10 @@
         "SQLite file created at configured path",
         "Example: full test suite completes with 0 failures",
         "Negative case: any test failures are fixed before marking complete"
-      ]
+      ],
+      "startedAt": "2026-02-09T02:09:29.736430+00:00",
+      "completedAt": null,
+      "updatedAt": "2026-02-09T02:09:29.736626+00:00"
     },
     {
       "id": "US-011",

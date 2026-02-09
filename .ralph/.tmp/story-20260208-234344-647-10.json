@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "total": 11,
+  "remaining": 2,
+  "quality_gates": [
+    "uv run ruff check",
+    "uv run ruff format --check",
+    "uv run pytest tests/unit/",
+    "uv run pytest tests/integration/"
+  ],
+  "id": "US-010",
+  "title": "Run tests and fix issues"
+}
