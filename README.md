@@ -128,13 +128,8 @@ Manage your household through a modern web interface at `/admin`:
 </tr>
 <tr>
 <td>💾 <strong>Database</strong></td>
-<td><img src="https://img.shields.io/badge/PocketBase-B8DBE4?style=flat&logo=pocketbase&logoColor=black" alt="PocketBase"></td>
-<td>Self-hosted SQLite backend + Admin UI</td>
-</tr>
-<tr>
-<td>⚡ <strong>Cache</strong></td>
-<td><img src="https://img.shields.io/badge/Redis-DC382D?style=flat&logo=redis&logoColor=white" alt="Redis"></td>
-<td>High-performance caching for leaderboards & analytics</td>
+<td><img src="https://img.shields.io/badge/SQLite-07405E?style=flat&logo=sqlite&logoColor=white" alt="SQLite"></td>
+<td>Embedded database with zero external dependencies</td>
 </tr>
 <tr>
 <td>💬 <strong>Interface</strong></td>
@@ -183,34 +178,20 @@ Detailed setup instructions are available in the [Getting Started](docs/getting-
 # 1️⃣ Install dependencies
 uv sync
 
-# 2️⃣ Download PocketBase
-task setup
-
-# 3️⃣ Start Redis (choose one method):
-# Option A: Docker (recommended)
-docker run -d -p 6379:6379 redis:7-alpine
-
-# Option B: Docker Compose
-docker-compose up -d redis
-
-# Option C: Local installation
-# macOS: brew install redis && brew services start redis
-# Linux: sudo apt-get install redis-server && sudo systemctl start redis
-
-# 4️⃣ Configure environment
+# 2️⃣ Configure environment
 cp .env.example .env
 # Edit .env with your tokens (OpenRouter API key, etc.)
 # IMPORTANT: Set ADMIN_PASSWORD to access the web admin interface
 
-# 5️⃣ Start services
+# 3️⃣ Start services
 # Option A: Full Docker (Recommended)
 docker-compose up -d
 
 # Option B: Dev Mode
-docker-compose up -d redis waha      # Start dependencies
-task dev                             # Start PocketBase + FastAPI
+docker-compose up -d waha           # Start WAHA service
+task dev                             # Start FastAPI
 
-# 6️⃣ Configure via Web Admin
+# 4️⃣ Configure via Web Admin
 # Open http://localhost:8000/admin and log in with ADMIN_PASSWORD
 # - Set your house name in Settings
 # - Go to WhatsApp Setup to connect WhatsApp and activate your group
@@ -237,11 +218,10 @@ task dev                             # Start PocketBase + FastAPI
 #### Quick Deploy Steps:
 1. ✅ Clone the repository
 2. 📝 Copy `.env.example` to `.env` and configure:
-   - `ADMIN_PASSWORD`: Password for web admin interface access (required)
-   - `SECRET_KEY`: Secret key for session signing (required, generate a random string)
-   - `REDIS_URL`: Redis connection URL (required)
-   - `OPENROUTER_API_KEY`: OpenRouter API key (required)
-   - `HOUSE_NAME`: Optional fallback house name
+    - `ADMIN_PASSWORD`: Password for web admin interface access (required)
+    - `SECRET_KEY`: Secret key for session signing (required, generate a random string)
+    - `OPENROUTER_API_KEY`: OpenRouter API key (required)
+    - `HOUSE_NAME`: Optional fallback house name
 3. 🚀 Run `docker-compose up -d`
 4. 🔗 Update WhatsApp webhook URL to your server
 5. 🌐 Access admin interface at `https://your-domain.com/admin`
@@ -255,10 +235,8 @@ task dev                             # Start PocketBase + FastAPI
 
 | Service | Monthly Cost |
 |---------|--------------|
-| PocketBase | ~$3-5 |
-| Redis | ~$1-3 |
 | FastAPI | ~$2-5 |
-| **Total** | **$6-13** |
+| **Total** | **$2-5** |
 
 </div>
 
