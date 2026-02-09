@@ -112,7 +112,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
     "unit: Unit tests (no external dependencies)",
-    "integration: Integration tests (requires PocketBase)",
+    "integration: Integration tests",
 ]
 
 [dependency-groups]

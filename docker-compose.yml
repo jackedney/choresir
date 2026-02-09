@@ -1,25 +1,4 @@
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: choresir-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 64M
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   waha:
     image: devlikeapro/waha:arm
     container_name: choresir-waha
@@ -42,7 +21,5 @@ services:
       - waha-data:/app/sessions
 
 volumes:
-  redis-data:
-    driver: local
   waha-data:
     driver: local
