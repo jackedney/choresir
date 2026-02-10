@@ -392,8 +392,8 @@ async def _handle_button_payload(
         Tuple of (success, error_message)
     """
     # Local imports to avoid circular dependency
-    from src.services import verification_service
-    from src.services.verification_service import VerificationDecision
+    from src.modules.tasks import verification as verification_service
+    from src.modules.tasks.verification import VerificationDecision
 
     payload = message.button_payload
     if not payload:
