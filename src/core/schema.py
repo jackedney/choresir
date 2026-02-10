@@ -8,7 +8,7 @@ from src.core.db_client import get_connection
 logger = logging.getLogger(__name__)
 
 
-TABLE_SCHEMAS = {
+CORE_TABLE_SCHEMAS = {
     "members": """CREATE TABLE IF NOT EXISTS members (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         created TEXT NOT NULL DEFAULT (datetime('now')),
@@ -17,44 +17,6 @@ TABLE_SCHEMAS = {
         name TEXT,
         role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
         status TEXT NOT NULL DEFAULT 'pending_name' CHECK (status IN ('pending_name', 'active'))
-    )""",
-    "chores": """CREATE TABLE IF NOT EXISTS chores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        title TEXT NOT NULL,
-        description TEXT,
-        schedule_cron TEXT NOT NULL,
-        assigned_to INTEGER REFERENCES members(id),
-        current_state TEXT NOT NULL CHECK (
-            current_state IN (
-                'TODO', 'PENDING_VERIFICATION', 'COMPLETED',
-                'CONFLICT', 'DEADLOCK', 'ARCHIVED'
-            )
-        ),
-        deadline TEXT NOT NULL
-    )""",
-    "logs": """CREATE TABLE IF NOT EXISTS logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        chore_id INTEGER REFERENCES chores(id),
-        user_id INTEGER REFERENCES members(id),
-        action TEXT,
-        notes TEXT,
-        timestamp TEXT,
-        original_assignee_id INTEGER REFERENCES members(id),
-        actual_completer_id INTEGER REFERENCES members(id),
-        is_swap INTEGER DEFAULT 0
-    )""",
-    "robin_hood_swaps": """CREATE TABLE IF NOT EXISTS robin_hood_swaps (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        user_id INTEGER NOT NULL REFERENCES members(id),
-        week_start_date TEXT NOT NULL,
-        takeover_count INTEGER NOT NULL,
-        UNIQUE(user_id, week_start_date)
     )""",
     "processed_messages": """CREATE TABLE IF NOT EXISTS processed_messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,51 +27,6 @@ TABLE_SCHEMAS = {
         processed_at TEXT NOT NULL,
         success INTEGER DEFAULT 0,
         error_message TEXT
-    )""",
-    "pantry_items": """CREATE TABLE IF NOT EXISTS pantry_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        name TEXT NOT NULL UNIQUE,
-        quantity INTEGER,
-        status TEXT NOT NULL CHECK (status IN ('IN_STOCK', 'LOW', 'OUT')),
-        last_restocked TEXT
-    )""",
-    "shopping_list": """CREATE TABLE IF NOT EXISTS shopping_list (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        item_name TEXT NOT NULL,
-        added_by INTEGER NOT NULL REFERENCES members(id),
-        added_at TEXT NOT NULL,
-        quantity INTEGER,
-        notes TEXT
-    )""",
-    "personal_chores": """CREATE TABLE IF NOT EXISTS personal_chores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        owner_phone TEXT NOT NULL,
-        title TEXT NOT NULL,
-        recurrence TEXT,
-        due_date TEXT,
-        accountability_partner_phone TEXT,
-        status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'ARCHIVED')),
-        created_at TEXT NOT NULL
-    )""",
-    "personal_chore_logs": """CREATE TABLE IF NOT EXISTS personal_chore_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        personal_chore_id INTEGER NOT NULL REFERENCES personal_chores(id),
-        owner_phone TEXT NOT NULL,
-        completed_at TEXT NOT NULL,
-        verification_status TEXT NOT NULL CHECK (
-            verification_status IN ('SELF_VERIFIED', 'PENDING', 'VERIFIED', 'REJECTED')
-        ),
-        accountability_partner_phone TEXT,
-        partner_feedback TEXT,
-        notes TEXT
     )""",
     "house_config": """CREATE TABLE IF NOT EXISTS house_config (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,7 +72,7 @@ TABLE_SCHEMAS = {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         created TEXT NOT NULL DEFAULT (datetime('now')),
         updated TEXT NOT NULL DEFAULT (datetime('now')),
-        type TEXT NOT NULL CHECK (type IN ('deletion_approval', 'chore_verification', 'personal_verification')),
+        type TEXT NOT NULL CHECK (type IN ('deletion_approval', 'task_verification')),
         status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'expired', 'cancelled')),
         requester_user_id INTEGER NOT NULL REFERENCES members(id),
         requester_name TEXT NOT NULL,
@@ -171,20 +88,94 @@ TABLE_SCHEMAS = {
     )""",
 }
 
+TASK_MODULE_SCHEMAS = {
+    "tasks": """CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        title TEXT NOT NULL,
+        description TEXT,
+        schedule_cron TEXT,
+        deadline TEXT,
+        owner_id INTEGER REFERENCES members(id),
+        assigned_to INTEGER REFERENCES members(id),
+        scope TEXT NOT NULL CHECK (scope IN ('shared', 'personal')),
+        verification TEXT NOT NULL DEFAULT 'none'
+            CHECK (verification IN ('none', 'peer', 'partner')),
+        accountability_partner_id INTEGER REFERENCES members(id),
+        current_state TEXT NOT NULL DEFAULT 'TODO'
+            CHECK (current_state IN ('TODO', 'PENDING_VERIFICATION', 'COMPLETED', 'ARCHIVED')),
+        module TEXT NOT NULL DEFAULT 'task'
+    )""",
+    "task_logs": """CREATE TABLE IF NOT EXISTS task_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        task_id INTEGER REFERENCES tasks(id),
+        user_id INTEGER REFERENCES members(id),
+        action TEXT NOT NULL,
+        notes TEXT,
+        timestamp TEXT,
+        verification_status TEXT CHECK (
+            verification_status IN ('SELF_VERIFIED', 'PENDING', 'VERIFIED', 'REJECTED')
+        ),
+        verifier_id INTEGER REFERENCES members(id),
+        verifier_feedback TEXT,
+        original_assignee_id INTEGER REFERENCES members(id),
+        actual_completer_id INTEGER REFERENCES members(id),
+        is_swap INTEGER DEFAULT 0
+    )""",
+    "robin_hood_swaps": """CREATE TABLE IF NOT EXISTS robin_hood_swaps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        user_id INTEGER NOT NULL REFERENCES members(id),
+        week_start_date TEXT NOT NULL,
+        takeover_count INTEGER NOT NULL,
+        UNIQUE(user_id, week_start_date)
+    )""",
+}
+
+PANTRY_MODULE_SCHEMAS = {
+    "pantry_items": """CREATE TABLE IF NOT EXISTS pantry_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        name TEXT NOT NULL UNIQUE,
+        quantity INTEGER,
+        status TEXT NOT NULL CHECK (status IN ('IN_STOCK', 'LOW', 'OUT')),
+        last_restocked TEXT
+    )""",
+    "shopping_list": """CREATE TABLE IF NOT EXISTS shopping_list (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        item_name TEXT NOT NULL,
+        added_by INTEGER NOT NULL REFERENCES members(id),
+        added_at TEXT NOT NULL,
+        quantity INTEGER,
+        notes TEXT
+    )""",
+}
+
+TABLE_SCHEMAS = {
+    **CORE_TABLE_SCHEMAS,
+    **TASK_MODULE_SCHEMAS,
+    **PANTRY_MODULE_SCHEMAS,
+}
+
 
 INDEXES = [
-    "CREATE INDEX IF NOT EXISTS idx_chores_assigned_to ON chores (assigned_to)",
-    "CREATE INDEX IF NOT EXISTS idx_logs_chore_id ON logs (chore_id)",
-    "CREATE INDEX IF NOT EXISTS idx_logs_user_id ON logs (user_id)",
-    "CREATE INDEX IF NOT EXISTS idx_logs_original_assignee_id ON logs (original_assignee_id)",
-    "CREATE INDEX IF NOT EXISTS idx_logs_actual_completer_id ON logs (actual_completer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks (assigned_to)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_owner_id ON tasks (owner_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks (scope)",
+    "CREATE INDEX IF NOT EXISTS idx_tasks_current_state ON tasks (current_state)",
+    "CREATE INDEX IF NOT EXISTS idx_task_logs_task_id ON task_logs (task_id)",
+    "CREATE INDEX IF NOT EXISTS idx_task_logs_user_id ON task_logs (user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_task_logs_original_assignee_id ON task_logs (original_assignee_id)",
+    "CREATE INDEX IF NOT EXISTS idx_task_logs_actual_completer_id ON task_logs (actual_completer_id)",
+    "CREATE INDEX IF NOT EXISTS idx_task_logs_verification_status ON task_logs (verification_status)",
     "CREATE INDEX IF NOT EXISTS idx_shopping_list_added_by ON shopping_list (added_by)",
-    "CREATE INDEX IF NOT EXISTS idx_personal_chores_owner_phone ON personal_chores (owner_phone)",
-    "CREATE INDEX IF NOT EXISTS idx_personal_chores_status ON personal_chores (status)",
-    "CREATE INDEX IF NOT EXISTS idx_personal_chore_logs_personal_chore_id ON personal_chore_logs (personal_chore_id)",
-    "CREATE INDEX IF NOT EXISTS idx_personal_chore_logs_owner_phone ON personal_chore_logs (owner_phone)",
-    "CREATE INDEX IF NOT EXISTS "
-    "idx_personal_chore_logs_verification_status ON personal_chore_logs (verification_status)",
     "CREATE INDEX IF NOT EXISTS idx_workflows_status ON workflows (status)",
     "CREATE INDEX IF NOT EXISTS idx_workflows_requester_user_id ON workflows (requester_user_id)",
     "CREATE INDEX IF NOT EXISTS idx_workflows_expires_at ON workflows (expires_at)",
@@ -195,14 +186,12 @@ INDEXES = [
 
 TABLES = [
     "members",
-    "chores",
-    "logs",
+    "tasks",
+    "task_logs",
     "robin_hood_swaps",
     "processed_messages",
     "pantry_items",
     "shopping_list",
-    "personal_chores",
-    "personal_chore_logs",
     "house_config",
     "bot_messages",
     "group_context",
