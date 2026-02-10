@@ -56,18 +56,6 @@ jobs:
       - run: uv sync --all-extras --dev
       - name: Run unit tests
         run: uv run pytest tests/unit tests/security
-        env:
-          OPENROUTER_API_KEY: test_key_ci
-          WHATSAPP_VERIFY_TOKEN: test_verify_ci
-          WHATSAPP_APP_SECRET: test_secret_ci
-          WHATSAPP_ACCESS_TOKEN: test_access_ci
-          WHATSAPP_PHONE_NUMBER_ID: test_phone_id_ci
-          TWILIO_ACCOUNT_SID: test_account_sid_ci
-          TWILIO_AUTH_TOKEN: test_auth_token_ci
-          TWILIO_WHATSAPP_NUMBER: whatsapp:+15555555555
-          LOGFIRE_TOKEN: test_logfire_ci
-          HOUSE_CODE: TEST_CI_123
-          HOUSE_PASSWORD: test_pass_ci
 
   integration-tests:
     name: Integration tests
@@ -84,15 +72,3 @@ jobs:
       - run: uv sync --all-extras --dev
       - name: Run integration tests
         run: uv run pytest tests/integration
-        env:
-          OPENROUTER_API_KEY: test_key_ci
-          WHATSAPP_VERIFY_TOKEN: test_verify_ci
-          WHATSAPP_APP_SECRET: test_secret_ci
-          WHATSAPP_ACCESS_TOKEN: test_access_ci
-          WHATSAPP_PHONE_NUMBER_ID: test_phone_id_ci
-          TWILIO_ACCOUNT_SID: test_account_sid_ci
-          TWILIO_AUTH_TOKEN: test_auth_token_ci
-          TWILIO_WHATSAPP_NUMBER: whatsapp:+15555555555
-          LOGFIRE_TOKEN: test_logfire_ci
-          HOUSE_CODE: TEST_CI_123
-          HOUSE_PASSWORD: test_pass_ci
