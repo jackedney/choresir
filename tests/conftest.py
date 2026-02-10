@@ -26,11 +26,22 @@ from src.core.db_client import (
     init_db,
     list_records,
 )
+from src.core.module_registry import _registry, register_module
 from src.core.schema import TABLES
 from src.main import app
+from src.modules.onboarding import OnboardingModule
+from src.modules.pantry import PantryModule
+from src.modules.tasks import TasksModule
 
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(autouse=True)
+def clear_module_registry() -> Generator[None, None, None]:
+    """Clear module registry before each test to avoid duplicate registration errors."""
+    _registry.modules.clear()
+    yield
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -66,6 +77,9 @@ def sqlite_db(tmp_path: Path) -> Generator[Path, None, None]:
     db_file = tmp_path / "test.db"
 
     async def _init_and_close() -> None:
+        register_module(TasksModule())
+        register_module(PantryModule())
+        register_module(OnboardingModule())
         await init_db(db_path=str(db_file))
         await close_connection(db_path=str(db_file))
 

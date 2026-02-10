@@ -36,9 +36,53 @@ class TasksModule:
 
     def get_table_schemas(self) -> dict[str, str]:
         """Return table schemas for this module."""
-        import src.core.schema
-
-        return src.core.schema.TASK_MODULE_SCHEMAS
+        return {
+            "tasks": """CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        title TEXT NOT NULL,
+        description TEXT,
+        schedule_cron TEXT,
+        deadline TEXT,
+        owner_id INTEGER REFERENCES members(id),
+        assigned_to INTEGER REFERENCES members(id),
+        scope TEXT NOT NULL CHECK (scope IN ('shared', 'personal')),
+        verification TEXT NOT NULL DEFAULT 'none'
+            CHECK (verification IN ('none', 'peer', 'partner')),
+        accountability_partner_id INTEGER REFERENCES members(id),
+        current_state TEXT NOT NULL DEFAULT 'TODO'
+            CHECK (current_state IN ('TODO', 'PENDING_VERIFICATION', 'COMPLETED', 'ARCHIVED')),
+        module TEXT NOT NULL DEFAULT 'task'
+    )""",
+            "task_logs": """CREATE TABLE IF NOT EXISTS task_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        task_id INTEGER REFERENCES tasks(id),
+        user_id INTEGER REFERENCES members(id),
+        action TEXT NOT NULL,
+        notes TEXT,
+        timestamp TEXT,
+        verification_status TEXT CHECK (
+            verification_status IN ('SELF_VERIFIED', 'PENDING', 'VERIFIED', 'REJECTED')
+        ),
+        verifier_id INTEGER REFERENCES members(id),
+        verifier_feedback TEXT,
+        original_assignee_id INTEGER REFERENCES members(id),
+        actual_completer_id INTEGER REFERENCES members(id),
+        is_swap INTEGER DEFAULT 0
+    )""",
+            "robin_hood_swaps": """CREATE TABLE IF NOT EXISTS robin_hood_swaps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        user_id INTEGER NOT NULL REFERENCES members(id),
+        week_start_date TEXT NOT NULL,
+        takeover_count INTEGER NOT NULL,
+        UNIQUE(user_id, week_start_date)
+    )""",
+        }
 
     def get_indexes(self) -> list[str]:
         """Return indexes for this module's tables."""

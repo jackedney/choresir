@@ -2,6 +2,7 @@
 
 import logging
 
+from src.core import module_registry
 from src.core.db_client import get_connection
 
 
@@ -88,94 +89,7 @@ CORE_TABLE_SCHEMAS = {
     )""",
 }
 
-TASK_MODULE_SCHEMAS = {
-    "tasks": """CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        title TEXT NOT NULL,
-        description TEXT,
-        schedule_cron TEXT,
-        deadline TEXT,
-        owner_id INTEGER REFERENCES members(id),
-        assigned_to INTEGER REFERENCES members(id),
-        scope TEXT NOT NULL CHECK (scope IN ('shared', 'personal')),
-        verification TEXT NOT NULL DEFAULT 'none'
-            CHECK (verification IN ('none', 'peer', 'partner')),
-        accountability_partner_id INTEGER REFERENCES members(id),
-        current_state TEXT NOT NULL DEFAULT 'TODO'
-            CHECK (current_state IN ('TODO', 'PENDING_VERIFICATION', 'COMPLETED', 'ARCHIVED')),
-        module TEXT NOT NULL DEFAULT 'task'
-    )""",
-    "task_logs": """CREATE TABLE IF NOT EXISTS task_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        task_id INTEGER REFERENCES tasks(id),
-        user_id INTEGER REFERENCES members(id),
-        action TEXT NOT NULL,
-        notes TEXT,
-        timestamp TEXT,
-        verification_status TEXT CHECK (
-            verification_status IN ('SELF_VERIFIED', 'PENDING', 'VERIFIED', 'REJECTED')
-        ),
-        verifier_id INTEGER REFERENCES members(id),
-        verifier_feedback TEXT,
-        original_assignee_id INTEGER REFERENCES members(id),
-        actual_completer_id INTEGER REFERENCES members(id),
-        is_swap INTEGER DEFAULT 0
-    )""",
-    "robin_hood_swaps": """CREATE TABLE IF NOT EXISTS robin_hood_swaps (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        user_id INTEGER NOT NULL REFERENCES members(id),
-        week_start_date TEXT NOT NULL,
-        takeover_count INTEGER NOT NULL,
-        UNIQUE(user_id, week_start_date)
-    )""",
-}
-
-PANTRY_MODULE_SCHEMAS = {
-    "pantry_items": """CREATE TABLE IF NOT EXISTS pantry_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        name TEXT NOT NULL UNIQUE,
-        quantity INTEGER,
-        status TEXT NOT NULL CHECK (status IN ('IN_STOCK', 'LOW', 'OUT')),
-        last_restocked TEXT
-    )""",
-    "shopping_list": """CREATE TABLE IF NOT EXISTS shopping_list (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created TEXT NOT NULL DEFAULT (datetime('now')),
-        updated TEXT NOT NULL DEFAULT (datetime('now')),
-        item_name TEXT NOT NULL,
-        added_by INTEGER NOT NULL REFERENCES members(id),
-        added_at TEXT NOT NULL,
-        quantity INTEGER,
-        notes TEXT
-    )""",
-}
-
-TABLE_SCHEMAS = {
-    **CORE_TABLE_SCHEMAS,
-    **TASK_MODULE_SCHEMAS,
-    **PANTRY_MODULE_SCHEMAS,
-}
-
-
-INDEXES = [
-    "CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks (assigned_to)",
-    "CREATE INDEX IF NOT EXISTS idx_tasks_owner_id ON tasks (owner_id)",
-    "CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks (scope)",
-    "CREATE INDEX IF NOT EXISTS idx_tasks_current_state ON tasks (current_state)",
-    "CREATE INDEX IF NOT EXISTS idx_task_logs_task_id ON task_logs (task_id)",
-    "CREATE INDEX IF NOT EXISTS idx_task_logs_user_id ON task_logs (user_id)",
-    "CREATE INDEX IF NOT EXISTS idx_task_logs_original_assignee_id ON task_logs (original_assignee_id)",
-    "CREATE INDEX IF NOT EXISTS idx_task_logs_actual_completer_id ON task_logs (actual_completer_id)",
-    "CREATE INDEX IF NOT EXISTS idx_task_logs_verification_status ON task_logs (verification_status)",
-    "CREATE INDEX IF NOT EXISTS idx_shopping_list_added_by ON shopping_list (added_by)",
+CORE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_workflows_status ON workflows (status)",
     "CREATE INDEX IF NOT EXISTS idx_workflows_requester_user_id ON workflows (requester_user_id)",
     "CREATE INDEX IF NOT EXISTS idx_workflows_expires_at ON workflows (expires_at)",
@@ -186,12 +100,7 @@ INDEXES = [
 
 TABLES = [
     "members",
-    "tasks",
-    "task_logs",
-    "robin_hood_swaps",
     "processed_messages",
-    "pantry_items",
-    "shopping_list",
     "house_config",
     "bot_messages",
     "group_context",
@@ -205,6 +114,8 @@ async def init_db(*, db_path: str | None = None) -> None:
 
     This function is idempotent - it can be called multiple times without errors.
 
+    Creates core tables first, then module tables from the registry.
+
     Args:
         db_path: Optional custom database path for test flexibility.
                   If not provided, uses the default path from settings.
@@ -217,18 +128,31 @@ async def init_db(*, db_path: str | None = None) -> None:
     try:
         conn = await get_connection(db_path=db_path)
 
-        for table_name, table_schema in TABLE_SCHEMAS.items():
+        for table_name, table_schema in CORE_TABLE_SCHEMAS.items():
             await conn.execute(table_schema)
-            logger.debug("Created table: %s", table_name)
+            logger.debug("Created core table: %s", table_name)
 
-        for index_sql in INDEXES:
+        for index_sql in CORE_INDEXES:
             await conn.execute(index_sql)
-            logger.debug("Created index: %s", index_sql[:50])
+            logger.debug("Created core index: %s", index_sql[:50])
+
+        module_schemas = module_registry.get_all_table_schemas()
+        for table_name, table_schema in module_schemas.items():
+            await conn.execute(table_schema)
+            logger.debug("Created module table: %s", table_name)
+
+        module_indexes = module_registry.get_all_indexes()
+        for index_sql in module_indexes:
+            await conn.execute(index_sql)
+            logger.debug("Created module index: %s", index_sql[:50])
 
         await conn.commit()
 
         logger.info(
-            "Database schema initialized successfully with %d tables and %d indexes", len(TABLE_SCHEMAS), len(INDEXES)
+            "Database schema initialized successfully with %d core tables, %d module tables, and %d indexes",
+            len(CORE_TABLE_SCHEMAS),
+            len(module_schemas),
+            len(CORE_INDEXES) + len(module_indexes),
         )
     except Exception as e:
         logger.error("Failed to initialize database schema: %s", e)

@@ -31,9 +31,27 @@ class PantryModule:
 
     def get_table_schemas(self) -> dict[str, str]:
         """Return table schemas for this module."""
-        import src.core.schema
-
-        return src.core.schema.PANTRY_MODULE_SCHEMAS
+        return {
+            "pantry_items": """CREATE TABLE IF NOT EXISTS pantry_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        name TEXT NOT NULL UNIQUE,
+        quantity INTEGER,
+        status TEXT NOT NULL CHECK (status IN ('IN_STOCK', 'LOW', 'OUT')),
+        last_restocked TEXT
+    )""",
+            "shopping_list": """CREATE TABLE IF NOT EXISTS shopping_list (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created TEXT NOT NULL DEFAULT (datetime('now')),
+        updated TEXT NOT NULL DEFAULT (datetime('now')),
+        item_name TEXT NOT NULL,
+        added_by INTEGER NOT NULL REFERENCES members(id),
+        added_at TEXT NOT NULL,
+        quantity INTEGER,
+        notes TEXT
+    )""",
+        }
 
     def get_indexes(self) -> list[str]:
         """Return indexes for this module's tables."""
