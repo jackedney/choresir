@@ -15,7 +15,7 @@ from src.interface.webhook import (
     receive_webhook,
 )
 from src.interface.webhook_security import WebhookSecurityResult
-from src.services.verification_service import VerificationDecision
+from src.modules.tasks.verification import VerificationDecision
 
 
 @dataclass

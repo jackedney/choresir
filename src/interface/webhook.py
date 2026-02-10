@@ -420,15 +420,15 @@ async def _handle_button_payload(
         return (False, f"Invalid decision: {decision_str}")
 
     try:
-        # Get log record to find chore_id
+        # Get log record to find task_id
         log_record = await db_client.get_record(collection="task_logs", record_id=log_id)
-        chore_id = log_record["chore_id"]
-        chore = await db_client.get_record(collection="tasks", record_id=chore_id)
+        task_id = log_record["task_id"]
+        task = await db_client.get_record(collection="tasks", record_id=task_id)
 
         # Execute verification
         decision = VerificationDecision(decision_str)
         await verification_service.verify_chore(
-            task_id=chore_id,
+            task_id=task_id,
             verifier_user_id=user_record["id"],
             decision=decision,
             reason="Via quick reply button",
@@ -436,9 +436,9 @@ async def _handle_button_payload(
 
         # Send confirmation
         if decision == VerificationDecision.APPROVE:
-            response = f"Approved! '{chore['title']}' has been marked as completed."
+            response = f"Approved! '{task['title']}' has been marked as completed."
         else:
-            response = f"Rejected. '{chore['title']}' has been returned to TODO."
+            response = f"Rejected. '{task['title']}' has been returned to TODO."
 
         result = await _send_response(message=message, text=response)
         return (result.success, result.error)

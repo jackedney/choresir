@@ -8,8 +8,7 @@ import pytest
 
 # KeyError replaced with KeyError
 from src.domain.task import TaskState
-from src.services import chore_service, verification_service
-from src.services.verification_service import VerificationDecision
+from src.modules.tasks.verification import VerificationDecision
 
 
 @pytest.fixture

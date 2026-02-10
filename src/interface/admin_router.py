@@ -130,7 +130,7 @@ async def require_auth(request: Request) -> None:
 
 @router.get("/")
 async def get_admin_dashboard(request: Request, _auth: None = Depends(require_auth)) -> Response:
-    """Render the admin dashboard with member statistics."""
+    """Render admin dashboard with member statistics."""
     config = await get_house_config_from_service()
     house_name = config.name
 
@@ -145,6 +145,7 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
         name="admin/dashboard.html",
         context={
             "house_name": house_name,
+            "bot_name": settings.bot_name,
             "total_members": total_members,
             "active_members": active_members,
             "pending_members": pending_members,
@@ -154,9 +155,11 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
 
 @router.get("/login")
 async def get_login(request: Request) -> Response:
-    """Render the admin login form with CSRF token."""
+    """Render admin login form with CSRF token."""
     csrf_token = generate_csrf_token()
-    response = templates.TemplateResponse(request, name="admin/login.html", context={"csrf_token": csrf_token})
+    response = templates.TemplateResponse(
+        request, name="admin/login.html", context={"csrf_token": csrf_token, "bot_name": settings.bot_name}
+    )
     set_csrf_cookie(response, csrf_token)
     return response
 
@@ -208,7 +211,7 @@ async def post_login(
     response = templates.TemplateResponse(
         request,
         name="admin/login.html",
-        context={"error": error, "csrf_token": csrf_token},
+        context={"error": error, "csrf_token": csrf_token, "bot_name": settings.bot_name},
     )
     set_csrf_cookie(response, csrf_token)
     return response
@@ -240,6 +243,7 @@ async def get_house_config(request: Request, _auth: None = Depends(require_auth)
         name="admin/house.html",
         context={
             "house_name": house_name,
+            "bot_name": settings.bot_name,
             "success_message": success_message,
         },
     )
@@ -265,6 +269,7 @@ async def post_house_config(
             context={
                 "errors": errors,
                 "house_name": name,
+                "bot_name": settings.bot_name,
                 "success_message": None,
             },
         )
@@ -300,7 +305,9 @@ async def get_members(request: Request, _auth: None = Depends(require_auth)) -> 
     success_message = request.cookies.get("flash_success")
 
     return templates.TemplateResponse(
-        request, name="admin/members.html", context={"members": users, "success_message": success_message}
+        request,
+        name="admin/members.html",
+        context={"members": users, "success_message": success_message, "bot_name": settings.bot_name},
     )
 
 
@@ -544,7 +551,7 @@ async def get_whatsapp_setup(
     _auth: None = Depends(require_auth),
 ) -> Response:
     """Render WhatsApp setup page."""
-    return templates.TemplateResponse(request, name="admin/whatsapp.html")
+    return templates.TemplateResponse(request, name="admin/whatsapp.html", context={"bot_name": settings.bot_name})
 
 
 @router.get("/whatsapp/status")
