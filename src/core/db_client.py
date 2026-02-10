@@ -185,25 +185,20 @@ _db_lock = asyncio.Lock()
 async def get_connection(*, db_path: str | None = None) -> aiosqlite.Connection:
     """Get or create a cached connection for the current thread, loop, and db path."""
     thread_id = threading.get_ident()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     loop_id = id(loop)
     path = get_db_path(db_path)
     cache_key = (thread_id, loop_id, str(path))
 
-    # Check if we have a cached connection and verify the loop is still valid
-    if cache_key in _db_connections:
-        cached_conn = _db_connections[cache_key]
-        if not loop.is_closed():
-            return cached_conn
-        # Loop is closed, remove stale connection
-        async with _db_lock:
-            _db_connections.pop(cache_key, None)
-
     # Create new connection with async lock to prevent races
     async with _db_lock:
-        # Double-check after acquiring lock
+        # Check if we have a cached connection and verify the loop is still valid
         if cache_key in _db_connections:
-            return _db_connections[cache_key]
+            cached_conn = _db_connections[cache_key]
+            if not loop.is_closed():
+                return cached_conn
+            # Loop is closed, remove stale connection
+            _db_connections.pop(cache_key, None)
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -223,7 +218,7 @@ async def get_connection(*, db_path: str | None = None) -> aiosqlite.Connection:
 async def close_connection(*, db_path: str | None = None) -> None:
     """Close the cached SQLite connection for the current thread, loop, and db path."""
     thread_id = threading.get_ident()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     loop_id = id(loop)
     path = get_db_path(db_path)
     cache_key = (thread_id, loop_id, str(path))
