@@ -1,23 +1,9 @@
 """Pytest configuration and fixtures for unit tests."""
 
-import asyncio
-import contextlib
-
 import pytest
 
-from src.core.db_client import _db_connections
 from src.interface.whatsapp_sender import SendMessageResult
 from tests.unit.mocks import InMemoryDBClient
-
-
-@pytest.fixture(autouse=True, scope="session")
-def _close_leaked_db_connections():
-    """Close any aiosqlite connections leaked during tests to prevent process hang."""
-    yield
-    for conn in list(_db_connections.values()):
-        with contextlib.suppress(Exception):
-            asyncio.get_event_loop().run_until_complete(conn.close())
-    _db_connections.clear()
 
 
 @pytest.fixture

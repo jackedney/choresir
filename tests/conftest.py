@@ -1,8 +1,10 @@
 """Pytest configuration and shared fixtures."""
 
 import asyncio
+import contextlib
 import logging
 import secrets
+import threading
 import uuid
 from collections.abc import AsyncGenerator, Generator
 from datetime import UTC, datetime, timedelta
@@ -11,11 +13,14 @@ from typing import Any
 
 import aiosqlite
 import pytest
+from aiosqlite.core import _STOP_RUNNING_SENTINEL
 from fastapi.testclient import TestClient
 
 import src.core.db_client as db_module
 from src.core.config import Settings
 from src.core.db_client import (
+    _db_connections,
+    close_connection,
     create_record,
     delete_record,
     init_db,
@@ -26,6 +31,23 @@ from src.main import app
 
 
 logger = logging.getLogger(__name__)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Force-close any leaked aiosqlite connections so the process can exit.
+
+    aiosqlite worker threads are non-daemon and block on a SimpleQueue.
+    They only exit when a function returns _STOP_RUNNING_SENTINEL.
+    We send that sentinel to every leaked worker thread's queue.
+    """
+    for t in threading.enumerate():
+        if t.daemon or t is threading.main_thread():
+            continue
+        with contextlib.suppress(Exception):
+            tx = getattr(t, "_args", (None,))[0]  # type: ignore[index]
+            if tx is not None and hasattr(tx, "put_nowait"):
+                tx.put_nowait((None, lambda: _STOP_RUNNING_SENTINEL))
+    _db_connections.clear()
 
 
 @pytest.fixture
@@ -42,7 +64,13 @@ def sqlite_db(tmp_path: Path) -> Generator[Path, None, None]:
         Temp file is automatically cleaned up by pytest's tmp_path fixture
     """
     db_file = tmp_path / "test.db"
-    asyncio.run(init_db(db_path=str(db_file)))
+
+    async def _init_and_close() -> None:
+        await init_db(db_path=str(db_file))
+        await close_connection(db_path=str(db_file))
+
+    asyncio.run(_init_and_close())
+    _db_connections.clear()
     yield db_file
 
 
@@ -75,12 +103,14 @@ async def db_client(sqlite_db: Path) -> AsyncGenerator[None, None]:
     Yields:
         None - The db_client module functions are patched to use the test database
     """
+    open_conns: list[aiosqlite.Connection] = []
 
     async def test_get_connection(*, db_path: str | None = None) -> Any:
         """Override get_connection to use the test database path."""
         conn = await aiosqlite.connect(str(sqlite_db))
         await conn.execute("PRAGMA foreign_keys = ON")
         await conn.execute("PRAGMA journal_mode = WAL")
+        open_conns.append(conn)
         return conn
 
     original_conn: Any = db_module.get_connection
@@ -89,6 +119,9 @@ async def db_client(sqlite_db: Path) -> AsyncGenerator[None, None]:
     yield
 
     db_module.get_connection = original_conn
+    for conn in open_conns:
+        with contextlib.suppress(Exception):
+            await conn.close()
 
 
 @pytest.fixture
