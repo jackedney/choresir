@@ -110,7 +110,7 @@ class TestRequestVerification:
                 notes="Test",
             )
 
-    @patch("src.services.verification_service.notification_service")
+    @patch("src.services.notification_service")
     async def test_request_verification_sends_notifications(
         self, mock_notify, patched_verification_db, todo_chore, setup_test_users
     ):
@@ -135,7 +135,7 @@ class TestRequestVerification:
             claimer_user_id="user1",
         )
 
-    @patch("src.services.verification_service.notification_service")
+    @patch("src.services.notification_service")
     async def test_request_verification_succeeds_if_notification_fails(
         self, mock_notify, patched_verification_db, todo_chore, setup_test_users
     ):
@@ -202,7 +202,7 @@ class TestVerifyChore:
 
     async def test_verify_chore_self_verification_fails(self, patched_verification_db, pending_chore_with_claim):
         """Test that claimer cannot verify their own chore."""
-        with pytest.raises(PermissionError, match="cannot verify their own task claim"):
+        with pytest.raises(ValueError, match="Cannot approve own workflow"):
             await verification_service.verify_chore(
                 task_id=pending_chore_with_claim["id"],
                 verifier_user_id="user1",  # Same as claimer
@@ -389,12 +389,12 @@ class TestVerificationWorkflow:
 class TestVerificationCacheInvalidation:
     """Tests for cache invalidation during verification workflow."""
 
-    @patch("src.services.verification_service.analytics_service.invalidate_leaderboard_cache")
+    @patch("src.modules.tasks.analytics")
     async def test_approve_verification_invalidates_cache(
-        self, mock_invalidate_cache, patched_verification_db, setup_test_users
+        self, mock_analytics, patched_verification_db, setup_test_users
     ):
         """Verify cache is invalidated when chore verification is approved."""
-        mock_invalidate_cache.return_value = None
+        mock_analytics.invalidate_leaderboard_cache = AsyncMock(return_value=None)
 
         # Create and claim chore
         chore = await chore_service.create_chore(
@@ -418,14 +418,14 @@ class TestVerificationCacheInvalidation:
         )
 
         # Verify cache invalidation was called
-        mock_invalidate_cache.assert_called_once()
+        mock_analytics.invalidate_leaderboard_cache.assert_called_once()
 
-    @patch("src.services.verification_service.analytics_service.invalidate_leaderboard_cache")
+    @patch("src.modules.tasks.analytics")
     async def test_reject_verification_invalidates_cache(
-        self, mock_invalidate_cache, patched_verification_db, setup_test_users
+        self, mock_analytics, patched_verification_db, setup_test_users
     ):
         """Verify cache is invalidated when chore verification is rejected."""
-        mock_invalidate_cache.return_value = None
+        mock_analytics.invalidate_leaderboard_cache = AsyncMock(return_value=None)
 
         # Create and claim chore
         chore = await chore_service.create_chore(
@@ -449,9 +449,9 @@ class TestVerificationCacheInvalidation:
         )
 
         # Verify cache invalidation was called
-        mock_invalidate_cache.assert_called_once()
+        mock_analytics.invalidate_leaderboard_cache.assert_called_once()
 
-    @patch("src.services.analytics_service.redis_client.keys")
+    @patch("src.modules.tasks.analytics.redis_client.keys")
     async def test_verification_succeeds_if_cache_invalidation_fails(
         self, mock_redis_keys, patched_verification_db, setup_test_users
     ):

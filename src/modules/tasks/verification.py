@@ -282,49 +282,41 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
     with span("verification_service.get_pending_verifications"):
         tasks = await task_service.get_chores(state=TaskState.PENDING_VERIFICATION)
 
-        filters: list[str] = []
-
         if user_id:
-            if not tasks:
-                return []
+            user_claimed_task_ids: set[str] = set()
+            for batch_start in range(0, len(tasks), CHORE_ID_BATCH_SIZE):
+                batch_ids = tasks[batch_start : batch_start + CHORE_ID_BATCH_SIZE]
+                task_id_conditions = " || ".join([f'task_id = "{sanitize_param(task["id"])}"' for task in batch_ids])
 
-            filters = [f'assigned_to = "{sanitize_param(user_id)}"']
+                page = 1
+                while True:
+                    logs = await db_client.list_records(
+                        collection="task_logs",
+                        filter_query=(
+                            f'action = "claimed_completion" && user_id = "{sanitize_param(user_id)} && ({task_id_conditions})'  # noqa: E501
+                        ),
+                        sort="-timestamp",
+                        per_page=LOGS_PAGE_SIZE,
+                        page=page,
+                    )
 
-        filter_query = " && ".join(filters) if filters else ""
-
-        user_claimed_task_ids: set[str] = set()
-        for batch_start in range(0, len(tasks), CHORE_ID_BATCH_SIZE):
-            batch_ids = tasks[batch_start : batch_start + CHORE_ID_BATCH_SIZE]
-            task_id_conditions = " || ".join([f'task_id = "{sanitize_param(task["id"])}"' for task in batch_ids])
-
-            page = 1
-            while True:
-                logs = await db_client.list_records(
-                    collection="task_logs",
-                    filter_query=f'action = "claimed_completion" && ({task_id_conditions})',
-                    sort="-timestamp",
-                    per_page=LOGS_PAGE_SIZE,
-                    page=page,
-                )
-
-                for log in logs:
-                    if task_id := log.get("task_id"):
-                        if task_id not in user_claimed_task_ids:
+                    for log in logs:
+                        if (task_id := log.get("task_id")) and task_id not in user_claimed_task_ids:
                             user_claimed_task_ids.add(task_id)
 
-                if len(logs) < LOGS_PAGE_SIZE:
-                    break
+                    if len(logs) < LOGS_PAGE_SIZE:
+                        break
 
-                page += 1
+                    page += 1
 
-        filtered_tasks = []
-        for task in tasks:
-            if task["id"] not in user_claimed_task_ids:
-                filtered_tasks.append(task)
+            filtered_tasks = []
+            for task in tasks:
+                if task["id"] not in user_claimed_task_ids:
+                    filtered_tasks.append(task)
 
-        return filtered_tasks
+            return filtered_tasks
 
-    return tasks
+        return tasks
 
 
 async def log_personal_task(

@@ -355,6 +355,7 @@ async def _get_batch_workflow_ids(
             return result
         if not result:
             return "No valid workflows to action. Check the indices or workflow IDs provided."
+        return result
 
     return "Error: Either workflow_ids or indices must be provided."
 

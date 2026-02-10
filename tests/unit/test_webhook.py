@@ -439,7 +439,7 @@ class TestHandleButtonPayload:
         # Mock database responses
         mock_db.get_record = AsyncMock(
             side_effect=[
-                {"id": "log123", "chore_id": "chore456"},  # log record
+                {"id": "log123", "task_id": "chore456"},  # log record
                 {"id": "chore456", "title": "Wash dishes"},  # chore record
             ]
         )

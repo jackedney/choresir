@@ -26,7 +26,7 @@ def patched_analytics_db(monkeypatch, in_memory_db):
 @pytest.fixture
 def mock_redis():
     """Mock Redis client for testing."""
-    with patch("src.services.analytics_service.redis_client") as mock:
+    with patch("src.modules.tasks.analytics.redis_client") as mock:
         # Default behavior: cache miss
         mock.get = AsyncMock(return_value=None)
         mock.set = AsyncMock()
@@ -256,7 +256,7 @@ class TestGetLeaderboardBulkFetch:
             return await original_list_records(collection, **kwargs)
 
         # Patch the db_client module function that analytics_service uses
-        with patch("src.services.analytics_service.db_client.list_records", track_list_records):
+        with patch("src.modules.tasks.analytics.db_client.list_records", track_list_records):
             result = await analytics_service.get_leaderboard(period_days=30)
 
         # Verify users collection was queried exactly once (bulk fetch)
