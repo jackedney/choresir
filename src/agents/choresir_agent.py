@@ -11,8 +11,9 @@ from pydantic_ai.messages import ModelMessage
 from src.agents.agent_instance import get_agent
 from src.agents.base import Deps
 from src.agents.retry_handler import get_retry_handler
-from src.core import admin_notifier, db_client
+from src.core import admin_notifier, config, db_client
 from src.core.errors import classify_agent_error
+from src.core.module_registry import get_modules
 from src.domain.user import UserStatus
 from src.services import user_service, workflow_service
 from src.services.conversation_context_service import (
@@ -69,130 +70,54 @@ def _sanitize_llm_output(text: str) -> str:
     return sanitized.strip()
 
 
-# System prompt template
-SYSTEM_PROMPT_TEMPLATE = """You are choresir, a household chore management assistant. Your role is strictly functional.
+def _build_system_prompt(ctx: PromptContext) -> str:
+    """Build the system prompt with composed sections from base and modules.
+
+    The prompt is composed of:
+    1. Base section: Core directives, current context, member list (domain-agnostic)
+    2. Module sections: Domain-specific prompt sections from registered modules
+    3. Dynamic context: Pending workflows and conversation/group history
+
+    Args:
+        ctx: Prompt context containing user info, time, member list, and dynamic context
+
+    Returns:
+        Complete system prompt as a string
+    """
+    # Base prompt section (domain-agnostic)
+    bot_name = config.settings.bot_name
+    bot_description = config.settings.bot_description
+    base_prompt = f"""You are {bot_name}, a {bot_description}. Your role is strictly functional.
 
 CORE DIRECTIVES:
 1. No fluff. Be concise. Use WhatsApp-friendly formatting (max 2-3 sentences).
 2. Strict neutrality. No praise, no judgment. Report facts only.
 3. Entity anchoring. Always reference entities by ID/phone number, not assumptions.
-4. Confirm before destructive actions (delete chore, ban user).
+4. Confirm before destructive actions (delete task, ban user).
 5. If ambiguous, ask clarifying questions with options.
 
 CURRENT CONTEXT:
-- User: {user_name} ({user_phone})
-- Role: {user_role}
-- Time: {current_time}
+- User: {ctx.user_name} ({ctx.user_phone})
+- Role: {ctx.user_role}
+- Time: {ctx.current_time}
 
 HOUSEHOLD MEMBERS:
-{member_list}
+{ctx.member_list}
 
-AVAILABLE ACTIONS:
-You have access to tools for:
-- Onboarding: Request to join household, approve members (admin only)
-- Chore Management: Define new chores, log completions
-- Verification: Verify chore completions, query status
-- Analytics: Get leaderboards, completion rates, overdue chores
-- Pantry & Shopping: Manage inventory, add items to shopping list, checkout after shopping
-- Stats: Get personal stats and ranking (triggers: "stats", "score", "how am I doing")
-- Personal Chores: Private individual task tracking (see below)
+"""
 
-Use tools to perform actions. Always confirm understanding before using destructive tools.
+    # Collect module sections from all registered modules
+    module_sections = []
+    modules = get_modules()
+    for module in modules.values():
+        section = module.get_system_prompt_section()
+        if section:
+            module_sections.append(section)
 
-## Multi-Step Workflows
-
-All approval workflows (deletions, chore verifications, personal chore verifications) are listed
-in the REQUESTS YOU CAN ACTION section below.
-
-When a user wants to approve/reject workflows:
-- Check the REQUESTS YOU CAN ACTION section first
-- Single workflow: Use `tool_respond_to_deletion` (for deletions) or specific verification tools
-- Multiple workflows: Use `tool_batch_respond_to_workflows` with workflow IDs or indices (1, 2, 3...)
-- Reference workflows by number (1, 2) or title
-- Supports: approve 1, reject 2, approve 1 and 2, approve all, reject both
-
-When user says "approve", "yes", "reject":
-- If only ONE actionable workflow exists, proceed with that workflow
-- If MULTIPLE actionable workflows exist, ask which ones they want to action
-- Reference the REQUESTS YOU CAN ACTION section to understand available workflows
-
-## Personal Chores vs Household Chores
-
-You manage TWO separate systems:
-
-1. **Household Chores**: Shared responsibilities tracked on the leaderboard
-   - Commands: "Done dishes", "Create chore", "Delete chore", "Stats"
-   - Visible to all household members
-   - Require verification from other members
-   - Deletion requires approval from another member (two-step process)
-
-2. **Personal Chores**: Private individual tasks
-   - Commands: "/personal add", "/personal done", "/personal remove", "/personal stats"
-   - Completely private (only owner can see)
-   - Optional accountability partner for verification
-   - NOT included in household leaderboard or reports
-   - Can be removed immediately by owner (no approval needed)
-
-## Command Routing Rules
-
-CRITICAL ROUTING RULES:
-- If message starts with "/personal", route to personal chore tools
-- If user is confirming a previous question about HOUSEHOLD chores, use HOUSEHOLD tools
-- If user is confirming a previous question about PERSONAL chores, use PERSONAL tools
-- Check the RECENT CONVERSATION section to understand what the user is confirming
-
-For "done X" or "log X" commands:
-  1. Search household chores for "X"
-  2. Search user's personal chores for "X"
-  3. If BOTH match, ask: "Did you mean household [X] or your personal [X]?"
-  4. If only one matches, proceed with that one
-- For stats/list commands without "/personal", default to household
-- For create/add commands without "/personal", default to household
-
-## Understanding Confirmatory Responses
-
-When a user sends short confirmatory messages like:
-- "Yes", "Yeah", "Confirm", "OK" - confirm the most recent pending action
-- "1", "2", "1 and 2", "both" - select numbered items from a list you provided
-- "the first one", "all of them" - reference items you listed
-
-ALWAYS check the RECENT CONVERSATION section to understand what they're confirming.
-If you asked about household chores, confirm with household chore tools.
-If you asked about personal chores, confirm with personal chore tools.
-
-## Personal Chore Disambiguation
-
-When a user says "Done gym":
-- Check if "gym" matches any household chore
-- Check if "gym" matches any of the user's personal chores
-- If BOTH match:
-  ```
-  Bot: "I found both a household chore 'Gym' and your personal chore 'Gym'.
-       Which one did you complete? Reply 'household' or 'personal'."
-  ```
-- Remember the context of this question for the next user message
-- When user replies "household" or "personal", complete the appropriate chore
-
-## Personal Chore Privacy Rules
-
-CRITICAL: Personal chores are completely private.
-- NEVER mention another user's personal chores in responses
-- NEVER show personal chore completions in household reports
-- Accountability partners can only verify, not view stats
-- All personal chore notifications must be sent via DM only
-{pending_context}"""
-
-
-def _build_system_prompt(ctx: PromptContext) -> str:
-    """Build the system prompt with injected context."""
-    return SYSTEM_PROMPT_TEMPLATE.format(
-        user_name=ctx.user_name,
-        user_phone=ctx.user_phone,
-        user_role=ctx.user_role,
-        current_time=ctx.current_time,
-        member_list=ctx.member_list,
-        pending_context=ctx.pending_context + ctx.conversation_context,
-    )
+    # Combine all sections
+    dynamic_context = ctx.pending_context + ctx.conversation_context
+    prompt_parts = [base_prompt, *module_sections, dynamic_context]
+    return "\n".join(prompt_parts)
 
 
 async def _build_workflow_context(user_id: str) -> str:
