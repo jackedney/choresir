@@ -2,7 +2,7 @@
 
 import logging
 
-from src.core import db_client
+from src.core import db_client, message_templates
 from src.core.logging import span
 from src.interface import whatsapp_sender
 from src.models.service_models import NotificationResult
@@ -38,7 +38,7 @@ async def send_verification_request(
 
         # 1. Get chore details
         try:
-            chore = await db_client.get_record(collection="chores", record_id=chore_id)
+            chore = await db_client.get_record(collection="tasks", record_id=chore_id)
             chore_title = chore["title"]
         except KeyError:
             logger.error("Chore not found: %s", chore_id)
@@ -61,10 +61,10 @@ async def send_verification_request(
             return []
 
         # 4. Build message
-        text = (
-            f"✅ {claimer_name} claims they completed *{chore_title}*. "
-            f"Can you verify this?\n\n"
-            f"Reply 'approve {log_id}' to approve or 'reject {log_id}' to reject."
+        text = message_templates.verification_request(
+            claimer_name=claimer_name,
+            item_title=chore_title,
+            log_id=log_id,
         )
 
         # 5. Send verification message to the group
@@ -106,12 +106,10 @@ async def send_personal_verification_request(
     """
     try:
         # Build notification message
-        message = (
-            f"💪 Verification Request\n\n"
-            f"{owner_name} claims they completed their personal chore: '{chore_title}'\n\n"
-            f"Verify? Reply:\n"
-            f"'/personal verify {log_id} approve' to approve\n"
-            f"'/personal verify {log_id} reject' to reject"
+        message = message_templates.personal_verification_request(
+            owner_name=owner_name,
+            item_title=chore_title,
+            log_id=log_id,
         )
 
         # Send DM to accountability partner
@@ -173,10 +171,9 @@ async def send_deletion_request_notification(
             return []
 
         # Build message
-        text = (
-            f"🗑️ {requester_name} wants to remove the chore *{chore_title}*.\n\n"
-            f"Reply 'approve deletion {chore_title}' to approve or "
-            f"'reject deletion {chore_title}' to reject."
+        text = message_templates.deletion_request(
+            requester_name=requester_name,
+            item_title=chore_title,
         )
 
         # Send notification to the group
@@ -220,17 +217,13 @@ async def send_personal_verification_result(
     """
     try:
         # Build notification message
-        if approved:
-            emoji = "✅"
-            status = "approved"
-            message = f"{emoji} Personal Chore Verified\n\n{verifier_name} verified your '{chore_title}'! Keep it up!"
-        else:
-            emoji = "❌"
-            status = "rejected"
-            message = f"{emoji} Personal Chore Rejected\n\n{verifier_name} rejected your '{chore_title}'."
-
-        if feedback:
-            message += f"\n\nFeedback: {feedback}"
+        status = "approved" if approved else "rejected"
+        message = message_templates.personal_verification_result(
+            item_title=chore_title,
+            verifier_name=verifier_name,
+            approved=approved,
+            feedback=feedback,
+        )
 
         # Send DM to owner
         result = await whatsapp_sender.send_text_message(

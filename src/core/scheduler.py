@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from croniter import croniter
 
-from src.core import db_client
+from src.core import db_client, message_templates
 from src.core.config import Constants, constants
 from src.core.db_client import sanitize_param
 from src.core.recurrence_parser import parse_recurrence_to_cron
@@ -49,14 +49,8 @@ async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) ->
             return False
 
         # Build reminder message
-        chore_list = "\n".join([f"• {chore.title} (due: {chore.deadline[:10]})" for chore in chores])
-
-        message = (
-            f"🔔 Overdue Chore Reminder\n\n"
-            f"You have {len(chores)} overdue chore(s):\n\n"
-            f"{chore_list}\n\n"
-            f"Please complete these tasks as soon as possible."
-        )
+        items = [(chore.title, chore.deadline[:10]) for chore in chores]
+        message = message_templates.overdue_reminder(items=items)
 
         # Send WhatsApp message
         result = await send_text_message(
@@ -131,19 +125,12 @@ async def send_daily_report() -> None:
         summary = await get_household_summary(period_days=1)
 
         # Build report message
-        message = (
-            f"📊 Daily Household Report\n\n"
-            f"Today's Summary:\n"
-            f"✅ Completions: {summary.completions_this_period}\n"
-            f"⏰ Overdue: {summary.overdue_chores}\n"
-            f"⏳ Pending Verification: {summary.pending_verifications}\n"
-            f"⚠️ Conflicts: {summary.current_conflicts}\n\n"
-            f"Active Members: {summary.active_members}"
+        message = message_templates.daily_report(
+            completions=summary.completions_this_period,
+            overdue=summary.overdue_chores,
+            pending_verifications=summary.pending_verifications,
+            active_members=summary.active_members,
         )
-
-        # Add context if there are items needing attention
-        if summary.overdue_chores > 0 or summary.pending_verifications > 0:
-            message += "\n\nRemember to complete overdue chores and verify pending tasks!"
 
         # Get all active users
         active_users = await db_client.list_records(
@@ -356,7 +343,7 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
     try:
         # Query for most recent completion log
         logs = await db_client.list_records(
-            collection="personal_chore_logs",
+            collection="task_logs",
             filter_query=(
                 f'personal_chore_id = "{sanitize_param(chore_id)}" && owner_phone = "{sanitize_param(owner_phone)}"'
             ),
@@ -493,13 +480,7 @@ async def _is_chore_due_today(chore: dict, today: date) -> bool:
 
 def _build_reminder_message(chores: list[dict]) -> str:
     """Build reminder message for personal chores."""
-    chore_list = "\n".join([f"• {chore['title']}" for chore in chores])
-    return (
-        f"🔔 Personal Chore Reminder\n\n"
-        f"You have {len(chores)} personal task(s) today:\n\n"
-        f"{chore_list}\n\n"
-        f"Reply 'done [task]' when complete."
-    )
+    return message_templates.personal_reminder(items=[c["title"] for c in chores])
 
 
 async def _send_personal_chore_reminder_to_user(user: dict, today: date) -> bool:
