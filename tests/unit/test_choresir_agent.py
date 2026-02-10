@@ -454,9 +454,9 @@ class TestBuildWorkflowContext:
 
             result = await _build_workflow_context(user_id="user_123")
 
-            assert "## YOUR PENDING REQUESTS" in result
-            assert "Deletion Approval: Clean kitchen" in result
-            assert "Chore Verification: Take out trash" in result
+        assert "## YOUR PENDING REQUESTS" in result
+        assert "Deletion Approval: Clean kitchen" in result
+        assert "Task Verification: Take out trash" in result
 
     @pytest.mark.asyncio
     async def test_actionable_workflows_section_with_numbering(self):
@@ -485,9 +485,9 @@ class TestBuildWorkflowContext:
 
             result = await _build_workflow_context(user_id="user_123")
 
-            assert "## REQUESTS YOU CAN ACTION" in result
-            assert "1. Deletion Approval: Do dishes (from Bob)" in result
-            assert "2. Personal Verification: Gym workout (from Charlie)" in result
+        assert "## REQUESTS YOU CAN ACTION" in result
+        assert "1. Deletion Approval: Do dishes (from Bob)" in result
+        assert "2. Task Verification: Gym workout (from Charlie)" in result
 
     @pytest.mark.asyncio
     async def test_both_sections_shown(self):
@@ -519,10 +519,10 @@ class TestBuildWorkflowContext:
 
             result = await _build_workflow_context(user_id="user_123")
 
-            assert "## YOUR PENDING REQUESTS" in result
-            assert "## REQUESTS YOU CAN ACTION" in result
-            assert "Deletion Approval: My chore" in result
-            assert "1. Chore Verification: Other chore (from Bob)" in result
+        assert "## YOUR PENDING REQUESTS" in result
+        assert "## REQUESTS YOU CAN ACTION" in result
+        assert "Deletion Approval: My chore" in result
+        assert "1. Task Verification: Other chore (from Bob)" in result
 
     @pytest.mark.asyncio
     async def test_hint_message_for_batch_operations(self):

@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 async def send_verification_request(
     *,
     log_id: str,
-    chore_id: str,
+    task_id: str,
     claimer_user_id: str,
 ) -> list[NotificationResult]:
-    """Send verification request to the group chat.
+    """Send verification request to a group chat.
 
     Args:
         log_id: Log record ID (used in verification)
-        chore_id: Chore ID
+        task_id: Task ID
         claimer_user_id: User who claimed completion
 
     Returns:
@@ -30,18 +30,18 @@ async def send_verification_request(
     """
     with span("notification_service.send_verification_request"):
         logger.info(
-            "Sending verification request for log_id=%s chore_id=%s claimer=%s",
+            "Sending verification request for log_id=%s task_id=%s claimer=%s",
             log_id,
-            chore_id,
+            task_id,
             claimer_user_id,
         )
 
-        # 1. Get chore details
+        # 1. Get task details
         try:
-            chore = await db_client.get_record(collection="chores", record_id=chore_id)
-            chore_title = chore["title"]
+            task = await db_client.get_record(collection="tasks", record_id=task_id)
+            _title = task["title"]
         except KeyError:
-            logger.error("Chore not found: %s", chore_id)
+            logger.error("Task not found: %s", task_id)
             return []
 
         # 2. Get claimer name
@@ -63,7 +63,7 @@ async def send_verification_request(
         # 4. Build message
         text = message_templates.verification_request(
             claimer_name=claimer_name,
-            item_title=chore_title,
+            item_title=task_id,
             log_id=log_id,
         )
 
@@ -89,15 +89,15 @@ async def send_verification_request(
 async def send_personal_verification_request(
     *,
     log_id: str,
-    chore_title: str,
+    task_title: str,
     owner_name: str,
     partner_phone: str,
 ) -> None:
-    """Send accountability partner notification for personal chore verification.
+    """Send accountability partner notification for personal task verification.
 
     Args:
-        log_id: Personal chore log ID
-        chore_title: Personal chore title
+        log_id: Personal task log ID
+        task_title: Personal task title
         owner_name: Owner's display name
         partner_phone: Accountability partner's phone number
 
@@ -108,7 +108,7 @@ async def send_personal_verification_request(
         # Build notification message
         message = message_templates.personal_verification_request(
             owner_name=owner_name,
-            item_title=chore_title,
+            item_title=task_title,
             log_id=log_id,
         )
 
@@ -119,28 +119,28 @@ async def send_personal_verification_request(
         )
 
         if result.success:
-            logger.info("Sent personal verification request to %s for chore '%s'", partner_phone, chore_title)
+            logger.info("Sent personal verification request to %s for task '%s'", partner_phone, task_title)
         else:
             logger.error("Failed to send personal verification request: %s", result.error)
 
     except Exception:
-        logger.exception("Error sending personal verification request for chore '%s'", chore_title)
+        logger.exception("Error sending personal verification request for task '%s'", task_title)
         # Don't raise - notification failure shouldn't fail the claim
 
 
 async def send_deletion_request_notification(
     *,
     log_id: str,
-    chore_id: str,
-    chore_title: str,
+    task_id: str,
+    task_title: str,
     requester_user_id: str,
 ) -> list[NotificationResult]:
-    """Send deletion request notification to the group chat.
+    """Send deletion request notification to a group chat.
 
     Args:
-        log_id: Log record ID for the deletion request
-        chore_id: Chore ID being requested for deletion
-        chore_title: Title of the chore
+        log_id: Log record ID for deletion request
+        task_id: Task ID being requested for deletion
+        task_title: Title of the task
         requester_user_id: User who requested deletion
 
     Returns:
@@ -148,9 +148,9 @@ async def send_deletion_request_notification(
     """
     with span("notification_service.send_deletion_request_notification"):
         logger.info(
-            "Sending deletion request notification for log_id=%s chore_id=%s requester=%s",
+            "Sending deletion request notification for log_id=%s task_id=%s requester=%s",
             log_id,
-            chore_id,
+            task_id,
             requester_user_id,
         )
 
@@ -173,7 +173,29 @@ async def send_deletion_request_notification(
         # Build message
         text = message_templates.deletion_request(
             requester_name=requester_name,
-            item_title=chore_title,
+            item_title=task_title,
+        )
+
+        # Get requester name
+        try:
+            requester = await db_client.get_record(collection="members", record_id=requester_user_id)
+            requester_name = requester.get("name", "Someone")
+        except KeyError:
+            logger.error("Requester user not found: %s", requester_user_id)
+            requester_name = "Someone"
+
+        # Get house config to retrieve group_chat_id
+        house_config = await house_config_service.get_house_config()
+        group_chat_id = house_config.group_chat_id
+
+        if not group_chat_id:
+            logger.warning("No group_chat_id configured - cannot send deletion request notification")
+            return []
+
+        # Build message
+        text = message_templates.deletion_request(
+            requester_name=requester_name,
+            item_title=task_title,
         )
 
         # Send notification to the group
@@ -197,16 +219,16 @@ async def send_deletion_request_notification(
 
 async def send_personal_verification_result(
     *,
-    chore_title: str,
+    task_title: str,
     owner_phone: str,
     verifier_name: str,
     approved: bool,
     feedback: str = "",
 ) -> None:
-    """Notify user when their personal chore is verified/rejected.
+    """Notify user when their personal task is verified/rejected.
 
     Args:
-        chore_title: Personal chore title
+        task_title: Personal task title
         owner_phone: Owner's phone number
         verifier_name: Verifier's display name
         approved: True if approved, False if rejected
@@ -217,9 +239,9 @@ async def send_personal_verification_result(
     """
     try:
         # Build notification message
-        status = "approved" if approved else "rejected"
+        _status = "approved" if approved else "rejected"
         message = message_templates.personal_verification_result(
-            item_title=chore_title,
+            item_title=task_title,
             verifier_name=verifier_name,
             approved=approved,
             feedback=feedback,
@@ -232,10 +254,10 @@ async def send_personal_verification_result(
         )
 
         if result.success:
-            logger.info("Sent personal verification result to %s: %s", owner_phone, status)
+            logger.info("Sent personal verification result to %s for task '%s'", owner_phone, task_title)
         else:
             logger.error("Failed to send personal verification result: %s", result.error)
 
     except Exception:
-        logger.exception("Error sending personal verification result for chore '%s'", chore_title)
+        logger.exception("Error sending personal verification result for task '%s'", task_title)
         # Don't raise - notification failure shouldn't fail the verification

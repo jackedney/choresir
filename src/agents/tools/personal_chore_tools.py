@@ -10,7 +10,7 @@ from src.agents.base import Deps
 from src.core import db_client
 from src.core.recurrence_parser import cron_to_human
 from src.domain.user import UserStatus
-from src.services import personal_chore_service, personal_verification_service, user_service
+from src.services import chore_service, user_service, verification_service
 
 
 logger = logging.getLogger(__name__)
@@ -81,8 +81,15 @@ async def tool_create_personal_chore(ctx: RunContext[Deps], params: CreatePerson
     """
     try:
         with logfire.span("tool_create_personal_chore", title=params.title):
+            # Get owner ID
+            user = await user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+            if not user:
+                return "Error: User not found."
+
+            owner_id = user["id"]
+
             # Resolve accountability partner if provided
-            partner_phone = None
+            partner_id = None
             if params.accountability_partner_name:
                 # Search for user by name
                 all_users = await db_client.list_records(
@@ -94,9 +101,9 @@ async def tool_create_personal_chore(ctx: RunContext[Deps], params: CreatePerson
 
                 # Case-insensitive name match
                 name_lower = params.accountability_partner_name.lower()
-                for user in all_users:
-                    if user["name"].lower() == name_lower:
-                        partner = user
+                for user_record in all_users:
+                    if user_record["name"].lower() == name_lower:
+                        partner = user_record
                         break
 
                 if not partner:
@@ -106,20 +113,20 @@ async def tool_create_personal_chore(ctx: RunContext[Deps], params: CreatePerson
                 if partner["phone"] == ctx.deps.user_phone:
                     return "Error: You cannot be your own accountability partner."
 
-                partner_phone = partner["phone"]
+                partner_id = partner["id"]
 
-            # Create the personal chore
-            await personal_chore_service.create_personal_chore(
-                owner_phone=ctx.deps.user_phone,
+            # Create personal chore
+            await chore_service.create_personal_chore(
+                owner_id=owner_id,
                 title=params.title,
                 recurrence=params.recurrence,
-                accountability_partner_phone=partner_phone,
+                accountability_partner_id=partner_id,
             )
 
             # Build response message
             recurrence_msg = f"({params.recurrence})" if params.recurrence else "(one-time task)"
 
-            if partner_phone:
+            if partner_id:
                 partner_msg = f" {params.accountability_partner_name} will verify your completions."
             else:
                 partner_msg = " Self-verified."
@@ -146,22 +153,32 @@ async def tool_log_personal_chore(ctx: RunContext[Deps], params: LogPersonalChor
     """
     try:
         with logfire.span("tool_log_personal_chore", title=params.chore_title_fuzzy):
+            # Get user ID
+            user = await user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+            if not user:
+                return "Error: User not found."
+
             # Get user's personal chores
-            all_chores = await personal_chore_service.get_personal_chores(
-                owner_phone=ctx.deps.user_phone,
-                status="ACTIVE",
+            all_chores = await chore_service.get_personal_chores(
+                owner_id=user["id"],
+                include_archived=False,
             )
 
-            # Fuzzy match the chore
-            matched_chore = personal_chore_service.fuzzy_match_personal_chore(all_chores, params.chore_title_fuzzy)
+            # Fuzzy match chore
+            matched_chore = chore_service.fuzzy_match_personal_chore(all_chores, params.chore_title_fuzzy)
 
             if not matched_chore:
                 return f"Error: No personal chore found matching '{params.chore_title_fuzzy}'."
 
-            # Log the completion
-            log = await personal_verification_service.log_personal_chore(
-                chore_id=matched_chore["id"],
-                owner_phone=ctx.deps.user_phone,
+            # Get user ID from phone
+            user = await user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+            if not user:
+                return "Error: User not found."
+
+            # Log completion
+            log = await verification_service.log_personal_task(
+                task_id=matched_chore["id"],
+                owner_id=user["id"],
                 notes=params.notes or "",
             )
 
@@ -194,19 +211,24 @@ async def tool_verify_personal_chore(ctx: RunContext[Deps], params: VerifyPerson
         Success or error message
     """
     try:
+        # Get user ID from phone
+        user = await user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+        if not user:
+            return "Error: User not found."
+
         with logfire.span("tool_verify_personal_chore", log_id=params.log_id):
             # Perform verification
-            updated_log = await personal_verification_service.verify_personal_chore(
+            updated_log = await verification_service.verify_personal_task(
                 log_id=params.log_id,
-                verifier_phone=ctx.deps.user_phone,
+                verifier_id=user["id"],
                 approved=params.approved,
                 feedback=params.feedback or "",
             )
 
-            # Get chore details for response
-            chore = await personal_chore_service.get_personal_chore_by_id(
+            # Get task details for response
+            task = await chore_service.get_personal_chore_by_id(
                 chore_id=updated_log.personal_chore_id,
-                owner_phone=updated_log.owner_phone,
+                owner_id=updated_log.owner_phone,
             )
 
             # Get owner name
@@ -214,8 +236,8 @@ async def tool_verify_personal_chore(ctx: RunContext[Deps], params: VerifyPerson
             owner_name = owner["name"] if owner else "the user"
 
             if params.approved:
-                return f"✅ Verified {owner_name}'s '{chore['title']}'. Keep it up!"
-            return f"❌ Rejected {owner_name}'s '{chore['title']}'."
+                return f"✅ Verified {owner_name}'s '{task['title']}'. Keep it up!"
+            return f"❌ Rejected {owner_name}'s '{task['title']}'."
 
     except PermissionError as e:
         logger.warning("Verification permission denied", extra={"error": str(e)})
@@ -239,9 +261,14 @@ async def tool_get_personal_stats(ctx: RunContext[Deps], params: GetPersonalStat
         Formatted stats message
     """
     try:
+        # Get user ID from phone
+        user = await user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+        if not user:
+            return "Error: User not found."
+
         with logfire.span("tool_get_personal_stats"):
-            stats = await personal_verification_service.get_personal_stats(
-                owner_phone=ctx.deps.user_phone,
+            stats = await verification_service.get_personal_stats(
+                owner_id=user["id"],
                 period_days=params.period_days,
             )
 
@@ -265,9 +292,14 @@ async def tool_list_personal_chores(ctx: RunContext[Deps], _params: ListPersonal
     """List personal chores."""
     try:
         with logfire.span("tool_list_personal_chores"):
-            chores = await personal_chore_service.get_personal_chores(
-                owner_phone=ctx.deps.user_phone,
-                status="ACTIVE",
+            # Get user ID
+            user = await user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+            if not user:
+                return "Error: User not found."
+
+            chores = await chore_service.get_personal_chores(
+                owner_id=user["id"],
+                include_archived=False,
             )
 
             if not chores:
@@ -277,9 +309,9 @@ async def tool_list_personal_chores(ctx: RunContext[Deps], _params: ListPersonal
             lines = ["Your Personal Chores:\n"]
             for chore in chores:
                 title = chore["title"]
-                recurrence = chore.get("recurrence", "")
-                if recurrence:
-                    schedule_human = cron_to_human(recurrence)
+                schedule_cron = chore.get("schedule_cron", "")
+                if schedule_cron:
+                    schedule_human = cron_to_human(schedule_cron)
                     lines.append(f"- {title} ({schedule_human})")
                 else:
                     lines.append(f"- {title} (one-time)")
@@ -303,22 +335,27 @@ async def tool_remove_personal_chore(ctx: RunContext[Deps], params: RemovePerson
     """
     try:
         with logfire.span("tool_remove_personal_chore", title=params.chore_title_fuzzy):
+            # Get user ID
+            user = await user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+            if not user:
+                return "Error: User not found."
+
             # Get user's personal chores
-            all_chores = await personal_chore_service.get_personal_chores(
-                owner_phone=ctx.deps.user_phone,
-                status="ACTIVE",
+            all_chores = await chore_service.get_personal_chores(
+                owner_id=user["id"],
+                include_archived=False,
             )
 
             # Fuzzy match the chore
-            matched_chore = personal_chore_service.fuzzy_match_personal_chore(all_chores, params.chore_title_fuzzy)
+            matched_chore = chore_service.fuzzy_match_personal_chore(all_chores, params.chore_title_fuzzy)
 
             if not matched_chore:
                 return f"Error: No personal chore found matching '{params.chore_title_fuzzy}'."
 
             # Archive the chore
-            await personal_chore_service.delete_personal_chore(
+            await chore_service.delete_personal_chore(
                 chore_id=matched_chore["id"],
-                owner_phone=ctx.deps.user_phone,
+                owner_id=user["id"],
             )
 
             return f"✅ Removed personal chore '{matched_chore['title']}'."

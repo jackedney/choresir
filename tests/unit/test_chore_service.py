@@ -2,8 +2,7 @@
 
 import pytest
 
-# KeyError replaced with KeyError
-from src.domain.task import TaskState
+from src.domain.task import TaskScope, TaskState, VerificationType
 from src.services import chore_service
 
 
@@ -315,3 +314,130 @@ class TestRecurrenceParsing:
                     recurrence=invalid_format,
                     assigned_to="user1",
                 )
+
+
+@pytest.mark.unit
+class TestCreatePersonalChore:
+    """Tests for create_personal_chore function."""
+
+    async def test_create_personal_chore_with_recurrence(self, patched_chore_db):
+        """Test creating a personal chore with recurrence."""
+        result = await chore_service.create_personal_chore(
+            owner_id="user123",
+            title="Go to gym",
+            recurrence="every 2 days",
+        )
+
+        assert result["title"] == "Go to gym"
+        assert result["owner_id"] == "user123"
+        assert result["scope"] == TaskScope.PERSONAL
+        assert result["verification"] == VerificationType.NONE
+        assert result["current_state"] == TaskState.TODO
+
+    async def test_create_personal_chore_with_partner(self, patched_chore_db):
+        """Test creating a personal chore with accountability partner."""
+        result = await chore_service.create_personal_chore(
+            owner_id="user123",
+            title="Go to gym",
+            recurrence="every morning",
+            accountability_partner_id="partner456",
+        )
+
+        assert result["title"] == "Go to gym"
+        assert result["owner_id"] == "user123"
+        assert result["accountability_partner_id"] == "partner456"
+        assert result["verification"] == VerificationType.PARTNER
+
+    async def test_create_personal_chore_one_time(self, patched_chore_db):
+        """Test creating a one-time personal chore."""
+        result = await chore_service.create_personal_chore(
+            owner_id="user123",
+            title="Finish report",
+            recurrence="by friday",
+        )
+
+        assert result["title"] == "Finish report"
+        assert result["deadline"] is not None
+
+
+@pytest.mark.unit
+class TestGetPersonalChores:
+    """Tests for get_personal_chores function."""
+
+    @pytest.fixture
+    async def personal_chores(self, patched_chore_db):
+        """Create personal chores for testing."""
+        await chore_service.create_personal_chore(
+            owner_id="user1",
+            title="Personal Chore 1",
+            recurrence="every morning",
+        )
+        await chore_service.create_personal_chore(
+            owner_id="user1",
+            title="Personal Chore 2",
+            recurrence="every 2 days",
+        )
+        await chore_service.create_personal_chore(
+            owner_id="user2",
+            title="Other user's chore",
+            recurrence="every 1 day",
+        )
+
+    async def test_get_personal_chores_by_owner(self, patched_chore_db, personal_chores):
+        """Test filtering personal chores by owner."""
+        result = await chore_service.get_personal_chores(owner_id="user1")
+
+        assert len(result) == 2
+        assert all(chore["owner_id"] == "user1" for chore in result)
+
+    async def test_get_personal_chores_excludes_archived(self, patched_chore_db):
+        """Test that archived chores are excluded by default."""
+        # Create a chore and archive it
+        chore = await chore_service.create_personal_chore(
+            owner_id="user1",
+            title="To be archived",
+            recurrence="every 1 day",
+        )
+        await chore_service.archive_task(task_id=chore["id"])
+
+        # Get active chores
+        active_chores = await chore_service.get_personal_chores(owner_id="user1", include_archived=False)
+
+        assert all(chore["id"] != chore["id"] for chore in active_chores)
+
+
+@pytest.mark.unit
+class TestFuzzyMatchTask:
+    """Tests for fuzzy_match_task function."""
+
+    def test_fuzzy_match_task_exact(self, patched_chore_db):
+        """Test exact match."""
+        tasks = [
+            {"id": "1", "title": "Go to gym"},
+            {"id": "2", "title": "Buy groceries"},
+        ]
+
+        result = chore_service.fuzzy_match_task(tasks, "Go to gym")
+        assert result is not None
+        assert result["id"] == "1"
+
+    def test_fuzzy_match_task_partial(self, patched_chore_db):
+        """Test partial match."""
+        tasks = [
+            {"id": "1", "title": "Go to gym"},
+            {"id": "2", "title": "Buy groceries"},
+        ]
+
+        result = chore_service.fuzzy_match_task(tasks, "gym")
+        assert result is not None
+        assert result["id"] == "1"
+
+    def test_fuzzy_match_task_no_match(self, patched_chore_db):
+        """Test no match."""
+        tasks = [
+            {"id": "1", "title": "Go to gym"},
+            {"id": "2", "title": "Buy groceries"},
+        ]
+
+        result = chore_service.fuzzy_match_task(tasks, "swimming")
+        assert result is None

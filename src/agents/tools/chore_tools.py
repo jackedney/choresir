@@ -14,7 +14,6 @@ from src.services import (
     chore_service,
     deletion_service,
     notification_service,
-    personal_chore_service,
     robin_hood_service,
     user_service,
     verification_service,
@@ -222,13 +221,16 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
             household_match = fuzzy_match(all_chores, params.chore_title_fuzzy)
 
             # Get user's personal chores to check for collision
-            personal_chores = await personal_chore_service.get_personal_chores(
-                owner_phone=ctx.deps.user_phone,
-                status="ACTIVE",
-            )
-            personal_match = personal_chore_service.fuzzy_match_personal_chore(
-                personal_chores, params.chore_title_fuzzy
-            )
+            user = await user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+            if user:
+                personal_chores = await chore_service.get_personal_chores(
+                    owner_id=user["id"],
+                    include_archived=False,
+                )
+                personal_match = chore_service.fuzzy_match_personal_chore(personal_chores, params.chore_title_fuzzy)
+            else:
+                personal_chores = []
+                personal_match = None
 
             # Validate the chore logging request
             validation_error = await _validate_chore_logging(

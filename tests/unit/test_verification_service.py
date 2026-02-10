@@ -79,7 +79,7 @@ class TestRequestVerification:
         # Verify log entry was still created (audit trail)
         logs = await patched_verification_db.list_records(
             collection="task_logs",
-            filter_query=f'chore_id = "{todo_chore["id"]}" && action = "claimed_completion"',
+            filter_query=f'task_id = "{todo_chore["id"]}" && action = "claimed_completion"',
         )
         assert len(logs) >= 1
         assert logs[0]["user_id"] == "user1"
@@ -124,7 +124,7 @@ class TestRequestVerification:
         # Get the log entry to verify notification was called with log_id
         logs = await patched_verification_db.list_records(
             collection="task_logs",
-            filter_query=f'chore_id = "{todo_chore["id"]}" && action = "claimed_completion"',
+            filter_query=f'task_id = "{todo_chore["id"]}" && action = "claimed_completion"',
         )
 
         mock_notify.send_verification_request.assert_called_once_with(
@@ -177,7 +177,7 @@ class TestVerifyChore:
     async def test_verify_chore_approve(self, patched_verification_db, pending_chore_with_claim):
         """Test approving a chore verification."""
         result = await verification_service.verify_chore(
-            chore_id=pending_chore_with_claim["id"],
+            task_id=pending_chore_with_claim["id"],
             verifier_user_id="user2",  # Different from claimer
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
@@ -189,7 +189,7 @@ class TestVerifyChore:
     async def test_verify_chore_reject(self, patched_verification_db, pending_chore_with_claim):
         """Test rejecting a chore verification."""
         result = await verification_service.verify_chore(
-            chore_id=pending_chore_with_claim["id"],
+            task_id=pending_chore_with_claim["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.REJECT,
             reason="Not done properly",
@@ -200,9 +200,9 @@ class TestVerifyChore:
 
     async def test_verify_chore_self_verification_fails(self, patched_verification_db, pending_chore_with_claim):
         """Test that claimer cannot verify their own chore."""
-        with pytest.raises(PermissionError, match="cannot verify their own chore claim"):
+        with pytest.raises(PermissionError, match="cannot verify their own task claim"):
             await verification_service.verify_chore(
-                chore_id=pending_chore_with_claim["id"],
+                task_id=pending_chore_with_claim["id"],
                 verifier_user_id="user1",  # Same as claimer
                 decision=VerificationDecision.APPROVE,
                 reason="",
@@ -221,9 +221,9 @@ class TestVerifyChore:
         # Manually transition to pending (bypassing normal claim flow)
         await chore_service.mark_pending_verification(chore_id=chore["id"])
 
-        with pytest.raises(ValueError, match="No pending verification request for chore"):
+        with pytest.raises(ValueError, match="No pending verification request for task"):
             await verification_service.verify_chore(
-                chore_id=chore["id"],
+                task_id=chore["id"],
                 verifier_user_id="user2",
                 decision=VerificationDecision.APPROVE,
                 reason="",
@@ -347,7 +347,7 @@ class TestVerificationWorkflow:
 
         # Approve verification
         final_chore = await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.APPROVE,
             reason="Verified!",
@@ -374,7 +374,7 @@ class TestVerificationWorkflow:
 
         # Reject verification
         final_chore = await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.REJECT,
             reason="Not acceptable",
@@ -409,7 +409,7 @@ class TestVerificationCacheInvalidation:
 
         # Approve verification
         await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
@@ -440,7 +440,7 @@ class TestVerificationCacheInvalidation:
 
         # Reject verification
         await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.REJECT,
             reason="Not acceptable",
@@ -472,7 +472,7 @@ class TestVerificationCacheInvalidation:
 
         # Approve verification - should succeed despite cache failure
         result = await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
@@ -528,7 +528,7 @@ class TestVerifyChorePagination:
 
         # Verify should succeed - claim log is on first page
         result = await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
@@ -558,7 +558,7 @@ class TestVerifyChorePagination:
 
         # Verify should succeed - claim log is on second page
         result = await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
@@ -588,7 +588,7 @@ class TestVerifyChorePagination:
 
         # Verify should succeed
         result = await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
@@ -613,9 +613,9 @@ class TestVerifyChorePagination:
         await self._create_logs(patched_verification_db, 600, chore["id"], action="other_action")
 
         # Verify should raise error - no workflow exists
-        with pytest.raises(ValueError, match="No pending verification request for chore"):
+        with pytest.raises(ValueError, match="No pending verification request for task"):
             await verification_service.verify_chore(
-                chore_id=chore["id"],
+                task_id=chore["id"],
                 verifier_user_id="user2",
                 decision=VerificationDecision.APPROVE,
                 reason="",
@@ -637,9 +637,9 @@ class TestVerifyChorePagination:
         # No logs created - empty collection
 
         # Verify should raise error
-        with pytest.raises(ValueError, match="No pending verification request for chore"):
+        with pytest.raises(ValueError, match="No pending verification request for task"):
             await verification_service.verify_chore(
-                chore_id=chore["id"],
+                task_id=chore["id"],
                 verifier_user_id="user2",
                 decision=VerificationDecision.APPROVE,
                 reason="",
@@ -666,9 +666,9 @@ class TestVerifyChorePagination:
         await self._create_logs(patched_verification_db, 500, chore["id"], action="other_action")
 
         # Self-verification should fail
-        with pytest.raises(PermissionError, match="cannot verify their own chore claim"):
+        with pytest.raises(PermissionError, match="cannot verify their own task claim"):
             await verification_service.verify_chore(
-                chore_id=chore["id"],
+                task_id=chore["id"],
                 verifier_user_id="user1",  # Same as claimer
                 decision=VerificationDecision.APPROVE,
                 reason="",
@@ -946,7 +946,7 @@ class TestVerificationWorkflowIntegration:
 
         # Approve verification
         await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id="user2",
             decision=VerificationDecision.APPROVE,
             reason="Looks good",

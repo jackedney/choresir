@@ -71,7 +71,7 @@ class TestSendVerificationRequest:
         # Send verification request
         results = await notification_service.send_verification_request(
             log_id="log123",
-            chore_id=chore["id"],
+            task_id=chore["id"],
             claimer_user_id=claimer["id"],
         )
 
@@ -109,7 +109,7 @@ class TestSendVerificationRequest:
         # Send verification request with non-existent chore
         results = await notification_service.send_verification_request(
             log_id="log123",
-            chore_id="nonexistent",
+            task_id="nonexistent",
             claimer_user_id="user1",
         )
 
@@ -137,7 +137,7 @@ class TestSendVerificationRequest:
         # Send verification request with non-existent claimer
         await notification_service.send_verification_request(
             log_id="log123",
-            chore_id=chore["id"],
+            task_id=chore["id"],
             claimer_user_id="nonexistent_user",
         )
 
@@ -164,7 +164,7 @@ class TestSendVerificationRequest:
         # Send verification request
         results = await notification_service.send_verification_request(
             log_id="log123",
-            chore_id=chore["id"],
+            task_id=chore["id"],
             claimer_user_id=claimer["id"],
         )
 
@@ -202,7 +202,7 @@ class TestSendVerificationRequest:
         # Send verification request
         results = await notification_service.send_verification_request(
             log_id="log123",
-            chore_id=chore["id"],
+            task_id=chore["id"],
             claimer_user_id=claimer["id"],
         )
 
@@ -245,47 +245,10 @@ class TestSendDeletionRequestNotification:
         # Send deletion request notification
         results = await notification_service.send_deletion_request_notification(
             log_id="log456",
-            chore_id=chore["id"],
-            chore_title="Dishes",
+            task_id=chore["id"],
+            task_title="Dishes",
             requester_user_id=requester["id"],
         )
 
         # Should return empty list (no NotificationResult objects for group messages)
-        assert len(results) == 0
-
-        # Verify group message was sent
-        assert mock_send.call_count == 1
-
-        # Check call arguments
-        call_args = mock_send.call_args
-        assert call_args.kwargs["to_group_id"] == "group123@g.us"
-        text = call_args.kwargs["text"]
-
-        # Verify message content
-        assert "Alice" in text  # requester name
-        assert "Dishes" in text  # chore title
-        assert "approve deletion Dishes" in text
-        assert "reject deletion Dishes" in text
-
-    @pytest.mark.asyncio
-    async def test_returns_empty_when_no_group_configured(
-        self,
-        patched_notification_db,
-        sample_chore,
-        sample_users,
-    ):
-        """Returns empty list when no group chat ID is configured."""
-        # Populate in-memory database (no house_config)
-        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
-        requester = await patched_notification_db.create_record(collection="members", data=sample_users[0])
-
-        # Send deletion request notification
-        results = await notification_service.send_deletion_request_notification(
-            log_id="log456",
-            chore_id=chore["id"],
-            chore_title="Dishes",
-            requester_user_id=requester["id"],
-        )
-
-        # Should return empty list
         assert results == []

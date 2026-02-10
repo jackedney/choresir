@@ -6,8 +6,8 @@ import pytest
 
 from src.core.db_client import create_record, delete_record, get_record
 from src.services import (
-    personal_chore_service,
-    personal_verification_service,
+    chore_service,
+    verification_service,
 )
 
 
@@ -16,32 +16,32 @@ from src.services import (
 async def test_self_verified_personal_chore_workflow(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Create self-verified personal chore → log completion → verify auto-completion."""
     # Step 1: Alice creates a self-verified personal chore
-    chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["alice"]["phone"],
+    chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["alice"]["id"],
         title="Meditate",
         recurrence="every morning",
-        accountability_partner_phone=None,
+        accountability_partner_id=None,
     )
 
     assert chore["title"] == "Meditate"
-    assert chore["owner_phone"] == sample_users["alice"]["phone"]
-    assert chore["accountability_partner_phone"] == ""
-    assert chore["status"] == "ACTIVE"
+    assert chore["owner_id"] == sample_users["alice"]["id"]
+    assert chore["accountability_partner_id"] == ""
+    assert chore["current_state"] == "TODO"
 
     # Step 2: Alice logs completion
-    log = await personal_verification_service.log_personal_chore(
-        chore_id=chore["id"],
-        owner_phone=sample_users["alice"]["phone"],
+    log = await verification_service.log_personal_task(
+        task_id=chore["id"],
+        owner_id=sample_users["alice"]["id"],
         notes="Morning meditation",
     )
 
     assert log.verification_status == "SELF_VERIFIED"
-    assert log.owner_phone == sample_users["alice"]["phone"]
+    assert log.owner_phone == sample_users["alice"]["id"]
     assert log.accountability_partner_phone == ""
 
     # Step 3: Verify stats
-    stats = await personal_verification_service.get_personal_stats(
-        owner_phone=sample_users["alice"]["phone"],
+    stats = await verification_service.get_personal_stats(
+        owner_id=sample_users["alice"]["id"],
         period_days=7,
     )
 
@@ -55,28 +55,28 @@ async def test_self_verified_personal_chore_workflow(mock_db_module, db_client, 
 async def test_accountability_partner_workflow(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Create chore with partner → log → partner approves → verify completion."""
     # Step 1: Alice creates personal chore with Bob as accountability partner
-    chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["alice"]["phone"],
+    chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["alice"]["id"],
         title="Gym",
         recurrence="every 2 days",
-        accountability_partner_phone=sample_users["bob"]["phone"],
+        accountability_partner_id=sample_users["bob"]["id"],
     )
 
-    assert chore["accountability_partner_phone"] == sample_users["bob"]["phone"]
+    assert chore["accountability_partner_id"] == sample_users["bob"]["id"]
 
     # Step 2: Alice logs completion
-    log = await personal_verification_service.log_personal_chore(
-        chore_id=chore["id"],
-        owner_phone=sample_users["alice"]["phone"],
+    log = await verification_service.log_personal_task(
+        task_id=chore["id"],
+        owner_id=sample_users["alice"]["id"],
         notes="Leg day",
     )
 
     assert log.verification_status == "PENDING"
-    assert log.accountability_partner_phone == sample_users["bob"]["phone"]
+    assert log.accountability_partner_phone == sample_users["bob"]["id"]
 
     # Step 3: Bob can see pending verifications
-    pending = await personal_verification_service.get_pending_partner_verifications(
-        partner_phone=sample_users["bob"]["phone"],
+    pending = await verification_service.get_pending_partner_verifications(
+        partner_id=sample_users["bob"]["id"],
     )
 
     assert len(pending) == 1
@@ -84,9 +84,9 @@ async def test_accountability_partner_workflow(mock_db_module, db_client, sample
     assert pending[0].chore_title == "Gym"
 
     # Step 4: Bob approves
-    updated_log = await personal_verification_service.verify_personal_chore(
+    updated_log = await verification_service.verify_personal_task(
         log_id=log.id,
-        verifier_phone=sample_users["bob"]["phone"],
+        verifier_id=sample_users["bob"]["id"],
         approved=True,
         feedback="Saw you there!",
     )
@@ -95,8 +95,8 @@ async def test_accountability_partner_workflow(mock_db_module, db_client, sample
     assert updated_log.partner_feedback == "Saw you there!"
 
     # Step 5: Verify stats updated
-    stats = await personal_verification_service.get_personal_stats(
-        owner_phone=sample_users["alice"]["phone"],
+    stats = await verification_service.get_personal_stats(
+        owner_id=sample_users["alice"]["id"],
         period_days=7,
     )
 
@@ -109,29 +109,29 @@ async def test_accountability_partner_workflow(mock_db_module, db_client, sample
 async def test_accountability_partner_rejection(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Partner rejects completion → verify status is REJECTED."""
     # Step 1: Create chore with partner
-    chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["alice"]["phone"],
+    chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["alice"]["id"],
         title="Running",
         recurrence="every 3 days",
-        accountability_partner_phone=sample_users["charlie"]["phone"],
+        accountability_partner_id=sample_users["charlie"]["id"],
     )
 
     # Step 2: Alice logs completion
-    log = await personal_verification_service.log_personal_chore(
-        chore_id=chore["id"],
-        owner_phone=sample_users["alice"]["phone"],
+    log = await verification_service.log_personal_task(
+        task_id=chore["id"],
+        owner_id=sample_users["alice"]["id"],
     )
 
     # Step 3: Charlie rejects
-    updated_log = await personal_verification_service.verify_personal_chore(
+    updated_log = await verification_service.verify_personal_task(
         log_id=log.id,
-        verifier_phone=sample_users["charlie"]["phone"],
+        verifier_id=sample_users["charlie"]["id"],
         approved=False,
-        feedback="Didn't see you at the track",
+        feedback="Didn't see you at track",
     )
 
     assert updated_log.verification_status == "REJECTED"
-    assert updated_log.partner_feedback == "Didn't see you at the track"
+    assert updated_log.partner_feedback == "Didn't see you at track"
 
 
 @pytest.mark.integration
@@ -139,30 +139,31 @@ async def test_accountability_partner_rejection(mock_db_module, db_client, sampl
 async def test_auto_verify_after_48_hours(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Log pending > 48h → auto-verify job → verify status changes."""
     # Step 1: Create chore with partner
-    chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["alice"]["phone"],
+    chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["alice"]["id"],
         title="Yoga",
         recurrence="every morning",
-        accountability_partner_phone=sample_users["bob"]["phone"],
+        accountability_partner_id=sample_users["bob"]["id"],
     )
 
     # Step 2: Create log with old timestamp (simulate 48+ hours ago)
     old_timestamp = (datetime.now() - timedelta(hours=49)).isoformat()
     log_data = {
-        "personal_chore_id": chore["id"],
-        "owner_phone": sample_users["alice"]["phone"],
-        "completed_at": old_timestamp,
-        "verification_status": "PENDING",
-        "accountability_partner_phone": sample_users["bob"]["phone"],
-        "partner_feedback": "",
+        "task_id": chore["id"],
+        "user_id": sample_users["alice"]["id"],
+        "action": "completed",
         "notes": "",
+        "timestamp": old_timestamp,
+        "verification_status": "PENDING",
+        "verifier_id": sample_users["bob"]["id"],
+        "verifier_feedback": "",
     }
     log = await create_record(collection="task_logs", data=log_data)
 
     assert log["verification_status"] == "PENDING"
 
     # Step 3: Run auto-verify job
-    count = await personal_verification_service.auto_verify_expired_logs()
+    count = await verification_service.auto_verify_expired_logs()
 
     assert count == 1
 
@@ -173,7 +174,7 @@ async def test_auto_verify_after_48_hours(mock_db_module, db_client, sample_user
     )
 
     assert updated_log["verification_status"] == "VERIFIED"
-    assert "48 hours" in updated_log["partner_feedback"]
+    assert "48 hours" in updated_log["verifier_feedback"]
 
 
 @pytest.mark.integration
@@ -181,22 +182,23 @@ async def test_auto_verify_after_48_hours(mock_db_module, db_client, sample_user
 async def test_privacy_isolation(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Alice's personal chores are not visible to Bob."""
     # Step 1: Alice creates personal chore
-    alice_chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["alice"]["phone"],
+    alice_chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["alice"]["id"],
         title="Alice's Secret Project",
         recurrence="every 7 days",
     )
 
     # Step 2: Bob creates personal chore
-    bob_chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["bob"]["phone"],
+    bob_chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["bob"]["id"],
         title="Bob's Personal Task",
         recurrence="every 5 days",
     )
 
     # Step 3: Alice can only see her chores
-    alice_chores = await personal_chore_service.get_personal_chores(
-        owner_phone=sample_users["alice"]["phone"],
+    alice_chores = await chore_service.get_personal_chores(
+        owner_id=sample_users["alice"]["id"],
+        include_archived=False,
     )
 
     assert len(alice_chores) == 1
@@ -204,8 +206,9 @@ async def test_privacy_isolation(mock_db_module, db_client, sample_users: dict) 
     assert alice_chores[0]["title"] == "Alice's Secret Project"
 
     # Step 4: Bob can only see his chores
-    bob_chores = await personal_chore_service.get_personal_chores(
-        owner_phone=sample_users["bob"]["phone"],
+    bob_chores = await chore_service.get_personal_chores(
+        owner_id=sample_users["bob"]["id"],
+        include_archived=False,
     )
 
     assert len(bob_chores) == 1
@@ -218,11 +221,11 @@ async def test_privacy_isolation(mock_db_module, db_client, sample_users: dict) 
 async def test_partner_leaving_household(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Partner leaves household → log auto-converts to self-verified."""
     # Step 1: Alice creates chore with Bob as partner
-    chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["alice"]["phone"],
+    chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["alice"]["id"],
         title="Study",
         recurrence="every 2 days",
-        accountability_partner_phone=sample_users["bob"]["phone"],
+        accountability_partner_id=sample_users["bob"]["id"],
     )
 
     # Step 2: Bob leaves household (delete user)
@@ -232,9 +235,9 @@ async def test_partner_leaving_household(mock_db_module, db_client, sample_users
     )
 
     # Step 3: Alice logs completion
-    log = await personal_verification_service.log_personal_chore(
-        chore_id=chore["id"],
-        owner_phone=sample_users["alice"]["phone"],
+    log = await verification_service.log_personal_task(
+        task_id=chore["id"],
+        owner_id=sample_users["alice"]["id"],
     )
 
     # Should auto-convert to SELF_VERIFIED since Bob is no longer active
@@ -247,34 +250,35 @@ async def test_partner_leaving_household(mock_db_module, db_client, sample_users
 async def test_fuzzy_matching(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Fuzzy matching works for personal chore titles."""
     # Step 1: Create chore with full title
-    chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["alice"]["phone"],
-        title="Go to the gym",
+    chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["alice"]["id"],
+        title="Go to gym",
         recurrence="every 2 days",
     )
 
     # Step 2: Get all chores
-    chores = await personal_chore_service.get_personal_chores(
-        owner_phone=sample_users["alice"]["phone"],
+    chores = await chore_service.get_personal_chores(
+        owner_id=sample_users["alice"]["id"],
+        include_archived=False,
     )
 
     # Test exact match
-    match = personal_chore_service.fuzzy_match_personal_chore(chores, "Go to the gym")
+    match = chore_service.fuzzy_match_task(chores, "Go to gym")
     assert match is not None
     assert match["id"] == chore["id"]
 
     # Test contains match
-    match = personal_chore_service.fuzzy_match_personal_chore(chores, "gym")
+    match = chore_service.fuzzy_match_task(chores, "gym")
     assert match is not None
     assert match["id"] == chore["id"]
 
     # Test partial word match
-    match = personal_chore_service.fuzzy_match_personal_chore(chores, "go")
+    match = chore_service.fuzzy_match_task(chores, "go")
     assert match is not None
     assert match["id"] == chore["id"]
 
     # Test no match
-    match = personal_chore_service.fuzzy_match_personal_chore(chores, "running")
+    match = chore_service.fuzzy_match_task(chores, "running")
     assert match is None
 
 
@@ -283,25 +287,26 @@ async def test_fuzzy_matching(mock_db_module, db_client, sample_users: dict) -> 
 async def test_wrong_partner_cannot_verify(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Only designated accountability partner can verify."""
     # Step 1: Alice creates chore with Bob as partner
-    chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["alice"]["phone"],
+    chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["alice"]["id"],
         title="Coding practice",
         recurrence="every morning",
-        accountability_partner_phone=sample_users["bob"]["phone"],
+        accountability_partner_id=sample_users["bob"]["id"],
     )
 
     # Step 2: Alice logs completion
-    log = await personal_verification_service.log_personal_chore(
-        chore_id=chore["id"],
-        owner_phone=sample_users["alice"]["phone"],
+    log = await verification_service.log_personal_task(
+        task_id=chore["id"],
+        owner_id=sample_users["alice"]["id"],
     )
 
     # Step 3: Charlie tries to verify (should fail)
     with pytest.raises(PermissionError, match="Only accountability partner"):
-        await personal_verification_service.verify_personal_chore(
+        await verification_service.verify_personal_task(
             log_id=log.id,
-            verifier_phone=sample_users["charlie"]["phone"],
+            verifier_id=sample_users["charlie"]["id"],
             approved=True,
+            feedback="",
         )
 
 
@@ -310,30 +315,30 @@ async def test_wrong_partner_cannot_verify(mock_db_module, db_client, sample_use
 async def test_delete_personal_chore(mock_db_module, db_client, sample_users: dict) -> None:
     """Test: Soft delete (archive) personal chore."""
     # Step 1: Create chore
-    chore = await personal_chore_service.create_personal_chore(
-        owner_phone=sample_users["alice"]["phone"],
+    chore = await chore_service.create_personal_chore(
+        owner_id=sample_users["alice"]["id"],
         title="Temporary task",
         recurrence="every 7 days",
     )
 
     # Step 2: Delete (archive) chore
-    await personal_chore_service.delete_personal_chore(
+    await chore_service.delete_personal_chore(
         chore_id=chore["id"],
-        owner_phone=sample_users["alice"]["phone"],
+        owner_id=sample_users["alice"]["id"],
     )
 
     # Step 3: Verify chore no longer in active list
-    active_chores = await personal_chore_service.get_personal_chores(
-        owner_phone=sample_users["alice"]["phone"],
-        status="ACTIVE",
+    active_chores = await chore_service.get_personal_chores(
+        owner_id=sample_users["alice"]["id"],
+        include_archived=False,
     )
 
     assert len(active_chores) == 0
 
     # Step 4: Verify chore is archived
-    archived_chores = await personal_chore_service.get_personal_chores(
-        owner_phone=sample_users["alice"]["phone"],
-        status="ARCHIVED",
+    archived_chores = await chore_service.get_personal_chores(
+        owner_id=sample_users["alice"]["id"],
+        include_archived=True,
     )
 
     assert len(archived_chores) == 1
