@@ -8,10 +8,12 @@ import logging
 
 import logfire
 from pydantic_ai import Agent
-from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings, OpenRouterProvider
+from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
+from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 from src.agents.base import Deps
 from src.core.config import settings
+from src.core.module_registry import get_modules
 
 
 logger = logging.getLogger(__name__)
@@ -78,21 +80,7 @@ def get_agent() -> Agent[Deps, str]:
 
 def _register_all_tools(agent_instance: Agent[Deps, str]) -> None:
     """Register all tool modules with the agent."""
-    # Import tools and explicitly register them
+    # Iterate through registered modules and register their tools
     # This avoids decorator execution at import time
-    from src.agents.tools import (
-        analytics_tools,
-        chore_tools,
-        onboarding_tools,
-        pantry_tools,
-        personal_chore_tools,
-        verification_tools,
-    )
-
-    # Each module registers its tools via register_tools(agent)
-    analytics_tools.register_tools(agent_instance)
-    chore_tools.register_tools(agent_instance)
-    onboarding_tools.register_tools(agent_instance)
-    pantry_tools.register_tools(agent_instance)
-    personal_chore_tools.register_tools(agent_instance)
-    verification_tools.register_tools(agent_instance)
+    for module in get_modules().values():
+        module.register_tools(agent_instance)
