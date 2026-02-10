@@ -308,8 +308,8 @@ async def tool_request_chore_deletion(ctx: RunContext[Deps], params: RequestChor
             try:
                 await notification_service.send_deletion_request_notification(
                     log_id=log_record["id"],
-                    chore_id=chore_id,
-                    chore_title=chore_title,
+                    task_id=chore_id,
+                    task_title=chore_title,
                     requester_user_id=ctx.deps.user_id,
                 )
             except Exception:

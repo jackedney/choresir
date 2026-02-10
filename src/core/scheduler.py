@@ -16,12 +16,8 @@ from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import send_text_message
 from src.models.service_models import LeaderboardEntry, OverdueChore
 from src.services import (
-    analytics_service,
     chore_service,
     group_context_service,
-    notification_service,
-    user_service,
-    verification_service,
     workflow_service,
 )
 from src.services.analytics_service import get_household_summary, get_leaderboard, get_overdue_chores
@@ -564,10 +560,9 @@ async def auto_verify_personal_chores() -> None:
     logger.info("Running personal chore auto-verification job")
 
     try:
-        # Call auto-verification service
-        count = await verification_service.auto_verify_expired_logs()
-
-        logger.info(f"Completed auto-verification job: {count} logs auto-verified")
+            # TODO: Re-implement auto-verification for unified task model
+            # count = await verification_service.auto_verify_expired_logs()
+            # logger.warning("Auto-verification for personal tasks disabled during modularization")
 
     except Exception as e:
         logger.error(f"Error in auto-verification job: {e}")

@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services import personal_verification_service
+from src.services import verification_service
 
 
 @pytest.mark.asyncio
@@ -20,7 +20,7 @@ async def test_get_personal_stats_injection():
             # Malicious phone number trying to inject OR condition
             malicious_phone = '"+1234567890" || true || "'
 
-            await personal_verification_service.get_personal_stats(owner_phone=malicious_phone)
+            await verification_service.get_personal_stats(owner_id=malicious_phone)
 
             # Check the calls to list_records
             # We expect multiple calls. We want to check the one for personal_chore_logs

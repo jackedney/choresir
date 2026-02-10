@@ -63,7 +63,7 @@ async def send_verification_request(
         # 4. Build message
         text = message_templates.verification_request(
             claimer_name=claimer_name,
-            item_title=task_id,
+            item_title=_title,
             log_id=log_id,
         )
 

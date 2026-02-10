@@ -44,11 +44,11 @@ class TestCreateWorkflow:
         assert workflow["target_title"] == "Wash Dishes"
 
     @pytest.mark.asyncio
-    async def test_creates_chore_verification_workflow(
+    async def test_creates_task_verification_workflow(
         self,
         patched_workflow_db,
     ):
-        """Creates a chore verification workflow."""
+        """Creates a task verification workflow."""
         workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
                 workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
@@ -63,11 +63,11 @@ class TestCreateWorkflow:
         assert workflow["status"] == "pending"
 
     @pytest.mark.asyncio
-    async def test_creates_personal_verification_workflow(
+    async def test_creates_task_verification_workflow_with_personal_target(
         self,
         patched_workflow_db,
     ):
-        """Creates a personal verification workflow."""
+        """Creates a task verification workflow for a personal target."""
         workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
                 workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,

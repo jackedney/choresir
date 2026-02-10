@@ -170,11 +170,6 @@ async def tool_log_personal_chore(ctx: RunContext[Deps], params: LogPersonalChor
             if not matched_chore:
                 return f"Error: No personal chore found matching '{params.chore_title_fuzzy}'."
 
-            # Get user ID from phone
-            user = await user_service.get_user_by_phone(phone=ctx.deps.user_phone)
-            if not user:
-                return "Error: User not found."
-
             # Log completion
             log = await verification_service.log_personal_task(
                 task_id=matched_chore["id"],

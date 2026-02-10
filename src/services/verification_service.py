@@ -169,7 +169,7 @@ async def request_verification(
         try:
             await notification_service.send_verification_request(
                 log_id=log_record["id"],
-                chore_id=chore_id,
+                task_id=chore_id,
                 claimer_user_id=claimer_user_id,
             )
         except Exception:
@@ -421,7 +421,7 @@ async def log_personal_task(
 
                 await notification_service.send_personal_verification_request(
                     log_id=log_record["id"],
-                    chore_title=task["title"],
+                    task_title=task["title"],
                     owner_name=owner_name,
                     partner_phone=partner_phone,
                 )
@@ -554,7 +554,7 @@ async def verify_personal_task(
             owner_phone = owner.get("phone", "") if owner else ""
 
             await notification_service.send_personal_verification_result(
-                chore_title=task["title"],
+                task_title=task["title"],
                 owner_phone=owner_phone,
                 verifier_name=verifier_name,
                 approved=approved,

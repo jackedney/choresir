@@ -129,7 +129,7 @@ class TestRequestVerification:
 
         mock_notify.send_verification_request.assert_called_once_with(
             log_id=logs[0]["id"],
-            chore_id=todo_chore["id"],
+            task_id=todo_chore["id"],
             claimer_user_id="user1",
         )
 

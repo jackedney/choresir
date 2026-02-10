@@ -428,7 +428,7 @@ async def _handle_button_payload(
         # Execute verification
         decision = VerificationDecision(decision_str)
         await verification_service.verify_chore(
-            chore_id=chore_id,
+            task_id=chore_id,
             verifier_user_id=user_record["id"],
             decision=decision,
             reason="Via quick reply button",

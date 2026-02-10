@@ -79,7 +79,7 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
 
     # Step 3: Alice verifies completion
     result = await verification_service.verify_chore(
-        chore_id=chore["id"],
+        task_id=chore["id"],
         verifier_user_id=sample_users["alice"]["id"],
         decision=VerificationDecision.APPROVE,
         reason="Looks good",
@@ -114,7 +114,7 @@ async def test_rejection_resets_to_todo_workflow(mock_db_module, db_client, samp
 
     # Step 3: Alice rejects the claim
     result = await verification_service.verify_chore(
-        chore_id=chore["id"],
+        task_id=chore["id"],
         verifier_user_id=sample_users["alice"]["id"],
         decision=VerificationDecision.REJECT,
         reason="Grass still too long",
@@ -154,7 +154,7 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
 
     # Step 3: Charlie verifies
     result = await verification_service.verify_chore(
-        chore_id=chore["id"],
+        task_id=chore["id"],
         verifier_user_id=sample_users["charlie"]["id"],
         decision=VerificationDecision.APPROVE,
         reason="Confirmed clean",
@@ -186,9 +186,9 @@ async def test_verifier_cannot_be_claimer(mock_db_module, db_client, sample_user
     )
 
     # Bob tries to verify his own claim
-    with pytest.raises(PermissionError, match="cannot verify their own chore claim"):
+    with pytest.raises(PermissionError, match="cannot verify their own task claim"):
         await verification_service.verify_chore(
-            chore_id=chore["id"],
+            task_id=chore["id"],
             verifier_user_id=sample_users["bob"]["id"],
             decision=VerificationDecision.APPROVE,
             reason="Self-verify",

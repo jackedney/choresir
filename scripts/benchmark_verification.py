@@ -161,7 +161,7 @@ async def benchmark_verify_chore() -> tuple[float, int]:
     # However, we're testing that ALL logs are fetched across pages to find ANY matching log
     # This tests pagination correctness for the log fetching
     await verification_service.verify_chore(
-        chore_id="chore_10",
+        task_id="chore_10",
         verifier_user_id="user1",  # Different from claimer (user2)
         decision=VerificationDecision.APPROVE,
         reason="Test verification",
