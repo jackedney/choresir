@@ -38,7 +38,7 @@ async def send_verification_request(
 
         # 1. Get chore details
         try:
-            chore = await db_client.get_record(collection="tasks", record_id=chore_id)
+            chore = await db_client.get_record(collection="chores", record_id=chore_id)
             chore_title = chore["title"]
         except KeyError:
             logger.error("Chore not found: %s", chore_id)

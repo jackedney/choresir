@@ -115,8 +115,8 @@ async def send_overdue_reminders() -> None:
 async def send_daily_report() -> None:
     """Send daily household summary report to all active users.
 
-    Runs daily at 9pm. Sends a summary of the day's completions,
-    current conflicts, and pending verifications.
+    Runs daily at 9pm. Sends a summary of the day's completions
+    and pending verifications.
     """
     logger.info("Running daily report job")
 
@@ -343,7 +343,7 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
     try:
         # Query for most recent completion log
         logs = await db_client.list_records(
-            collection="task_logs",
+            collection="personal_chore_logs",
             filter_query=(
                 f'personal_chore_id = "{sanitize_param(chore_id)}" && owner_phone = "{sanitize_param(owner_phone)}"'
             ),

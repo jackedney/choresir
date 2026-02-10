@@ -6,10 +6,9 @@ import pytest
 
 from src.agents.tools.verification_tools import (
     VerifyChore,
-    _fuzzy_match_all_chores,
-    _fuzzy_match_chore,
     tool_verify_chore,
 )
+from src.core.fuzzy_match import fuzzy_match as _fuzzy_match_chore, fuzzy_match_all as _fuzzy_match_all_chores
 from src.services import chore_service, verification_service, workflow_service
 
 
@@ -145,7 +144,7 @@ class TestToolVerifyChoreByWorkflowId:
         )
 
         assert "Rejected verification of 'Test Chore'" in result
-        assert "Moving to conflict resolution" in result
+        assert "returned to TODO" in result
 
         # Verify workflow was rejected
         updated_workflow = await workflow_service.get_workflow(workflow_id=pending_verification_workflow["id"])

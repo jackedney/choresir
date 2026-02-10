@@ -72,7 +72,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
     # Alice: 5 completions
     for i in range(5):
         log = await patched_analytics_db.create_record(
-            collection="logs",
+            collection="task_logs",
             data={
                 "user_id": sample_users[0]["id"],
                 "action": "approve_verification",
@@ -85,7 +85,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
     # Bob: 3 completions
     for i in range(3):
         log = await patched_analytics_db.create_record(
-            collection="logs",
+            collection="task_logs",
             data={
                 "user_id": sample_users[1]["id"],
                 "action": "approve_verification",
@@ -97,7 +97,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
 
     # Charlie: 1 completion
     log = await patched_analytics_db.create_record(
-        collection="logs",
+        collection="task_logs",
         data={
             "user_id": sample_users[2]["id"],
             "action": "approve_verification",
@@ -272,7 +272,7 @@ class TestGetLeaderboardBulkFetch:
 
         # Create completion log for non-existent user
         await patched_analytics_db.create_record(
-            collection="logs",
+            collection="task_logs",
             data={
                 "user_id": "nonexistent_user",
                 "action": "approve_verification",
@@ -315,7 +315,7 @@ class TestGetLeaderboardEdgeCases:
 
         # Create completion log for only one user
         await patched_analytics_db.create_record(
-            collection="logs",
+            collection="task_logs",
             data={
                 "user_id": sample_users[0]["id"],
                 "action": "approve_verification",
@@ -339,7 +339,7 @@ class TestGetLeaderboardEdgeCases:
         # Alice: 3 completions
         for i in range(3):
             await patched_analytics_db.create_record(
-                collection="logs",
+                collection="task_logs",
                 data={
                     "user_id": sample_users[0]["id"],
                     "action": "approve_verification",
@@ -351,7 +351,7 @@ class TestGetLeaderboardEdgeCases:
         # Bob: 3 completions (tied with Alice)
         for i in range(3):
             await patched_analytics_db.create_record(
-                collection="logs",
+                collection="task_logs",
                 data={
                     "user_id": sample_users[1]["id"],
                     "action": "approve_verification",
@@ -375,7 +375,7 @@ class TestGetLeaderboardEdgeCases:
 
         # Create old completion (outside 7-day period)
         await patched_analytics_db.create_record(
-            collection="logs",
+            collection="task_logs",
             data={
                 "user_id": sample_users[0]["id"],
                 "action": "approve_verification",
@@ -386,7 +386,7 @@ class TestGetLeaderboardEdgeCases:
 
         # Create recent completion (within 7-day period)
         await patched_analytics_db.create_record(
-            collection="logs",
+            collection="task_logs",
             data={
                 "user_id": sample_users[1]["id"],
                 "action": "approve_verification",
@@ -411,7 +411,7 @@ class TestGetLeaderboardEdgeCases:
         # Create 10 completions for Alice
         for i in range(10):
             await patched_analytics_db.create_record(
-                collection="logs",
+                collection="task_logs",
                 data={
                     "user_id": sample_users[0]["id"],
                     "action": "approve_verification",

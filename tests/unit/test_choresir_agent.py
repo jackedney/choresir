@@ -439,7 +439,7 @@ class TestBuildWorkflowContext:
             },
             {
                 "id": "wf2",
-                "type": "chore_verification",
+                "type": "task_verification",
                 "target_title": "Take out trash",
                 "requester_name": "Alice",
             },
@@ -470,7 +470,7 @@ class TestBuildWorkflowContext:
             },
             {
                 "id": "wf4",
-                "type": "personal_verification",
+                "type": "task_verification",
                 "target_title": "Gym workout",
                 "requester_name": "Charlie",
             },
@@ -504,7 +504,7 @@ class TestBuildWorkflowContext:
         actionable_workflows = [
             {
                 "id": "wf2",
-                "type": "chore_verification",
+                "type": "task_verification",
                 "target_title": "Other chore",
                 "requester_name": "Bob",
             }

@@ -3,10 +3,9 @@
 import pytest
 
 from src.core.db_client import get_first_record, get_record
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.domain.user import UserStatus
-from src.services import chore_service, conflict_service, user_service, verification_service
-from src.services.conflict_service import VoteChoice, VoteResult
+from src.services import chore_service, user_service, verification_service
 from src.services.verification_service import VerificationDecision
 
 
@@ -62,7 +61,7 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
 
     assert chore["title"] == "Clean Bathroom"
     assert chore["assigned_to"] == sample_users["bob"]["id"]
-    assert chore["current_state"] == ChoreState.TODO.value
+    assert chore["current_state"] == TaskState.TODO.value
 
     # Step 2: Bob logs completion
     workflow = await verification_service.request_verification(
@@ -75,8 +74,8 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
     assert workflow["requester_user_id"] == sample_users["bob"]["id"]
 
     # Verify chore state changed
-    updated_chore = await get_record(collection="chores", record_id=chore["id"])
-    assert updated_chore["current_state"] == ChoreState.PENDING_VERIFICATION.value
+    updated_chore = await get_record(collection="tasks", record_id=chore["id"])
+    assert updated_chore["current_state"] == TaskState.PENDING_VERIFICATION.value
 
     # Step 3: Alice verifies completion
     result = await verification_service.verify_chore(
@@ -87,17 +86,17 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
     )
 
     # verify_chore returns the updated chore record
-    assert result["current_state"] == ChoreState.COMPLETED.value
+    assert result["current_state"] == TaskState.COMPLETED.value
 
     # Verify chore is completed
-    final_chore = await get_record(collection="chores", record_id=chore["id"])
-    assert final_chore["current_state"] == ChoreState.COMPLETED.value
+    final_chore = await get_record(collection="tasks", record_id=chore["id"])
+    assert final_chore["current_state"] == TaskState.COMPLETED.value
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_users: dict) -> None:
-    """Test: Conflict Resolution workflow (log → reject → vote → resolve)."""
+async def test_rejection_resets_to_todo_workflow(mock_db_module, db_client, sample_users: dict) -> None:
+    """Test: Rejection workflow (log → reject → back to TODO)."""
     # Step 1: Create chore
     chore = await chore_service.create_chore(
         title="Mow Lawn",
@@ -121,30 +120,12 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
         reason="Grass still too long",
     )
 
-    # verify_chore returns the updated chore record
-    assert result["current_state"] == ChoreState.CONFLICT.value
+    # verify_chore returns the updated chore record - rejection resets to TODO
+    assert result["current_state"] == TaskState.TODO.value
 
-    # Verify chore moved to CONFLICT state
-    conflict_chore = await get_record(collection="chores", record_id=chore["id"])
-    assert conflict_chore["current_state"] == ChoreState.CONFLICT.value
-
-    # Step 4: Bob votes (only eligible voter)
-    vote = await conflict_service.cast_vote(
-        chore_id=chore["id"],
-        voter_user_id=sample_users["bob"]["id"],
-        choice=VoteChoice.YES,
-    )
-
-    assert vote["action"] == "vote_yes"
-
-    # Step 5: Tally votes (should resolve conflict)
-    tally_result, _updated_chore = await conflict_service.tally_votes(chore_id=chore["id"])
-
-    assert tally_result == VoteResult.APPROVED
-
-    # Verify chore is completed
-    final_chore = await get_record(collection="chores", record_id=chore["id"])
-    assert final_chore["current_state"] == ChoreState.COMPLETED.value
+    # Verify chore is back in TODO state
+    todo_chore = await get_record(collection="tasks", record_id=chore["id"])
+    assert todo_chore["current_state"] == TaskState.TODO.value
 
 
 @pytest.mark.integration
@@ -180,11 +161,11 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
     )
 
     # verify_chore returns the updated chore record
-    assert result["current_state"] == ChoreState.COMPLETED.value
+    assert result["current_state"] == TaskState.COMPLETED.value
 
     # Verify chore is completed
-    final_chore = await get_record(collection="chores", record_id=chore["id"])
-    assert final_chore["current_state"] == ChoreState.COMPLETED.value
+    final_chore = await get_record(collection="tasks", record_id=chore["id"])
+    assert final_chore["current_state"] == TaskState.COMPLETED.value
 
 
 @pytest.mark.integration

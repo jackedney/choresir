@@ -57,7 +57,7 @@ class TestLogPersonalChore:
         # Verify no workflow was created (self-verified)
         workflows = await db_client.list_records(
             collection="workflows",
-            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+            filter_query=f'type = "task_verification" && target_id = "{log.id}"',
         )
         assert len(workflows) == 0
 
@@ -95,10 +95,10 @@ class TestLogPersonalChore:
         # Verify workflow was created
         workflows = await db_client.list_records(
             collection="workflows",
-            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+            filter_query=f'type = "task_verification" && target_id = "{log.id}"',
         )
         assert len(workflows) == 1
-        assert workflows[0]["type"] == "personal_verification"
+        assert workflows[0]["type"] == "task_verification"
         assert workflows[0]["target_id"] == log.id
         assert workflows[0]["status"] == "pending"
 
@@ -135,7 +135,7 @@ class TestLogPersonalChore:
         # Verify no workflow was created (since auto-converted)
         workflows = await db_client.list_records(
             collection="workflows",
-            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+            filter_query=f'type = "task_verification" && target_id = "{log.id}"',
         )
         assert len(workflows) == 0
 
@@ -160,7 +160,7 @@ class TestLogPersonalChore:
         # Verify no workflow was created (since auto-converted)
         workflows = await db_client.list_records(
             collection="workflows",
-            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+            filter_query=f'type = "task_verification" && target_id = "{log.id}"',
         )
         assert len(workflows) == 0
 
@@ -234,7 +234,7 @@ class TestVerifyPersonalChore:
         # Get workflow
         workflows = await db_client.list_records(
             collection="workflows",
-            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+            filter_query=f'type = "task_verification" && target_id = "{log.id}"',
         )
         assert len(workflows) == 1
         workflow_id = workflows[0]["id"]
@@ -300,7 +300,7 @@ class TestVerifyPersonalChore:
         # Get workflow
         workflows = await db_client.list_records(
             collection="workflows",
-            filter_query=f'type = "personal_verification" && target_id = "{log.id}"',
+            filter_query=f'type = "task_verification" && target_id = "{log.id}"',
         )
         assert len(workflows) == 1
         workflow_id = workflows[0]["id"]
@@ -649,7 +649,7 @@ class TestAutoVerifyExpiredLogs:
         # Create an old log (49 hours ago)
         old_time = datetime.now() - timedelta(hours=49)
         old_log = await db_client.create_record(
-            collection="personal_chore_logs",
+            collection="task_logs",
             data={
                 "personal_chore_id": chore["id"],
                 "owner_phone": "+15551234567",
@@ -664,7 +664,7 @@ class TestAutoVerifyExpiredLogs:
         # Create a recent log (1 hour ago)
         recent_time = datetime.now() - timedelta(hours=1)
         recent_log = await db_client.create_record(
-            collection="personal_chore_logs",
+            collection="task_logs",
             data={
                 "personal_chore_id": chore["id"],
                 "owner_phone": "+15551234567",
@@ -683,7 +683,7 @@ class TestAutoVerifyExpiredLogs:
 
         # Check that old log was auto-verified
         updated_old = await db_client.get_record(
-            collection="personal_chore_logs",
+            collection="task_logs",
             record_id=old_log["id"],
         )
         assert updated_old["verification_status"] == "VERIFIED"
@@ -691,7 +691,7 @@ class TestAutoVerifyExpiredLogs:
 
         # Check that recent log is still pending
         updated_recent = await db_client.get_record(
-            collection="personal_chore_logs",
+            collection="task_logs",
             record_id=recent_log["id"],
         )
         assert updated_recent["verification_status"] == "PENDING"
@@ -837,7 +837,7 @@ class TestGetPersonalStats:
         # Create old completion (outside 30 day period)
         old_time = datetime.now() - timedelta(days=40)
         await db_client.create_record(
-            collection="personal_chore_logs",
+            collection="task_logs",
             data={
                 "personal_chore_id": chore["id"],
                 "owner_phone": "+15551234567",

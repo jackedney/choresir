@@ -10,7 +10,7 @@ from typing import Any
 
 from src.core import db_client
 from src.core.logging import span
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.services import user_service, workflow_service
 
 
@@ -67,10 +67,10 @@ async def request_chore_deletion(
     """
     with span("deletion_service.request_chore_deletion"):
         # Verify chore exists
-        chore = await db_client.get_record(collection="chores", record_id=chore_id)
+        chore = await db_client.get_record(collection="tasks", record_id=chore_id)
 
         # Check chore is not already archived
-        if chore["current_state"] == ChoreState.ARCHIVED:
+        if chore["current_state"] == TaskState.ARCHIVED:
             msg = f"Cannot request deletion: chore {chore_id} is already archived"
             raise ValueError(msg)
 
@@ -103,7 +103,7 @@ async def request_chore_deletion(
             "timestamp": datetime.now().isoformat(),
         }
 
-        await db_client.create_record(collection="logs", data=log_data)
+        await db_client.create_record(collection="task_logs", data=log_data)
 
         logger.info(
             "User %s requested deletion of chore %s",
@@ -164,13 +164,13 @@ async def approve_chore_deletion(
             "notes": reason,
             "timestamp": datetime.now().isoformat(),
         }
-        await db_client.create_record(collection="logs", data=log_data)
+        await db_client.create_record(collection="task_logs", data=log_data)
 
         # Archive the chore (soft delete)
         updated_chore = await db_client.update_record(
-            collection="chores",
+            collection="tasks",
             record_id=chore_id,
-            data={"current_state": ChoreState.ARCHIVED},
+            data={"current_state": TaskState.ARCHIVED},
         )
 
         logger.info(
@@ -206,7 +206,7 @@ async def reject_chore_deletion(
     """
     with span("deletion_service.reject_chore_deletion"):
         # Verify chore exists
-        await db_client.get_record(collection="chores", record_id=chore_id)
+        await db_client.get_record(collection="tasks", record_id=chore_id)
 
         # Get pending deletion workflow
         pending_workflow = await get_pending_deletion_workflow(chore_id=chore_id)
@@ -241,7 +241,7 @@ async def reject_chore_deletion(
             "notes": reason,
             "timestamp": datetime.now().isoformat(),
         }
-        log_record = await db_client.create_record(collection="logs", data=log_data)
+        log_record = await db_client.create_record(collection="task_logs", data=log_data)
 
         logger.info(
             "User %s rejected deletion of chore %s",

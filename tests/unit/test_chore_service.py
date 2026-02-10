@@ -3,7 +3,7 @@
 import pytest
 
 # KeyError replaced with KeyError
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.services import chore_service
 
 
@@ -39,7 +39,7 @@ class TestCreateChore:
         assert result["description"] == "Wash all dishes"
         assert result["schedule_cron"] == "0 20 * * *"
         assert result["assigned_to"] == "user123"
-        assert result["current_state"] == ChoreState.TODO
+        assert result["current_state"] == TaskState.TODO
         assert "deadline" in result
         assert "id" in result
 
@@ -56,7 +56,7 @@ class TestCreateChore:
         # Should be converted to INTERVAL format
         assert "INTERVAL:7:" in result["schedule_cron"]
         assert result["assigned_to"] == "user456"
-        assert result["current_state"] == ChoreState.TODO
+        assert result["current_state"] == TaskState.TODO
 
     async def test_create_chore_unassigned(self, patched_chore_db):
         """Test creating an unassigned chore."""
@@ -127,10 +127,10 @@ class TestGetChores:
 
     async def test_get_chores_by_state(self, patched_chore_db, created_chores):
         """Test filtering chores by state."""
-        result = await chore_service.get_chores(state=ChoreState.TODO)
+        result = await chore_service.get_chores(state=TaskState.TODO)
 
         assert len(result) == 3
-        assert all(chore["current_state"] == ChoreState.TODO for chore in result)
+        assert all(chore["current_state"] == TaskState.TODO for chore in result)
 
     async def test_get_chores_empty_result(self, patched_chore_db):
         """Test getting chores when none exist."""
@@ -164,7 +164,7 @@ class TestMarkPendingVerification:
         result = await chore_service.mark_pending_verification(chore_id=todo_chore["id"])
 
         assert result["id"] == todo_chore["id"]
-        assert result["current_state"] == ChoreState.PENDING_VERIFICATION
+        assert result["current_state"] == TaskState.PENDING_VERIFICATION
 
     async def test_mark_pending_verification_not_found(self, patched_chore_db):
         """Test marking non-existent chore raises error."""
@@ -193,7 +193,7 @@ class TestCompleteChore:
         result = await chore_service.complete_chore(chore_id=pending_chore["id"])
 
         assert result["id"] == pending_chore["id"]
-        assert result["current_state"] == ChoreState.COMPLETED
+        assert result["current_state"] == TaskState.COMPLETED
         # Deadline should be updated to next occurrence
         # (Note: the actual state machine may handle this differently)
 
@@ -204,8 +204,8 @@ class TestCompleteChore:
 
 
 @pytest.mark.unit
-class TestMoveToConflict:
-    """Tests for move_to_conflict function."""
+class TestResetChoreToTodo:
+    """Tests for reset_chore_to_todo function."""
 
     @pytest.fixture
     async def pending_chore(self, patched_chore_db):
@@ -218,42 +218,12 @@ class TestMoveToConflict:
         )
         return await chore_service.mark_pending_verification(chore_id=chore["id"])
 
-    async def test_move_to_conflict_success(self, patched_chore_db, pending_chore):
-        """Test transitioning chore to CONFLICT state."""
-        result = await chore_service.move_to_conflict(chore_id=pending_chore["id"])
+    async def test_reset_chore_to_todo_success(self, patched_chore_db, pending_chore):
+        """Test resetting a chore back to TODO state."""
+        result = await chore_service.reset_chore_to_todo(chore_id=pending_chore["id"])
 
         assert result["id"] == pending_chore["id"]
-        assert result["current_state"] == ChoreState.CONFLICT
-
-    async def test_move_to_conflict_not_found(self, patched_chore_db):
-        """Test moving non-existent chore to conflict raises error."""
-        with pytest.raises(KeyError):
-            await chore_service.move_to_conflict(chore_id="nonexistent_id")
-
-
-@pytest.mark.unit
-class TestResetChoreToTodo:
-    """Tests for reset_chore_to_todo function."""
-
-    @pytest.fixture
-    async def conflict_chore(self, patched_chore_db):
-        """Create a chore in CONFLICT state."""
-        chore = await chore_service.create_chore(
-            title="Test Chore",
-            description="Test",
-            recurrence="0 10 * * *",
-            assigned_to="user1",
-        )
-        # Transition through states to conflict
-        pending = await chore_service.mark_pending_verification(chore_id=chore["id"])
-        return await chore_service.move_to_conflict(chore_id=pending["id"])
-
-    async def test_reset_chore_to_todo_success(self, patched_chore_db, conflict_chore):
-        """Test resetting a chore back to TODO state."""
-        result = await chore_service.reset_chore_to_todo(chore_id=conflict_chore["id"])
-
-        assert result["id"] == conflict_chore["id"]
-        assert result["current_state"] == ChoreState.TODO
+        assert result["current_state"] == TaskState.TODO
 
     async def test_reset_chore_to_todo_not_found(self, patched_chore_db):
         """Test resetting non-existent chore raises error."""

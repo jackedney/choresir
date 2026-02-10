@@ -28,7 +28,7 @@ async def get_pending_personal_verification_workflow(*, log_id: str) -> dict[str
     """
     with span("personal_verification_service.get_pending_personal_verification_workflow"):
         filter_query = (
-            f'type = "{workflow_service.WorkflowType.PERSONAL_VERIFICATION.value}" && '
+            f'type = "{workflow_service.WorkflowType.TASK_VERIFICATION.value}" && '
             f'target_id = "{sanitize_param(log_id)}" && '
             f'status = "{workflow_service.WorkflowStatus.PENDING.value}"'
         )
@@ -111,7 +111,7 @@ async def log_personal_chore(
         }
 
         log_record = await db_client.create_record(
-            collection="personal_chore_logs",
+            collection="task_logs",
             data=log_data,
         )
 
@@ -128,7 +128,7 @@ async def log_personal_chore(
                 # Create workflow for personal verification
                 workflow = await workflow_service.create_workflow(
                     params=workflow_service.WorkflowCreateParams(
-                        workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                        workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                         requester_user_id=owner_user_id,
                         requester_name=owner_name,
                         target_id=log_record["id"],
@@ -182,7 +182,7 @@ async def verify_personal_chore(
     with span("personal_verification_service.verify_personal_chore"):
         # Get log record
         log_record = await db_client.get_record(
-            collection="personal_chore_logs",
+            collection="task_logs",
             record_id=log_id,
         )
 
@@ -222,7 +222,7 @@ async def verify_personal_chore(
         # Update verification status
         new_status = "VERIFIED" if approved else "REJECTED"
         updated_log = await db_client.update_record(
-            collection="personal_chore_logs",
+            collection="task_logs",
             record_id=log_id,
             data={
                 "verification_status": new_status,
@@ -235,7 +235,7 @@ async def verify_personal_chore(
         # Send result notification to owner
         try:
             chore = await db_client.get_record(
-                collection="personal_chores",
+                collection="tasks",
                 record_id=log_record["personal_chore_id"],
             )
             verifier = await user_service.get_user_by_phone(phone=verifier_phone)
@@ -275,7 +275,7 @@ async def get_pending_partner_verifications(
         )
 
         logs = await db_client.list_records(
-            collection="personal_chore_logs",
+            collection="task_logs",
             filter_query=filter_query,
             sort="-completed_at",
         )
@@ -285,7 +285,7 @@ async def get_pending_partner_verifications(
         for log in logs:
             try:
                 chore = await db_client.get_record(
-                    collection="personal_chores",
+                    collection="tasks",
                     record_id=log["personal_chore_id"],
                 )
                 # Create enriched view with chore details
@@ -315,7 +315,7 @@ async def auto_verify_expired_logs() -> int:
         filter_query = f'verification_status = "PENDING" && completed_at < "{cutoff_time.isoformat()}"'
 
         expired_logs = await db_client.list_records(
-            collection="personal_chore_logs",
+            collection="task_logs",
             filter_query=filter_query,
         )
 
@@ -323,7 +323,7 @@ async def auto_verify_expired_logs() -> int:
         for log in expired_logs:
             try:
                 await db_client.update_record(
-                    collection="personal_chore_logs",
+                    collection="task_logs",
                     record_id=log["id"],
                     data={
                         "verification_status": "VERIFIED",
@@ -336,7 +336,7 @@ async def auto_verify_expired_logs() -> int:
                 # Send auto-verify notification to owner
                 try:
                     chore = await db_client.get_record(
-                        collection="personal_chores",
+                        collection="tasks",
                         record_id=log["personal_chore_id"],
                     )
                     partner = await user_service.get_user_by_phone(phone=log["accountability_partner_phone"])
@@ -393,7 +393,7 @@ async def get_personal_stats(
         )
 
         completions = await db_client.list_records(
-            collection="personal_chore_logs",
+            collection="task_logs",
             filter_query=completions_filter,
         )
 
@@ -401,7 +401,7 @@ async def get_personal_stats(
         pending_filter = f'owner_phone = "{sanitize_param(owner_phone)}" && verification_status = "PENDING"'
 
         pending = await db_client.list_records(
-            collection="personal_chore_logs",
+            collection="task_logs",
             filter_query=pending_filter,
         )
 

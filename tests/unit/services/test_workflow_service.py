@@ -51,7 +51,7 @@ class TestCreateWorkflow:
         """Creates a chore verification workflow."""
         workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user789",
                 requester_name="Bob",
                 target_id="chore999",
@@ -59,7 +59,7 @@ class TestCreateWorkflow:
             )
         )
 
-        assert workflow["type"] == "chore_verification"
+        assert workflow["type"] == "task_verification"
         assert workflow["status"] == "pending"
 
     @pytest.mark.asyncio
@@ -70,7 +70,7 @@ class TestCreateWorkflow:
         """Creates a personal verification workflow."""
         workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user456",
                 requester_name="Charlie",
                 target_id="personal_chore123",
@@ -78,7 +78,7 @@ class TestCreateWorkflow:
             )
         )
 
-        assert workflow["type"] == "personal_verification"
+        assert workflow["type"] == "task_verification"
         assert workflow["status"] == "pending"
 
     @pytest.mark.asyncio
@@ -134,7 +134,7 @@ class TestCreateWorkflow:
 
         workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user123",
                 requester_name="Alice",
                 target_id="chore456",
@@ -231,7 +231,7 @@ class TestGetPendingWorkflows:
         )
         await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user2",
                 requester_name="Bob",
                 target_id="chore2",
@@ -240,7 +240,7 @@ class TestGetPendingWorkflows:
         )
         await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user3",
                 requester_name="Charlie",
                 target_id="personal1",
@@ -269,7 +269,7 @@ class TestGetPendingWorkflows:
         )
         await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user2",
                 requester_name="Bob",
                 target_id="chore2",
@@ -281,13 +281,13 @@ class TestGetPendingWorkflows:
             workflow_type=workflow_service.WorkflowType.DELETION_APPROVAL,
         )
         pending_verifications = await workflow_service.get_pending_workflows(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+            workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
         )
 
         assert len(pending_deletions) == 1
         assert pending_deletions[0]["type"] == "deletion_approval"
         assert len(pending_verifications) == 1
-        assert pending_verifications[0]["type"] == "chore_verification"
+        assert pending_verifications[0]["type"] == "task_verification"
 
     @pytest.mark.asyncio
     async def test_excludes_non_pending_workflows(
@@ -400,7 +400,7 @@ class TestGetUserPendingWorkflows:
         )
         await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="jack_user_id",
                 requester_name="Jack",
                 target_id="chore2",
@@ -521,7 +521,7 @@ class TestGetActionableWorkflows:
         )
         await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="bob_user_id",
                 requester_name="Bob",
                 target_id="chore2",
@@ -871,7 +871,7 @@ class TestBatchResolveWorkflows:
         )
         workflow2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user1",
                 requester_name="Alice",
                 target_id="chore2",
@@ -880,7 +880,7 @@ class TestBatchResolveWorkflows:
         )
         workflow3 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user1",
                 requester_name="Alice",
                 target_id="personal1",
@@ -916,7 +916,7 @@ class TestBatchResolveWorkflows:
         )
         other_workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user2",
                 requester_name="Bob",
                 target_id="chore2",
@@ -956,7 +956,7 @@ class TestBatchResolveWorkflows:
         )
         approved_workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user1",
                 requester_name="Alice",
                 target_id="chore2",
@@ -1038,7 +1038,7 @@ class TestBatchResolveWorkflows:
         )
         workflow2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user1",
                 requester_name="Alice",
                 target_id="chore2",
@@ -1099,7 +1099,7 @@ class TestBatchResolveWorkflows:
         )
         pending_workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user2",
                 requester_name="Bob",
                 target_id="chore2",
@@ -1108,7 +1108,7 @@ class TestBatchResolveWorkflows:
         )
         approved_workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user3",
                 requester_name="Charlie",
                 target_id="personal1",
@@ -1155,7 +1155,7 @@ class TestBatchResolveWorkflows:
         )
         workflow2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user1",
                 requester_name="Alice",
                 target_id="chore2",
@@ -1298,7 +1298,7 @@ class TestExpireOldWorkflows:
         )
         workflow2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user2",
                 requester_name="Bob",
                 target_id="chore2",
@@ -1307,7 +1307,7 @@ class TestExpireOldWorkflows:
         )
         workflow3 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id="user3",
                 requester_name="Charlie",
                 target_id="personal1",

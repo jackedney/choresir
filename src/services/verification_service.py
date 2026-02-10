@@ -7,11 +7,10 @@ from typing import Any
 
 from src.core import db_client
 from src.core.logging import span
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.services import (
     analytics_service,
     chore_service,
-    conflict_service,
     notification_service,
     user_service,
     workflow_service,
@@ -43,7 +42,7 @@ async def get_pending_verification_workflow(*, chore_id: str) -> dict[str, Any] 
     """
     with span("verification_service.get_pending_verification_workflow"):
         filter_query = (
-            f'type = "{workflow_service.WorkflowType.CHORE_VERIFICATION.value}" && '
+            f'type = "{workflow_service.WorkflowType.TASK_VERIFICATION.value}" && '
             f'target_id = "{db_client.sanitize_param(chore_id)}" && '
             f'status = "{workflow_service.WorkflowStatus.PENDING.value}"'
         )
@@ -85,7 +84,7 @@ async def request_verification(
     """
     with span("verification_service.request_verification"):
         # Get chore details to determine original assignee
-        chore = await db_client.get_record(collection="chores", record_id=chore_id)
+        chore = await db_client.get_record(collection="tasks", record_id=chore_id)
         original_assignee_id = chore["assigned_to"]
 
         # Get claimer name for workflow
@@ -102,7 +101,7 @@ async def request_verification(
 
         workflow = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=claimer_user_id,
                 requester_name=claimer.get("name", "Unknown"),
                 target_id=chore_id,
@@ -123,7 +122,7 @@ async def request_verification(
             "actual_completer_id": claimer_user_id,
         }
 
-        log_record = await db_client.create_record(collection="logs", data=log_data)
+        log_record = await db_client.create_record(collection="task_logs", data=log_data)
 
         logger.info(
             "User %s requested verification for chore %s (is_swap=%s)",
@@ -162,7 +161,7 @@ async def verify_chore(
     Business rule: Verifier cannot be the original claimer (enforced by workflow_service).
 
     If APPROVE: Transitions chore to COMPLETED and updates deadline.
-    If REJECT: Transitions chore to CONFLICT and initiates voting.
+    If REJECT: Resets chore back to TODO state.
 
     Args:
         chore_id: Chore ID
@@ -218,7 +217,7 @@ async def verify_chore(
             "notes": reason,
             "timestamp": datetime.now().isoformat(),
         }
-        await db_client.create_record(collection="logs", data=log_data)
+        await db_client.create_record(collection="task_logs", data=log_data)
 
         # Process decision
         if decision == VerificationDecision.APPROVE:
@@ -228,19 +227,16 @@ async def verify_chore(
                 verifier_user_id,
                 chore_id,
             )
-            # Invalidate leaderboard cache since completion counts changed
-            await analytics_service.invalidate_leaderboard_cache()
         else:  # REJECT
-            updated_chore = await chore_service.move_to_conflict(chore_id=chore_id)
+            updated_chore = await chore_service.reset_chore_to_todo(chore_id=chore_id)
             logger.info(
-                "User %s rejected chore %s - moving to conflict",
+                "User %s rejected chore %s - resetting to TODO",
                 verifier_user_id,
                 chore_id,
             )
-            # Initiate voting process
-            await conflict_service.initiate_vote(chore_id=chore_id)
-            # Invalidate leaderboard cache in case rejection affects counts
-            await analytics_service.invalidate_leaderboard_cache()
+
+        # Invalidate leaderboard cache since completion/rejection may affect counts
+        await analytics_service.invalidate_leaderboard_cache()
 
         return updated_chore
 
@@ -256,7 +252,7 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
     """
     with span("verification_service.get_pending_verifications"):
         # Get all pending verification chores
-        chores = await chore_service.get_chores(state=ChoreState.PENDING_VERIFICATION)
+        chores = await chore_service.get_chores(state=TaskState.PENDING_VERIFICATION)
 
         # If user_id provided, filter out chores they claimed
         if user_id:
@@ -283,7 +279,7 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
                 page = 1
                 while True:
                     logs = await db_client.list_records(
-                        collection="logs",
+                        collection="task_logs",
                         filter_query=filter_query,
                         sort="-timestamp",
                         per_page=LOGS_PAGE_SIZE,

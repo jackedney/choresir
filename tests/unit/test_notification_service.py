@@ -59,7 +59,7 @@ class TestSendVerificationRequest:
     ):
         """Sends verification request to configured group chat."""
         # Populate in-memory database
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
         claimer = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
         # Set up house config with group chat ID
@@ -126,7 +126,7 @@ class TestSendVerificationRequest:
     ):
         """Uses 'Someone' as claimer name when claimer not found."""
         # Populate in-memory database (only chore and users, but claimer doesn't exist)
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
 
         # Set up house config with group chat ID
         await patched_notification_db.create_record(
@@ -158,7 +158,7 @@ class TestSendVerificationRequest:
     ):
         """Returns empty list when no group chat ID is configured."""
         # Populate in-memory database (no house_config)
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
         claimer = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
         # Send verification request
@@ -190,7 +190,7 @@ class TestSendVerificationRequest:
         )
 
         # Populate in-memory database
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
         claimer = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
         # Set up house config with group chat ID
@@ -233,7 +233,7 @@ class TestSendDeletionRequestNotification:
         )
 
         # Populate in-memory database
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
         requester = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
         # Set up house config with group chat ID
@@ -276,7 +276,7 @@ class TestSendDeletionRequestNotification:
     ):
         """Returns empty list when no group chat ID is configured."""
         # Populate in-memory database (no house_config)
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
         requester = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
         # Send deletion request notification

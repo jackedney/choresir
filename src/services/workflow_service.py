@@ -21,8 +21,7 @@ class WorkflowType(StrEnum):
     """Types of workflows supported in the system."""
 
     DELETION_APPROVAL = "deletion_approval"
-    CHORE_VERIFICATION = "chore_verification"
-    PERSONAL_VERIFICATION = "personal_verification"
+    TASK_VERIFICATION = "task_verification"
 
 
 class WorkflowStatus(StrEnum):

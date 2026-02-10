@@ -1,13 +1,14 @@
 """Personal chore service for CRUD operations."""
 
 import logging
-from datetime import datetime
 from typing import Any
 
 from src.core import db_client
 from src.core.db_client import sanitize_param
+from src.core.fuzzy_match import fuzzy_match
 from src.core.logging import span
 from src.core.recurrence_parser import parse_recurrence_for_personal_chore
+from src.domain.task import TaskScope, TaskState, VerificationType
 
 
 logger = logging.getLogger(__name__)
@@ -15,18 +16,18 @@ logger = logging.getLogger(__name__)
 
 async def create_personal_chore(
     *,
-    owner_phone: str,
+    owner_id: str,
     title: str,
     recurrence: str | None = None,
-    accountability_partner_phone: str | None = None,
+    accountability_partner_id: str | None = None,
 ) -> dict[str, Any]:
     """Create a new personal chore.
 
     Args:
-        owner_phone: Phone number of chore owner (E.164 format)
+        owner_id: Member ID of chore owner
         title: Chore title (e.g., "Go to gym")
         recurrence: Recurrence string (CRON, "every X days", "every morning", etc.)
-        accountability_partner_phone: Optional partner phone for verification
+        accountability_partner_id: Optional partner member ID for verification
 
     Returns:
         Created personal chore record
@@ -43,24 +44,34 @@ async def create_personal_chore(
         if recurrence:
             cron_expression, due_date = parse_recurrence_for_personal_chore(recurrence)
 
-        # Create chore record
-        chore_data = {
-            "owner_phone": owner_phone,
+        # Determine verification type
+        verification = VerificationType.PARTNER if accountability_partner_id else VerificationType.NONE
+
+        # Create chore record using unified tasks schema
+        chore_data: dict[str, Any] = {
             "title": title,
-            "recurrence": cron_expression or "",  # Empty string if one-time task
-            "due_date": due_date.isoformat() if due_date else "",
-            "accountability_partner_phone": accountability_partner_phone or "",
-            "status": "ACTIVE",
-            "created_at": datetime.now().isoformat(),
+            "scope": TaskScope.PERSONAL,
+            "verification": verification,
+            "current_state": TaskState.TODO,
+            "owner_id": owner_id,
         }
 
-        record = await db_client.create_record(collection="personal_chores", data=chore_data)
+        if cron_expression:
+            chore_data["schedule_cron"] = cron_expression
+
+        if due_date:
+            chore_data["deadline"] = due_date.isoformat()
+
+        if accountability_partner_id:
+            chore_data["accountability_partner_id"] = accountability_partner_id
+
+        record = await db_client.create_record(collection="tasks", data=chore_data)
 
         logger.info(
-            "Created personal chore '%s' for %s (partner: %s)",
+            "Created personal chore '%s' for owner_id=%s (partner: %s)",
             title,
-            owner_phone,
-            accountability_partner_phone or "none",
+            owner_id,
+            accountability_partner_id or "none",
         )
 
         return record
@@ -68,38 +79,46 @@ async def create_personal_chore(
 
 async def get_personal_chores(
     *,
-    owner_phone: str,
-    status: str = "ACTIVE",
+    owner_id: str,
+    include_archived: bool = False,
 ) -> list[dict[str, Any]]:
     """Get all personal chores for a user.
 
     Args:
-        owner_phone: Phone number of chore owner
-        status: Filter by status (default: ACTIVE)
+        owner_id: Member ID of chore owner
+        include_archived: Whether to include archived chores (default: False)
 
     Returns:
         List of personal chore records
     """
     with span("personal_chore_service.get_personal_chores"):
-        filter_query = f'owner_phone = "{sanitize_param(owner_phone)}" && status = "{sanitize_param(status)}"'
+        filters = [
+            f'owner_id = "{sanitize_param(owner_id)}"',
+            f'scope = "{TaskScope.PERSONAL}"',
+        ]
+
+        if not include_archived:
+            filters.append(f'current_state != "{TaskState.ARCHIVED}"')
+
+        filter_query = " && ".join(filters)
 
         return await db_client.list_records(
-            collection="personal_chores",
+            collection="tasks",
             filter_query=filter_query,
-            sort="+created_at",
+            sort="+created",
         )
 
 
 async def get_personal_chore_by_id(
     *,
     chore_id: str,
-    owner_phone: str,
+    owner_id: str,
 ) -> dict[str, Any]:
     """Get a personal chore by ID with ownership validation.
 
     Args:
         chore_id: Personal chore ID
-        owner_phone: Expected owner phone (for validation)
+        owner_id: Expected owner member ID (for validation)
 
     Returns:
         Personal chore record
@@ -110,13 +129,13 @@ async def get_personal_chore_by_id(
     """
     with span("personal_chore_service.get_personal_chore_by_id"):
         record = await db_client.get_record(
-            collection="personal_chores",
+            collection="tasks",
             record_id=chore_id,
         )
 
         # Validate ownership
-        if record["owner_phone"] != owner_phone:
-            raise PermissionError(f"Personal chore {chore_id} does not belong to {owner_phone}")
+        if str(record.get("owner_id")) != str(owner_id):
+            raise PermissionError(f"Personal chore {chore_id} does not belong to {owner_id}")
 
         return record
 
@@ -124,13 +143,13 @@ async def get_personal_chore_by_id(
 async def delete_personal_chore(
     *,
     chore_id: str,
-    owner_phone: str,
+    owner_id: str,
 ) -> None:
     """Archive a personal chore (soft delete).
 
     Args:
         chore_id: Personal chore ID
-        owner_phone: Owner phone (for validation)
+        owner_id: Owner member ID (for validation)
 
     Raises:
         KeyError: If chore not found
@@ -140,17 +159,17 @@ async def delete_personal_chore(
         # Validate ownership
         chore = await get_personal_chore_by_id(
             chore_id=chore_id,
-            owner_phone=owner_phone,
+            owner_id=owner_id,
         )
 
-        # Soft delete by updating status
+        # Soft delete by transitioning to ARCHIVED
         await db_client.update_record(
-            collection="personal_chores",
+            collection="tasks",
             record_id=chore_id,
-            data={"status": "ARCHIVED"},
+            data={"current_state": TaskState.ARCHIVED},
         )
 
-        logger.info("Archived personal chore '%s' for %s", chore["title"], owner_phone)
+        logger.info("Archived personal chore '%s' for owner_id=%s", chore["title"], owner_id)
 
 
 def fuzzy_match_personal_chore(
@@ -159,10 +178,7 @@ def fuzzy_match_personal_chore(
 ) -> dict | None:
     """Fuzzy match a personal chore by title.
 
-    Uses same logic as household chore fuzzy matching:
-    1. Exact match (case-insensitive)
-    2. Contains match
-    3. Partial word match
+    Delegates to the shared fuzzy_match utility.
 
     Args:
         chores: List of personal chore records
@@ -171,23 +187,4 @@ def fuzzy_match_personal_chore(
     Returns:
         Best matching chore or None
     """
-    title_lower = title_query.lower().strip()
-
-    # Exact match
-    for chore in chores:
-        if chore["title"].lower() == title_lower:
-            return chore
-
-    # Contains match
-    for chore in chores:
-        if title_lower in chore["title"].lower():
-            return chore
-
-    # Partial word match
-    query_words = set(title_lower.split())
-    for chore in chores:
-        chore_words = set(chore["title"].lower().split())
-        if query_words & chore_words:  # Intersection
-            return chore
-
-    return None
+    return fuzzy_match(chores, title_query)

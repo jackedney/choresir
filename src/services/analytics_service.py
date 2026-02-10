@@ -24,7 +24,7 @@ from src.core import db_client
 from src.core.cache_client import cache_client as redis_client
 from src.core.config import Constants
 from src.core.logging import span
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.domain.user import UserStatus
 from src.models.service_models import (
     CompletionRate,
@@ -82,7 +82,7 @@ async def _fetch_chores_map(chore_ids: list[str]) -> dict[str, dict]:
         chunk = unique_chore_ids[i : i + chunk_size]
         or_clause = " || ".join([f'id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
         chores = await db_client.list_records(
-            collection="chores",
+            collection="tasks",
             filter_query=or_clause,
         )
         for chore in chores:
@@ -99,7 +99,7 @@ async def _fetch_claim_logs_map(chore_ids: list[str]) -> dict[str, dict]:
         chunk = unique_chore_ids[i : i + chunk_size]
         or_clause = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
         claim_logs = await db_client.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'action = "claimed_completion" && ({or_clause})',
         )
         for claim_log in claim_logs:
@@ -214,7 +214,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
 
         # Get all completion logs within period
         completion_logs = await db_client.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
         )
 
@@ -278,7 +278,7 @@ async def get_completion_rate(*, period_days: int = 30) -> CompletionRate:
         # Get all chores that were completed in the period
         # We need to check logs for completions, then check if chore was overdue at completion time
         completion_logs = await db_client.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
         )
 
@@ -328,7 +328,7 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
         # Build filter query
         filters = [
             f'deadline < "{now.isoformat()}"',
-            f'current_state != "{ChoreState.COMPLETED}"',
+            f'current_state != "{TaskState.COMPLETED}"',
         ]
 
         if user_id:
@@ -339,14 +339,14 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
         # Fetch overdue chores with optional limit
         if limit is not None:
             overdue_chores = await db_client.list_records(
-                collection="chores",
+                collection="tasks",
                 filter_query=filter_query,
                 sort="+deadline",  # Oldest deadline first
                 per_page=limit,
             )
         else:
             overdue_chores = await db_client.list_records(
-                collection="chores",
+                collection="tasks",
                 filter_query=filter_query,
                 sort="+deadline",  # Oldest deadline first
             )
@@ -429,8 +429,8 @@ async def _fetch_pending_chore_ids() -> set[str]:
     """
     with span("analytics_service.get_user_statistics.fetch_pending_chores"):
         pending_verification_chores = await db_client.list_records(
-            collection="chores",
-            filter_query=f'current_state = "{ChoreState.PENDING_VERIFICATION}"',
+            collection="tasks",
+            filter_query=f'current_state = "{TaskState.PENDING_VERIFICATION}"',
             per_page=500,
         )
 
@@ -471,7 +471,7 @@ async def _fetch_user_claims_for_chunk(
             action_filter = 'action = "claimed_completion"'
             filter_query = f"{user_filter} && {action_filter} && ({or_clause})"
             logs = await db_client.list_records(
-                collection="logs",
+                collection="task_logs",
                 filter_query=filter_query,
                 per_page=per_page_limit,
                 page=page,
@@ -725,14 +725,8 @@ async def get_household_summary(*, period_days: int = 7) -> HouseholdSummary:
 
         # Get total completions in period
         completion_logs = await db_client.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
-        )
-
-        # Get current conflicts
-        conflicts = await db_client.list_records(
-            collection="chores",
-            filter_query=f'current_state = "{ChoreState.CONFLICT}"',
         )
 
         # Get overdue chores
@@ -740,14 +734,13 @@ async def get_household_summary(*, period_days: int = 7) -> HouseholdSummary:
 
         # Get pending verifications
         pending = await db_client.list_records(
-            collection="chores",
-            filter_query=f'current_state = "{ChoreState.PENDING_VERIFICATION}"',
+            collection="tasks",
+            filter_query=f'current_state = "{TaskState.PENDING_VERIFICATION}"',
         )
 
         result = HouseholdSummary(
             active_members=len(active_users),
             completions_this_period=len(completion_logs),
-            current_conflicts=len(conflicts),
             overdue_chores=len(overdue),
             pending_verifications=len(pending),
             period_days=period_days,

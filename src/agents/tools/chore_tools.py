@@ -7,8 +7,9 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
+from src.core.fuzzy_match import fuzzy_match, fuzzy_match_all
 from src.core.recurrence_parser import cron_to_human
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.services import (
     chore_service,
     deletion_service,
@@ -82,61 +83,6 @@ class BatchRespondToWorkflows(BaseModel):
     )
     decision: str = Field(description="Decision: 'approve' or 'reject'")
     reason: str = Field(default="", description="Optional reason for the decision")
-
-
-def _fuzzy_match_chore(chores: list[dict], title_query: str) -> dict | None:
-    """
-    Fuzzy match a chore by title.
-
-    Args:
-        chores: List of chore records
-        title_query: User's search query
-
-    Returns:
-        Best matching chore or None
-    """
-    matches = _fuzzy_match_all_chores(chores, title_query)
-    return matches[0] if matches else None
-
-
-def _fuzzy_match_all_chores(chores: list[dict], title_query: str) -> list[dict]:
-    """
-    Fuzzy match all chores matching a title query.
-
-    Args:
-        chores: List of chore records
-        title_query: User's search query
-
-    Returns:
-        List of all matching chores (may be empty)
-    """
-    title_lower = title_query.lower().strip()
-    matches: list[dict] = []
-
-    # Exact match (highest priority)
-    for chore in chores:
-        if chore["title"].lower() == title_lower:
-            matches.append(chore)
-
-    if matches:
-        return matches
-
-    # Contains match
-    for chore in chores:
-        if title_lower in chore["title"].lower():
-            matches.append(chore)
-
-    if matches:
-        return matches
-
-    # Partial word match
-    query_words = set(title_lower.split())
-    for chore in chores:
-        chore_words = set(chore["title"].lower().split())
-        if query_words & chore_words:  # Intersection
-            matches.append(chore)
-
-    return matches
 
 
 async def tool_define_chore(_ctx: RunContext[Deps], params: DefineChore) -> str:
@@ -239,7 +185,7 @@ async def _validate_chore_logging(
     chore_title = household_match["title"]
 
     # Check if chore is in TODO state
-    if household_match["current_state"] != ChoreState.TODO:
+    if household_match["current_state"] != TaskState.TODO:
         return (
             f"Error: Chore '{chore_title}' is in state '{household_match['current_state']}' "
             f"and cannot be logged right now."
@@ -273,7 +219,7 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
             all_chores = await chore_service.get_chores()
 
             # Fuzzy match the household chore
-            household_match = _fuzzy_match_chore(all_chores, params.chore_title_fuzzy)
+            household_match = fuzzy_match(all_chores, params.chore_title_fuzzy)
 
             # Get user's personal chores to check for collision
             personal_chores = await personal_chore_service.get_personal_chores(
@@ -337,7 +283,7 @@ async def tool_request_chore_deletion(ctx: RunContext[Deps], params: RequestChor
             all_chores = await chore_service.get_chores()
 
             # Fuzzy match the chore
-            matched_chore = _fuzzy_match_chore(all_chores, params.chore_title_fuzzy)
+            matched_chore = fuzzy_match(all_chores, params.chore_title_fuzzy)
 
             if not matched_chore:
                 return f"Error: No chore found matching '{params.chore_title_fuzzy}'."
@@ -346,7 +292,7 @@ async def tool_request_chore_deletion(ctx: RunContext[Deps], params: RequestChor
             chore_title = matched_chore["title"]
 
             # Check if chore is already archived
-            if matched_chore["current_state"] == ChoreState.ARCHIVED:
+            if matched_chore["current_state"] == TaskState.ARCHIVED:
                 return f"Error: Chore '{chore_title}' is already archived."
 
             # Request deletion
@@ -413,7 +359,7 @@ async def _get_workflow_by_chore_title(chore_title_fuzzy: str) -> dict | str:
         The workflow dict if found, or an error message string
     """
     all_chores = await chore_service.get_chores()
-    matched_chores = _fuzzy_match_all_chores(all_chores, chore_title_fuzzy)
+    matched_chores = fuzzy_match_all(all_chores, chore_title_fuzzy)
 
     if not matched_chores:
         return (

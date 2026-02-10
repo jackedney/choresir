@@ -421,9 +421,9 @@ async def _handle_button_payload(
 
     try:
         # Get log record to find chore_id
-        log_record = await db_client.get_record(collection="logs", record_id=log_id)
+        log_record = await db_client.get_record(collection="task_logs", record_id=log_id)
         chore_id = log_record["chore_id"]
-        chore = await db_client.get_record(collection="chores", record_id=chore_id)
+        chore = await db_client.get_record(collection="tasks", record_id=chore_id)
 
         # Execute verification
         decision = VerificationDecision(decision_str)
@@ -438,7 +438,7 @@ async def _handle_button_payload(
         if decision == VerificationDecision.APPROVE:
             response = f"Approved! '{chore['title']}' has been marked as completed."
         else:
-            response = f"Rejected. '{chore['title']}' has been moved to conflict resolution."
+            response = f"Rejected. '{chore['title']}' has been returned to TODO."
 
         result = await _send_response(message=message, text=response)
         return (result.success, result.error)

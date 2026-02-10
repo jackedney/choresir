@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 # KeyError replaced with KeyError
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.services import chore_service, verification_service
 from src.services.verification_service import VerificationDecision
 
@@ -72,13 +72,13 @@ class TestRequestVerification:
         # Verify workflow was created
         assert workflow["target_id"] == todo_chore["id"]
         assert workflow["requester_user_id"] == "user1"
-        assert workflow["type"] == "chore_verification"
+        assert workflow["type"] == "task_verification"
         assert workflow["metadata"]["notes"] == "I finished this"
         assert workflow["status"] == "pending"
 
         # Verify log entry was still created (audit trail)
         logs = await patched_verification_db.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'chore_id = "{todo_chore["id"]}" && action = "claimed_completion"',
         )
         assert len(logs) >= 1
@@ -86,7 +86,7 @@ class TestRequestVerification:
 
         # Verify chore state changed
         updated_chore = await chore_service.get_chore_by_id(chore_id=todo_chore["id"])
-        assert updated_chore["current_state"] == ChoreState.PENDING_VERIFICATION
+        assert updated_chore["current_state"] == TaskState.PENDING_VERIFICATION
 
     async def test_request_verification_without_notes(self, patched_verification_db, todo_chore, setup_test_users):
         """Test requesting verification without notes."""
@@ -96,7 +96,7 @@ class TestRequestVerification:
             notes="",
         )
 
-        assert workflow["type"] == "chore_verification"
+        assert workflow["type"] == "task_verification"
         assert workflow["metadata"]["notes"] == ""
 
     async def test_request_verification_chore_not_found(self, patched_verification_db):
@@ -123,7 +123,7 @@ class TestRequestVerification:
 
         # Get the log entry to verify notification was called with log_id
         logs = await patched_verification_db.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'chore_id = "{todo_chore["id"]}" && action = "claimed_completion"',
         )
 
@@ -147,7 +147,7 @@ class TestRequestVerification:
         )
 
         assert result is not None
-        assert result["type"] == "chore_verification"
+        assert result["type"] == "task_verification"
 
 
 @pytest.mark.unit
@@ -184,7 +184,7 @@ class TestVerifyChore:
         )
 
         assert result["id"] == pending_chore_with_claim["id"]
-        assert result["current_state"] == ChoreState.COMPLETED
+        assert result["current_state"] == TaskState.COMPLETED
 
     async def test_verify_chore_reject(self, patched_verification_db, pending_chore_with_claim):
         """Test rejecting a chore verification."""
@@ -196,7 +196,7 @@ class TestVerifyChore:
         )
 
         assert result["id"] == pending_chore_with_claim["id"]
-        assert result["current_state"] == ChoreState.CONFLICT
+        assert result["current_state"] == TaskState.TODO
 
     async def test_verify_chore_self_verification_fails(self, patched_verification_db, pending_chore_with_claim):
         """Test that claimer cannot verify their own chore."""
@@ -278,7 +278,7 @@ class TestGetPendingVerifications:
         result = await verification_service.get_pending_verifications()
 
         assert len(result) == 2
-        assert all(chore["current_state"] == ChoreState.PENDING_VERIFICATION for chore in result)
+        assert all(chore["current_state"] == TaskState.PENDING_VERIFICATION for chore in result)
 
     async def test_get_pending_verifications_excluding_user(self, patched_verification_db, setup_pending_chores):
         """Test getting pending verifications excluding those claimed by specific user."""
@@ -338,12 +338,12 @@ class TestVerificationWorkflow:
             notes="All done!",
         )
 
-        assert workflow["type"] == "chore_verification"
+        assert workflow["type"] == "task_verification"
         assert workflow["status"] == "pending"
 
         # Verify chore state
         chore_after_claim = await chore_service.get_chore_by_id(chore_id=chore["id"])
-        assert chore_after_claim["current_state"] == ChoreState.PENDING_VERIFICATION
+        assert chore_after_claim["current_state"] == TaskState.PENDING_VERIFICATION
 
         # Approve verification
         final_chore = await verification_service.verify_chore(
@@ -353,7 +353,7 @@ class TestVerificationWorkflow:
             reason="Verified!",
         )
 
-        assert final_chore["current_state"] == ChoreState.COMPLETED
+        assert final_chore["current_state"] == TaskState.COMPLETED
 
     async def test_full_rejection_workflow(self, patched_verification_db, setup_test_users):
         """Test complete workflow: create -> claim -> reject."""
@@ -380,7 +380,7 @@ class TestVerificationWorkflow:
             reason="Not acceptable",
         )
 
-        assert final_chore["current_state"] == ChoreState.CONFLICT
+        assert final_chore["current_state"] == TaskState.TODO
 
 
 @pytest.mark.unit
@@ -479,7 +479,7 @@ class TestVerificationCacheInvalidation:
         )
 
         # Verify chore was still completed successfully
-        assert result["current_state"] == ChoreState.COMPLETED
+        assert result["current_state"] == TaskState.COMPLETED
 
         # Verify Redis was accessed (cache invalidation was attempted)
         mock_redis_keys.assert_called_once()
@@ -502,7 +502,7 @@ class TestVerifyChorePagination:
                 "notes": f"Log {i}",
                 "timestamp": datetime.now().isoformat(),
             }
-            log = await patched_verification_db.create_record(collection="logs", data=log_data)
+            log = await patched_verification_db.create_record(collection="task_logs", data=log_data)
             logs.append(log)
         return logs
 
@@ -534,7 +534,7 @@ class TestVerifyChorePagination:
             reason="Looks good",
         )
 
-        assert result["current_state"] == ChoreState.COMPLETED
+        assert result["current_state"] == TaskState.COMPLETED
 
     async def test_claim_log_on_second_page(self, patched_verification_db, setup_test_users):
         """Test that verify_chore correctly finds claim log beyond first page."""
@@ -564,7 +564,7 @@ class TestVerifyChorePagination:
             reason="Looks good",
         )
 
-        assert result["current_state"] == ChoreState.COMPLETED
+        assert result["current_state"] == TaskState.COMPLETED
 
     async def test_claim_log_on_exact_boundary(self, patched_verification_db, setup_test_users):
         """Test claim log at position 500 (exact page boundary)."""
@@ -594,7 +594,7 @@ class TestVerifyChorePagination:
             reason="Looks good",
         )
 
-        assert result["current_state"] == ChoreState.COMPLETED
+        assert result["current_state"] == TaskState.COMPLETED
 
     async def test_no_claim_log_exists(self, patched_verification_db, setup_test_users):
         """Test that verify_chore raises error when no claim log exists after checking all pages."""
@@ -709,7 +709,7 @@ class TestGetPendingVerificationsPagination:
                 "notes": f"Log {i}",
                 "timestamp": datetime.now().isoformat(),
             }
-            log = await patched_verification_db.create_record(collection="logs", data=log_data)
+            log = await patched_verification_db.create_record(collection="task_logs", data=log_data)
             logs.append(log)
         return logs
 
@@ -903,7 +903,7 @@ class TestVerificationWorkflowIntegration:
         )
 
         # Verify workflow was created
-        assert workflow["type"] == "chore_verification"
+        assert workflow["type"] == "task_verification"
         assert workflow["status"] == "pending"
         assert workflow["requester_user_id"] == "user1"
         assert workflow["target_id"] == chore["id"]

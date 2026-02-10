@@ -9,65 +9,11 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
 from src.agents.base import Deps
+from src.core.fuzzy_match import fuzzy_match_all
 from src.services import chore_service, user_service, verification_service, workflow_service
 
 
 logger = logging.getLogger(__name__)
-
-
-def _fuzzy_match_chore(chores: list[dict], title_query: str) -> dict | None:
-    """
-    Fuzzy match a chore by title.
-
-    Args:
-        chores: List of chore records
-        title_query: User's search query
-
-    Returns:
-        Best matching chore or None
-    """
-    matches = _fuzzy_match_all_chores(chores, title_query)
-    return matches[0] if matches else None
-
-
-def _fuzzy_match_all_chores(chores: list[dict], title_query: str) -> list[dict]:
-    """
-    Fuzzy match all chores matching a title query.
-
-    Args:
-        chores: List of chore records
-        title_query: User's search query
-
-    Returns:
-        List of all matching chores (may be empty)
-    """
-    title_lower = title_query.lower().strip()
-    matches: list[dict] = []
-
-    # Exact match (highest priority)
-    for chore in chores:
-        if chore["title"].lower() == title_lower:
-            matches.append(chore)
-
-    if matches:
-        return matches
-
-    # Contains match
-    for chore in chores:
-        if title_lower in chore["title"].lower():
-            matches.append(chore)
-
-    if matches:
-        return matches
-
-    # Partial word match
-    query_words = set(title_lower.split())
-    for chore in chores:
-        chore_words = set(chore["title"].lower().split())
-        if query_words & chore_words:  # Intersection
-            matches.append(chore)
-
-    return matches
 
 
 class VerifyChore(BaseModel):
@@ -152,7 +98,7 @@ async def _get_verification_workflow_by_id(workflow_id: str) -> dict | str:
     if not workflow:
         return f"Error: Workflow '{workflow_id}' not found."
 
-    if workflow["type"] != workflow_service.WorkflowType.CHORE_VERIFICATION.value:
+    if workflow["type"] != workflow_service.WorkflowType.TASK_VERIFICATION.value:
         return f"Error: Workflow '{workflow_id}' is not a chore verification workflow."
 
     if workflow["status"] != workflow_service.WorkflowStatus.PENDING.value:
@@ -171,7 +117,7 @@ async def _get_verification_workflow_by_chore_title(chore_title_fuzzy: str) -> d
         The workflow dict if found, or an error message string
     """
     all_chores = await chore_service.get_chores()
-    matched_chores = _fuzzy_match_all_chores(all_chores, chore_title_fuzzy)
+    matched_chores = fuzzy_match_all(all_chores, chore_title_fuzzy)
 
     if not matched_chores:
         return f'No chore found matching "{chore_title_fuzzy}".'
@@ -232,17 +178,14 @@ async def _resolve_verification_workflow(
         decision=workflow_service.WorkflowStatus.REJECTED,
         reason=reason,
     )
-    return (
-        f"Rejected verification of '{workflow['target_title']}'. "
-        "Moving to conflict resolution (voting will be implemented)."
-    )
+    return f"Rejected verification of '{workflow['target_title']}'. Chore has been returned to TODO."
 
 
 async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
     """Verify or reject a chore completion claim.
 
     Prevents self-verification. Approvals mark chore as completed.
-    Rejections move to conflict resolution (voting).
+    Rejections return the chore to TODO.
 
     Supports referencing by workflow_id directly or by chore title matching.
 

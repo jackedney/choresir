@@ -1,4 +1,4 @@
-"""Pure state transition functions for chore lifecycle management."""
+"""Pure state transition functions for task lifecycle management."""
 
 import logging
 from datetime import datetime, timedelta
@@ -8,10 +8,32 @@ from croniter import croniter
 
 from src.core import db_client
 from src.core.logging import span
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState, VerificationType
 
 
 logger = logging.getLogger(__name__)
+
+
+# Allowed transitions by verification type
+VERIFIED_TRANSITIONS: dict[TaskState, set[TaskState]] = {
+    TaskState.TODO: {TaskState.PENDING_VERIFICATION, TaskState.ARCHIVED},
+    TaskState.PENDING_VERIFICATION: {TaskState.COMPLETED, TaskState.TODO},
+    TaskState.COMPLETED: {TaskState.TODO},  # Reset for recurring
+    TaskState.ARCHIVED: set(),
+}
+
+SIMPLE_TRANSITIONS: dict[TaskState, set[TaskState]] = {
+    TaskState.TODO: {TaskState.COMPLETED, TaskState.ARCHIVED},
+    TaskState.COMPLETED: {TaskState.TODO},  # Reset for recurring
+    TaskState.ARCHIVED: set(),
+}
+
+
+def get_transitions(*, verification: VerificationType) -> dict[TaskState, set[TaskState]]:
+    """Get allowed state transitions based on verification type."""
+    if verification == VerificationType.NONE:
+        return SIMPLE_TRANSITIONS
+    return VERIFIED_TRANSITIONS
 
 
 def _calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None = None) -> datetime:
@@ -22,9 +44,7 @@ def _calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None =
     if schedule_cron.startswith("INTERVAL:"):
         parts = schedule_cron.split(":", 2)
         days = int(parts[1])
-        # Add X days to base time
         next_time = base_time + timedelta(days=days)
-        # Set to midnight of that day
         return next_time.replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Standard CRON expression
@@ -32,110 +52,102 @@ def _calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None =
     return cron.get_next(datetime)
 
 
-async def transition_to_completed(*, chore_id: str) -> dict[str, Any]:
-    """Transition chore to COMPLETED state and recalculate deadline."""
-    with span("chore_state_machine.transition_to_completed"):
-        # Guard: Verify chore exists and is in valid state
-        chore = await db_client.get_record(collection="chores", record_id=chore_id)
+async def transition_to_completed(*, task_id: str) -> dict[str, Any]:
+    """Transition task to COMPLETED state and recalculate deadline for recurring tasks."""
+    with span("task_state_machine.transition_to_completed"):
+        task = await db_client.get_record(collection="tasks", record_id=task_id)
 
-        valid_states = {ChoreState.PENDING_VERIFICATION, ChoreState.CONFLICT}
-        if chore["current_state"] not in valid_states:
-            msg = f"Cannot complete: chore {chore_id} is in {chore['current_state']} state"
+        if task["current_state"] != TaskState.PENDING_VERIFICATION:
+            msg = f"Cannot complete: task {task_id} is in {task['current_state']} state"
             raise ValueError(msg)
 
-        # Calculate next deadline from now (floating schedule)
-        next_deadline = _calculate_next_deadline(
-            schedule_cron=chore["schedule_cron"],
-            from_time=datetime.now(),
-        )
+        update_data: dict[str, Any] = {"current_state": TaskState.COMPLETED}
 
-        # Update state and deadline
+        # Calculate next deadline from now for recurring tasks (floating schedule)
+        if task.get("schedule_cron"):
+            next_deadline = _calculate_next_deadline(
+                schedule_cron=task["schedule_cron"],
+                from_time=datetime.now(),
+            )
+            update_data["deadline"] = next_deadline.isoformat()
+
         updated_record = await db_client.update_record(
-            collection="chores",
-            record_id=chore_id,
-            data={
-                "current_state": ChoreState.COMPLETED,
-                "deadline": next_deadline.isoformat(),
-            },
+            collection="tasks",
+            record_id=task_id,
+            data=update_data,
         )
 
-        logger.info("Transitioned chore %s to COMPLETED, next deadline: %s", chore_id, next_deadline)
-
+        logger.info("Transitioned task %s to COMPLETED", task_id)
         return updated_record
 
 
-async def transition_to_todo(*, chore_id: str) -> dict[str, Any]:
-    """Transition chore to TODO state."""
-    with span("chore_state_machine.transition_to_todo"):
+async def transition_to_completed_no_verification(*, task_id: str) -> dict[str, Any]:
+    """Directly complete a task that has verification=none."""
+    with span("task_state_machine.transition_to_completed_no_verification"):
+        task = await db_client.get_record(collection="tasks", record_id=task_id)
+
+        if task["current_state"] != TaskState.TODO:
+            msg = f"Cannot complete: task {task_id} is in {task['current_state']} state"
+            raise ValueError(msg)
+
+        update_data: dict[str, Any] = {"current_state": TaskState.COMPLETED}
+
+        if task.get("schedule_cron"):
+            next_deadline = _calculate_next_deadline(
+                schedule_cron=task["schedule_cron"],
+                from_time=datetime.now(),
+            )
+            update_data["deadline"] = next_deadline.isoformat()
+
         updated_record = await db_client.update_record(
-            collection="chores",
-            record_id=chore_id,
-            data={"current_state": ChoreState.TODO},
+            collection="tasks",
+            record_id=task_id,
+            data=update_data,
         )
 
-        logger.info("Transitioned chore %s to TODO", chore_id)
-
+        logger.info("Transitioned task %s to COMPLETED (no verification)", task_id)
         return updated_record
 
 
-async def transition_to_pending_verification(*, chore_id: str) -> dict[str, Any]:
-    """Transition chore to PENDING_VERIFICATION state."""
-    with span("chore_state_machine.transition_to_pending_verification"):
-        # Guard: Verify chore exists and is in TODO state
-        chore = await db_client.get_record(collection="chores", record_id=chore_id)
-        if chore["current_state"] != ChoreState.TODO:
-            msg = f"Cannot mark pending: chore {chore_id} is in {chore['current_state']} state"
-            raise ValueError(msg)
-
-        # Update state
+async def transition_to_todo(*, task_id: str) -> dict[str, Any]:
+    """Transition task to TODO state (e.g. after rejection or recurring reset)."""
+    with span("task_state_machine.transition_to_todo"):
         updated_record = await db_client.update_record(
-            collection="chores",
-            record_id=chore_id,
-            data={"current_state": ChoreState.PENDING_VERIFICATION},
+            collection="tasks",
+            record_id=task_id,
+            data={"current_state": TaskState.TODO},
         )
 
-        logger.info("Transitioned chore %s to PENDING_VERIFICATION", chore_id)
-
+        logger.info("Transitioned task %s to TODO", task_id)
         return updated_record
 
 
-async def transition_to_conflict(*, chore_id: str) -> dict[str, Any]:
-    """Transition chore to CONFLICT state."""
-    with span("chore_state_machine.transition_to_conflict"):
-        # Guard: Verify chore exists and is pending verification
-        chore = await db_client.get_record(collection="chores", record_id=chore_id)
-        if chore["current_state"] != ChoreState.PENDING_VERIFICATION:
-            msg = f"Cannot move to conflict: chore {chore_id} is in {chore['current_state']} state"
+async def transition_to_pending_verification(*, task_id: str) -> dict[str, Any]:
+    """Transition task to PENDING_VERIFICATION state."""
+    with span("task_state_machine.transition_to_pending_verification"):
+        task = await db_client.get_record(collection="tasks", record_id=task_id)
+        if task["current_state"] != TaskState.TODO:
+            msg = f"Cannot mark pending: task {task_id} is in {task['current_state']} state"
             raise ValueError(msg)
 
-        # Update state
         updated_record = await db_client.update_record(
-            collection="chores",
-            record_id=chore_id,
-            data={"current_state": ChoreState.CONFLICT},
+            collection="tasks",
+            record_id=task_id,
+            data={"current_state": TaskState.PENDING_VERIFICATION},
         )
 
-        logger.info("Transitioned chore %s to CONFLICT", chore_id)
-
+        logger.info("Transitioned task %s to PENDING_VERIFICATION", task_id)
         return updated_record
 
 
-async def transition_to_deadlock(*, chore_id: str) -> dict[str, Any]:
-    """Transition chore to DEADLOCK state."""
-    with span("chore_state_machine.transition_to_deadlock"):
-        # Guard: Verify chore exists and is in conflict
-        chore = await db_client.get_record(collection="chores", record_id=chore_id)
-        if chore["current_state"] != ChoreState.CONFLICT:
-            msg = f"Cannot move to deadlock: chore {chore_id} is in {chore['current_state']} state"
-            raise ValueError(msg)
-
-        # Update state
+async def transition_to_archived(*, task_id: str) -> dict[str, Any]:
+    """Transition task to ARCHIVED state (soft delete)."""
+    with span("task_state_machine.transition_to_archived"):
         updated_record = await db_client.update_record(
-            collection="chores",
-            record_id=chore_id,
-            data={"current_state": ChoreState.DEADLOCK},
+            collection="tasks",
+            record_id=task_id,
+            data={"current_state": TaskState.ARCHIVED},
         )
 
-        logger.warning("Transitioned chore %s to DEADLOCK", chore_id)
-
+        logger.info("Transitioned task %s to ARCHIVED", task_id)
         return updated_record

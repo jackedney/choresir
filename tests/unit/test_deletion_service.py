@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.services import chore_service, deletion_service, workflow_service
 
 
@@ -81,7 +81,7 @@ class TestRequestChoreDeletion:
 
         # Verify log was created
         logs = await patched_deletion_db.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'chore_id = "{todo_chore["id"]}" && action = "deletion_requested"',
         )
         assert len(logs) == 1
@@ -100,7 +100,7 @@ class TestRequestChoreDeletion:
 
         # Verify log was created
         logs = await patched_deletion_db.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'chore_id = "{todo_chore["id"]}" && action = "deletion_requested"',
         )
         assert logs[0]["notes"] == ""
@@ -117,9 +117,9 @@ class TestRequestChoreDeletion:
         """Test requesting deletion for already archived chore fails."""
         # Archive the chore
         await patched_deletion_db.update_record(
-            collection="chores",
+            collection="tasks",
             record_id=todo_chore["id"],
-            data={"current_state": ChoreState.ARCHIVED},
+            data={"current_state": TaskState.ARCHIVED},
         )
 
         with pytest.raises(ValueError, match="already archived"):
@@ -176,7 +176,7 @@ class TestApproveChoreDeletion:
         )
 
         assert result["id"] == chore_with_pending_deletion["id"]
-        assert result["current_state"] == ChoreState.ARCHIVED
+        assert result["current_state"] == TaskState.ARCHIVED
 
         # Verify workflow was resolved
         workflows = await patched_deletion_db.list_records(
@@ -189,7 +189,7 @@ class TestApproveChoreDeletion:
 
         # Verify log was created
         logs = await patched_deletion_db.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'chore_id = "{chore_with_pending_deletion["id"]}" && action = "deletion_approved"',
         )
         assert len(logs) == 1
@@ -269,7 +269,7 @@ class TestRejectChoreDeletion:
         )
 
         chore = await chore_service.get_chore_by_id(chore_id=chore_with_pending_deletion["id"])
-        assert chore["current_state"] != ChoreState.ARCHIVED
+        assert chore["current_state"] != TaskState.ARCHIVED
 
     async def test_reject_deletion_no_pending_request(self, patched_deletion_db, user1, user2):
         """Test rejecting deletion with no pending request fails."""
@@ -391,7 +391,7 @@ class TestDeletionWorkflow:
             reason="Agreed",
         )
 
-        assert final_chore["current_state"] == ChoreState.ARCHIVED
+        assert final_chore["current_state"] == TaskState.ARCHIVED
 
         # Verify no pending workflow
         pending = await deletion_service.get_pending_deletion_workflow(chore_id=chore["id"])
@@ -422,7 +422,7 @@ class TestDeletionWorkflow:
 
         # Chore should still be active
         final_chore = await chore_service.get_chore_by_id(chore_id=chore["id"])
-        assert final_chore["current_state"] != ChoreState.ARCHIVED
+        assert final_chore["current_state"] != TaskState.ARCHIVED
 
     async def test_new_request_after_rejection(self, patched_deletion_db, user1, user2):
         """Test that new deletion request can be made after rejection."""

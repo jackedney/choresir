@@ -173,7 +173,7 @@ class TestToolRespondToDeletionByWorkflowId:
         # Create a chore verification workflow instead of deletion
         await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore_id",
@@ -185,7 +185,7 @@ class TestToolRespondToDeletionByWorkflowId:
 
         # Get the workflow we just created
         workflows = await workflow_service.get_pending_workflows(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION
+            workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION
         )
         assert len(workflows) > 0
 
@@ -358,7 +358,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -402,7 +402,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -448,7 +448,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -559,7 +559,7 @@ class TestToolBatchRespondToWorkflows:
         # Create workflow from requester (should be resolved)
         other_wf = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -628,7 +628,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -637,7 +637,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf3 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="personal1",

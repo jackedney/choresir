@@ -26,7 +26,7 @@ from pathlib import Path
 sys.path.append(str(Path.cwd()))
 
 from src.core import db_client
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.services import chore_service, verification_service
 from src.services.verification_service import VerificationDecision
 
@@ -93,12 +93,12 @@ async def mocked_list_records(
 
 async def mocked_get_chores(**_kwargs: object) -> list[dict[str, object]]:
     """Mock chore_service.get_chores - returns 50 chores."""
-    return [{"id": f"chore_{i}", "current_state": ChoreState.PENDING_VERIFICATION} for i in range(50)]
+    return [{"id": f"chore_{i}", "current_state": TaskState.PENDING_VERIFICATION} for i in range(50)]
 
 
 async def mocked_complete_chore(*, chore_id: str = "unknown", **_kwargs: object) -> dict[str, object]:
     """Mock completing a chore - just returns a chore dict."""
-    return {"id": chore_id, "current_state": ChoreState.COMPLETED}
+    return {"id": chore_id, "current_state": TaskState.COMPLETED}
 
 
 async def mocked_create_record(*, data: dict[str, object] | None = None, **_kwargs: object) -> dict[str, object]:

@@ -211,7 +211,7 @@ async def sample_chores(db_client, sample_users: dict) -> dict[str, dict]:
 
     created = {}
     for key, data in chores.items():
-        created[key] = await create_record(collection="chores", data=data)
+        created[key] = await create_record(collection="tasks", data=data)
 
     return created
 
@@ -257,7 +257,7 @@ def chore_factory() -> Any:
         if "deadline" in kwargs:
             chore_data["deadline"] = kwargs["deadline"]
 
-        return await create_record(collection="chores", data=chore_data)
+        return await create_record(collection="tasks", data=chore_data)
 
     return _create_chore
 

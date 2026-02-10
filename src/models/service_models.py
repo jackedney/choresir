@@ -58,7 +58,6 @@ class HouseholdSummary(BaseModel):
 
     active_members: int
     completions_this_period: int
-    current_conflicts: int
     overdue_chores: int
     pending_verifications: int
     period_days: int

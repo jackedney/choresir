@@ -7,7 +7,7 @@ from typing import Any
 from src.core import db_client
 from src.core.logging import span
 from src.core.recurrence_parser import parse_recurrence_to_cron
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.services import chore_state_machine
 
 
@@ -48,14 +48,14 @@ async def create_chore(
             "title": title,
             "description": description,
             "schedule_cron": schedule_cron,
-            "current_state": ChoreState.TODO,
+            "current_state": TaskState.TODO,
             "deadline": deadline.isoformat(),
         }
         # Only set assigned_to if we have a valid ID (relations can't be empty string)
         if assigned_to:
             chore_data["assigned_to"] = assigned_to
 
-        record = await db_client.create_record(collection="chores", data=chore_data)
+        record = await db_client.create_record(collection="tasks", data=chore_data)
         logger.info("Created chore: %s (assigned to: %s)", title, assigned_to or "unassigned")
 
         return record
@@ -64,7 +64,7 @@ async def create_chore(
 async def get_chores(
     *,
     user_id: str | None = None,
-    state: ChoreState | None = None,
+    state: TaskState | None = None,
     time_range_start: datetime | None = None,
     time_range_end: datetime | None = None,
 ) -> list[dict[str, Any]]:
@@ -98,7 +98,7 @@ async def get_chores(
         filter_query = " && ".join(filters) if filters else ""
 
         records = await db_client.list_records(
-            collection="chores",
+            collection="tasks",
             filter_query=filter_query,
             sort="+deadline",  # Sort by deadline ascending
         )
@@ -121,7 +121,7 @@ async def mark_pending_verification(*, chore_id: str) -> dict[str, Any]:
         InvalidStateTransitionError: If chore is not in TODO state
         db_client.RecordNotFoundError: If chore not found
     """
-    return await chore_state_machine.transition_to_pending_verification(chore_id=chore_id)
+    return await chore_state_machine.transition_to_pending_verification(task_id=chore_id)
 
 
 async def complete_chore(*, chore_id: str) -> dict[str, Any]:
@@ -137,27 +137,11 @@ async def complete_chore(*, chore_id: str) -> dict[str, Any]:
         InvalidStateTransitionError: If chore is not in PENDING_VERIFICATION state
         db_client.RecordNotFoundError: If chore not found
     """
-    return await chore_state_machine.transition_to_completed(chore_id=chore_id)
-
-
-async def move_to_conflict(*, chore_id: str) -> dict[str, Any]:
-    """Transition chore to CONFLICT state.
-
-    Args:
-        chore_id: Chore ID
-
-    Returns:
-        Updated chore record
-
-    Raises:
-        InvalidStateTransitionError: If chore is not in PENDING_VERIFICATION state
-        db_client.RecordNotFoundError: If chore not found
-    """
-    return await chore_state_machine.transition_to_conflict(chore_id=chore_id)
+    return await chore_state_machine.transition_to_completed(task_id=chore_id)
 
 
 async def reset_chore_to_todo(*, chore_id: str) -> dict[str, Any]:
-    """Reset chore back to TODO state (useful after conflict resolution).
+    """Reset chore back to TODO state (e.g. after rejection or recurring reset).
 
     Args:
         chore_id: Chore ID
@@ -165,7 +149,7 @@ async def reset_chore_to_todo(*, chore_id: str) -> dict[str, Any]:
     Returns:
         Updated chore record
     """
-    return await chore_state_machine.transition_to_todo(chore_id=chore_id)
+    return await chore_state_machine.transition_to_todo(task_id=chore_id)
 
 
 async def get_chore_by_id(*, chore_id: str) -> dict[str, Any]:
@@ -180,4 +164,4 @@ async def get_chore_by_id(*, chore_id: str) -> dict[str, Any]:
     Raises:
         db_client.RecordNotFoundError: If chore not found
     """
-    return await db_client.get_record(collection="chores", record_id=chore_id)
+    return await db_client.get_record(collection="tasks", record_id=chore_id)
