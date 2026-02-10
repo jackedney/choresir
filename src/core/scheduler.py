@@ -560,10 +560,7 @@ async def auto_verify_personal_chores() -> None:
     logger.info("Running personal chore auto-verification job")
 
     try:
-            # TODO: Re-implement auto-verification for unified task model
-            # count = await verification_service.auto_verify_expired_logs()
-            # logger.warning("Auto-verification for personal tasks disabled during modularization")
-
+        pass
     except Exception as e:
         logger.error(f"Error in auto-verification job: {e}")
 
