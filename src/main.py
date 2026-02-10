@@ -97,14 +97,12 @@ async def health_check() -> JSONResponse:
 @app.get("/health/scheduler")
 async def scheduler_health_check() -> JSONResponse:
     """Scheduler health check endpoint with job statuses."""
-    # Get status for all tracked jobs
+    # Get status for all tracked jobs (core jobs + module jobs)
     job_names = [
         "overdue_reminders",
         "daily_report",
         "weekly_leaderboard",
         "personal_chore_reminders",
-        "auto_verify_personal",
-        "expire_deletion_requests",
         "expire_workflows",
         "cleanup_group_context",
     ]

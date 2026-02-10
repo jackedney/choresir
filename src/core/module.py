@@ -1,6 +1,6 @@
 """Module Protocol defining the plugin interface for modular architecture."""
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel
@@ -18,7 +18,7 @@ class ScheduledJob(BaseModel):
     id: str
     name: str
     cron: str
-    func: Callable[[], None]
+    func: Callable[[], Awaitable[None]]
 
 
 class ConfigField(BaseModel):

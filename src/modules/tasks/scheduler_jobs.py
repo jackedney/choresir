@@ -598,28 +598,28 @@ def get_scheduled_jobs() -> list:
         List of ScheduledJob definitions
     """
 
-    import src.core.module
+    from src.core.module import ScheduledJob
 
     return [
-        src.module.ScheduledJob(
+        ScheduledJob(
             id="overdue_reminders",
             name="Send Overdue Chore Reminders",
             cron="0 8 * * *",
             func=lambda: retry_job_with_backoff(send_overdue_reminders, "overdue_reminders"),
         ),
-        src.module.ScheduledJob(
+        ScheduledJob(
             id="daily_report",
             name="Send Daily Household Report",
             cron="0 21 * * *",
             func=lambda: retry_job_with_backoff(send_daily_report, "daily_report"),
         ),
-        src.module.ScheduledJob(
+        ScheduledJob(
             id="weekly_leaderboard",
             name="Send Weekly Leaderboard Report",
             cron="0 20 * * 0",
             func=lambda: retry_job_with_backoff(send_weekly_leaderboard, "weekly_leaderboard"),
         ),
-        src.module.ScheduledJob(
+        ScheduledJob(
             id="personal_chore_reminders",
             name="Send Personal Chore Reminders",
             cron="0 8 * * *",
