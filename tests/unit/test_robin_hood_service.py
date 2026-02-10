@@ -4,8 +4,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+import src.modules.tasks.robin_hood as robin_hood_service
 from src.core.config import settings
-from src.services import robin_hood_service
 
 
 @pytest.fixture

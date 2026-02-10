@@ -6,6 +6,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import src.modules.tasks.service as chore_service
+import src.modules.tasks.verification as verification_service
+
 # KeyError replaced with KeyError
 from src.domain.task import TaskState
 from src.modules.tasks.verification import VerificationDecision

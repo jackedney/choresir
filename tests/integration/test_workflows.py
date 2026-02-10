@@ -2,11 +2,13 @@
 
 import pytest
 
+import src.modules.tasks.service as chore_service
+import src.modules.tasks.verification as verification_service
 from src.core.db_client import get_first_record, get_record
 from src.domain.task import TaskState
 from src.domain.user import UserStatus
-from src.services import chore_service, user_service, verification_service
-from src.services.verification_service import VerificationDecision
+from src.modules.tasks.verification import VerificationDecision
+from src.services import user_service
 
 
 @pytest.mark.integration

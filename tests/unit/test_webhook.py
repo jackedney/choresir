@@ -423,7 +423,7 @@ class TestHandleButtonPayload:
     @pytest.mark.asyncio
     @patch("src.interface.webhook._send_response")
     @patch("src.interface.webhook.db_client")
-    @patch("src.services.verification_service")
+    @patch("src.modules.tasks.verification")
     async def test_approve_button_success(self, mock_verification, mock_db, mock_send_response):
         """Test successful approval via button."""
         # Create mock message with button payload

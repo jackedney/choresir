@@ -46,7 +46,7 @@ def patched_db(monkeypatch, in_memory_db):
 
     # Patch analytics service cache invalidation
     monkeypatch.setattr(
-        "src.services.analytics_service.invalidate_leaderboard_cache",
+        "src.modules.tasks.analytics.invalidate_leaderboard_cache",
         _mock_invalidate_cache,
     )
 

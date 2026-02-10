@@ -4,13 +4,15 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from src.agents.tools.chore_tools import (
+import src.modules.tasks.deletion as deletion_service
+import src.modules.tasks.service as chore_service
+from src.modules.tasks.tools import (
     BatchRespondToWorkflows,
     RespondToDeletion,
     tool_batch_respond_to_workflows,
     tool_respond_to_deletion,
 )
-from src.services import chore_service, deletion_service, workflow_service
+from src.services import workflow_service
 
 
 if TYPE_CHECKING:

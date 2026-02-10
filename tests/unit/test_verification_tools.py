@@ -4,12 +4,14 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from src.agents.tools.verification_tools import (
+import src.modules.tasks.service as chore_service
+import src.modules.tasks.verification as verification_service
+from src.core.fuzzy_match import fuzzy_match as _fuzzy_match_chore, fuzzy_match_all as _fuzzy_match_all_chores
+from src.modules.tasks.tools import (
     VerifyChore,
     tool_verify_chore,
 )
-from src.core.fuzzy_match import fuzzy_match as _fuzzy_match_chore, fuzzy_match_all as _fuzzy_match_all_chores
-from src.services import chore_service, verification_service, workflow_service
+from src.services import workflow_service
 
 
 if TYPE_CHECKING:

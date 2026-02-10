@@ -112,17 +112,17 @@ async def request_verification(
         ValueError: If task is not in TODO state
         db_client.RecordNotFoundError: If task not found
     """
-    import src.services.chore_service
     import src.services.notification_service
     import src.services.user_service
     import src.services.workflow_service
+    from src.modules.tasks import service as task_service
 
     task = await db_client.get_record(collection="tasks", record_id=chore_id)
     original_assignee_id = task["assigned_to"]
 
     claimer = await src.services.user_service.get_user_by_id(user_id=claimer_user_id)
 
-    await src.services.chore_service.mark_pending_verification(chore_id=chore_id)
+    await task_service.mark_pending_verification(chore_id=chore_id)
 
     metadata = {
         "is_swap": is_swap,
@@ -203,9 +203,9 @@ async def verify_chore(
         KeyError: If task not found
     """
     import src.modules.tasks.analytics as analytics_service
-    import src.services.chore_service
     import src.services.user_service
     import src.services.workflow_service
+    from src.modules.tasks import service as task_service
 
     pending_workflow = await get_pending_verification_workflow(chore_id=task_id)
     if not pending_workflow:
@@ -249,7 +249,7 @@ async def verify_chore(
         )
 
     if decision == VerificationDecision.APPROVE:
-        updated_task = await src.services.chore_service.complete_chore(chore_id=task_id)
+        updated_task = await task_service.complete_chore(chore_id=task_id)
         logger.info(
             "User %s approved task %s",
             verifier_user_id,
@@ -257,7 +257,7 @@ async def verify_chore(
         )
         await analytics_service.invalidate_leaderboard_cache()
     else:
-        updated_task = await src.services.chore_service.reset_chore_to_todo(chore_id=task_id)
+        updated_task = await task_service.reset_chore_to_todo(chore_id=task_id)
         logger.info(
             "User %s rejected task %s",
             verifier_user_id,
@@ -277,10 +277,10 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
     Returns:
         List of tasks in PENDING_VERIFICATION state
     """
-    import src.services.chore_service
+    from src.modules.tasks import service as task_service
 
     with span("verification_service.get_pending_verifications"):
-        tasks = await src.services.chore_service.get_chores(state=TaskState.PENDING_VERIFICATION)
+        tasks = await task_service.get_chores(state=TaskState.PENDING_VERIFICATION)
 
         filters: list[str] = []
 
@@ -437,9 +437,9 @@ async def verify_personal_task(
         Updated log record
     """
     import src.modules.tasks.analytics as analytics_service
-    import src.services.chore_service
     import src.services.user_service
     import src.services.workflow_service
+    from src.modules.tasks import service as task_service
 
     log = await db_client.get_record(collection="task_logs", record_id=log_id)
     task_id = log["task_id"]
@@ -478,7 +478,7 @@ async def verify_personal_task(
     )
 
     if approved:
-        updated_task = await src.services.chore_service.complete_chore(chore_id=task_id)
+        updated_task = await task_service.complete_chore(chore_id=task_id)
         logger.info(
             "User %s verified personal task %s",
             verifier_id,
@@ -486,7 +486,7 @@ async def verify_personal_task(
         )
         await analytics_service.invalidate_leaderboard_cache()
     else:
-        updated_task = await src.services.chore_service.reset_chore_to_todo(chore_id=task_id)
+        updated_task = await task_service.reset_chore_to_todo(chore_id=task_id)
         logger.info(
             "User %s rejected personal task %s",
             verifier_id,

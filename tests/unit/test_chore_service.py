@@ -2,8 +2,8 @@
 
 import pytest
 
+import src.modules.tasks.service as chore_service
 from src.domain.task import TaskScope, TaskState, VerificationType
-from src.services import chore_service
 
 
 @pytest.fixture

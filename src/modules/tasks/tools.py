@@ -143,7 +143,7 @@ class GetStats(BaseModel):
     )
 
 
-async def _format_chore_list(chores: list[dict], user_name: str) -> str:
+def _format_chore_list(chores: list[dict], user_name: str) -> str:
     """
     Format chore list for WhatsApp display.
 
@@ -195,7 +195,7 @@ async def _get_workflow_by_id(workflow_id: str) -> dict | str:
     """
     import src.services.workflow_service
 
-    workflow = src.services.workflow_service.get_workflow(workflow_id=workflow_id)
+    workflow = await src.services.workflow_service.get_workflow(workflow_id=workflow_id)
     if not workflow:
         return f"Error: Workflow '{workflow_id}' not found."
 
@@ -250,7 +250,7 @@ async def _get_workflow_by_chore_title(chore_title_fuzzy: str) -> dict | str:
     return pending_workflow
 
 
-def _resolve_deletion_workflow(
+async def _resolve_deletion_workflow(
     workflow: dict,
     user_id: str,
     decision_lower: str,
@@ -343,6 +343,8 @@ async def _get_batch_workflow_ids(
     Returns:
         List of workflow IDs, or an error message string
     """
+    import src.services.workflow_service
+
     if params.workflow_ids:
         return params.workflow_ids
 
@@ -409,7 +411,7 @@ async def _batch_resolve_and_format(
     return f'{action_verb} {len(resolved_workflows)} workflows: "{titles_quoted}"'
 
 
-def _get_verification_workflow_by_id(workflow_id: str) -> dict | str:
+async def _get_verification_workflow_by_id(workflow_id: str) -> dict | str:
     """Get and validate a verification workflow by ID.
 
     Args:
@@ -420,7 +422,7 @@ def _get_verification_workflow_by_id(workflow_id: str) -> dict | str:
     """
     import src.services.workflow_service
 
-    workflow = src.services.workflow_service.get_workflow(workflow_id=workflow_id)
+    workflow = await src.services.workflow_service.get_workflow(workflow_id=workflow_id)
     if not workflow:
         return f"Error: Workflow '{workflow_id}' not found."
 
@@ -433,7 +435,7 @@ def _get_verification_workflow_by_id(workflow_id: str) -> dict | str:
     return workflow
 
 
-def _get_verification_workflow_by_chore_title(chore_title_fuzzy: str) -> dict | str:
+async def _get_verification_workflow_by_chore_title(chore_title_fuzzy: str) -> dict | str:
     """Find a verification workflow by chore title matching.
 
     Args:
@@ -469,7 +471,7 @@ def _get_verification_workflow_by_chore_title(chore_title_fuzzy: str) -> dict | 
     return pending_workflow
 
 
-def _resolve_verification_workflow(
+async def _resolve_verification_workflow(
     workflow: dict,
     user_id: str,
     decision_lower: str,
@@ -888,10 +890,10 @@ async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDelet
 
             # Determine workflow to resolve
             if params.workflow_id:
-                workflow_result = _get_workflow_by_id(params.workflow_id)
+                workflow_result = await _get_workflow_by_id(params.workflow_id)
             else:
                 assert params.chore_title_fuzzy is not None
-                workflow_result = _get_workflow_by_chore_title(params.chore_title_fuzzy)
+                workflow_result = await _get_workflow_by_chore_title(params.chore_title_fuzzy)
 
             # Check if we got an error message instead of a workflow
             if isinstance(workflow_result, str):
@@ -984,10 +986,10 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
 
             # Determine workflow to resolve
             if params.workflow_id:
-                workflow_result = _get_verification_workflow_by_id(params.workflow_id)
+                workflow_result = await _get_verification_workflow_by_id(params.workflow_id)
             else:
                 assert params.chore_title_fuzzy is not None
-                workflow_result = _get_verification_workflow_by_chore_title(params.chore_title_fuzzy)
+                workflow_result = await _get_verification_workflow_by_chore_title(params.chore_title_fuzzy)
 
             # Check if we got an error message instead of a workflow
             if isinstance(workflow_result, str):

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services import analytics_service
+import src.modules.tasks.analytics as analytics_service
 
 
 @pytest.fixture

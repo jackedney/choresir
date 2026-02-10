@@ -2,8 +2,10 @@
 
 import pytest
 
+import src.modules.tasks.deletion as deletion_service
+import src.modules.tasks.service as chore_service
 from src.domain.task import TaskState
-from src.services import chore_service, deletion_service, workflow_service
+from src.services import workflow_service
 
 
 @pytest.fixture
