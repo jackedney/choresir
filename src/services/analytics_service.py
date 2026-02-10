@@ -21,9 +21,9 @@ from dateutil import parser as dateutil_parser
 from pydantic import ValidationError
 
 from src.core import db_client
+from src.core.cache_client import cache_client as redis_client
 from src.core.config import Constants
 from src.core.logging import span
-from src.core.redis_client import redis_client
 from src.domain.chore import ChoreState
 from src.domain.user import UserStatus
 from src.models.service_models import (
@@ -63,12 +63,9 @@ async def invalidate_leaderboard_cache() -> None:
         keys = await redis_client.keys(pattern)
 
         if keys:
-            # Delete all matching keys with retry logic for critical operation
-            success = await redis_client.delete_with_retry(*keys)
-            if success:
-                logger.info("Invalidated %d leaderboard cache entries", len(keys))
-            else:
-                logger.warning("Failed to invalidate %d cache entries, queued for retry", len(keys))
+            # Delete all matching keys
+            await redis_client.delete(*keys)
+            logger.info("Invalidated %d leaderboard cache entries", len(keys))
         else:
             logger.debug("No leaderboard cache entries to invalidate")
     except Exception as e:

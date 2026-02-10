@@ -27,9 +27,9 @@ class UserStatus(StrEnum):
 class User(BaseModel):
     """User data transfer object."""
 
-    id: str = Field(..., description="Unique user ID from PocketBase")
+    id: str = Field(..., description="Unique user ID from database")
     phone: str = Field(..., description="Phone number in E.164 format (e.g., +14155552671)")
-    name: str = Field(..., description="Display name of the user")
+    name: str = Field(..., description="Display name of user")
     role: UserRole = Field(default=UserRole.MEMBER, description="User role in household")
     status: UserStatus = Field(default=UserStatus.PENDING_NAME, description="User account status")
 

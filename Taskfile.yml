@@ -1,66 +1,22 @@
 version: '3'
 
 vars:
-  POCKETBASE_VERSION: 0.23.4
-  POCKETBASE_DIR: '{{.ROOT_DIR}}'
-  POCKETBASE_BIN: '{{.POCKETBASE_DIR}}/pocketbase'
 
 tasks:
-  setup:
-    desc: Download and install PocketBase for the current platform
-    status:
-      - test -f {{.POCKETBASE_BIN}}
-    cmds:
-      - echo "Installing PocketBase v{{.POCKETBASE_VERSION}}..."
-      - |
-        OS="{{OS}}"
-        ARCH="{{ARCH}}"
-
-        # Map OS names
-        case "$OS" in
-          darwin) OS_NAME="darwin" ;;
-          linux) OS_NAME="linux" ;;
-          windows) OS_NAME="windows" ;;
-          *) echo "Unsupported OS: $OS"; exit 1 ;;
-        esac
-
-        # Map architecture names
-        case "$ARCH" in
-          amd64|x86_64) ARCH_NAME="amd64" ;;
-          arm64|aarch64) ARCH_NAME="arm64" ;;
-          *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-        esac
-
-        DOWNLOAD_URL="https://github.com/pocketbase/pocketbase/releases/download/v{{.POCKETBASE_VERSION}}/pocketbase_{{.POCKETBASE_VERSION}}_${OS_NAME}_${ARCH_NAME}.zip"
-
-        echo "Downloading from: $DOWNLOAD_URL"
-        curl -L -o /tmp/pocketbase.zip "$DOWNLOAD_URL"
-
-        echo "Extracting PocketBase..."
-        unzip -q -o /tmp/pocketbase.zip -d {{.POCKETBASE_DIR}}
-
-        chmod +x {{.POCKETBASE_BIN}}
-        rm /tmp/pocketbase.zip
-
-        echo "PocketBase installed successfully!"
-        {{.POCKETBASE_BIN}} --version
-
   test:
     desc: Run all tests (unit and integration)
-    deps: [setup]
     cmds:
-      - PATH={{.POCKETBASE_DIR}}:$PATH POCKETBASE_ADMIN_EMAIL=admin@test.local POCKETBASE_ADMIN_PASSWORD=testpassword123 uv run pytest
+      - uv run pytest
 
   test-unit:
     desc: Run unit tests only
     cmds:
-      - POCKETBASE_ADMIN_EMAIL=admin@test.local POCKETBASE_ADMIN_PASSWORD=testpassword123 uv run pytest -m unit
+      - uv run pytest -m unit
 
   test-integration:
-    desc: Run integration tests (requires PocketBase)
-    deps: [setup]
+    desc: Run integration tests
     cmds:
-      - PATH={{.POCKETBASE_DIR}}:$PATH POCKETBASE_ADMIN_EMAIL=admin@test.local POCKETBASE_ADMIN_PASSWORD=testpassword123 uv run pytest -m integration
+      - uv run pytest -m integration
 
   lint:
     desc: Run linting checks
@@ -73,44 +29,20 @@ tasks:
       - uv run ruff format
 
   dev:
-    desc: Run PocketBase and FastAPI for local development
-    deps: [setup]
+    desc: Run FastAPI for local development
     dotenv: ['.env']
     cmds:
-      - defer: { task: stop-dev }
       - |
-        echo "Starting PocketBase on http://127.0.0.1:8090..."
-        {{.POCKETBASE_BIN}} serve > pocketbase.log 2>&1 &
-        echo $! > .pocketbase.pid
-
-        i=0; while [ $i -lt 10 ]; do
-          curl -s http://127.0.0.1:8090/api/health > /dev/null 2>&1 && break
-          sleep 1; i=$((i + 1))
-        done
-        echo "PocketBase is ready!"
-
-        # Use credentials from .env, fallback to defaults
-        ADMIN_EMAIL="${POCKETBASE_ADMIN_EMAIL:-admin@test.local}"
-        ADMIN_PASS="${POCKETBASE_ADMIN_PASSWORD:-testpassword123}"
-        {{.POCKETBASE_BIN}} superuser upsert "$ADMIN_EMAIL" "$ADMIN_PASS" > /dev/null 2>&1 || true
-
-        echo ""
         echo "Development environment ready!"
-        echo "  PocketBase: http://127.0.0.1:8090"
-        echo "  FastAPI:    http://0.0.0.0:8001"
-        echo "  WAHA:       http://localhost:3000 (start with: docker-compose up -d waha)"
+        echo "  FastAPI    http://0.0.0.0:8001"
+        echo "  WAHA       http://localhost:3000 (start with docker-compose up -d waha)"
         echo ""
-      - uv run uvicorn src.main:app --host 0.0.0.0 --port 8001
+        uv run uvicorn src.main:app --host 0.0.0.0 --port 8001
 
   stop-dev:
     desc: Stop all development services
     cmds:
       - |
-        if [ -f .pocketbase.pid ]; then
-          kill $(cat .pocketbase.pid) 2>/dev/null || true
-          rm .pocketbase.pid
-          echo "PocketBase stopped"
-        fi
         if [ -f .fastapi.pid ]; then
           kill $(cat .fastapi.pid) 2>/dev/null || true
           rm .fastapi.pid
@@ -124,36 +56,16 @@ tasks:
       - |
         echo "Stopping all services..."
 
-        # Stop services using PID files
-        if [ -f .pocketbase.pid ]; then
-          kill $(cat .pocketbase.pid) 2>/dev/null || true
-          rm .pocketbase.pid
-          echo "✓ PocketBase stopped (via PID file)"
-        fi
-
         if [ -f .fastapi.pid ]; then
           kill $(cat .fastapi.pid) 2>/dev/null || true
           rm .fastapi.pid
           echo "✓ FastAPI stopped (via PID file)"
         fi
 
-        # Kill any remaining processes by port
-        POCKETBASE_PID=$(lsof -ti :8090) || true
-        if [ -n "$POCKETBASE_PID" ]; then
-          kill $POCKETBASE_PID 2>/dev/null || true
-          echo "✓ PocketBase stopped (port 8090)"
-        fi
-
         FASTAPI_PID=$(lsof -ti :8001) || true
         if [ -n "$FASTAPI_PID" ]; then
           kill $FASTAPI_PID 2>/dev/null || true
           echo "✓ FastAPI stopped (port 8001)"
-        fi
-
-        # Clean up log files
-        if [ -f pocketbase.log ]; then
-          rm pocketbase.log
-          echo "✓ Removed pocketbase.log"
         fi
 
         if [ -f fastapi.log ]; then
@@ -165,9 +77,6 @@ tasks:
         echo "All services stopped and cleaned up!"
 
   clean:
-    desc: Remove PocketBase binary and data
+    desc: Clean up generated files
     cmds:
-      - rm -f {{.POCKETBASE_BIN}}
-      - rm -rf pb_data
-      - rm -rf pb_migrations
-
+      - echo "No cleanup required"

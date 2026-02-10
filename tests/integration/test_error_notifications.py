@@ -18,18 +18,12 @@ async def test_quota_exceeded_notification_to_admin(mock_db_module, db_client, s
     # Use alice from sample_users as admin (role="admin" in integration/conftest.py)
     admin = sample_users["alice"]
 
-    # Create regular user
-    user_data = {
-        "phone": "+15551234567",
-        "name": "Test User",
-        "role": "member",
-        "status": "active",
-    }
-    user = await db_client.create_record(collection="members", data=user_data)
+    # Use bob from sample_users as regular user
+    user = sample_users["bob"]
 
     # Create test deps
     deps = Deps(
-        db=db_client._pb,
+        db=None,  # SQLite - no db client object needed
         user_id=user["id"],
         user_phone=user["phone"],
         user_name=user["name"],
@@ -156,18 +150,12 @@ async def test_non_critical_error_no_notification(mock_db_module, db_client, sam
     """Test that non-critical errors do not trigger admin notifications."""
     # alice is admin from sample_users but should NOT receive notification for non-critical errors
 
-    # Create regular user
-    user_data = {
-        "phone": "+15551234567",
-        "name": "Test User",
-        "role": "member",
-        "status": "active",
-    }
-    user = await db_client.create_record(collection="members", data=user_data)
+    # Use bob from sample_users as regular user
+    user = sample_users["bob"]
 
     # Create test deps
     deps = Deps(
-        db=db_client._pb,
+        db=None,  # SQLite - no db client object needed
         user_id=user["id"],
         user_phone=user["phone"],
         user_name=user["name"],

@@ -1,15 +1,11 @@
 """Tests for startup validation functions."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import patch
 
 import pytest
 
 from src.core.config import Settings
-from src.main import (
-    check_pocketbase_connectivity,
-    check_redis_connectivity,
-    validate_startup_configuration,
-)
+from src.main import validate_startup_configuration
 
 
 # Credential validation tests
@@ -36,52 +32,6 @@ def test_startup_succeeds_with_valid_credentials() -> None:
     assert admin_pwd == "secret"
 
 
-# Connectivity check tests
-@pytest.mark.asyncio
-async def test_check_pocketbase_connectivity_success() -> None:
-    """Test successful PocketBase connectivity check."""
-    mock_client = Mock()
-    mock_client.auth_store.token = "test_token"
-
-    with patch("src.main.get_client", return_value=mock_client):
-        await check_pocketbase_connectivity()
-
-
-@pytest.mark.asyncio
-async def test_check_pocketbase_connectivity_no_token() -> None:
-    """Test PocketBase connectivity check fails when no token present."""
-    mock_client = Mock()
-    mock_client.auth_store.token = None
-
-    with (
-        patch("src.main.get_client", return_value=mock_client),
-        pytest.raises(ConnectionError, match="PocketBase connectivity check failed"),
-    ):
-        await check_pocketbase_connectivity()
-
-
-@pytest.mark.asyncio
-async def test_check_redis_connectivity_disabled() -> None:
-    """Test Redis check when Redis is not configured."""
-    mock_redis = Mock()
-    mock_redis.is_available = False
-
-    with patch("src.main.redis_client", mock_redis):
-        await check_redis_connectivity()
-
-
-@pytest.mark.asyncio
-async def test_check_redis_connectivity_success() -> None:
-    """Test successful Redis connectivity check."""
-    mock_redis = Mock()
-    mock_redis.is_available = True
-    mock_redis.ping = AsyncMock(return_value=True)
-
-    with patch("src.main.redis_client", mock_redis):
-        await check_redis_connectivity()
-        mock_redis.ping.assert_called_once()
-
-
 @pytest.mark.asyncio
 async def test_validate_startup_configuration_missing_credential() -> None:
     """Test validation fails and exits when credential is missing."""
@@ -96,26 +46,6 @@ async def test_validate_startup_configuration_missing_credential() -> None:
         pytest.raises(SystemExit) as exc_info,
     ):
         mock_settings.require_credential.side_effect = mock_require_credential
-        await validate_startup_configuration()
-
-    exc = exc_info.value
-    assert isinstance(exc, SystemExit)
-    assert exc.code == 1
-
-
-@pytest.mark.asyncio
-async def test_validate_startup_configuration_service_unreachable() -> None:
-    """Test validation fails and exits when service is unreachable."""
-
-    async def mock_check_pocketbase() -> None:
-        raise ConnectionError("PocketBase unreachable")
-
-    with (
-        patch("src.main.settings") as mock_settings,
-        patch("src.main.check_pocketbase_connectivity", side_effect=mock_check_pocketbase),
-        pytest.raises(SystemExit) as exc_info,
-    ):
-        mock_settings.require_credential.return_value = "test_value"
         await validate_startup_configuration()
 
     exc = exc_info.value

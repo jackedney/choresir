@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
+from src.core.cache_client import cache_client as redis_client
 from src.core.config import constants, settings
 from src.core.db_client import (
     create_record,
@@ -19,7 +20,6 @@ from src.core.db_client import (
     sanitize_param,
     update_record,
 )
-from src.core.redis_client import redis_client
 from src.domain.create_models import HouseConfigCreate
 from src.domain.update_models import MemberUpdate
 from src.services.activation_key_service import generate_activation_key

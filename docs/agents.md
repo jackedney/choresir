@@ -65,7 +65,7 @@ my_tools.register_tools(agent_instance)
 ```python
 @dataclass
 class Deps:
-    db: PocketBase
+    db: Any
     user_id: str
     user_phone: str
     user_name: str

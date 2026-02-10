@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 LOGS_PAGE_SIZE = 500
-CHORE_ID_BATCH_SIZE = 100  # PocketBase limits: 200 filter expressions, 3500 char filter strings
+CHORE_ID_BATCH_SIZE = 100  # Batch size for filter queries to avoid issues
 
 
 class VerificationDecision(StrEnum):
@@ -264,11 +264,11 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
                 return []
 
             # Build filter query for logs (action="claimed_completion" && chore_id in [...])
-            # Batch chore_ids to stay within PocketBase limits (200 filter expressions, 3500 char filter strings)
+            # Batch chore_ids to avoid issues with large filter queries
             chore_ids = [c["id"] for c in chores]
             sanitized_user_id = db_client.sanitize_param(user_id)
 
-            # Fetch logs in batches to avoid exceeding PocketBase filter limits
+            # Fetch logs in batches to avoid issues with large filter queries
             user_claimed_chore_ids: set[str] = set()
             for batch_start in range(0, len(chore_ids), CHORE_ID_BATCH_SIZE):
                 batch_ids = chore_ids[batch_start : batch_start + CHORE_ID_BATCH_SIZE]

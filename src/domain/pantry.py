@@ -17,7 +17,7 @@ class PantryItemStatus(StrEnum):
 class PantryItem(BaseModel):
     """Pantry item data transfer object."""
 
-    id: str = Field(..., description="Unique item ID from PocketBase")
+    id: str = Field(..., description="Unique item ID from database")
     name: str = Field(..., description="Item name (e.g., 'Milk', 'Eggs')")
     quantity: int | None = Field(default=None, description="Current quantity")
     status: PantryItemStatus = Field(default=PantryItemStatus.IN_STOCK, description="Stock status")
@@ -27,7 +27,7 @@ class PantryItem(BaseModel):
 class ShoppingListItem(BaseModel):
     """Shopping list item data transfer object."""
 
-    id: str = Field(..., description="Unique item ID from PocketBase")
+    id: str = Field(..., description="Unique item ID from database")
     item_name: str = Field(..., description="Item name")
     added_by: str = Field(..., description="User ID who added the item")
     added_at: datetime = Field(..., description="When item was added to list")

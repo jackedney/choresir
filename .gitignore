@@ -42,12 +42,11 @@ env/
 .env.local
 .env.*.local
 
-# PocketBase
-pb_data/
-pb_data.backup*/
-pb_migrations/
-pocketbase
-*.db
+# SQLite data files
+data/*.db
+
+# SQLite data directory
+data/
 
 # Testing
 .pytest_cache/

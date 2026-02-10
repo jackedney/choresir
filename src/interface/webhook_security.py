@@ -5,8 +5,8 @@ import secrets
 from datetime import datetime
 from typing import NamedTuple
 
+from src.core.cache_client import cache_client
 from src.core.config import Constants, constants
-from src.core.redis_client import redis_client
 
 
 logger = logging.getLogger(__name__)
@@ -75,13 +75,13 @@ async def validate_webhook_nonce(message_id: str) -> WebhookSecurityResult:
     Returns:
         WebhookSecurityResult indicating if nonce is valid (not a duplicate)
     """
-    if not redis_client.is_available:
-        logger.warning("Redis not available, skipping nonce validation")
+    if not cache_client.is_available:
+        logger.warning("Cache not available, skipping nonce validation")
         return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
     nonce_key = f"webhook:nonce:{message_id}"
 
-    was_set = await redis_client.set_if_not_exists(
+    was_set = await cache_client.set_if_not_exists(
         key=nonce_key,
         value="1",
         ttl_seconds=constants.WEBHOOK_NONCE_TTL_SECONDS,
@@ -111,20 +111,20 @@ async def validate_webhook_rate_limit(phone_number: str) -> WebhookSecurityResul
     Returns:
         WebhookSecurityResult indicating if rate limit is respected
     """
-    if not redis_client.is_available:
-        logger.warning("Redis not available, skipping rate limit validation")
+    if not cache_client.is_available:
+        logger.warning("Cache not available, skipping rate limit validation")
         return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
     rate_limit_key = f"webhook:ratelimit:{phone_number}"
 
-    count = await redis_client.increment(rate_limit_key)
+    count = await cache_client.increment(rate_limit_key)
 
     if count is None:
         logger.warning("Failed to increment rate limit counter")
         return WebhookSecurityResult(is_valid=True, error_message=None, http_status_code=None)
 
     if count == 1:
-        await redis_client.expire(rate_limit_key, Constants.RATE_LIMIT_WINDOW_SECONDS)
+        await cache_client.expire(rate_limit_key, Constants.RATE_LIMIT_WINDOW_SECONDS)
 
     if count > constants.WEBHOOK_RATE_LIMIT_PER_PHONE:
         logger.warning(

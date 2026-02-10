@@ -36,10 +36,6 @@ class TestCreatePendingNameUser:
         assert "id" in result
         assert "created" in result
 
-        # Email should be generated from phone
-        expected_email = "1234567890@choresir.local"
-        assert result["email"] == expected_email
-
     async def test_create_pending_name_user_duplicate_phone(self, patched_user_db):
         """Test creating duplicate phone number fails."""
         await user_service.create_pending_name_user(phone="+1234567890")

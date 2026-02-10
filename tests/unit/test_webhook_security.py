@@ -63,11 +63,11 @@ class TestValidateWebhookNonce:
     """Test webhook nonce validation."""
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_first_webhook_accepted(self, mock_redis):
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_first_webhook_accepted(self, mock_cache):
         """Test first webhook with message ID is accepted."""
-        mock_redis.is_available = True
-        mock_redis.set_if_not_exists = AsyncMock(return_value=True)
+        mock_cache.is_available = True
+        mock_cache.set_if_not_exists = AsyncMock(return_value=True)
 
         result = await validate_webhook_nonce("MSG123")
 
@@ -75,11 +75,11 @@ class TestValidateWebhookNonce:
         assert result.error_message is None
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_duplicate_webhook_rejected(self, mock_redis):
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_duplicate_webhook_rejected(self, mock_cache):
         """Test duplicate webhook is rejected with 200 status to prevent retries."""
-        mock_redis.is_available = True
-        mock_redis.set_if_not_exists = AsyncMock(return_value=False)
+        mock_cache.is_available = True
+        mock_cache.set_if_not_exists = AsyncMock(return_value=False)
 
         result = await validate_webhook_nonce("MSG123")
 
@@ -90,10 +90,10 @@ class TestValidateWebhookNonce:
         assert result.http_status_code == 200
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_redis_unavailable_allows_webhook(self, mock_redis):
-        """Test webhook allowed when Redis unavailable."""
-        mock_redis.is_available = False
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_cache_unavailable_allows_webhook(self, mock_cache):
+        """Test webhook allowed when cache unavailable."""
+        mock_cache.is_available = False
 
         result = await validate_webhook_nonce("MSG123")
 
@@ -104,12 +104,12 @@ class TestValidateWebhookRateLimit:
     """Test webhook rate limiting."""
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_within_rate_limit(self, mock_redis):
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_within_rate_limit(self, mock_cache):
         """Test webhook accepted within rate limit."""
-        mock_redis.is_available = True
-        mock_redis.increment = AsyncMock(return_value=5)
-        mock_redis.expire = AsyncMock(return_value=True)
+        mock_cache.is_available = True
+        mock_cache.increment = AsyncMock(return_value=5)
+        mock_cache.expire = AsyncMock(return_value=True)
 
         result = await validate_webhook_rate_limit("+1234567890")
 
@@ -117,11 +117,11 @@ class TestValidateWebhookRateLimit:
         assert result.error_message is None
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_exceeds_rate_limit(self, mock_redis):
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_exceeds_rate_limit(self, mock_cache):
         """Test webhook rejected when rate limit exceeded."""
-        mock_redis.is_available = True
-        mock_redis.increment = AsyncMock(return_value=25)
+        mock_cache.is_available = True
+        mock_cache.increment = AsyncMock(return_value=25)
 
         result = await validate_webhook_rate_limit("+1234567890")
 
@@ -131,22 +131,22 @@ class TestValidateWebhookRateLimit:
         assert result.http_status_code == 429
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_first_request_sets_ttl(self, mock_redis):
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_first_request_sets_ttl(self, mock_cache):
         """Test TTL set on first request."""
-        mock_redis.is_available = True
-        mock_redis.increment = AsyncMock(return_value=1)
-        mock_redis.expire = AsyncMock(return_value=True)
+        mock_cache.is_available = True
+        mock_cache.increment = AsyncMock(return_value=1)
+        mock_cache.expire = AsyncMock(return_value=True)
 
         await validate_webhook_rate_limit("+1234567890")
 
-        mock_redis.expire.assert_called_once()
+        mock_cache.expire.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_redis_unavailable_allows_webhook(self, mock_redis):
-        """Test webhook allowed when Redis unavailable."""
-        mock_redis.is_available = False
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_cache_unavailable_allows_webhook(self, mock_cache):
+        """Test webhook allowed when cache unavailable."""
+        mock_cache.is_available = False
 
         result = await validate_webhook_rate_limit("+1234567890")
 
@@ -157,13 +157,13 @@ class TestVerifyWebhookSecurity:
     """Test complete webhook security validation."""
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_all_checks_pass(self, mock_redis):
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_all_checks_pass(self, mock_cache):
         """Test webhook accepted when all checks pass."""
-        mock_redis.is_available = True
-        mock_redis.set_if_not_exists = AsyncMock(return_value=True)
-        mock_redis.increment = AsyncMock(return_value=5)
-        mock_redis.expire = AsyncMock(return_value=True)
+        mock_cache.is_available = True
+        mock_cache.set_if_not_exists = AsyncMock(return_value=True)
+        mock_cache.increment = AsyncMock(return_value=5)
+        mock_cache.expire = AsyncMock(return_value=True)
 
         current_timestamp = str(int(datetime.now().timestamp()))
         result = await verify_webhook_security("MSG123", current_timestamp, "+1234567890")
@@ -172,10 +172,10 @@ class TestVerifyWebhookSecurity:
         assert result.error_message is None
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_timestamp_failure_stops_further_checks(self, mock_redis):
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_timestamp_failure_stops_further_checks(self, mock_cache):
         """Test that timestamp failure prevents further checks."""
-        mock_redis.is_available = True
+        mock_cache.is_available = True
 
         old_timestamp = str(int(datetime.now().timestamp()) - 400)
         result = await verify_webhook_security("MSG123", old_timestamp, "+1234567890")
@@ -183,14 +183,14 @@ class TestVerifyWebhookSecurity:
         assert result.is_valid is False
         assert result.error_message is not None
         assert "expired" in result.error_message.lower()
-        mock_redis.set_if_not_exists.assert_not_called()
+        mock_cache.set_if_not_exists.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("src.interface.webhook_security.redis_client")
-    async def test_nonce_failure_stops_rate_limit_check(self, mock_redis):
+    @patch("src.interface.webhook_security.cache_client")
+    async def test_nonce_failure_stops_rate_limit_check(self, mock_cache):
         """Test that nonce failure prevents rate limit check."""
-        mock_redis.is_available = True
-        mock_redis.set_if_not_exists = AsyncMock(return_value=False)
+        mock_cache.is_available = True
+        mock_cache.set_if_not_exists = AsyncMock(return_value=False)
 
         current_timestamp = str(int(datetime.now().timestamp()))
         result = await verify_webhook_security("MSG123", current_timestamp, "+1234567890")
@@ -198,4 +198,4 @@ class TestVerifyWebhookSecurity:
         assert result.is_valid is False
         assert result.error_message is not None
         assert "duplicate" in result.error_message.lower()
-        mock_redis.increment.assert_not_called()
+        mock_cache.increment.assert_not_called()

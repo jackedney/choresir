@@ -824,9 +824,8 @@ class TestGetPendingVerificationsPagination:
         assert _chore1["id"] not in result_ids
 
     async def test_many_pending_chores_batched_queries(self, patched_verification_db, monkeypatch, setup_test_users):
-        """Test that many pending chores are processed in batches to avoid PocketBase limits.
+        """Test that many pending chores are processed in batches.
 
-        PocketBase enforces limits of 200 filter expressions and 3500 character filter strings.
         This test verifies that batching is used by checking number of list_records calls.
         """
         # Use smaller batch size for testing

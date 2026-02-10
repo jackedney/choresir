@@ -8,9 +8,9 @@ from pydantic import BaseModel, Field
 class Log(BaseModel):
     """Log entry data transfer object for audit trail."""
 
-    id: str = Field(..., description="Unique log ID from PocketBase")
-    chore_id: str = Field(..., description="ID of the chore this log relates to")
-    user_id: str = Field(..., description="ID of the user who performed the action")
+    id: str = Field(..., description="Unique log ID from database")
+    chore_id: str = Field(..., description="ID of chore this log relates to")
+    user_id: str = Field(..., description="ID of user who performed the action")
     action: str = Field(
         ...,
         description="Action performed (e.g., 'completed', 'verified', 'rejected', 'voted_yes')",

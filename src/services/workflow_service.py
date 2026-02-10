@@ -7,7 +7,7 @@ across different workflow types (deletion approval, chore verification, personal
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from src.core import db_client
@@ -17,7 +17,7 @@ from src.core.logging import span
 logger = logging.getLogger(__name__)
 
 
-class WorkflowType(str, Enum):
+class WorkflowType(StrEnum):
     """Types of workflows supported in the system."""
 
     DELETION_APPROVAL = "deletion_approval"
@@ -25,7 +25,7 @@ class WorkflowType(str, Enum):
     PERSONAL_VERIFICATION = "personal_verification"
 
 
-class WorkflowStatus(str, Enum):
+class WorkflowStatus(StrEnum):
     """Status states for workflows."""
 
     PENDING = "pending"

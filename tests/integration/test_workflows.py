@@ -2,6 +2,7 @@
 
 import pytest
 
+from src.core.db_client import get_first_record, get_record
 from src.domain.chore import ChoreState
 from src.domain.user import UserStatus
 from src.services import chore_service, conflict_service, user_service, verification_service
@@ -38,7 +39,7 @@ async def test_new_user_registration_workflow(mock_db_module, db_client) -> None
     assert active_user["status"] == UserStatus.ACTIVE
 
     # Verify user can be retrieved
-    retrieved_user = await db_client.get_first_record(
+    retrieved_user = await get_first_record(
         collection="members",
         filter_query='phone = "+15550001111"',
     )
@@ -74,7 +75,7 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
     assert workflow["requester_user_id"] == sample_users["bob"]["id"]
 
     # Verify chore state changed
-    updated_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
+    updated_chore = await get_record(collection="chores", record_id=chore["id"])
     assert updated_chore["current_state"] == ChoreState.PENDING_VERIFICATION.value
 
     # Step 3: Alice verifies completion
@@ -89,7 +90,7 @@ async def test_create_and_complete_chore_workflow(mock_db_module, db_client, sam
     assert result["current_state"] == ChoreState.COMPLETED.value
 
     # Verify chore is completed
-    final_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
+    final_chore = await get_record(collection="chores", record_id=chore["id"])
     assert final_chore["current_state"] == ChoreState.COMPLETED.value
 
 
@@ -124,7 +125,7 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
     assert result["current_state"] == ChoreState.CONFLICT.value
 
     # Verify chore moved to CONFLICT state
-    conflict_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
+    conflict_chore = await get_record(collection="chores", record_id=chore["id"])
     assert conflict_chore["current_state"] == ChoreState.CONFLICT.value
 
     # Step 4: Bob votes (only eligible voter)
@@ -142,7 +143,7 @@ async def test_conflict_resolution_workflow(mock_db_module, db_client, sample_us
     assert tally_result == VoteResult.APPROVED
 
     # Verify chore is completed
-    final_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
+    final_chore = await get_record(collection="chores", record_id=chore["id"])
     assert final_chore["current_state"] == ChoreState.COMPLETED.value
 
 
@@ -182,7 +183,7 @@ async def test_robin_hood_swap_workflow(mock_db_module, db_client, sample_users:
     assert result["current_state"] == ChoreState.COMPLETED.value
 
     # Verify chore is completed
-    final_chore = await db_client.get_record(collection="chores", record_id=chore["id"])
+    final_chore = await get_record(collection="chores", record_id=chore["id"])
     assert final_chore["current_state"] == ChoreState.COMPLETED.value
 
 

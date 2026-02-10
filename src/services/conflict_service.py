@@ -54,7 +54,7 @@ async def initiate_vote(*, chore_id: str) -> list[dict[str, Any]]:
             raise ValueError(msg)
 
         # Get claimer and rejecter from logs
-        # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
+        # Get all logs and filter in Python (simple approach for this query)
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
@@ -134,7 +134,7 @@ async def cast_vote(
             msg = f"Cannot cast vote: chore {chore_id} is in {chore['current_state']} state"
             raise ValueError(msg)
 
-        # Get all logs and filter in Python (PocketBase has issues with relation field filtering)
+        # Get all logs and filter in Python (simple approach for this query)
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
@@ -183,7 +183,7 @@ async def cast_vote(
         logger.info("User %s voted %s on chore %s", voter_user_id, choice, chore_id)
 
         # Check if all votes are in
-        # Note: PocketBase has issues with filtering on relation fields, so get all logs and filter in Python
+        # Get all logs and filter in Python (simple approach for this query)
         all_logs_updated = await db_client.list_records(
             collection="logs",
             filter_query="",  # Get all logs
@@ -228,7 +228,7 @@ async def tally_votes(*, chore_id: str) -> tuple[VoteResult, dict[str, Any]]:
             msg = f"Cannot tally votes: chore {chore_id} is in {chore['current_state']} state"
             raise ValueError(msg)
 
-        # Get all logs and filter in Python (PocketBase has issues with relation field filtering)
+        # Get all logs and filter in Python (simple approach for this query)
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",
@@ -303,7 +303,7 @@ async def get_vote_status(*, chore_id: str) -> dict[str, Any]:
         Dictionary with vote counts and status
     """
     with span("conflict_service.get_vote_status"):
-        # Get all logs and filter in Python (PocketBase has issues with relation field filtering)
+        # Get all logs and filter in Python (simple approach for this query)
         all_logs = await db_client.list_records(
             collection="logs",
             filter_query="",

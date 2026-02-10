@@ -34,7 +34,7 @@
            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Infrastructure (src/core/)                                     │
-│  - db_client.py: PocketBase wrapper with connection pooling     │
+│  - db_client.py: SQLite wrapper with connection caching         │
 │  - config.py: Settings via pydantic-settings                    │
 │  - scheduler.py: APScheduler for cron jobs                      │
 └─────────────────────────────────────────────────────────────────┘
@@ -50,7 +50,7 @@ src/
 │   └── choresir_agent.py
 ├── core/             # Infrastructure
 │   ├── config.py     # Environment settings
-│   ├── db_client.py  # PocketBase CRUD + pooling
+│   ├── db_client.py  # SQLite CRUD + connection caching
 │   ├── schema.py     # Code-first DB schema
 │   └── scheduler.py  # Background jobs
 ├── domain/           # Pydantic DTOs
@@ -109,7 +109,6 @@ Use `RunContext[Deps]` in tools, never global state:
 ```python
 @dataclass
 class Deps:
-    db: PocketBase
     user_id: str
     user_phone: str
     user_name: str
@@ -122,7 +121,7 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
 
 ### Sanitize DB Params
 
-Always use `sanitize_param()` for user input in PocketBase filters:
+Always use `sanitize_param()` for user input in db_client filter queries:
 
 ```python
 filter_query = f'phone = "{sanitize_param(user_phone)}"'
@@ -132,7 +131,7 @@ filter_query = f'phone = "{sanitize_param(user_phone)}"'
 
 ### Access Pattern
 
-Always use `src/core/db_client` functions, never import PocketBase directly:
+Always use `src/core/db_client` functions, never import aiosqlite directly:
 
 ```python
 from src.core import db_client

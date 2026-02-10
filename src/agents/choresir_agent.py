@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import logfire
-from pocketbase import PocketBase
 from pydantic_ai.messages import ModelMessage
 
 from src.agents.agent_instance import get_agent
@@ -337,12 +336,12 @@ async def run_agent(
         return user_message
 
 
-async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
+async def build_deps(*, db: object, user_phone: str) -> Deps | None:
     """
     Build dependencies for agent execution with user context.
 
     Args:
-        db: PocketBase database connection
+        db: Database connection (unused, retained for API compatibility)
         user_phone: Phone number of the user
 
     Returns:
@@ -364,12 +363,12 @@ async def build_deps(*, db: PocketBase, user_phone: str) -> Deps | None:
     )
 
 
-async def get_member_list(*, _db: PocketBase) -> str:
+async def get_member_list(*, _db: object) -> str:
     """
     Get formatted list of household members.
 
     Args:
-        db: PocketBase database connection
+        db: Database connection (unused, retained for API compatibility)
 
     Returns:
         Formatted member list string

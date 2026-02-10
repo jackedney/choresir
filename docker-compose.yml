@@ -1,24 +1,16 @@
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: choresir-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 64M
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+  # FastAPI app service - add when containerized
+  # Example configuration for future use:
+  # app:
+  #   build: .
+  #   container_name: choresir-app
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8001:8001"
+  #   environment:
+  #     - SQLITE_DB_PATH=/app/data/choresir.db
+  #   volumes:
+  #     - ./data:/app/data  # SQLite data persistence
 
   waha:
     image: devlikeapro/waha:arm
@@ -42,7 +34,5 @@ services:
       - waha-data:/app/sessions
 
 volumes:
-  redis-data:
-    driver: local
   waha-data:
     driver: local
