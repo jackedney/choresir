@@ -1,6 +1,8 @@
 """Pytest configuration and fixtures for integration tests."""
 
 import logging
+from collections.abc import Iterator
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -14,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def mock_db_module(test_settings):
+def mock_db_module(test_settings: Any) -> Iterator[None]:
     """Patch settings globally for all modules to use test configuration.
 
     This ensures all modules use the test settings (including test SQLite DB path)

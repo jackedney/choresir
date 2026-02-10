@@ -23,15 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 async def validate_startup_configuration() -> None:
-    """Validate all required credentials.
-
-    Performs comprehensive startup validation:
-    - Validates all required credentials
-    - Fails fast with clear error messages
-
-    Raises:
-        ValueError: If required credentials are missing
-    """
+    """Validate required startup credentials."""
     logger.info("startup_validation_begin")
 
     try:

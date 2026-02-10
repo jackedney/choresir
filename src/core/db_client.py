@@ -18,55 +18,19 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_collection_name(collection: str) -> None:
-    """Validate that a collection name is safe for use in SQL queries.
-
-    Collection names must only contain alphanumeric characters and underscores.
-
-    Args:
-        collection: Collection/table name to validate
-
-    Raises:
-        ValueError: If collection name contains invalid characters
-    """
+    """Validate that a collection name contains only alphanumeric characters and underscores."""
     if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", collection):
         msg = f"Invalid collection name: {collection}. Only alphanumeric characters and underscores are allowed."
         raise ValueError(msg)
 
 
 def sanitize_param(value: str | int | float | bool | None) -> str:
-    """Sanitize a value for use in SQL queries.
-
-    Uses json.dumps to properly escape quotes and backslashes, preventing
-    SQL injection attacks. The result is safe to embed in SQL queries.
-
-    Args:
-        value: The value to sanitize (will be converted to string)
-
-    Returns:
-        A properly escaped string value (without surrounding quotes)
-
-    Example:
-        >>> phone = 'foo" OR 1=1 OR "'
-        >>> query = f"phone = '{sanitize_param(phone)}'"
-        # Results in: phone = 'foo\" OR 1=1 OR \"'
-        # Which safely treats the injection attempt as a literal string
-    """
+    """Escape a value for safe embedding in SQL queries via json.dumps."""
     return json.dumps(str(value))[1:-1]
 
 
 def _convert_record_ids(record: dict[str, Any]) -> dict[str, Any]:
-    """Convert integer IDs to strings for Pydantic model compatibility.
-
-    SQLite returns integer IDs, but Pydantic models expect string IDs.
-    This function converts the 'id' field and any foreign key fields
-    from integers to strings.
-
-    Args:
-        record: Record dictionary from SQLite
-
-    Returns:
-        Record with ID fields converted to strings
-    """
+    """Convert integer ID and foreign key fields to strings for Pydantic compatibility."""
     # Common foreign key field names that should be converted
     fk_fields = {
         "id",
@@ -87,30 +51,13 @@ def _convert_record_ids(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_db_path(db_path: str | None = None) -> Path:
-    """Get the SQLite database file path.
-
-    Args:
-        db_path: Optional custom database path. If not provided, uses settings.sqlite_db_path.
-
-    Returns:
-        Path object pointing to the SQLite database file
-    """
+    """Get the resolved SQLite database file path."""
     path_str = db_path or settings.sqlite_db_path
     return Path(path_str).resolve()
 
 
-def _parse_value(value: str, *, is_like: bool = False) -> str | int | float | None:
-    """Parse a string value to appropriate type for SQLite.
-
-    Handles LIKE patterns, numeric types, booleans, and None.
-
-    Args:
-        value: String value to parse
-        is_like: Whether this is for a LIKE pattern (preserve wildcards)
-
-    Returns:
-        Parsed value (int, float, str, None, or bool)
-    """
+def _parse_value(value: str, *, is_like: bool = False) -> str | int | float | bool | None:
+    """Parse a string value to the appropriate Python type for SQLite."""
     if is_like:
         return value.replace("%", "\\%").replace("_", "\\_")
 
@@ -146,17 +93,7 @@ def _get_sql_operator(op: str) -> str:
 
 
 def _parse_single_comparison(comparison: str) -> tuple[str, str | int | float | None]:
-    """Parse a single comparison expression.
-
-    Args:
-        comparison: Expression like 'field = "value"'
-
-    Returns:
-        Tuple of (SQL condition, parameter value)
-
-    Raises:
-        ValueError: If comparison syntax is invalid
-    """
+    """Parse a single comparison expression into a SQL condition and parameter."""
     match = re.match(
         r"""(\w+)\s*(=|!=|>|<|>=|<=|~)\s*(['"])([^'"]*)\3""",
         comparison,
@@ -177,14 +114,7 @@ def _parse_single_comparison(comparison: str) -> tuple[str, str | int | float | 
 
 
 def _parse_or_group(or_group: str) -> tuple[str, list[str | int | float | None]]:
-    """Parse a parenthesized OR group.
-
-    Args:
-        or_group: Expression like '(field1 = "v1" || field2 = "v2")'
-
-    Returns:
-        Tuple of (SQL condition, parameter values list)
-    """
+    """Parse a parenthesized OR group into a SQL condition and parameters."""
     inner = or_group[1:-1]  # Remove parentheses
     or_parts = [p.strip() for p in inner.split("||")]
     or_conditions = []
@@ -223,31 +153,7 @@ def _split_and_conditions(filter_query: str) -> list[str]:
 
 
 def parse_filter(filter_query: str) -> tuple[str, list[str | int | float | None]]:
-    """Parse filter syntax into SQL WHERE clause and parameters.
-
-    Supports:
-    - field = 'value' or field = "value"  -> WHERE field = ?
-    - field != 'value'          -> WHERE field != ?
-    - field > 'value'           -> WHERE field > ?
-    - field < 'value'           -> WHERE field < ?
-    - field >= 'value'          -> WHERE field >= ?
-    - field <= 'value'          -> WHERE field <= ?
-    - field ~ 'pattern'         -> WHERE field LIKE ?
-    - field1 = 'v1' && field2 = 'v2' -> WHERE field1 = ? AND field2 = ?
-    - (field1 = 'v1' || field2 = 'v2') -> WHERE (field1 = ? OR field2 = ?)
-
-    Values can be quoted with either single (') or double (") quotes.
-    Use parentheses to group OR conditions.
-
-    Args:
-        filter_query: Filter string
-
-    Returns:
-        Tuple of (WHERE clause, parameter values list)
-
-    Raises:
-        ValueError: If filter syntax is invalid
-    """
+    """Parse filter syntax into a SQL WHERE clause and parameter list."""
     if not filter_query:
         return "", []
 
@@ -277,20 +183,7 @@ _db_lock = asyncio.Lock()
 
 
 async def get_connection(*, db_path: str | None = None) -> aiosqlite.Connection:
-    """Get or create a connection unique to thread, event loop, and database path.
-
-    Auto-creates the parent directory if it doesn't exist.
-    Uses async lock to prevent connection races.
-
-    Args:
-        db_path: Optional custom database path
-
-    Returns:
-        SQLite connection for the current (thread, loop, db_path) combination
-
-    Raises:
-        OSError: If directory creation fails
-    """
+    """Get or create a cached connection for the current thread, loop, and db path."""
     thread_id = threading.get_ident()
     loop = asyncio.get_event_loop()
     loop_id = id(loop)
@@ -328,13 +221,7 @@ async def get_connection(*, db_path: str | None = None) -> aiosqlite.Connection:
 
 
 async def close_connection(*, db_path: str | None = None) -> None:
-    """Close the SQLite connection for current thread, loop, and db_path.
-
-    Silently ignores errors if connection is already closed.
-
-    Args:
-        db_path: Optional custom database path
-    """
+    """Close the cached SQLite connection for the current thread, loop, and db path."""
     thread_id = threading.get_ident()
     loop = asyncio.get_event_loop()
     loop_id = id(loop)
@@ -362,33 +249,13 @@ async def close_connection(*, db_path: str | None = None) -> None:
 
 
 async def init_db(*, db_path: str | None = None) -> None:
-    """Initialize the database schema.
-
-    Delegates to schema.init_db() which creates all required tables.
-
-    Args:
-        db_path: Optional custom database path
-
-    Raises:
-        RuntimeError: If schema initialization fails
-    """
+    """Initialize the database schema by delegating to schema.init_db()."""
     schema = __import__("src.core.schema", fromlist=["init_db"])
     await schema.init_db(db_path=db_path)
 
 
 async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, Any]:
-    """Create a new record in specified collection.
-
-    Args:
-        collection: Table/collection name
-        data: Record data as dictionary
-
-    Returns:
-        Created record with id field
-
-    Raises:
-        RuntimeError: If record creation fails or table doesn't exist
-    """
+    """Insert a new record and return it with its assigned id."""
     try:
         _validate_collection_name(collection)
         conn = await get_connection()
@@ -415,7 +282,7 @@ async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, A
         record_id = cursor.lastrowid
         result = await get_record(collection=collection, record_id=str(record_id))
 
-        logger.info("Created record in %s: %s", collection, record_id)
+        logger.info("Created record", extra={"collection": collection, "record_id": record_id})
         return result
     except Exception as e:
         if isinstance(e, aiosqlite.OperationalError) and "no such table" in str(e):
@@ -428,19 +295,7 @@ async def create_record(*, collection: str, data: dict[str, Any]) -> dict[str, A
 
 
 async def get_record(*, collection: str, record_id: str) -> dict[str, Any]:
-    """Get a record by ID from specified collection.
-
-    Args:
-        collection: Table/collection name
-        record_id: Record ID (as string)
-
-    Returns:
-        Record as dictionary
-
-    Raises:
-        KeyError: If record not found
-        RuntimeError: If query fails
-    """
+    """Fetch a single record by ID, raising KeyError if not found."""
     try:
         _validate_collection_name(collection)
         conn = await get_connection()
@@ -456,7 +311,7 @@ async def get_record(*, collection: str, record_id: str) -> dict[str, Any]:
         columns = [description[0] for description in cursor.description]
         record = dict(zip(columns, row, strict=True))
 
-        logger.info("Retrieved record from %s: %s", collection, record_id)
+        logger.info("Retrieved record", extra={"collection": collection, "record_id": record_id})
         return _convert_record_ids(record)
     except KeyError:
         raise
@@ -467,20 +322,11 @@ async def get_record(*, collection: str, record_id: str) -> dict[str, Any]:
 
 
 async def update_record(*, collection: str, record_id: str, data: dict[str, Any]) -> dict[str, Any]:
-    """Update a record in specified collection.
+    """Update a record by ID and return the updated record."""
+    if not data:
+        msg = "Empty update payload"
+        raise ValueError(msg)
 
-    Args:
-        collection: Table/collection name
-        record_id: Record ID (as string)
-        data: Updated record data
-
-    Returns:
-        Updated record as dictionary
-
-    Raises:
-        KeyError: If record not found
-        RuntimeError: If update fails
-    """
     try:
         _validate_collection_name(collection)
         conn = await get_connection()
@@ -502,7 +348,7 @@ async def update_record(*, collection: str, record_id: str, data: dict[str, Any]
         await conn.execute(query, values)
         await conn.commit()
 
-        logger.info("Updated record in %s: %s", collection, record_id)
+        logger.info("Updated record", extra={"collection": collection, "record_id": record_id})
         return await get_record(collection=collection, record_id=record_id)
     except KeyError:
         raise
@@ -513,16 +359,7 @@ async def update_record(*, collection: str, record_id: str, data: dict[str, Any]
 
 
 async def delete_record(*, collection: str, record_id: str) -> None:
-    """Delete a record from specified collection.
-
-    Args:
-        collection: Table/collection name
-        record_id: Record ID (as string)
-
-    Raises:
-        KeyError: If record not found
-        RuntimeError: If deletion fails
-    """
+    """Delete a record by ID, raising KeyError if not found."""
     try:
         _validate_collection_name(collection)
         conn = await get_connection()
@@ -535,7 +372,7 @@ async def delete_record(*, collection: str, record_id: str) -> None:
             msg = f"Record not found in {collection}: {record_id}"
             raise KeyError(msg)
 
-        logger.info("Deleted record from %s: %s", collection, record_id)
+        logger.info("Deleted record", extra={"collection": collection, "record_id": record_id})
     except KeyError:
         raise
     except Exception as e:
@@ -552,21 +389,7 @@ async def list_records(
     filter_query: str = "",
     sort: str = "",
 ) -> list[dict[str, Any]]:
-    """List records from specified collection with filtering and pagination.
-
-    Args:
-        collection: Table/collection name
-        page: Page number (1-indexed)
-        per_page: Records per page
-        filter_query: Filter string
-        sort: Sort field (default: id ASC)
-
-    Returns:
-        List of records as dictionaries
-
-    Raises:
-        RuntimeError: If query fails
-    """
+    """List records with optional filtering, sorting, and pagination."""
     try:
         _validate_collection_name(collection)
         conn = await get_connection()
@@ -598,7 +421,7 @@ async def list_records(
         columns = [description[0] for description in cursor.description]
         records = [_convert_record_ids(dict(zip(columns, row, strict=True))) for row in rows]
 
-        logger.info("Listed records from %s: %d results", collection, len(records))
+        logger.info("Listed records", extra={"collection": collection, "count": len(records)})
         return records
     except Exception as e:
         logger.error("list_records_failed", extra={"collection": collection, "error": str(e)})
@@ -607,18 +430,7 @@ async def list_records(
 
 
 async def get_first_record(*, collection: str, filter_query: str) -> dict[str, Any] | None:
-    """Get first record matching filter query, or None if not found.
-
-    Args:
-        collection: Table/collection name
-        filter_query: Filter string
-
-    Returns:
-        First matching record as dictionary, or None if not found
-
-    Raises:
-        RuntimeError: If query fails
-    """
+    """Return the first record matching the filter, or None."""
     try:
         _validate_collection_name(collection)
         conn = await get_connection()
@@ -641,7 +453,7 @@ async def get_first_record(*, collection: str, filter_query: str) -> dict[str, A
         columns = [description[0] for description in cursor.description]
         record = dict(zip(columns, row, strict=True))
 
-        logger.info("Retrieved first record from %s", collection)
+        logger.info("Retrieved first record", extra={"collection": collection})
         return _convert_record_ids(record)
     except Exception as e:
         logger.error(
