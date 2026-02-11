@@ -10,6 +10,7 @@ This module provides scheduled jobs for:
 
 import logging
 from datetime import UTC, date, datetime
+from functools import partial
 
 from src.core import db_client, message_templates
 from src.core.config import Constants
@@ -595,24 +596,24 @@ def get_scheduled_jobs() -> list:
             id="overdue_reminders",
             name="Send Overdue Chore Reminders",
             cron="0 8 * * *",
-            func=lambda: retry_job_with_backoff(send_overdue_reminders, "overdue_reminders"),
+            func=partial(retry_job_with_backoff, send_overdue_reminders, "overdue_reminders"),
         ),
         ScheduledJob(
             id="daily_report",
             name="Send Daily Household Report",
             cron="0 21 * * *",
-            func=lambda: retry_job_with_backoff(send_daily_report, "daily_report"),
+            func=partial(retry_job_with_backoff, send_daily_report, "daily_report"),
         ),
         ScheduledJob(
             id="weekly_leaderboard",
             name="Send Weekly Leaderboard Report",
             cron="0 20 * * 0",
-            func=lambda: retry_job_with_backoff(send_weekly_leaderboard, "weekly_leaderboard"),
+            func=partial(retry_job_with_backoff, send_weekly_leaderboard, "weekly_leaderboard"),
         ),
         ScheduledJob(
             id="personal_chore_reminders",
             name="Send Personal Chore Reminders",
             cron="0 8 * * *",
-            func=lambda: retry_job_with_backoff(send_personal_chore_reminders, "personal_chore_reminders"),
+            func=partial(retry_job_with_backoff, send_personal_chore_reminders, "personal_chore_reminders"),
         ),
     ]

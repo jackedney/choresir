@@ -65,7 +65,27 @@ async def sample_users(patched_analytics_db):
 
 
 @pytest.fixture
-async def sample_completion_logs(patched_analytics_db, sample_users):
+async def sample_tasks(patched_analytics_db, sample_users):
+    """Create sample tasks for testing (satisfies FK constraints on task_logs)."""
+    tasks = []
+    for i in range(20):
+        task = await patched_analytics_db.create_record(
+            collection="tasks",
+            data={
+                "title": f"Task {i}",
+                "description": f"Description for task {i}",
+                "schedule_cron": "0 9 * * *",
+                "current_state": "TODO",
+                "assigned_to": sample_users[i % len(sample_users)]["id"],
+                "scope": "shared",
+            },
+        )
+        tasks.append(task)
+    return tasks
+
+
+@pytest.fixture
+async def sample_completion_logs(patched_analytics_db, sample_users, sample_tasks):
     """Create sample completion logs for testing."""
     now = datetime.now(UTC)
     logs = []
@@ -78,7 +98,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
                 "user_id": sample_users[0]["id"],
                 "action": "approve_verification",
                 "timestamp": (now - timedelta(days=i)).isoformat(),
-                "task_id": f"task_{i}",
+                "task_id": sample_tasks[i]["id"],
             },
         )
         logs.append(log)
@@ -91,7 +111,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
                 "user_id": sample_users[1]["id"],
                 "action": "approve_verification",
                 "timestamp": (now - timedelta(days=i)).isoformat(),
-                "chore_id": f"chore_{i + 10}",
+                "task_id": sample_tasks[5 + i]["id"],
             },
         )
         logs.append(log)
@@ -103,7 +123,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
             "user_id": sample_users[2]["id"],
             "action": "approve_verification",
             "timestamp": now.isoformat(),
-            "chore_id": "chore_20",
+            "task_id": sample_tasks[8]["id"],
         },
     )
     logs.append(log)
@@ -248,16 +268,18 @@ class TestGetLeaderboardBulkFetch:
         """Verify users are fetched in bulk, not individually."""
         mock_redis.get.return_value = None
 
+        from src.core import db_client as db_client_module
+
         # Track list_records calls
         list_records_calls = []
-        original_list_records = patched_analytics_db.list_records
+        original_list_records = db_client_module.list_records
 
         async def track_list_records(collection, **kwargs):
             list_records_calls.append(collection)
-            return await original_list_records(collection, **kwargs)
+            return await original_list_records(collection=collection, **kwargs)
 
         # Patch the db_client module function that analytics_service uses
-        with patch("src.modules.tasks.analytics.db_client.list_records", track_list_records):
+        with patch.object(db_client_module, "list_records", track_list_records):
             result = await analytics_service.get_leaderboard(period_days=30)
 
         # Verify users collection was queried exactly once (bulk fetch)
@@ -267,27 +289,49 @@ class TestGetLeaderboardBulkFetch:
         # Verify result is correct
         assert len(result) == 3
 
-    async def test_leaderboard_missing_user(self, patched_analytics_db, mock_redis, sample_users):
+    async def test_leaderboard_missing_user(self, patched_analytics_db, mock_redis, sample_users, sample_tasks):
         """User in completion logs but not in users table is handled gracefully."""
         mock_redis.get.return_value = None
 
-        # Create completion log for non-existent user
+        from src.core import db_client as db_client_module
+
+        # Create a 4th member and a valid task_log for them
+        ghost_user = await patched_analytics_db.create_record(
+            collection="members",
+            data={
+                "name": "Ghost",
+                "phone": "+0000000000",
+                "role": "member",
+                "status": "active",
+            },
+        )
         await patched_analytics_db.create_record(
             collection="task_logs",
             data={
-                "user_id": "nonexistent_user",
+                "user_id": ghost_user["id"],
                 "action": "approve_verification",
                 "timestamp": datetime.now(UTC).isoformat(),
-                "chore_id": "chore_99",
+                "task_id": sample_tasks[0]["id"],
             },
         )
 
-        result = await analytics_service.get_leaderboard(period_days=30)
+        # Patch list_records so member lookup excludes the ghost user,
+        # simulating the scenario where a user_id in logs has no matching member.
+        original_list_records = db_client_module.list_records
+
+        async def filtered_list_records(collection, **kwargs):
+            results = await original_list_records(collection=collection, **kwargs)
+            if collection == "members":
+                return [r for r in results if r["id"] != ghost_user["id"]]
+            return results
+
+        with patch.object(db_client_module, "list_records", filtered_list_records):
+            result = await analytics_service.get_leaderboard(period_days=30)
 
         # Verify missing user is skipped and logged, but doesn't break the function
         # Result should only include existing users
         user_ids = [entry.user_id for entry in result]
-        assert "nonexistent_user" not in user_ids
+        assert ghost_user["id"] not in user_ids
 
     async def test_leaderboard_empty(self, patched_analytics_db, mock_redis, sample_users):
         """Empty leaderboard (no completions) works correctly."""
@@ -310,7 +354,7 @@ class TestGetLeaderboardBulkFetch:
 class TestGetLeaderboardEdgeCases:
     """Tests for edge cases in get_leaderboard."""
 
-    async def test_leaderboard_single_user(self, patched_analytics_db, mock_redis, sample_users):
+    async def test_leaderboard_single_user(self, patched_analytics_db, mock_redis, sample_users, sample_tasks):
         """Leaderboard with only one user works correctly."""
         mock_redis.get.return_value = None
 
@@ -321,7 +365,7 @@ class TestGetLeaderboardEdgeCases:
                 "user_id": sample_users[0]["id"],
                 "action": "approve_verification",
                 "timestamp": datetime.now(UTC).isoformat(),
-                "chore_id": "chore_1",
+                "task_id": sample_tasks[0]["id"],
             },
         )
 
@@ -331,7 +375,7 @@ class TestGetLeaderboardEdgeCases:
         assert result[0].user_name == "Alice"
         assert result[0].completion_count == 1
 
-    async def test_leaderboard_tied_users(self, patched_analytics_db, mock_redis, sample_users):
+    async def test_leaderboard_tied_users(self, patched_analytics_db, mock_redis, sample_users, sample_tasks):
         """Users with same completion count are handled correctly."""
         mock_redis.get.return_value = None
 
@@ -345,7 +389,7 @@ class TestGetLeaderboardEdgeCases:
                     "user_id": sample_users[0]["id"],
                     "action": "approve_verification",
                     "timestamp": (now - timedelta(days=i)).isoformat(),
-                    "chore_id": f"chore_a_{i}",
+                    "task_id": sample_tasks[i]["id"],
                 },
             )
 
@@ -357,7 +401,7 @@ class TestGetLeaderboardEdgeCases:
                     "user_id": sample_users[1]["id"],
                     "action": "approve_verification",
                     "timestamp": (now - timedelta(days=i)).isoformat(),
-                    "chore_id": f"chore_b_{i}",
+                    "task_id": sample_tasks[3 + i]["id"],
                 },
             )
 
@@ -368,7 +412,7 @@ class TestGetLeaderboardEdgeCases:
         assert result[0].completion_count == 3
         assert result[1].completion_count == 3
 
-    async def test_leaderboard_period_filtering(self, patched_analytics_db, mock_redis, sample_users):
+    async def test_leaderboard_period_filtering(self, patched_analytics_db, mock_redis, sample_users, sample_tasks):
         """Leaderboard correctly filters by period_days."""
         mock_redis.get.return_value = None
 
@@ -381,7 +425,7 @@ class TestGetLeaderboardEdgeCases:
                 "user_id": sample_users[0]["id"],
                 "action": "approve_verification",
                 "timestamp": (now - timedelta(days=10)).isoformat(),
-                "chore_id": "old_chore",
+                "task_id": sample_tasks[0]["id"],
             },
         )
 
@@ -392,7 +436,7 @@ class TestGetLeaderboardEdgeCases:
                 "user_id": sample_users[1]["id"],
                 "action": "approve_verification",
                 "timestamp": (now - timedelta(days=2)).isoformat(),
-                "chore_id": "recent_chore",
+                "task_id": sample_tasks[1]["id"],
             },
         )
 
@@ -403,7 +447,9 @@ class TestGetLeaderboardEdgeCases:
         assert result[0].user_name == "Bob"
         assert result[0].completion_count == 1
 
-    async def test_leaderboard_multiple_completions_same_user(self, patched_analytics_db, mock_redis, sample_users):
+    async def test_leaderboard_multiple_completions_same_user(
+        self, patched_analytics_db, mock_redis, sample_users, sample_tasks
+    ):
         """Multiple completions by same user are counted correctly."""
         mock_redis.get.return_value = None
 
@@ -417,7 +463,7 @@ class TestGetLeaderboardEdgeCases:
                     "user_id": sample_users[0]["id"],
                     "action": "approve_verification",
                     "timestamp": (now - timedelta(hours=i)).isoformat(),
-                    "task_id": f"task_{i}",
+                    "task_id": sample_tasks[i]["id"],
                 },
             )
 
@@ -455,6 +501,7 @@ class TestGetUserStatistics:
             data={
                 "name": "NewUser",
                 "phone": "+9999999999",
+                "role": "member",
                 "status": "active",
             },
         )

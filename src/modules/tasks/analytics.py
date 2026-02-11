@@ -97,13 +97,13 @@ async def _fetch_claim_logs_map(chore_ids: list[str]) -> dict[str, dict]:
     chunk_size = 50
     for i in range(0, len(unique_chore_ids), chunk_size):
         chunk = unique_chore_ids[i : i + chunk_size]
-        or_clause = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
+        or_clause = " || ".join([f'task_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
         claim_logs = await db_client.list_records(
             collection="task_logs",
             filter_query=f'action = "claimed_completion" && ({or_clause})',
         )
         for claim_log in claim_logs:
-            chore_id = claim_log["chore_id"]
+            chore_id = claim_log["task_id"]
             # Keep only most recent claim log per chore
             if chore_id not in claim_logs_map or claim_log.get("timestamp", "") > claim_logs_map[chore_id].get(
                 "timestamp", ""
@@ -219,11 +219,9 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
             filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
         )
 
-        # Get chore IDs for Robin Hood Protocol data
-        # Extract chore IDs, filtering out None values
-        claim_log_ids: list[str] = [
-            chore_id for log in completion_logs if (chore_id := log.get("chore_id")) is not None
-        ]
+        # Get task IDs for Robin Hood Protocol data
+        # Extract task IDs, filtering out None values
+        claim_log_ids: list[str] = [task_id for log in completion_logs if (task_id := log.get("task_id")) is not None]
 
         # Fetch chores and claim logs
         chores_map = await _fetch_chores_map(claim_log_ids) if claim_log_ids else {}
@@ -232,12 +230,12 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
         # Count completions per user with Robin Hood Protocol rules
         user_completion_counts: dict[str, int] = {}
         for log in completion_logs:
-            chore_id = log.get("chore_id")
-            if not isinstance(chore_id, str):
-                continue  # Skip logs without a valid chore_id
+            task_id = log.get("task_id")
+            if not isinstance(task_id, str):
+                continue  # Skip logs without a valid task_id
 
-            claim_log = claim_logs_map.get(chore_id)
-            chore = chores_map.get(chore_id)
+            claim_log = claim_logs_map.get(task_id)
+            chore = chores_map.get(task_id)
 
             user_to_award = _determine_user_to_award(log=log, claim_log=claim_log, chore=chore)
             user_completion_counts[user_to_award] = user_completion_counts.get(user_to_award, 0) + 1
@@ -466,7 +464,7 @@ async def _fetch_user_claims_for_chunk(
         Tuple of (claimed_chore_ids, logs_fetched_count)
     """
     claimed_chore_ids: set[str] = set()
-    or_clause = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
+    or_clause = " || ".join([f'task_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
 
     page = 1
     chunk_logs_fetched = 0
@@ -483,7 +481,7 @@ async def _fetch_user_claims_for_chunk(
                 sort="",
             )
 
-            claimed_chore_ids.update(log["chore_id"] for log in logs)
+            claimed_chore_ids.update(log["task_id"] for log in logs)
             chunk_logs_fetched += len(logs)
 
             if len(logs) < per_page_limit:

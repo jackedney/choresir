@@ -19,9 +19,18 @@ def patched_pantry_db(mock_db_module_for_unit_tests, db_client):
 
 
 @pytest.fixture
-def sample_user_id():
-    """Sample user ID for testing."""
-    return "user_123"
+async def sample_user_id(patched_pantry_db):
+    """Sample user ID for testing - creates a real member in the database."""
+    user = await patched_pantry_db.create_record(
+        collection="members",
+        data={
+            "name": "Test User",
+            "phone": "+19999999999",
+            "role": "member",
+            "status": "active",
+        },
+    )
+    return str(user["id"])
 
 
 @pytest.mark.unit

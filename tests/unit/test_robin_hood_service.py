@@ -9,9 +9,18 @@ from src.core.config import settings
 
 
 @pytest.fixture
-def mock_user_id():
-    """Sample user ID for testing."""
-    return "test_user_123"
+async def mock_user_id(patched_db):
+    """Sample user ID for testing - creates a real member in the database."""
+    user = await patched_db.create_record(
+        collection="members",
+        data={
+            "name": "Test User",
+            "phone": "+18888888888",
+            "role": "member",
+            "status": "active",
+        },
+    )
+    return str(user["id"])
 
 
 class TestWeekStartDate:

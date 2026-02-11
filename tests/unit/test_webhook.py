@@ -84,7 +84,7 @@ class TestGroupContextRecording:
         )
 
         mock_user_record = {"id": "user123", "name": "Alice", "phone": "+1234567890", "status": "active"}
-        webhook_mocks.db.get_first_record = AsyncMock(side_effect=[None, mock_user_record])
+        webhook_mocks.db.get_first_record = AsyncMock(return_value=mock_user_record)
         webhook_mocks.db.create_record = AsyncMock(return_value={"id": "msg123"})
         webhook_mocks.db.get_client = MagicMock()
 
@@ -125,7 +125,7 @@ class TestGroupContextRecording:
         )
 
         mock_user_record = {"id": "user123", "name": "Alice", "phone": "+1234567890", "status": "active"}
-        webhook_mocks.db.get_first_record = AsyncMock(side_effect=[None, mock_user_record])
+        webhook_mocks.db.get_first_record = AsyncMock(return_value=mock_user_record)
         webhook_mocks.db.create_record = AsyncMock(return_value={"id": "msg123"})
         webhook_mocks.db.get_client = MagicMock()
 
@@ -297,7 +297,7 @@ class TestProcessWebhookMessage:
     @patch("src.interface.webhook.whatsapp_parser.parse_waha_webhook")
     @patch("src.interface.webhook.db_client")
     async def test_process_webhook_message_duplicate(self, mock_db, mock_parser, mock_get_house_config):
-        """Test processing skips duplicate messages."""
+        """Test processing skips duplicate messages via UNIQUE constraint."""
         mock_message = MagicMock()
         mock_message.message_id = "123"
         mock_message.text = "Hello"
@@ -312,17 +312,17 @@ class TestProcessWebhookMessage:
         # Mock house config with group configured
         mock_get_house_config.return_value = MagicMock(group_chat_id="group123@g.us", activation_key=None)
 
-        # Simulate existing message log
-        mock_db.get_first_record = AsyncMock(return_value={"id": "existing"})
+        # Simulate UNIQUE constraint failure (duplicate message)
+        mock_db.create_record = AsyncMock(
+            side_effect=RuntimeError("UNIQUE constraint failed: processed_messages.message_id")
+        )
 
         params = {}
 
         await process_webhook_message(params)
 
-        # Should check for duplicate
-        mock_db.get_first_record.assert_called_once()
-        # Should not create new record
-        mock_db.create_record.assert_not_called()
+        # Should attempt to claim via create_record
+        mock_db.create_record.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("src.interface.webhook.choresir_agent")

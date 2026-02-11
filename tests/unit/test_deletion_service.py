@@ -81,7 +81,7 @@ class TestRequestChoreDeletion:
         # Verify log was created
         logs = await patched_deletion_db.list_records(
             collection="task_logs",
-            filter_query=f'chore_id = "{todo_chore["id"]}" && action = "deletion_requested"',
+            filter_query=f'task_id = "{todo_chore["id"]}" && action = "deletion_requested"',
         )
         assert len(logs) == 1
         assert logs[0]["user_id"] == user1["id"]
@@ -100,7 +100,7 @@ class TestRequestChoreDeletion:
         # Verify log was created
         logs = await patched_deletion_db.list_records(
             collection="task_logs",
-            filter_query=f'chore_id = "{todo_chore["id"]}" && action = "deletion_requested"',
+            filter_query=f'task_id = "{todo_chore["id"]}" && action = "deletion_requested"',
         )
         assert logs[0]["notes"] == ""
 
@@ -108,7 +108,7 @@ class TestRequestChoreDeletion:
         """Test requesting deletion for non-existent chore raises error."""
         with pytest.raises(KeyError):
             await deletion_service.request_chore_deletion(
-                chore_id="nonexistent_id",
+                chore_id="99999",
                 requester_user_id=user1["id"],
             )
 
@@ -189,7 +189,7 @@ class TestApproveChoreDeletion:
         # Verify log was created
         logs = await patched_deletion_db.list_records(
             collection="task_logs",
-            filter_query=f'chore_id = "{chore_with_pending_deletion["id"]}" && action = "deletion_approved"',
+            filter_query=f'task_id = "{chore_with_pending_deletion["id"]}" && action = "deletion_approved"',
         )
         assert len(logs) == 1
         assert logs[0]["user_id"] == user2["id"]

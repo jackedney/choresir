@@ -35,6 +35,8 @@ def sample_chore():
     return {
         "title": "Dishes",
         "description": "Wash all the dishes",
+        "scope": "shared",
+        "current_state": "TODO",
     }
 
 
@@ -42,9 +44,9 @@ def sample_chore():
 def sample_users():
     """Sample user data (without ids - will be generated)."""
     return [
-        {"name": "Alice", "phone": "+11111111111", "status": UserStatus.ACTIVE},
-        {"name": "Bob", "phone": "+12222222222", "status": UserStatus.ACTIVE},
-        {"name": "Charlie", "phone": "+13333333333", "status": UserStatus.ACTIVE},
+        {"name": "Alice", "phone": "+11111111111", "role": "member", "status": UserStatus.ACTIVE},
+        {"name": "Bob", "phone": "+12222222222", "role": "member", "status": UserStatus.ACTIVE},
+        {"name": "Charlie", "phone": "+13333333333", "role": "member", "status": UserStatus.ACTIVE},
     ]
 
 
@@ -108,11 +110,11 @@ class TestSendVerificationRequest:
         for user in sample_users:
             await patched_notification_db.create_record(collection="members", data=user)
 
-        # Send verification request with non-existent chore
+        # Send verification request with non-existent chore ID
         results = await notification_service.send_verification_request(
             log_id="log123",
-            task_id="nonexistent",
-            claimer_user_id="user1",
+            task_id="99999",
+            claimer_user_id="1",
         )
 
         # Should return empty list
@@ -136,11 +138,11 @@ class TestSendVerificationRequest:
             data={"name": "Test House", "group_chat_id": "group123@g.us"},
         )
 
-        # Send verification request with non-existent claimer
+        # Send verification request with non-existent claimer ID
         await notification_service.send_verification_request(
             log_id="log123",
             task_id=chore["id"],
-            claimer_user_id="nonexistent_user",
+            claimer_user_id="99999",
         )
 
         # Verify group message was sent

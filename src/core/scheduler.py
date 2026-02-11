@@ -1,6 +1,7 @@
 """Scheduler for automated jobs (reminders, reports, etc.)."""
 
 import logging
+from functools import partial
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -88,7 +89,7 @@ def start_scheduler() -> None:
 
     # Register core jobs
     scheduler.add_job(
-        lambda: retry_job_with_backoff(expire_workflows, "expire_workflows"),
+        partial(retry_job_with_backoff, expire_workflows, "expire_workflows"),
         trigger=CronTrigger(hour="*", minute=45),
         id="expire_workflows",
         name="Expire Workflows",
@@ -97,7 +98,7 @@ def start_scheduler() -> None:
     logger.info("Scheduled workflow expiry job: hourly at :45")
 
     scheduler.add_job(
-        lambda: retry_job_with_backoff(cleanup_group_context, "cleanup_group_context"),
+        partial(retry_job_with_backoff, cleanup_group_context, "cleanup_group_context"),
         trigger=CronTrigger(hour="*", minute=50),
         id="cleanup_group_context",
         name="Cleanup Group Context",

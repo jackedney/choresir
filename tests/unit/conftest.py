@@ -145,6 +145,7 @@ def patched_db(db_client, monkeypatch):
         "src.modules.tasks.analytics.invalidate_leaderboard_cache",
         _mock_invalidate_cache,
     )
+    return DatabaseClient()
 
 
 @pytest.fixture

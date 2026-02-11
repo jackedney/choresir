@@ -60,15 +60,16 @@ class TestRequestVerification:
 
     async def test_request_verification_success(self, patched_verification_db, todo_chore, setup_test_users):
         """Test requesting verification for a chore."""
+        user1_id = str(setup_test_users["user1"]["id"])
         workflow = await verification_service.request_verification(
             chore_id=todo_chore["id"],
-            claimer_user_id=str(setup_test_users["user1"]["id"]),
+            claimer_user_id=user1_id,
             notes="I finished this",
         )
 
         # Verify workflow was created
         assert workflow["target_id"] == todo_chore["id"]
-        assert workflow["requester_user_id"] == "user1"
+        assert workflow["requester_user_id"] == user1_id
         assert workflow["type"] == "task_verification"
         assert workflow["metadata"]["notes"] == "I finished this"
         assert workflow["status"] == "pending"
@@ -79,7 +80,7 @@ class TestRequestVerification:
             filter_query=f'task_id = "{todo_chore["id"]}" && action = "claimed_completion"',
         )
         assert len(logs) >= 1
-        assert logs[0]["user_id"] == "user1"
+        assert logs[0]["user_id"] == user1_id
 
         # Verify chore state changed
         updated_chore = await chore_service.get_chore_by_id(chore_id=todo_chore["id"])
@@ -96,11 +97,11 @@ class TestRequestVerification:
         assert workflow["type"] == "task_verification"
         assert workflow["metadata"]["notes"] == ""
 
-    async def test_request_verification_chore_not_found(self, patched_verification_db):
+    async def test_request_verification_chore_not_found(self, patched_verification_db, setup_test_users):
         """Test requesting verification for non-existent chore raises error."""
         with pytest.raises(KeyError):
             await verification_service.request_verification(
-                chore_id="nonexistent_id",
+                chore_id="99999",
                 claimer_user_id=str(setup_test_users["user1"]["id"]),
                 notes="Test",
             )
@@ -285,7 +286,9 @@ class TestGetPendingVerifications:
         assert len(result) == 2
         assert all(chore["current_state"] == TaskState.PENDING_VERIFICATION for chore in result)
 
-    async def test_get_pending_verifications_excluding_user(self, patched_verification_db, setup_pending_chores):
+    async def test_get_pending_verifications_excluding_user(
+        self, patched_verification_db, setup_pending_chores, setup_test_users
+    ):
         """Test getting pending verifications excluding those claimed by specific user."""
         # user1 should only see chores they didn't claim
         result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
@@ -294,7 +297,9 @@ class TestGetPendingVerifications:
         # Should only contain chore2 (claimed by user2)
         assert result[0]["id"] == setup_pending_chores["chore2"]["id"]
 
-    async def test_get_pending_verifications_user_claimed_all(self, patched_verification_db, setup_pending_chores):
+    async def test_get_pending_verifications_user_claimed_all(
+        self, patched_verification_db, setup_pending_chores, setup_test_users
+    ):
         """Test user who claimed all pending chores sees none."""
         # Create scenario where user3 claimed both chores
         chore4 = await chore_service.create_chore(
@@ -498,7 +503,7 @@ class TestVerifyChorePagination:
         self,
         patched_verification_db,
         count: int,
-        chore_id: str,
+        chore_id: str = "",
         action: str = "other_action",
         user_id: str | None = None,
     ) -> list[dict[str, Any]]:
@@ -506,7 +511,7 @@ class TestVerifyChorePagination:
         logs = []
         for i in range(count):
             log_data = {
-                "chore_id": chore_id if action == "claimed_completion" else f"other_chore_{i}",
+                "task_id": chore_id if action == "claimed_completion" and chore_id else None,
                 "user_id": user_id if user_id else None,
                 "action": action,
                 "notes": f"Log {i}",
@@ -710,7 +715,7 @@ class TestGetPendingVerificationsPagination:
         self,
         patched_verification_db,
         count: int,
-        chore_id: str,
+        chore_id: str = "",
         action: str = "other_action",
         user_id: str | None = None,
     ) -> list[dict[str, Any]]:
@@ -718,7 +723,7 @@ class TestGetPendingVerificationsPagination:
         logs = []
         for i in range(count):
             log_data = {
-                "chore_id": chore_id if action == "claimed_completion" else f"other_chore_{i}",
+                "task_id": chore_id if action == "claimed_completion" and chore_id else None,
                 "user_id": user_id if user_id else None,
                 "action": action,
                 "notes": f"Log {i}",
@@ -748,9 +753,12 @@ class TestGetPendingVerificationsPagination:
     async def test_no_user_id_filter(self, patched_verification_db, setup_test_users):
         """Test that without user_id filter, all pending chores are returned."""
         # Create 3 pending chores claimed by different users
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
-        chore3 = await self._create_chore_with_claim(patched_verification_db, "Chore 3", "user3")
+        user1_id = str(setup_test_users["user1"]["id"])
+        user2_id = str(setup_test_users["user2"]["id"])
+        user3_id = str(setup_test_users["user3"]["id"])
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
+        chore3 = await self._create_chore_with_claim(patched_verification_db, "Chore 3", user3_id)
 
         # Get all pending verifications
         result = await verification_service.get_pending_verifications()
@@ -764,8 +772,10 @@ class TestGetPendingVerificationsPagination:
     async def test_user_id_filter_with_logs_on_multiple_pages(self, patched_verification_db, setup_test_users):
         """Test filtering correctly when logs span multiple pages."""
         # Create 2 pending chores
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
+        user1_id = str(setup_test_users["user1"]["id"])
+        user2_id = str(setup_test_users["user2"]["id"])
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
 
         # Create 500 other logs to force pagination
         await self._create_logs(patched_verification_db, 500)
@@ -779,13 +789,15 @@ class TestGetPendingVerificationsPagination:
     async def test_user_claimed_chore_on_page_2(self, patched_verification_db, setup_test_users):
         """Test that chore claimed by user on page 2 is correctly excluded."""
         # Create chore claimed by user1
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
+        user1_id = str(setup_test_users["user1"]["id"])
+        user2_id = str(setup_test_users["user2"]["id"])
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
 
         # Create 500 other logs AFTER claim log (so claim log ends up on page 2)
         await self._create_logs(patched_verification_db, 500, chore_id="other_chore")
 
         # Create another chore claimed by user2
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
 
         # user1 should only see chore2
         result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
@@ -796,16 +808,17 @@ class TestGetPendingVerificationsPagination:
     async def test_all_chores_claimed_by_user(self, patched_verification_db, setup_test_users):
         """Test that user who claimed all pending chores sees empty list."""
         # Create 3 chores all claimed by user1
-        await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
-        await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user1")
-        await self._create_chore_with_claim(patched_verification_db, "Chore 3", "user1")
+        user1_id = str(setup_test_users["user1"]["id"])
+        await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
+        await self._create_chore_with_claim(patched_verification_db, "Chore 2", user1_id)
+        await self._create_chore_with_claim(patched_verification_db, "Chore 3", user1_id)
 
         # user1 should see no chores
         result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
 
         assert result == []
 
-    async def test_no_chores_in_pending_verification(self, patched_verification_db):
+    async def test_no_chores_in_pending_verification(self, patched_verification_db, setup_test_users):
         """Test that empty list is returned when no chores are pending verification."""
         # Create a chore but don't claim it (stays in TODO state)
         await chore_service.create_chore(
@@ -822,13 +835,15 @@ class TestGetPendingVerificationsPagination:
     async def test_logs_on_exact_page_boundary(self, patched_verification_db, setup_test_users):
         """Test handling of claim log at exact page boundary (position 500)."""
         # Create chore claimed by user1
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
+        user1_id = str(setup_test_users["user1"]["id"])
+        user2_id = str(setup_test_users["user2"]["id"])
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
 
         # Create exactly 499 other logs AFTER (so claim log is at position 500)
         await self._create_logs(patched_verification_db, 499, chore_id="other_chore")
 
         # Create another chore claimed by user2
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
 
         # user1 should only see chore2
         result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
@@ -839,9 +854,12 @@ class TestGetPendingVerificationsPagination:
     async def test_large_log_collection(self, patched_verification_db, setup_test_users):
         """Test correct filtering with 1000+ logs."""
         # Create 3 pending chores
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", "user1")
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
-        chore3 = await self._create_chore_with_claim(patched_verification_db, "Chore 3", "user3")
+        user1_id = str(setup_test_users["user1"]["id"])
+        user2_id = str(setup_test_users["user2"]["id"])
+        user3_id = str(setup_test_users["user3"]["id"])
+        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
+        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
+        chore3 = await self._create_chore_with_claim(patched_verification_db, "Chore 3", user3_id)
 
         # Create 1000 other logs
         await self._create_logs(patched_verification_db, 1000, chore_id="other_chore")
@@ -860,23 +878,27 @@ class TestGetPendingVerificationsPagination:
 
         This test verifies that batching is used by checking number of list_records calls.
         """
+        from src.core import db_client as db_client_module
+
         # Use smaller batch size for testing
         monkeypatch.setattr(verification_service, "CHORE_ID_BATCH_SIZE", 5)
 
         # Create 12 pending chores (exceeds batch size of 5, requires 3 batches)
+        user1_id = str(setup_test_users["user1"]["id"])
+        user2_id = str(setup_test_users["user2"]["id"])
         user1_chores = []
         user2_chores = []
         for i in range(12):
             # Alternate between user1 and user2 claiming chores
-            claimer = "user1" if i % 2 == 0 else "user2"
+            claimer = user1_id if i % 2 == 0 else user2_id
             chore = await self._create_chore_with_claim(patched_verification_db, f"Chore {i}", claimer)
-            if claimer == "user1":
+            if claimer == user1_id:
                 user1_chores.append(chore)
             else:
                 user2_chores.append(chore)
 
         # Track list_records calls
-        original_list_records = patched_verification_db.list_records
+        original_list_records = db_client_module.list_records
         call_count = 0
         filter_queries = []
 
@@ -887,9 +909,7 @@ class TestGetPendingVerificationsPagination:
                 filter_queries.append(kwargs["filter_query"])
             return await original_list_records(*args, **kwargs)
 
-        monkeypatch.setattr(patched_verification_db, "list_records", tracking_list_records)
-        # Also patch db_client used by verification_service
-        monkeypatch.setattr("src.core.db_client.list_records", tracking_list_records)
+        monkeypatch.setattr(db_client_module, "list_records", tracking_list_records)
 
         # Reset counter after setup
         call_count = 0
@@ -921,23 +941,24 @@ class TestVerificationWorkflowIntegration:
 
     async def test_request_verification_creates_workflow(self, patched_verification_db, setup_test_users):
         """Test that request_verification creates a workflow with correct type."""
+        user1_id = str(setup_test_users["user1"]["id"])
         chore = await chore_service.create_chore(
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to=str(setup_test_users["user1"]["id"]),
+            assigned_to=user1_id,
         )
 
         workflow = await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id=str(setup_test_users["user1"]["id"]),
+            claimer_user_id=user1_id,
             notes="Done",
         )
 
         # Verify workflow was created
         assert workflow["type"] == "task_verification"
         assert workflow["status"] == "pending"
-        assert workflow["requester_user_id"] == "user1"
+        assert workflow["requester_user_id"] == user1_id
         assert workflow["target_id"] == chore["id"]
 
     async def test_request_verification_includes_metadata(self, patched_verification_db, setup_test_users):
@@ -962,24 +983,26 @@ class TestVerificationWorkflowIntegration:
 
     async def test_verify_chore_resolves_workflow(self, patched_verification_db, setup_test_users):
         """Test that verify_chore resolves the workflow."""
+        user1_id = str(setup_test_users["user1"]["id"])
+        user2_id = str(setup_test_users["user2"]["id"])
         chore = await chore_service.create_chore(
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to=str(setup_test_users["user1"]["id"]),
+            assigned_to=user1_id,
         )
 
         # Request verification
         workflow = await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id=str(setup_test_users["user1"]["id"]),
+            claimer_user_id=user1_id,
             notes="Done",
         )
 
-        # Approve verification
+        # Verify chore
         await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id=str(setup_test_users["user2"]["id"]),
+            verifier_user_id=user2_id,
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
         )
@@ -994,4 +1017,4 @@ class TestVerificationWorkflowIntegration:
             filter_query=f'id = "{workflow["id"]}"',
         )
         assert workflow_records[0]["status"] == "approved"
-        assert workflow_records[0]["resolver_user_id"] == "user2"
+        assert workflow_records[0]["resolver_user_id"] == user2_id

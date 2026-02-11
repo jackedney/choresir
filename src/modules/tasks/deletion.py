@@ -104,7 +104,7 @@ async def request_chore_deletion(
 
         # Create log entry for audit trail
         log_data = {
-            "chore_id": chore_id,
+            "task_id": chore_id,
             "user_id": requester_user_id,
             "action": "deletion_requested",
             "notes": reason,
@@ -170,7 +170,7 @@ async def approve_chore_deletion(
 
         # Create log entry for audit trail
         log_data = {
-            "chore_id": chore_id,
+            "task_id": chore_id,
             "user_id": approver_user_id,
             "action": "deletion_approved",
             "notes": reason,
@@ -251,7 +251,7 @@ async def reject_chore_deletion(
 
         # Create log entry for audit trail
         log_data = {
-            "chore_id": chore_id,
+            "task_id": chore_id,
             "user_id": rejecter_user_id,
             "action": "deletion_rejected",
             "notes": reason,

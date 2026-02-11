@@ -391,7 +391,7 @@ async def reassign_chore(
         if task.get("current_state") == TaskState.ARCHIVED:
             raise ValueError("Cannot reassign an archived chore.")
 
-        update_data: dict[str, Any] = {"assigned_to": assigned_to or ""}
+        update_data: dict[str, Any] = {"assigned_to": assigned_to}
         record = await db_client.update_record(
             collection="tasks",
             record_id=task_id,

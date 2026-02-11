@@ -89,7 +89,7 @@ async def get_workflow(*, workflow_id: str) -> dict[str, Any] | None:
     with span("workflow.get_workflow"):
         try:
             return await db_client.get_record(collection="workflows", record_id=workflow_id)
-        except KeyError:
+        except (KeyError, RuntimeError):
             return None
 
 
@@ -210,6 +210,10 @@ async def resolve_workflow(
                 "decision": decision.value,
             },
         )
+
+        # Remove reason field if it wasn't provided
+        if not reason:
+            updated_workflow.pop("reason", None)
 
         return updated_workflow
 

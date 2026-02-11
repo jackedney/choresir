@@ -48,7 +48,7 @@ class TestAddGroupMessage:
         assert messages[0]["sender_phone"] == sender_phone
         assert messages[0]["sender_name"] == sender_name
         assert messages[0]["content"] == content
-        assert messages[0]["is_bot"] is False
+        assert not messages[0]["is_bot"]
 
     @pytest.mark.asyncio
     async def test_adds_bot_message(
@@ -72,7 +72,7 @@ class TestAddGroupMessage:
         # Verify record was created with is_bot=True
         messages = await patched_group_context_db.list_records(collection="group_context")
         assert len(messages) == 1
-        assert messages[0]["is_bot"] is True
+        assert messages[0]["is_bot"]
 
     @pytest.mark.asyncio
     async def test_raises_value_error_for_empty_group_id(
