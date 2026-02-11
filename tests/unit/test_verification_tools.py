@@ -197,7 +197,7 @@ class TestToolVerifyChoreByWorkflowId:
             ),
         )
 
-        assert "is not a chore verification workflow" in result
+        assert "is not a task verification workflow" in result
 
     async def test_workflow_id_not_pending(self, patched_verification_tools_db, verifier, claimer, todo_chore):
         """Test workflow_id with not pending status returns error."""

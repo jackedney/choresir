@@ -394,9 +394,20 @@ class InMemoryDBClient:
         if not sort:
             return records
 
-        # Check for descending sort
-        reverse = sort.startswith("-")
-        field = sort[1:] if reverse else sort
+        # Support both "-field" and "field DESC" conventions
+        sort = sort.strip()
+        if sort.startswith("-"):
+            reverse = True
+            field = sort[1:]
+        elif sort.upper().endswith(" DESC"):
+            reverse = True
+            field = sort[: -len(" DESC")].strip()
+        elif sort.upper().endswith(" ASC"):
+            reverse = False
+            field = sort[: -len(" ASC")].strip()
+        else:
+            reverse = False
+            field = sort
 
         # Sort by field, handling missing fields
         return sorted(

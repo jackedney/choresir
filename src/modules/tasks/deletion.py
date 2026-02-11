@@ -40,7 +40,7 @@ async def get_pending_deletion_workflow(*, chore_id: str) -> dict[str, Any] | No
         workflows = await db_client.list_records(
             collection="workflows",
             filter_query=filter_query,
-            sort="-created_at",
+            sort="created_at DESC",
             per_page=1,
         )
 

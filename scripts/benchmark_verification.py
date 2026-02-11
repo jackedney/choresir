@@ -27,8 +27,8 @@ sys.path.append(str(Path.cwd()))
 
 from src.core import db_client
 from src.domain.task import TaskState
-from src.services import chore_service, verification_service
-from src.services.verification_service import VerificationDecision
+from src.modules.tasks import service as chore_service, verification as verification_service
+from src.modules.tasks.verification import VerificationDecision
 
 
 # Configure logging for benchmark output

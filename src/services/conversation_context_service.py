@@ -86,7 +86,7 @@ async def get_recent_context(*, user_phone: str) -> list[dict]:
             filter_query=(
                 f'user_phone = "{db_client.sanitize_param(user_phone)}" && timestamp >= "{cutoff_time.isoformat()}"'
             ),
-            sort="-timestamp",
+            sort="timestamp DESC",
             per_page=MAX_CONTEXT_MESSAGES,
         )
 
@@ -112,7 +112,7 @@ async def _cleanup_old_messages(*, user_phone: str) -> None:
         all_messages = await db_client.list_records(
             collection="conversation_context",
             filter_query=f'user_phone = "{db_client.sanitize_param(user_phone)}"',
-            sort="-timestamp",
+            sort="timestamp DESC",
         )
 
         # Delete messages beyond the limit or older than TTL

@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services import verification_service
+from src.modules.tasks import verification as verification_service
 
 
 @pytest.mark.asyncio

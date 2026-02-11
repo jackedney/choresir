@@ -51,7 +51,7 @@ async def get_pending_verification_workflow(*, chore_id: str) -> dict[str, Any] 
         workflows = await db_client.list_records(
             collection="workflows",
             filter_query=filter_query,
-            sort="-created_at",
+            sort="created_at DESC",
             per_page=1,
         )
 
@@ -80,7 +80,7 @@ async def get_pending_personal_verification_workflow(*, log_id: str) -> dict[str
         workflows = await db_client.list_records(
             collection="workflows",
             filter_query=filter_query,
-            sort="-created_at",
+            sort="created_at DESC",
             per_page=1,
         )
 
@@ -231,7 +231,7 @@ async def verify_chore(
     claim_logs = await db_client.list_records(
         collection="task_logs",
         filter_query=f'task_id = "{sanitize_param(task_id)}" && action = "claimed_completion"',
-        sort="-timestamp",
+        sort="timestamp DESC",
         per_page=1,
     )
 
@@ -295,7 +295,7 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
                         filter_query=(
                             f'action = "claimed_completion" && user_id = "{sanitize_param(user_id)} && ({task_id_conditions})'  # noqa: E501
                         ),
-                        sort="-timestamp",
+                        sort="timestamp DESC",
                         per_page=LOGS_PAGE_SIZE,
                         page=page,
                     )
@@ -370,7 +370,7 @@ async def log_personal_task(
 
     if verification_status == "PENDING" and partner_id:
         try:
-            user = await src.services.user_service.get_user_by_id(user_id=partner_id)
+            await src.services.user_service.get_user_by_id(user_id=partner_id)
 
             owner = await src.services.user_service.get_user_by_id(user_id=owner_id)
             owner_name = owner.get("name", "Unknown")
@@ -396,7 +396,7 @@ async def log_personal_task(
             )
 
             logger.info(
-                "Created personal verification workflow %s",
+                "Created personal verification workflow %s for log %s",
                 workflow["id"],
                 log_record["id"],
             )
@@ -449,7 +449,7 @@ async def verify_personal_task(
     verifier = await src.services.user_service.get_user_by_id(user_id=verifier_id)
     verifier_name = verifier.get("name", "Unknown") if verifier else "Unknown"
 
-    workflow = await src.services.workflow_service.resolve_workflow(
+    await src.services.workflow_service.resolve_workflow(
         workflow_id=pending_workflow["id"],
         resolver_user_id=verifier_id,
         resolver_name=verifier_name,
@@ -470,7 +470,7 @@ async def verify_personal_task(
     )
 
     if approved:
-        updated_task = await task_service.complete_chore(chore_id=task_id)
+        await task_service.complete_chore(chore_id=task_id)
         logger.info(
             "User %s verified personal task %s",
             verifier_id,
@@ -478,7 +478,7 @@ async def verify_personal_task(
         )
         await analytics_service.invalidate_leaderboard_cache()
     else:
-        updated_task = await task_service.reset_chore_to_todo(chore_id=task_id)
+        await task_service.reset_chore_to_todo(chore_id=task_id)
         logger.info(
             "User %s rejected personal task %s",
             verifier_id,
@@ -508,7 +508,7 @@ async def get_pending_partner_verifications(
         if not partner:
             return []
 
-        tasks = await db_client.list_records(
+        await db_client.list_records(
             collection="tasks",
             filter_query=f'accountability_partner_id = "{sanitize_param(partner_id)}" && scope = "personal"',
         )
@@ -516,7 +516,7 @@ async def get_pending_partner_verifications(
         logs = await db_client.list_records(
             collection="task_logs",
             filter_query='action = "claimed_completion" && verification_status = "PENDING"',
-            sort="-timestamp",
+            sort="timestamp DESC",
         )
 
         enriched_logs = []
@@ -527,7 +527,6 @@ async def get_pending_partner_verifications(
             )
 
             partner = await src.services.user_service.get_user_by_id(user_id=partner_id)
-            partner_name = partner.get("name", "Unknown") if partner else ""
 
             enriched_log = {
                 "id": log["id"],

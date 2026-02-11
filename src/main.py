@@ -59,14 +59,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     await validate_startup_configuration()
 
     instrument_pydantic_ai()
-    await init_db()
-    await seed_from_env_vars()
-    await ensure_singleton_config()
 
-    # Register modules
+    # Register modules before init_db so module table schemas are included
     register_module(TasksModule())
     register_module(PantryModule())
     register_module(OnboardingModule())
+
+    await init_db()
+    await seed_from_env_vars()
+    await ensure_singleton_config()
 
     start_scheduler()
     yield

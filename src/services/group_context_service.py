@@ -90,7 +90,7 @@ async def get_group_context(*, group_id: str) -> list[dict]:
             filter_query=(
                 f'group_id = "{db_client.sanitize_param(group_id)}" && expires_at >= "{cutoff_time.isoformat()}"'
             ),
-            sort="-created_at",
+            sort="created_at DESC",
             per_page=MAX_GROUP_MESSAGES,
         )
 

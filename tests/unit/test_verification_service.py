@@ -667,8 +667,8 @@ class TestVerifyChorePagination:
         # Create 500 other logs to ensure pagination works even with self-verification check
         await self._create_logs(patched_verification_db, 500, chore["id"], action="other_action")
 
-        # Self-verification should fail
-        with pytest.raises(PermissionError, match="cannot verify their own task claim"):
+        # Self-verification should fail (workflow layer prevents self-approval)
+        with pytest.raises(ValueError, match="Cannot approve own workflow"):
             await verification_service.verify_chore(
                 task_id=chore["id"],
                 verifier_user_id="user1",  # Same as claimer

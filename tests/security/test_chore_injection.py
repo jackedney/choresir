@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services import analytics_service, chore_service
+from src.modules.tasks import analytics as analytics_service, service as chore_service
 
 
 @pytest.mark.asyncio

@@ -341,11 +341,11 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
         logs = await db_client.list_records(
             collection="task_logs",
             filter_query=(
-                f'task_id = "{sanitize_param(chore_id)}" && '
+                f'task_id = "{sanitize_param(chore_id)}" && '  # noqa: S608
                 f'action = "claimed_completion" && '
                 f'user_id IN (SELECT id FROM members WHERE phone = "{sanitize_param(owner_phone)}")'
             ),
-            sort="-timestamp",
+            sort="timestamp DESC",
             per_page=1,
         )
 
@@ -380,7 +380,7 @@ def _is_recurring_chore_due_today(recurrence: str, last_completion: date | None,
             return _check_interval_due_today(cron_expr, last_completion, today)
 
         # For standard cron expressions
-        import croniter
+        from croniter import croniter
 
         if croniter.is_valid(cron_expr):
             return _check_cron_due_today(cron_expr, last_completion, today)
@@ -401,7 +401,7 @@ def _check_interval_due_today(cron_expr: str, last_completion: date | None, toda
 
     # If never completed, check if today matches base cron schedule
     if last_completion is None:
-        import croniter
+        from croniter import croniter
 
         if croniter.is_valid(base_cron):
             cron = croniter(base_cron, datetime.combine(today, datetime.min.time()))
@@ -415,7 +415,7 @@ def _check_interval_due_today(cron_expr: str, last_completion: date | None, toda
         return False
 
     # Verify today matches base cron schedule
-    import croniter
+    from croniter import croniter
 
     if croniter.is_valid(base_cron):
         cron = croniter(base_cron, datetime.combine(today, datetime.min.time()))
@@ -426,7 +426,7 @@ def _check_interval_due_today(cron_expr: str, last_completion: date | None, toda
 
 def _check_cron_due_today(cron_expr: str, last_completion: date | None, today: date) -> bool:
     """Check if a cron-based chore is due today."""
-    import croniter
+    from croniter import croniter
 
     today_dt = datetime.combine(today, datetime.min.time())
     cron = croniter(cron_expr, today_dt)
