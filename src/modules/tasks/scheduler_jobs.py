@@ -360,7 +360,7 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
         return None
 
 
-def _is_recurring_chore_due_today(recurrence: str, last_completion: date | None, today: date) -> bool:
+def _is_recurring_chore_due_today(*, recurrence: str, last_completion: date | None, today: date) -> bool:
     """Check if a recurring chore is due today based on its recurrence pattern.
 
     Args:
@@ -377,13 +377,21 @@ def _is_recurring_chore_due_today(recurrence: str, last_completion: date | None,
 
         # Handle special INTERVAL format (e.g., "INTERVAL:3:0 0 * * *")
         if cron_expr.startswith("INTERVAL:"):
-            return _check_interval_due_today(cron_expr, last_completion, today)
+            return _check_interval_due_today(
+                cron_expr=cron_expr,
+                last_completion=last_completion,
+                today=today,
+            )
 
         # For standard cron expressions
         from croniter import croniter
 
         if croniter.is_valid(cron_expr):
-            return _check_cron_due_today(cron_expr, last_completion, today)
+            return _check_cron_due_today(
+                cron_expr=cron_expr,
+                last_completion=last_completion,
+                today=today,
+            )
 
         # If we can't parse it, default to not due (to avoid spam)
         logger.warning(f"Could not parse recurrence pattern: {recurrence}")
@@ -393,7 +401,7 @@ def _is_recurring_chore_due_today(recurrence: str, last_completion: date | None,
         return False
 
 
-def _check_interval_due_today(cron_expr: str, last_completion: date | None, today: date) -> bool:
+def _check_interval_due_today(*, cron_expr: str, last_completion: date | None, today: date) -> bool:
     """Check if an interval-based chore is due today."""
     parts = cron_expr.split(":")
     interval_days = int(parts[1])
@@ -424,7 +432,7 @@ def _check_interval_due_today(cron_expr: str, last_completion: date | None, toda
     return True
 
 
-def _check_cron_due_today(cron_expr: str, last_completion: date | None, today: date) -> bool:
+def _check_cron_due_today(*, cron_expr: str, last_completion: date | None, today: date) -> bool:
     """Check if a cron-based chore is due today."""
     from croniter import croniter
 
@@ -481,7 +489,11 @@ async def _is_chore_due_today(chore: dict, today: date) -> bool:
             return False
 
         last_completion = await _get_last_completion_date(chore_id, owner_phone)
-        return _is_recurring_chore_due_today(recurrence, last_completion, today)
+        return _is_recurring_chore_due_today(
+            recurrence=recurrence,
+            last_completion=last_completion,
+            today=today,
+        )
 
     # No due_date and no recurrence - not due
     return False

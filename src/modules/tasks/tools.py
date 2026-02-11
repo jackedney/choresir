@@ -759,6 +759,7 @@ async def tool_reassign_chore(ctx: RunContext[Deps], params: ReassignChore) -> s
 
 
 async def _validate_log_chore(
+    *,
     household_match: dict | None,
     personal_match: dict | None,
     params: LogChore,
@@ -823,7 +824,12 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
             )
             personal_match = service.fuzzy_match_task(personal_chores, params.chore_title_fuzzy)
 
-        error = await _validate_log_chore(household_match, personal_match, params, ctx.deps.user_id)
+        error = await _validate_log_chore(
+            household_match=household_match,
+            personal_match=personal_match,
+            params=params,
+            user_id=ctx.deps.user_id,
+        )
         if error:
             return error
 

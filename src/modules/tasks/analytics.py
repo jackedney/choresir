@@ -448,7 +448,11 @@ async def _fetch_pending_chore_ids() -> set[str]:
 
 
 async def _fetch_user_claims_for_chunk(
-    user_id: str, chunk: list[str], per_page_limit: int, offset: int
+    *,
+    user_id: str,
+    chunk: list[str],
+    per_page_limit: int,
+    offset: int,
 ) -> tuple[set[str], int]:
     """Fetch user claims for a chunk of chore IDs.
 
@@ -544,7 +548,12 @@ async def _count_pending_claims_for_user(
                 chunk = chore_ids_list[i : i + chunk_size]
                 chunk_index = i // chunk_size
 
-                chunk_claimed_ids, chunk_logs = await _fetch_user_claims_for_chunk(user_id, chunk, per_page_limit, i)
+                chunk_claimed_ids, chunk_logs = await _fetch_user_claims_for_chunk(
+                    user_id=user_id,
+                    chunk=chunk,
+                    per_page_limit=per_page_limit,
+                    offset=i,
+                )
                 claimed_chore_ids.update(chunk_claimed_ids)
                 total_logs_fetched += chunk_logs
                 chunks_processed += 1
