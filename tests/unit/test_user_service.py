@@ -4,6 +4,7 @@ import pytest
 
 from src.domain.user import UserRole, UserStatus
 from src.services import user_service
+from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
@@ -13,8 +14,6 @@ def patched_user_db(mock_db_module_for_unit_tests, db_client):
     Uses real SQLite database via db_client fixture from tests/conftest.py.
     Settings are patched by mock_db_module_for_unit_tests fixture.
     """
-    from tests.unit.conftest import DatabaseClient
-
     return DatabaseClient()
 
 

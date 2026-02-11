@@ -8,11 +8,13 @@ import pytest
 
 import src.modules.tasks.service as chore_service
 import src.modules.tasks.verification as verification_service
+from src.core import db_client as db_client_module
 from src.core.db_client import create_record
 
 # KeyError replaced with KeyError
 from src.domain.task import TaskState
 from src.modules.tasks.verification import VerificationDecision
+from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
@@ -22,8 +24,6 @@ def patched_verification_db(mock_db_module_for_unit_tests, db_client):
     Uses real SQLite database via db_client fixture from tests/conftest.py.
     Settings are patched by mock_db_module_for_unit_tests fixture.
     """
-    from tests.unit.conftest import DatabaseClient
-
     return DatabaseClient()
 
 
@@ -878,8 +878,6 @@ class TestGetPendingVerificationsPagination:
 
         This test verifies that batching is used by checking number of list_records calls.
         """
-        from src.core import db_client as db_client_module
-
         # Use smaller batch size for testing
         monkeypatch.setattr(verification_service, "CHORE_ID_BATCH_SIZE", 5)
 

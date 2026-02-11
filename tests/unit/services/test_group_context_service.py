@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from src.services import group_context_service
+from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
@@ -14,8 +15,6 @@ def patched_group_context_db(mock_db_module_for_unit_tests, db_client):
     Uses real SQLite database via db_client fixture from tests/conftest.py.
     Settings are patched by mock_db_module_for_unit_tests fixture.
     """
-    from tests.unit.conftest import DatabaseClient
-
     return DatabaseClient()
 
 

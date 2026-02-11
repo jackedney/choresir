@@ -5,6 +5,7 @@ import pytest
 import src.modules.tasks.service as chore_service
 from src.core.db_client import create_record
 from src.domain.task import TaskScope, TaskState, VerificationType
+from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
@@ -14,8 +15,6 @@ def patched_chore_db(mock_db_module_for_unit_tests, db_client):
     Uses real SQLite database via db_client fixture from tests/conftest.py.
     Settings are patched by mock_db_module_for_unit_tests fixture.
     """
-    from tests.unit.conftest import DatabaseClient
-
     return DatabaseClient()
 
 

@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 import src.modules.tasks.analytics as analytics_service
+from src.core import db_client as db_client_module
+from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
@@ -16,8 +18,6 @@ def patched_analytics_db(mock_db_module_for_unit_tests, db_client):
     Uses real SQLite database via db_client fixture from tests/conftest.py.
     Settings are patched by mock_db_module_for_unit_tests fixture.
     """
-    from tests.unit.conftest import DatabaseClient
-
     return DatabaseClient()
 
 
@@ -268,8 +268,6 @@ class TestGetLeaderboardBulkFetch:
         """Verify users are fetched in bulk, not individually."""
         mock_redis.get.return_value = None
 
-        from src.core import db_client as db_client_module
-
         # Track list_records calls
         list_records_calls = []
         original_list_records = db_client_module.list_records
@@ -292,8 +290,6 @@ class TestGetLeaderboardBulkFetch:
     async def test_leaderboard_missing_user(self, patched_analytics_db, mock_redis, sample_users, sample_tasks):
         """User in completion logs but not in users table is handled gracefully."""
         mock_redis.get.return_value = None
-
-        from src.core import db_client as db_client_module
 
         # Create a 4th member and a valid task_log for them
         ghost_user = await patched_analytics_db.create_record(
