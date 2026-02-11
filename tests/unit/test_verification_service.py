@@ -62,7 +62,7 @@ class TestRequestVerification:
         """Test requesting verification for a chore."""
         workflow = await verification_service.request_verification(
             chore_id=todo_chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="I finished this",
         )
 
@@ -89,7 +89,7 @@ class TestRequestVerification:
         """Test requesting verification without notes."""
         workflow = await verification_service.request_verification(
             chore_id=todo_chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="",
         )
 
@@ -101,7 +101,7 @@ class TestRequestVerification:
         with pytest.raises(KeyError):
             await verification_service.request_verification(
                 chore_id="nonexistent_id",
-                claimer_user_id="user1",
+                claimer_user_id=str(setup_test_users["user1"]["id"]),
                 notes="Test",
             )
 
@@ -114,7 +114,7 @@ class TestRequestVerification:
 
         await verification_service.request_verification(
             chore_id=todo_chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Done!",
         )
 
@@ -127,7 +127,7 @@ class TestRequestVerification:
         mock_notify.send_verification_request.assert_called_once_with(
             log_id=logs[0]["id"],
             task_id=todo_chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
         )
 
     @patch("src.services.notification_service")
@@ -140,7 +140,7 @@ class TestRequestVerification:
         # Should not raise
         result = await verification_service.request_verification(
             chore_id=todo_chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
         )
 
         assert result is not None
@@ -172,11 +172,11 @@ class TestVerifyChore:
 
         return await chore_service.get_chore_by_id(chore_id=chore["id"])
 
-    async def test_verify_chore_approve(self, patched_verification_db, pending_chore_with_claim):
+    async def test_verify_chore_approve(self, patched_verification_db, pending_chore_with_claim, setup_test_users):
         """Test approving a chore verification."""
         result = await verification_service.verify_chore(
             task_id=pending_chore_with_claim["id"],
-            verifier_user_id="user2",  # Different from claimer
+            verifier_user_id=str(setup_test_users["user2"]["id"]),  # Different from claimer
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
         )
@@ -184,11 +184,11 @@ class TestVerifyChore:
         assert result["id"] == pending_chore_with_claim["id"]
         assert result["current_state"] == TaskState.COMPLETED
 
-    async def test_verify_chore_reject(self, patched_verification_db, pending_chore_with_claim):
+    async def test_verify_chore_reject(self, patched_verification_db, pending_chore_with_claim, setup_test_users):
         """Test rejecting a chore verification."""
         result = await verification_service.verify_chore(
             task_id=pending_chore_with_claim["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.REJECT,
             reason="Not done properly",
         )
@@ -196,24 +196,28 @@ class TestVerifyChore:
         assert result["id"] == pending_chore_with_claim["id"]
         assert result["current_state"] == TaskState.TODO
 
-    async def test_verify_chore_self_verification_fails(self, patched_verification_db, pending_chore_with_claim):
+    async def test_verify_chore_self_verification_fails(
+        self, patched_verification_db, pending_chore_with_claim, setup_test_users
+    ):
         """Test that claimer cannot verify their own chore."""
         with pytest.raises(ValueError, match="Cannot approve own workflow"):
             await verification_service.verify_chore(
                 task_id=pending_chore_with_claim["id"],
-                verifier_user_id="user1",  # Same as claimer
+                verifier_user_id=str(setup_test_users["user1"]["id"]),  # Same as claimer
                 decision=VerificationDecision.APPROVE,
                 reason="",
             )
 
     async def test_verify_chore_no_claim_log_found(self, patched_verification_db, setup_test_users):
         """Test verifying chore with no claim log raises error."""
+        user1_id = str(setup_test_users["user1"]["id"])
+        user2_id = str(setup_test_users["user2"]["id"])
         # Create a chore but don't claim it
         chore = await chore_service.create_chore(
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=user1_id,
         )
 
         # Manually transition to pending (bypassing normal claim flow)
@@ -222,7 +226,7 @@ class TestVerifyChore:
         with pytest.raises(ValueError, match="No pending verification request for task"):
             await verification_service.verify_chore(
                 task_id=chore["id"],
-                verifier_user_id="user2",
+                verifier_user_id=user2_id,
                 decision=VerificationDecision.APPROVE,
                 reason="",
             )
@@ -235,16 +239,19 @@ class TestGetPendingVerifications:
     @pytest.fixture
     async def setup_pending_chores(self, patched_verification_db, setup_test_users):
         """Create multiple chores with different states and claims."""
+        user1_id = str(setup_test_users["user1"]["id"])
+        user2_id = str(setup_test_users["user2"]["id"])
+        user3_id = str(setup_test_users["user3"]["id"])
         # Chore 1: Pending verification claimed by user1
         chore1 = await chore_service.create_chore(
             title="Chore 1",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=user1_id,
         )
         await verification_service.request_verification(
             chore_id=chore1["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Done",
         )
 
@@ -253,11 +260,11 @@ class TestGetPendingVerifications:
             title="Chore 2",
             description="Test",
             recurrence="0 11 * * *",
-            assigned_to="user2",
+            assigned_to=user2_id,
         )
         await verification_service.request_verification(
             chore_id=chore2["id"],
-            claimer_user_id="user2",
+            claimer_user_id=str(setup_test_users["user2"]["id"]),
             notes="Done",
         )
 
@@ -266,7 +273,7 @@ class TestGetPendingVerifications:
             title="Chore 3",
             description="Test",
             recurrence="0 12 * * *",
-            assigned_to="user3",
+            assigned_to=user3_id,
         )
 
         return {"chore1": chore1, "chore2": chore2, "chore3": chore3}
@@ -281,7 +288,7 @@ class TestGetPendingVerifications:
     async def test_get_pending_verifications_excluding_user(self, patched_verification_db, setup_pending_chores):
         """Test getting pending verifications excluding those claimed by specific user."""
         # user1 should only see chores they didn't claim
-        result = await verification_service.get_pending_verifications(user_id="user1")
+        result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
 
         assert len(result) == 1
         # Should only contain chore2 (claimed by user2)
@@ -294,16 +301,16 @@ class TestGetPendingVerifications:
             title="Chore 4",
             description="Test",
             recurrence="0 13 * * *",
-            assigned_to="user3",
+            assigned_to=str(setup_test_users["user3"]["id"]),
         )
         await verification_service.request_verification(
             chore_id=chore4["id"],
-            claimer_user_id="user3",
+            claimer_user_id=str(setup_test_users["user3"]["id"]),
             notes="Done",
         )
 
         # user3 should not see their own claim
-        result = await verification_service.get_pending_verifications(user_id="user3")
+        result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user3"]["id"]))
 
         # Should not include chore4
         assert not any(chore["id"] == chore4["id"] for chore in result)
@@ -326,13 +333,13 @@ class TestVerificationWorkflow:
             title="Test Workflow",
             description="Full test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         # Claim completion
         workflow = await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="All done!",
         )
 
@@ -346,7 +353,7 @@ class TestVerificationWorkflow:
         # Approve verification
         final_chore = await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.APPROVE,
             reason="Verified!",
         )
@@ -360,20 +367,20 @@ class TestVerificationWorkflow:
             title="Test Workflow",
             description="Full test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         # Claim completion
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Done",
         )
 
         # Reject verification
         final_chore = await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.REJECT,
             reason="Not acceptable",
         )
@@ -397,18 +404,18 @@ class TestVerificationCacheInvalidation:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Done",
         )
 
         # Approve verification
         await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
         )
@@ -428,18 +435,18 @@ class TestVerificationCacheInvalidation:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Done",
         )
 
         # Reject verification
         await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.REJECT,
             reason="Not acceptable",
         )
@@ -460,18 +467,18 @@ class TestVerificationCacheInvalidation:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Done",
         )
 
         # Approve verification - should succeed despite cache failure
         result = await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
         )
@@ -488,14 +495,19 @@ class TestVerifyChorePagination:
     """Tests for verify_chore pagination edge cases."""
 
     async def _create_logs(
-        self, patched_verification_db, count: int, chore_id: str, action: str = "other_action"
+        self,
+        patched_verification_db,
+        count: int,
+        chore_id: str,
+        action: str = "other_action",
+        user_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Helper to create multiple log entries."""
         logs = []
         for i in range(count):
             log_data = {
                 "chore_id": chore_id if action == "claimed_completion" else f"other_chore_{i}",
-                "user_id": f"user_{i}",
+                "user_id": user_id if user_id else None,
                 "action": action,
                 "notes": f"Log {i}",
                 "timestamp": datetime.now().isoformat(),
@@ -511,7 +523,7 @@ class TestVerifyChorePagination:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         # Create 100 other logs
@@ -520,14 +532,14 @@ class TestVerifyChorePagination:
         # Request verification (creates claim log)
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Completed",
         )
 
         # Verify should succeed - claim log is on first page
         result = await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
         )
@@ -541,13 +553,13 @@ class TestVerifyChorePagination:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         # Request verification first (creates claim log)
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Completed",
         )
 
@@ -557,7 +569,7 @@ class TestVerifyChorePagination:
         # Verify should succeed - claim log is on second page
         result = await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
         )
@@ -571,13 +583,13 @@ class TestVerifyChorePagination:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         # Request verification first
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Completed",
         )
 
@@ -587,7 +599,7 @@ class TestVerifyChorePagination:
         # Verify should succeed
         result = await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
         )
@@ -601,7 +613,7 @@ class TestVerifyChorePagination:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         # Manually transition to pending (bypassing normal claim flow)
@@ -614,7 +626,7 @@ class TestVerifyChorePagination:
         with pytest.raises(ValueError, match="No pending verification request for task"):
             await verification_service.verify_chore(
                 task_id=chore["id"],
-                verifier_user_id="user2",
+                verifier_user_id=str(setup_test_users["user2"]["id"]),
                 decision=VerificationDecision.APPROVE,
                 reason="",
             )
@@ -626,7 +638,7 @@ class TestVerifyChorePagination:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         # Manually transition to pending (bypassing normal claim flow)
@@ -638,7 +650,7 @@ class TestVerifyChorePagination:
         with pytest.raises(ValueError, match="No pending verification request for task"):
             await verification_service.verify_chore(
                 task_id=chore["id"],
-                verifier_user_id="user2",
+                verifier_user_id=str(setup_test_users["user2"]["id"]),
                 decision=VerificationDecision.APPROVE,
                 reason="",
             )
@@ -650,13 +662,13 @@ class TestVerifyChorePagination:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         # Request verification
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Completed",
         )
 
@@ -667,7 +679,7 @@ class TestVerifyChorePagination:
         with pytest.raises(ValueError, match="Cannot approve own workflow"):
             await verification_service.verify_chore(
                 task_id=chore["id"],
-                verifier_user_id="user1",  # Same as claimer
+                verifier_user_id=str(setup_test_users["user1"]["id"]),  # Same as claimer
                 decision=VerificationDecision.APPROVE,
                 reason="",
             )
@@ -695,21 +707,43 @@ class TestGetPendingVerificationsPagination:
         return chore
 
     async def _create_logs(
-        self, patched_verification_db, count: int, chore_id: str = "other_chore"
+        self,
+        patched_verification_db,
+        count: int,
+        chore_id: str,
+        action: str = "other_action",
+        user_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Helper to create multiple log entries."""
         logs = []
         for i in range(count):
             log_data = {
-                "chore_id": chore_id,
-                "user_id": f"user_{i}",
-                "action": "other_action",
+                "chore_id": chore_id if action == "claimed_completion" else f"other_chore_{i}",
+                "user_id": user_id if user_id else None,
+                "action": action,
                 "notes": f"Log {i}",
                 "timestamp": datetime.now().isoformat(),
             }
             log = await patched_verification_db.create_record(collection="task_logs", data=log_data)
             logs.append(log)
         return logs
+
+    async def _create_chore(
+        self,
+        patched_verification_db,
+        user_id: str,
+        *,
+        title: str = "Test Chore",
+        description: str = "Test",
+        recurrence: str = "0 10 * * *",
+    ):
+        """Helper to create a chore with real user ID."""
+        return await chore_service.create_chore(
+            title=title,
+            description=description,
+            recurrence=recurrence,
+            assigned_to=user_id,
+        )
 
     async def test_no_user_id_filter(self, patched_verification_db, setup_test_users):
         """Test that without user_id filter, all pending chores are returned."""
@@ -737,7 +771,7 @@ class TestGetPendingVerificationsPagination:
         await self._create_logs(patched_verification_db, 500)
 
         # user1 should only see chore2 (claimed by user2)
-        result = await verification_service.get_pending_verifications(user_id="user1")
+        result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
 
         assert len(result) == 1
         assert result[0]["id"] == chore2["id"]
@@ -754,7 +788,7 @@ class TestGetPendingVerificationsPagination:
         chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
 
         # user1 should only see chore2
-        result = await verification_service.get_pending_verifications(user_id="user1")
+        result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
 
         assert len(result) == 1
         assert result[0]["id"] == chore2["id"]
@@ -767,7 +801,7 @@ class TestGetPendingVerificationsPagination:
         await self._create_chore_with_claim(patched_verification_db, "Chore 3", "user1")
 
         # user1 should see no chores
-        result = await verification_service.get_pending_verifications(user_id="user1")
+        result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
 
         assert result == []
 
@@ -778,7 +812,7 @@ class TestGetPendingVerificationsPagination:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         result = await verification_service.get_pending_verifications()
@@ -797,7 +831,7 @@ class TestGetPendingVerificationsPagination:
         chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", "user2")
 
         # user1 should only see chore2
-        result = await verification_service.get_pending_verifications(user_id="user1")
+        result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
 
         assert len(result) == 1
         assert result[0]["id"] == chore2["id"]
@@ -813,7 +847,7 @@ class TestGetPendingVerificationsPagination:
         await self._create_logs(patched_verification_db, 1000, chore_id="other_chore")
 
         # user1 should see chore2 and chore3
-        result = await verification_service.get_pending_verifications(user_id="user1")
+        result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
 
         assert len(result) == 2
         result_ids = {c["id"] for c in result}
@@ -862,7 +896,7 @@ class TestGetPendingVerificationsPagination:
         filter_queries.clear()
 
         # user1 should only see chores claimed by user2 (6 chores)
-        result = await verification_service.get_pending_verifications(user_id="user1")
+        result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
 
         assert len(result) == 6
         result_ids = {c["id"] for c in result}
@@ -891,12 +925,12 @@ class TestVerificationWorkflowIntegration:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         workflow = await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Done",
         )
 
@@ -912,12 +946,12 @@ class TestVerificationWorkflowIntegration:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         workflow = await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user2",
+            claimer_user_id=str(setup_test_users["user2"]["id"]),
             notes="I did this chore for user1",
             is_swap=True,
         )
@@ -932,20 +966,20 @@ class TestVerificationWorkflowIntegration:
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(setup_test_users["user1"]["id"]),
         )
 
         # Request verification
         workflow = await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(setup_test_users["user1"]["id"]),
             notes="Done",
         )
 
         # Approve verification
         await verification_service.verify_chore(
             task_id=chore["id"],
-            verifier_user_id="user2",
+            verifier_user_id=str(setup_test_users["user2"]["id"]),
             decision=VerificationDecision.APPROVE,
             reason="Looks good",
         )
