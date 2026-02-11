@@ -9,15 +9,12 @@ from src.domain.task import TaskScope, TaskState, VerificationType
 @pytest.fixture
 def patched_chore_db(monkeypatch, in_memory_db):
     """Patches src.core.db_client functions to use InMemoryDBClient."""
-
-    # Patch all db_client functions
     monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
     monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
     monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
     monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
     monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
     monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
-
     return in_memory_db
 
 
@@ -403,7 +400,7 @@ class TestGetPersonalChores:
         # Get active chores
         active_chores = await chore_service.get_personal_chores(owner_id="user1", include_archived=False)
 
-        assert all(chore["id"] != chore["id"] for chore in active_chores)
+        assert active_chores == []
 
 
 @pytest.mark.unit

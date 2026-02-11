@@ -43,7 +43,7 @@ async def create_chore(
         schedule_cron = parse_recurrence_to_cron(recurrence)
 
         # Calculate initial deadline
-        deadline = state_machine._calculate_next_deadline(schedule_cron=schedule_cron)
+        deadline = state_machine.calculate_next_deadline(schedule_cron=schedule_cron)
 
         # Create chore record
         chore_data: dict[str, Any] = {
@@ -175,7 +175,7 @@ async def get_chores(
         records = await db_client.list_records(
             collection="tasks",
             filter_query=filter_query,
-            sort="+deadline",  # Sort by deadline ascending
+            sort="deadline ASC",  # Sort by deadline ascending
         )
 
         logger.debug("Retrieved %d tasks with filters: %s", len(records), filter_query)
@@ -211,7 +211,7 @@ async def get_personal_chores(
         return await db_client.list_records(
             collection="tasks",
             filter_query=filter_query,
-            sort="+created",
+            sort="created ASC",
         )
 
 

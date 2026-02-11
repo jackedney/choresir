@@ -6,7 +6,6 @@ and tools that need to register themselves with the agent.
 
 import logging
 
-import logfire
 from pydantic_ai import Agent
 from pydantic_ai.models.openrouter import OpenRouterModel, OpenRouterModelSettings
 from pydantic_ai.providers.openrouter import OpenRouterProvider
@@ -19,20 +18,6 @@ from src.core.module_registry import get_modules
 logger = logging.getLogger(__name__)
 
 
-class _LogfireState:
-    """Singleton state for logfire configuration."""
-
-    configured = False
-
-
-def _ensure_logfire_configured() -> None:
-    """Ensure Logfire is configured (lazy initialization)."""
-    if not _LogfireState.configured:
-        if settings.logfire_token:
-            logfire.configure(token=settings.logfire_token)
-        _LogfireState.configured = True
-
-
 class _AgentState:
     """Singleton state for agent instance."""
 
@@ -41,7 +26,6 @@ class _AgentState:
 
 def _create_agent() -> Agent[Deps, str]:
     """Create the agent instance (called once during initialization)."""
-    _ensure_logfire_configured()
 
     # Initialize the agent with OpenRouter
     api_key = settings.require_credential("openrouter_api_key", "OpenRouter API key")

@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from src.core.config import constants, settings
 from src.core.db_client import init_db
-from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
+from src.core.logging import configure_logging, instrument_fastapi, instrument_pydantic_ai
 from src.core.module_registry import get_modules, register_module
 from src.core.scheduler import start_scheduler, stop_scheduler
 from src.core.scheduler_tracker import job_tracker
@@ -53,7 +53,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan context manager."""
     # Startup
     # Configure logging first so validation logs are captured
-    configure_logfire()
+    configure_logging()
 
     # Validate all credentials
     await validate_startup_configuration()

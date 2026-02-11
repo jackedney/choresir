@@ -2,7 +2,6 @@
 
 import logging
 
-import logfire
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
@@ -64,31 +63,31 @@ async def tool_add_to_shopping_list(ctx: RunContext[Deps], params: AddToShopping
         Success or error message
     """
     try:
-        with logfire.span("tool_add_to_shopping_list", item=params.item_name):
-            # Check if item already exists to provide better feedback
-            existing_items = await pantry_service.get_shopping_list()
-            existing_item = next(
-                (item for item in existing_items if item["item_name"].lower() == params.item_name.lower()),
-                None,
-            )
+        logger.info("tool_add_to_shopping_list", extra={"item": params.item_name})
+        # Check if item already exists to provide better feedback
+        existing_items = await pantry_service.get_shopping_list()
+        existing_item = next(
+            (item for item in existing_items if item["item_name"].lower() == params.item_name.lower()),
+            None,
+        )
 
-            await pantry_service.add_to_shopping_list(
-                item_name=params.item_name,
-                user_id=ctx.deps.user_id,
-                quantity=params.quantity,
-                notes=params.notes,
-            )
+        await pantry_service.add_to_shopping_list(
+            item_name=params.item_name,
+            user_id=ctx.deps.user_id,
+            quantity=params.quantity,
+            notes=params.notes,
+        )
 
-            # Provide clear feedback about what happened
-            if existing_item and params.quantity:
-                old_qty = existing_item.get("quantity") or 0
-                new_qty = old_qty + params.quantity
-                return f"Added {params.quantity} more '{params.item_name}' to the shopping list (now x{new_qty} total)."
-            if existing_item:
-                return f"Updated '{params.item_name}' on the shopping list."
-            qty_msg = f" (x{params.quantity})" if params.quantity else ""
-            notes_msg = f" - {params.notes}" if params.notes else ""
-            return f"Added '{params.item_name}'{qty_msg} to the shopping list{notes_msg}."
+        # Provide clear feedback about what happened
+        if existing_item and params.quantity:
+            old_qty = existing_item.get("quantity") or 0
+            new_qty = old_qty + params.quantity
+            return f"Added {params.quantity} more '{params.item_name}' to the shopping list (now x{new_qty} total)."
+        if existing_item:
+            return f"Updated '{params.item_name}' on the shopping list."
+        qty_msg = f" (x{params.quantity})" if params.quantity else ""
+        notes_msg = f" - {params.notes}" if params.notes else ""
+        return f"Added '{params.item_name}'{qty_msg} to the shopping list{notes_msg}."
 
     except Exception as e:
         logger.error("Failed to add to shopping list", extra={"error": str(e)})
@@ -111,29 +110,29 @@ async def tool_get_shopping_list(_ctx: RunContext[Deps]) -> str:
         Formatted shopping list or message if empty
     """
     try:
-        with logfire.span("tool_get_shopping_list"):
-            items = await pantry_service.get_shopping_list()
+        logger.info("tool_get_shopping_list")
+        items = await pantry_service.get_shopping_list()
 
-            if not items:
-                return "The shopping list is empty."
+        if not items:
+            return "The shopping list is empty."
 
-            # Format the list
-            lines = ["Shopping List:"]
-            for item in items:
-                name = item["item_name"]
-                qty = item.get("quantity")
-                notes = item.get("notes", "")
+        # Format the list
+        lines = ["Shopping List:"]
+        for item in items:
+            name = item["item_name"]
+            qty = item.get("quantity")
+            notes = item.get("notes", "")
 
-                line = f"• {name}"
-                if qty:
-                    line += f" (x{qty})"
-                if notes:
-                    line += f" - {notes}"
-                lines.append(line)
+            line = f"• {name}"
+            if qty:
+                line += f" (x{qty})"
+            if notes:
+                line += f" - {notes}"
+            lines.append(line)
 
-            lines.append(f"\nTotal: {len(items)} item(s)")
+        lines.append(f"\nTotal: {len(items)} item(s)")
 
-            return "\n".join(lines)
+        return "\n".join(lines)
 
     except Exception as e:
         logger.error("Failed to get shopping list", extra={"error": str(e)})
@@ -159,19 +158,19 @@ async def tool_checkout_shopping_list(ctx: RunContext[Deps]) -> str:
         Summary of what was checked out
     """
     try:
-        with logfire.span("tool_checkout_shopping_list"):
-            count, item_names = await pantry_service.checkout_shopping_list(user_id=ctx.deps.user_id)
+        logger.info("tool_checkout_shopping_list")
+        count, item_names = await pantry_service.checkout_shopping_list(user_id=ctx.deps.user_id)
 
-            if count == 0:
-                return "The shopping list was already empty."
+        if count == 0:
+            return "The shopping list was already empty."
 
-            # Format response - show up to max items inline
-            max_inline_items = 5
-            items_str = ", ".join(item_names[:max_inline_items])
-            if len(item_names) > max_inline_items:
-                items_str += f", and {len(item_names) - max_inline_items} more"
+        # Format response - show up to max items inline
+        max_inline_items = 5
+        items_str = ", ".join(item_names[:max_inline_items])
+        if len(item_names) > max_inline_items:
+            items_str += f", and {len(item_names) - max_inline_items} more"
 
-            return f"Checked out {count} item(s): {items_str}. Pantry updated."
+        return f"Checked out {count} item(s): {items_str}. Pantry updated."
 
     except Exception as e:
         logger.error("Failed to checkout shopping list", extra={"error": str(e)})
@@ -195,12 +194,12 @@ async def tool_remove_from_shopping_list(_ctx: RunContext[Deps], params: RemoveF
         Success or not found message
     """
     try:
-        with logfire.span("tool_remove_from_shopping_list", item=params.item_name):
-            removed = await pantry_service.remove_from_shopping_list(item_name=params.item_name)
+        logger.info("tool_remove_from_shopping_list", extra={"item": params.item_name})
+        removed = await pantry_service.remove_from_shopping_list(item_name=params.item_name)
 
-            if removed:
-                return f"Removed '{params.item_name}' from the shopping list."
-            return f"'{params.item_name}' was not found on the shopping list."
+        if removed:
+            return f"Removed '{params.item_name}' from the shopping list."
+        return f"'{params.item_name}' was not found on the shopping list."
 
     except Exception as e:
         logger.error("Failed to remove from shopping list", extra={"error": str(e)})
@@ -226,21 +225,21 @@ async def tool_mark_item_out(ctx: RunContext[Deps], params: MarkItemStatus) -> s
         Status update message
     """
     try:
-        with logfire.span("tool_mark_item_out", item=params.item_name, is_out=params.is_out):
-            status_msg = await pantry_service.mark_item_low_or_out(
+        logger.info("tool_mark_item_out", extra={"item": params.item_name, "is_out": params.is_out})
+        status_msg = await pantry_service.mark_item_low_or_out(
+            item_name=params.item_name,
+            is_out=params.is_out,
+        )
+
+        # Optionally add to shopping list
+        if params.add_to_list:
+            await pantry_service.add_to_shopping_list(
                 item_name=params.item_name,
-                is_out=params.is_out,
+                user_id=ctx.deps.user_id,
             )
+            status_msg += " Added to shopping list."
 
-            # Optionally add to shopping list
-            if params.add_to_list:
-                await pantry_service.add_to_shopping_list(
-                    item_name=params.item_name,
-                    user_id=ctx.deps.user_id,
-                )
-                status_msg += " Added to shopping list."
-
-            return status_msg
+        return status_msg
 
     except Exception as e:
         logger.error("Failed to mark item status", extra={"error": str(e)})
@@ -265,27 +264,27 @@ async def tool_get_pantry_status(_ctx: RunContext[Deps]) -> str:
         Formatted pantry status
     """
     try:
-        with logfire.span("tool_get_pantry_status"):
-            # Get items that are low or out
-            out_items = await pantry_service.get_pantry_items(status=PantryItemStatus.OUT)
-            low_items = await pantry_service.get_pantry_items(status=PantryItemStatus.LOW)
+        logger.info("tool_get_pantry_status")
+        # Get items that are low or out
+        out_items = await pantry_service.get_pantry_items(status=PantryItemStatus.OUT)
+        low_items = await pantry_service.get_pantry_items(status=PantryItemStatus.LOW)
 
-            if not out_items and not low_items:
-                return "All pantry items are in stock."
+        if not out_items and not low_items:
+            return "All pantry items are in stock."
 
-            lines = ["Pantry Status:"]
+        lines = ["Pantry Status:"]
 
-            if out_items:
-                lines.append("\nOut of stock:")
-                for item in out_items:
-                    lines.append(f"• {item['name']}")
+        if out_items:
+            lines.append("\nOut of stock:")
+            for item in out_items:
+                lines.append(f"• {item['name']}")
 
-            if low_items:
-                lines.append("\nRunning low:")
-                for item in low_items:
-                    lines.append(f"• {item['name']}")
+        if low_items:
+            lines.append("\nRunning low:")
+            for item in low_items:
+                lines.append(f"• {item['name']}")
 
-            return "\n".join(lines)
+        return "\n".join(lines)
 
     except Exception as e:
         logger.error("Failed to get pantry status", extra={"error": str(e)})

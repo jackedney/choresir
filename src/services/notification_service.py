@@ -176,28 +176,6 @@ async def send_deletion_request_notification(
             item_title=task_title,
         )
 
-        # Get requester name
-        try:
-            requester = await db_client.get_record(collection="members", record_id=requester_user_id)
-            requester_name = requester.get("name", "Someone")
-        except KeyError:
-            logger.error("Requester user not found: %s", requester_user_id)
-            requester_name = "Someone"
-
-        # Get house config to retrieve group_chat_id
-        house_config = await house_config_service.get_house_config()
-        group_chat_id = house_config.group_chat_id
-
-        if not group_chat_id:
-            logger.warning("No group_chat_id configured - cannot send deletion request notification")
-            return []
-
-        # Build message
-        text = message_templates.deletion_request(
-            requester_name=requester_name,
-            item_title=task_title,
-        )
-
         # Send notification to the group
         send_result = await whatsapp_sender.send_group_message(
             to_group_id=group_chat_id,
@@ -239,7 +217,6 @@ async def send_personal_verification_result(
     """
     try:
         # Build notification message
-        _status = "approved" if approved else "rejected"
         message = message_templates.personal_verification_result(
             item_title=task_title,
             verifier_name=verifier_name,

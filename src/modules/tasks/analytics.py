@@ -113,6 +113,7 @@ async def _fetch_claim_logs_map(chore_ids: list[str]) -> dict[str, dict]:
 
 
 def _determine_user_to_award(
+    *,
     log: dict,
     claim_log: dict | None,
     chore: dict | None,
@@ -238,7 +239,7 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
             claim_log = claim_logs_map.get(chore_id)
             chore = chores_map.get(chore_id)
 
-            user_to_award = _determine_user_to_award(log, claim_log, chore)
+            user_to_award = _determine_user_to_award(log=log, claim_log=claim_log, chore=chore)
             user_completion_counts[user_to_award] = user_completion_counts.get(user_to_award, 0) + 1
 
         # Fetch all users for leaderboard
@@ -341,14 +342,14 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
             overdue_chores = await db_client.list_records(
                 collection="tasks",
                 filter_query=filter_query,
-                sort="+deadline",  # Oldest deadline first
+                sort="deadline ASC",  # Oldest deadline first
                 per_page=limit,
             )
         else:
             overdue_chores = await db_client.list_records(
                 collection="tasks",
                 filter_query=filter_query,
-                sort="+deadline",  # Oldest deadline first
+                sort="deadline ASC",  # Oldest deadline first
             )
 
         # Convert to typed models
@@ -641,15 +642,14 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
         rank, completions, rank_error = await _get_user_rank_and_completions(user_id, period_days)
 
         # Get pending claims count - BEST EFFORT
-        claims_result = await _count_pending_claims_for_user(user_id, pending_chore_ids=set())
-        if claims_result[0] is None:
-            claims_pending, claims_error, chunks, logs = 0, claims_result[1], 0, 0
-            pending_chore_ids = set()
-        else:
+        try:
             pending_chore_ids = await _fetch_pending_chore_ids()
-            claims_pending, claims_error, chunks, logs = await _count_pending_claims_for_user(
-                user_id, pending_chore_ids
-            )
+        except Exception as e:
+            logger.error("Failed to fetch pending chore IDs: %s", e)
+            pending_chore_ids = set()
+        claims_pending, claims_error, chunks, logs = await _count_pending_claims_for_user(user_id, pending_chore_ids)
+        if claims_pending is None:
+            claims_pending = 0
 
         # Get overdue chores count - BEST EFFORT
         overdue_chores, overdue_error = await _get_overdue_count(user_id)

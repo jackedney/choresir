@@ -35,7 +35,7 @@ async def test_analytics_injection():
             filter_query = kwargs.get("filter_query", "")
 
             # Return pending chores to populate pending_chore_ids
-            if collection == "chores" and "PENDING_VERIFICATION" in filter_query:
+            if collection == "tasks" and "PENDING_VERIFICATION" in filter_query:
                 return [{"id": "chore1"}, {"id": "chore2"}]
 
             return []

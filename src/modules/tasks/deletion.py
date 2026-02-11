@@ -245,7 +245,7 @@ async def reject_chore_deletion(
         except ValueError as e:
             # Allow requester to reject (cancel) their own request
             if "Cannot approve own workflow" in str(e):
-                pass
+                logger.debug("Requester cancelling own deletion request: %s", e)
             else:
                 raise
 

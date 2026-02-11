@@ -60,7 +60,7 @@ async def mocked_list_records(
     **_kwargs: object,
 ) -> list[dict[str, object]]:
     """Mock list_records for benchmarking."""
-    if collection == "logs":
+    if collection == "task_logs":
         BenchmarkMetrics.increment()
         # Simulate network delay
         await asyncio.sleep(0.005)

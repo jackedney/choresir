@@ -58,7 +58,11 @@ def get_all_table_schemas() -> dict[str, str]:
     """
     all_schemas: dict[str, str] = {}
     for module in _registry.modules.values():
-        all_schemas.update(module.get_table_schemas())
+        for table_name, schema in module.get_table_schemas().items():
+            if table_name in all_schemas:
+                msg = f"Duplicate table schema '{table_name}' from module '{module.name}'"
+                raise ValueError(msg)
+            all_schemas[table_name] = schema
     return all_schemas
 
 

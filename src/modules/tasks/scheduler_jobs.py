@@ -181,7 +181,7 @@ def _get_rank_emoji(rank: int) -> str:
     return f"{rank}."
 
 
-def _get_dynamic_title(rank: int, total_users: int, completions: int) -> str:
+def _get_dynamic_title(*, rank: int, total_users: int, completions: int) -> str:
     """Get dynamic title based on performance.
 
     Args:
@@ -226,7 +226,7 @@ def _format_weekly_leaderboard(leaderboard: list[LeaderboardEntry], overdue: lis
             emoji = _get_rank_emoji(rank)
             name = entry.user_name
             count = entry.completion_count
-            title = _get_dynamic_title(rank, total_users, count)
+            title = _get_dynamic_title(rank=rank, total_users=total_users, completions=count)
 
             if title:
                 lines.append(f"{emoji} *{name}* ({count} chores) - _{title}_")
@@ -558,20 +558,6 @@ async def send_personal_chore_reminders() -> None:
         logger.info("Completed personal chore reminders: sent to %d/%d users", sent_count, len(active_users))
     except Exception as e:
         logger.error(f"Error in personal chore reminders job: {e}")
-
-
-async def auto_verify_personal_chores() -> None:
-    """Auto-verify personal chore logs pending for > 48 hours.
-
-    Runs every hour. Finds logs in PENDING state older than 48 hours
-    and auto-verifies them (partner didn't respond in time).
-    """
-    logger.info("Running personal chore auto-verification job")
-
-    try:
-        pass
-    except Exception as e:
-        logger.error(f"Error in auto-verification job: {e}")
 
 
 async def auto_expire_workflows() -> None:

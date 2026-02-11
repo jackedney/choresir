@@ -85,7 +85,7 @@ async def get_shopping_list() -> list[dict[str, Any]]:
     with span("pantry_service.get_shopping_list"):
         records = await db_client.list_records(
             collection="shopping_list",
-            sort="+added_at",
+            sort="added_at ASC",
         )
 
         logger.debug("Retrieved %d shopping list items", len(records))
@@ -263,7 +263,7 @@ async def get_pantry_items(*, status: PantryItemStatus | None = None) -> list[di
         records = await db_client.list_records(
             collection="pantry_items",
             filter_query=filter_query,
-            sort="+name",
+            sort="name ASC",
         )
 
         logger.debug("Retrieved %d pantry items", len(records))

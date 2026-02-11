@@ -23,6 +23,12 @@ def fuzzy_match(
     return matches[0] if matches else None
 
 
+def _get_title(item: dict, title_key: str) -> str | None:
+    """Safely get a string title value from an item dict."""
+    value = item.get(title_key)
+    return value if isinstance(value, str) else None
+
+
 def fuzzy_match_all(
     items: list[dict],
     title_query: str,
@@ -42,29 +48,19 @@ def fuzzy_match_all(
         List of all matching items (may be empty)
     """
     title_lower = title_query.lower().strip()
-    matches: list[dict] = []
+    if not title_lower:
+        return []
 
     # Exact match (highest priority)
-    for item in items:
-        if item[title_key].lower() == title_lower:
-            matches.append(item)
-
+    matches = [item for item in items if (v := _get_title(item, title_key)) and v.lower() == title_lower]
     if matches:
         return matches
 
     # Contains match
-    for item in items:
-        if title_lower in item[title_key].lower():
-            matches.append(item)
-
+    matches = [item for item in items if (v := _get_title(item, title_key)) and title_lower in v.lower()]
     if matches:
         return matches
 
     # Partial word match
     query_words = set(title_lower.split())
-    for item in items:
-        item_words = set(item[title_key].lower().split())
-        if query_words & item_words:
-            matches.append(item)
-
-    return matches
+    return [item for item in items if (v := _get_title(item, title_key)) and query_words & set(v.lower().split())]

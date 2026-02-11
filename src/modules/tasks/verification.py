@@ -293,7 +293,7 @@ async def get_pending_verifications(*, user_id: str | None = None) -> list[dict[
                     logs = await db_client.list_records(
                         collection="task_logs",
                         filter_query=(
-                            f'action = "claimed_completion" && user_id = "{sanitize_param(user_id)} && ({task_id_conditions})'  # noqa: E501
+                            f'action = "claimed_completion" && user_id = "{sanitize_param(user_id)}" && ({task_id_conditions})'  # noqa: E501
                         ),
                         sort="timestamp DESC",
                         per_page=LOGS_PAGE_SIZE,
@@ -508,16 +508,13 @@ async def get_pending_partner_verifications(
         if not partner:
             return []
 
-        await db_client.list_records(
-            collection="tasks",
-            filter_query=f'accountability_partner_id = "{sanitize_param(partner_id)}" && scope = "personal"',
-        )
-
         logs = await db_client.list_records(
             collection="task_logs",
             filter_query='action = "claimed_completion" && verification_status = "PENDING"',
             sort="timestamp DESC",
         )
+
+        partner_user = await src.services.user_service.get_user_by_id(user_id=partner_id)
 
         enriched_logs = []
         for log in logs:
@@ -526,19 +523,17 @@ async def get_pending_partner_verifications(
                 record_id=log["task_id"],
             )
 
-            partner = await src.services.user_service.get_user_by_id(user_id=partner_id)
-
             enriched_log = {
                 "id": log["id"],
                 "task_id": log["task_id"],
-                "owner_phone": partner.get("phone", "") if partner else "",
+                "owner_phone": partner_user.get("phone", "") if partner_user else "",
                 "completed_at": log.get("timestamp", ""),
                 "verification_status": log.get("verification_status", "PENDING"),
-                "accountability_partner_phone": partner.get("phone", "") if partner else "",
+                "accountability_partner_phone": partner_user.get("phone", "") if partner_user else "",
                 "partner_feedback": log.get("verifier_feedback", ""),
                 "notes": log.get("notes", ""),
                 "chore_title": task.get("title", ""),
-                "owner_phone_display": partner.get("phone", "") if partner else "",
+                "owner_phone_display": partner_user.get("phone", "") if partner_user else "",
             }
 
             enriched_logs.append(enriched_log)
@@ -574,7 +569,7 @@ async def get_personal_stats(
         f'&& (verification_status = "SELF_VERIFIED" || verification_status = "VERIFIED")'
     )
 
-    pending_filter = f'user_id = "{db_client.sanitize_param(owner_id)}" && verification_status = "PENDING"'
+    pending_filter = f'user_id = "{sanitize_param(owner_id)}" && verification_status = "PENDING"'
 
     completions = await db_client.list_records(
         collection="task_logs",

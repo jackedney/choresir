@@ -7,7 +7,6 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-import logfire
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
@@ -261,6 +260,7 @@ async def _get_workflow_by_chore_title(chore_title_fuzzy: str) -> dict | str:
 
 
 async def _resolve_deletion_workflow(
+    *,
     workflow: dict,
     user_id: str,
     decision_lower: str,
@@ -371,6 +371,7 @@ async def _get_batch_workflow_ids(
 
 
 async def _batch_resolve_and_format(
+    *,
     workflow_ids: list[str],
     user_id: str,
     decision_lower: str,
@@ -483,6 +484,7 @@ async def _get_verification_workflow_by_chore_title(chore_title_fuzzy: str) -> d
 
 
 async def _resolve_verification_workflow(
+    *,
     workflow: dict,
     user_id: str,
     decision_lower: str,
@@ -681,27 +683,27 @@ async def tool_define_chore(ctx: RunContext[Deps], params: DefineChore) -> str: 
         Success or error message
     """
     try:
-        with logfire.span("tool_define_chore", title=params.title):
-            # If assignee phone is provided, look up user ID
-            assignee_id = None
-            if params.assignee_phone:
-                user = await src.services.user_service.get_user_by_phone(phone=params.assignee_phone)
-                if not user:
-                    return f"Error: User with phone {params.assignee_phone} not found."
-                assignee_id = user["id"]
+        logger.info("tool_define_chore", extra={"title": params.title})
+        # If assignee phone is provided, look up user ID
+        assignee_id = None
+        if params.assignee_phone:
+            user = await src.services.user_service.get_user_by_phone(phone=params.assignee_phone)
+            if not user:
+                return f"Error: User with phone {params.assignee_phone} not found."
+            assignee_id = user["id"]
 
-            # Create chore
-            chore = await service.create_chore(
-                title=params.title,
-                description=params.description,
-                recurrence=params.recurrence,
-                assigned_to=assignee_id,
-            )
+        # Create chore
+        chore = await service.create_chore(
+            title=params.title,
+            description=params.description,
+            recurrence=params.recurrence,
+            assigned_to=assignee_id,
+        )
 
-            # Convert schedule to human-readable format
-            schedule_human = cron_to_human(chore.get("schedule_cron", params.recurrence))
-            assignee_msg = f"assigned to {params.assignee_phone}" if assignee_id else "unassigned"
-            return f"Created chore '{params.title}' - {schedule_human}, {assignee_msg}."
+        # Convert schedule to human-readable format
+        schedule_human = cron_to_human(chore.get("schedule_cron", params.recurrence))
+        assignee_msg = f"assigned to {params.assignee_phone}" if assignee_id else "unassigned"
+        return f"Created chore '{params.title}' - {schedule_human}, {assignee_msg}."
 
     except ValueError as e:
         logger.warning("Chore creation failed", extra={"error": str(e)})
@@ -723,30 +725,30 @@ async def tool_reassign_chore(ctx: RunContext[Deps], params: ReassignChore) -> s
         Success or error message
     """
     try:
-        with logfire.span("tool_reassign_chore", title=params.chore_title_fuzzy):
-            # Fuzzy match the chore
-            all_chores = await service.get_chores()
-            matched_chore = service.fuzzy_match_task(all_chores, params.chore_title_fuzzy)
+        logger.info("tool_reassign_chore", extra={"title": params.chore_title_fuzzy})
+        # Fuzzy match the chore
+        all_chores = await service.get_chores()
+        matched_chore = service.fuzzy_match_task(all_chores, params.chore_title_fuzzy)
 
-            if not matched_chore:
-                return f"Error: No chore found matching '{params.chore_title_fuzzy}'."
+        if not matched_chore:
+            return f"Error: No chore found matching '{params.chore_title_fuzzy}'."
 
-            # Resolve new assignee
-            assignee_id = None
-            if params.assignee_phone:
-                user = await src.services.user_service.get_user_by_phone(phone=params.assignee_phone)
-                if not user:
-                    return f"Error: User with phone {params.assignee_phone} not found."
-                assignee_id = user["id"]
+        # Resolve new assignee
+        assignee_id = None
+        if params.assignee_phone:
+            user = await src.services.user_service.get_user_by_phone(phone=params.assignee_phone)
+            if not user:
+                return f"Error: User with phone {params.assignee_phone} not found."
+            assignee_id = user["id"]
 
-            # Reassign
-            await service.reassign_chore(
-                task_id=matched_chore["id"],
-                assigned_to=assignee_id,
-            )
+        # Reassign
+        await service.reassign_chore(
+            task_id=matched_chore["id"],
+            assigned_to=assignee_id,
+        )
 
-            assignee_msg = f"assigned to {params.assignee_phone}" if assignee_id else "unassigned"
-            return f"Chore '{matched_chore['title']}' is now {assignee_msg}."
+        assignee_msg = f"assigned to {params.assignee_phone}" if assignee_id else "unassigned"
+        return f"Chore '{matched_chore['title']}' is now {assignee_msg}."
 
     except ValueError as e:
         logger.warning("Chore reassignment failed", extra={"error": str(e)})
@@ -808,36 +810,36 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
         Success or error message
     """
     try:
-        with logfire.span("tool_log_chore", title=params.chore_title_fuzzy, is_swap=params.is_swap):
-            all_chores = await service.get_chores()
-            household_match = fuzzy_match(all_chores, params.chore_title_fuzzy)
+        logger.info("tool_log_chore", extra={"title": params.chore_title_fuzzy, "is_swap": params.is_swap})
+        all_chores = await service.get_chores()
+        household_match = fuzzy_match(all_chores, params.chore_title_fuzzy)
 
-            user = await src.services.user_service.get_user_by_phone(phone=ctx.deps.user_phone)
-            personal_match = None
-            if user:
-                personal_chores = await service.get_personal_chores(
-                    owner_id=user["id"],
-                    include_archived=False,
-                )
-                personal_match = service.fuzzy_match_task(personal_chores, params.chore_title_fuzzy)
-
-            error = await _validate_log_chore(household_match, personal_match, params, ctx.deps.user_id)
-            if error:
-                return error
-
-            assert household_match is not None
-            await verification.request_verification(
-                chore_id=household_match["id"],
-                claimer_user_id=ctx.deps.user_id,
-                notes=params.notes or "",
-                is_swap=params.is_swap,
+        user = await src.services.user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+        personal_match = None
+        if user:
+            personal_chores = await service.get_personal_chores(
+                owner_id=user["id"],
+                include_archived=False,
             )
+            personal_match = service.fuzzy_match_task(personal_chores, params.chore_title_fuzzy)
 
-            swap_msg = " (Robin Hood swap)" if params.is_swap else ""
-            return (
-                f"Logged completion of '{household_match['title']}'{swap_msg}. "
-                f"Awaiting verification from another household member."
-            )
+        error = await _validate_log_chore(household_match, personal_match, params, ctx.deps.user_id)
+        if error:
+            return error
+
+        assert household_match is not None
+        await verification.request_verification(
+            chore_id=household_match["id"],
+            claimer_user_id=ctx.deps.user_id,
+            notes=params.notes or "",
+            is_swap=params.is_swap,
+        )
+
+        swap_msg = " (Robin Hood swap)" if params.is_swap else ""
+        return (
+            f"Logged completion of '{household_match['title']}'{swap_msg}. "
+            f"Awaiting verification from another household member."
+        )
 
     except ValueError as e:
         logger.warning("Chore logging failed", extra={"error": str(e)})
@@ -862,47 +864,47 @@ async def tool_request_chore_deletion(ctx: RunContext[Deps], params: RequestChor
         Success or error message
     """
     try:
-        with logfire.span("tool_request_chore_deletion", title=params.chore_title_fuzzy):
-            # Get all chores to fuzzy match
-            all_chores = await service.get_chores()
+        logger.info("tool_request_chore_deletion", extra={"title": params.chore_title_fuzzy})
+        # Get all chores to fuzzy match
+        all_chores = await service.get_chores()
 
-            # Fuzzy match chore
-            matched_chore = service.fuzzy_match_task(all_chores, params.chore_title_fuzzy)
+        # Fuzzy match chore
+        matched_chore = service.fuzzy_match_task(all_chores, params.chore_title_fuzzy)
 
-            if not matched_chore:
-                return f"Error: No chore found matching '{params.chore_title_fuzzy}'."
+        if not matched_chore:
+            return f"Error: No chore found matching '{params.chore_title_fuzzy}'."
 
-            chore_id = matched_chore["id"]
-            chore_title = matched_chore["title"]
+        chore_id = matched_chore["id"]
+        chore_title = matched_chore["title"]
 
-            # Check if chore is already archived
-            if matched_chore["current_state"] == TaskState.ARCHIVED:
-                return f"Error: Chore '{chore_title}' is already archived."
+        # Check if chore is already archived
+        if matched_chore["current_state"] == TaskState.ARCHIVED:
+            return f"Error: Chore '{chore_title}' is already archived."
 
-            # Request deletion
-            log_record = await deletion.request_chore_deletion(
-                chore_id=chore_id,
+        # Request deletion
+        log_record = await deletion.request_chore_deletion(
+            chore_id=chore_id,
+            requester_user_id=ctx.deps.user_id,
+            reason=params.reason,
+        )
+
+        # Send notifications to other household members
+        try:
+            import src.services.notification_service
+
+            await src.services.notification_service.send_deletion_request_notification(
+                log_id=log_record["id"],
+                task_id=chore_id,
+                task_title=chore_title,
                 requester_user_id=ctx.deps.user_id,
-                reason=params.reason,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send deletion request notifications for chore %s",
+                chore_id,
             )
 
-            # Send notifications to other household members
-            try:
-                import src.services.notification_service
-
-                await src.services.notification_service.send_deletion_request_notification(
-                    log_id=log_record["id"],
-                    task_id=chore_id,
-                    task_title=chore_title,
-                    requester_user_id=ctx.deps.user_id,
-                )
-            except Exception:
-                logger.exception(
-                    "Failed to send deletion request notifications for chore %s",
-                    chore_id,
-                )
-
-            return f"Requested deletion of '{chore_title}'. Another household member must approve this within 48 hours."
+        return f"Requested deletion of '{chore_title}'. Another household member must approve this within 48 hours."
 
     except ValueError as e:
         logger.warning("Chore deletion request failed", extra={"error": str(e)})
@@ -925,34 +927,34 @@ async def tool_respond_to_deletion(ctx: RunContext[Deps], params: RespondToDelet
         Success or error message
     """
     try:
-        with logfire.span("tool_respond_to_deletion", workflow_id=params.workflow_id, decision=params.decision):
-            # Validate input
-            if not params.workflow_id and not params.chore_title_fuzzy:
-                return "Error: Either workflow_id or chore_title_fuzzy must be provided."
+        logger.info("tool_respond_to_deletion", extra={"workflow_id": params.workflow_id, "decision": params.decision})
+        # Validate input
+        if not params.workflow_id and not params.chore_title_fuzzy:
+            return "Error: Either workflow_id or chore_title_fuzzy must be provided."
 
-            # Normalize decision
-            decision_lower = params.decision.lower().strip()
-            if decision_lower not in ("approve", "reject"):
-                return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
+        # Normalize decision
+        decision_lower = params.decision.lower().strip()
+        if decision_lower not in ("approve", "reject"):
+            return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
 
-            # Determine workflow to resolve
-            if params.workflow_id:
-                workflow_result = await _get_workflow_by_id(params.workflow_id)
-            else:
-                assert params.chore_title_fuzzy is not None
-                workflow_result = await _get_workflow_by_chore_title(params.chore_title_fuzzy)
+        # Determine workflow to resolve
+        if params.workflow_id:
+            workflow_result = await _get_workflow_by_id(params.workflow_id)
+        else:
+            assert params.chore_title_fuzzy is not None
+            workflow_result = await _get_workflow_by_chore_title(params.chore_title_fuzzy)
 
-            # Check if we got an error message instead of a workflow
-            if isinstance(workflow_result, str):
-                return workflow_result
+        # Check if we got an error message instead of a workflow
+        if isinstance(workflow_result, str):
+            return workflow_result
 
-            # Resolve workflow
-            return await _resolve_deletion_workflow(
-                workflow=workflow_result,
-                user_id=ctx.deps.user_id,
-                decision_lower=decision_lower,
-                reason=params.reason or "",
-            )
+        # Resolve workflow
+        return await _resolve_deletion_workflow(
+            workflow=workflow_result,
+            user_id=ctx.deps.user_id,
+            decision_lower=decision_lower,
+            reason=params.reason or "",
+        )
 
     except ValueError as e:
         logger.warning("Chore deletion response failed", extra={"error": str(e)})
@@ -978,24 +980,24 @@ async def tool_batch_respond_to_workflows(ctx: RunContext[Deps], params: BatchRe
         Summary message of resolved workflows or error message
     """
     try:
-        with logfire.span("tool_batch_respond_to_workflows", decision=params.decision):
-            # Normalize decision
-            decision_lower = params.decision.lower().strip()
-            if decision_lower not in ("approve", "reject"):
-                return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
+        logger.info("tool_batch_respond_to_workflows", extra={"decision": params.decision})
+        # Normalize decision
+        decision_lower = params.decision.lower().strip()
+        if decision_lower not in ("approve", "reject"):
+            return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
 
-            # Determine which workflow IDs to resolve
-            workflow_ids_result = await _get_batch_workflow_ids(params, ctx.deps.user_id)
-            if isinstance(workflow_ids_result, str):
-                return workflow_ids_result
+        # Determine which workflow IDs to resolve
+        workflow_ids_result = await _get_batch_workflow_ids(params, ctx.deps.user_id)
+        if isinstance(workflow_ids_result, str):
+            return workflow_ids_result
 
-            # Resolve workflows and format response
-            return await _batch_resolve_and_format(
-                workflow_ids=workflow_ids_result,
-                user_id=ctx.deps.user_id,
-                decision_lower=decision_lower,
-                reason=params.reason or "",
-            )
+        # Resolve workflows and format response
+        return await _batch_resolve_and_format(
+            workflow_ids=workflow_ids_result,
+            user_id=ctx.deps.user_id,
+            decision_lower=decision_lower,
+            reason=params.reason or "",
+        )
 
     except ValueError as e:
         logger.warning("Batch workflow response failed", extra={"error": str(e)})
@@ -1021,34 +1023,34 @@ async def tool_verify_chore(ctx: RunContext[Deps], params: VerifyChore) -> str:
         Success or error message
     """
     try:
-        with logfire.span("tool_verify_chore", workflow_id=params.workflow_id, decision=params.decision):
-            # Validate input
-            if not params.workflow_id and not params.chore_title_fuzzy:
-                return "Error: Either workflow_id or chore_title_fuzzy must be provided."
+        logger.info("tool_verify_chore", extra={"workflow_id": params.workflow_id, "decision": params.decision})
+        # Validate input
+        if not params.workflow_id and not params.chore_title_fuzzy:
+            return "Error: Either workflow_id or chore_title_fuzzy must be provided."
 
-            # Normalize decision
-            decision_lower = params.decision.lower().strip()
-            if decision_lower not in ("approve", "reject"):
-                return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
+        # Normalize decision
+        decision_lower = params.decision.lower().strip()
+        if decision_lower not in ("approve", "reject"):
+            return f"Error: Invalid decision '{params.decision}'. Must be 'approve' or 'reject'."
 
-            # Determine workflow to resolve
-            if params.workflow_id:
-                workflow_result = await _get_verification_workflow_by_id(params.workflow_id)
-            else:
-                assert params.chore_title_fuzzy is not None
-                workflow_result = await _get_verification_workflow_by_chore_title(params.chore_title_fuzzy)
+        # Determine workflow to resolve
+        if params.workflow_id:
+            workflow_result = await _get_verification_workflow_by_id(params.workflow_id)
+        else:
+            assert params.chore_title_fuzzy is not None
+            workflow_result = await _get_verification_workflow_by_chore_title(params.chore_title_fuzzy)
 
-            # Check if we got an error message instead of a workflow
-            if isinstance(workflow_result, str):
-                return workflow_result
+        # Check if we got an error message instead of a workflow
+        if isinstance(workflow_result, str):
+            return workflow_result
 
-            # Resolve workflow
-            return await _resolve_verification_workflow(
-                workflow=workflow_result,
-                user_id=ctx.deps.user_id,
-                decision_lower=decision_lower,
-                reason=params.reason or "",
-            )
+        # Resolve workflow
+        return await _resolve_verification_workflow(
+            workflow=workflow_result,
+            user_id=ctx.deps.user_id,
+            decision_lower=decision_lower,
+            reason=params.reason or "",
+        )
 
     except ValueError as e:
         logger.warning("Verification failed", extra={"error": str(e)})
@@ -1074,26 +1076,26 @@ async def tool_list_my_chores(ctx: RunContext[Deps], params: ListMyChores) -> st
         Formatted list of household chores
     """
     try:
-        with logfire.span("tool_list_my_chores", target=params.target_user_phone):
-            # Determine target user
-            if params.target_user_phone:
-                target_user = await src.services.user_service.get_user_by_phone(phone=params.target_user_phone)
-                if not target_user:
-                    return f"Error: User with phone {params.target_user_phone} not found."
-                target_user_id = target_user["id"]
-                target_user_name = target_user["name"]
-            else:
-                target_user_id = ctx.deps.user_id
-                target_user_name = ctx.deps.user_name
+        logger.info("tool_list_my_chores", extra={"target": params.target_user_phone})
+        # Determine target user
+        if params.target_user_phone:
+            target_user = await src.services.user_service.get_user_by_phone(phone=params.target_user_phone)
+            if not target_user:
+                return f"Error: User with phone {params.target_user_phone} not found."
+            target_user_id = target_user["id"]
+            target_user_name = target_user["name"]
+        else:
+            target_user_id = ctx.deps.user_id
+            target_user_name = ctx.deps.user_name
 
-            # Get chores for user in time range
-            time_range_start = datetime.now() - timedelta(days=params.time_range)
-            chores = await service.get_chores(
-                user_id=target_user_id,
-                time_range_start=time_range_start,
-            )
+        # Get chores for user in time range
+        time_range_start = datetime.now() - timedelta(days=params.time_range)
+        chores = await service.get_chores(
+            user_id=target_user_id,
+            time_range_start=time_range_start,
+        )
 
-            return _format_chore_list(chores, target_user_name)
+        return _format_chore_list(chores, target_user_name)
 
     except Exception:
         logger.exception("Unexpected error in tool_list_my_chores")
@@ -1116,20 +1118,20 @@ async def tool_get_analytics(ctx: RunContext[Deps], params: GetAnalytics) -> str
     try:
         import src.modules.tasks.analytics as analytics_service
 
-        with logfire.span("tool_get_analytics", metric=params.metric, period=params.period_days):
-            if params.metric == "leaderboard":
-                leaderboard = await analytics_service.get_leaderboard(period_days=params.period_days)
-                return _format_leaderboard(leaderboard, params.period_days)
+        logger.info("tool_get_analytics", extra={"metric": params.metric, "period": params.period_days})
+        if params.metric == "leaderboard":
+            leaderboard = await analytics_service.get_leaderboard(period_days=params.period_days)
+            return _format_leaderboard(leaderboard, params.period_days)
 
-            if params.metric == "completion_rate":
-                stats = await analytics_service.get_completion_rate(period_days=params.period_days)
-                return _format_completion_rate(stats)
+        if params.metric == "completion_rate":
+            stats = await analytics_service.get_completion_rate(period_days=params.period_days)
+            return _format_completion_rate(stats)
 
-            if params.metric == "overdue":
-                chores = await analytics_service.get_overdue_chores()
-                return _format_overdue_chores(chores)
+        if params.metric == "overdue":
+            chores = await analytics_service.get_overdue_chores()
+            return _format_overdue_chores(chores)
 
-            return f"Error: Unknown metric '{params.metric}'."
+        return f"Error: Unknown metric '{params.metric}'."
 
     except Exception as e:
         logger.error("Unexpected error in tool_get_analytics", extra={"error": str(e)})
@@ -1152,14 +1154,14 @@ async def tool_get_stats(ctx: RunContext[Deps], params: GetStats) -> str:
     try:
         import src.modules.tasks.analytics as analytics_service
 
-        with logfire.span("tool_get_stats", user_id=ctx.deps.user_id, period=params.period_days):
-            # Get user statistics from analytics service
-            stats = await analytics_service.get_user_statistics(
-                user_id=ctx.deps.user_id,
-                period_days=params.period_days,
-            )
+        logger.info("tool_get_stats", extra={"user_id": ctx.deps.user_id, "period": params.period_days})
+        # Get user statistics from analytics service
+        stats = await analytics_service.get_user_statistics(
+            user_id=ctx.deps.user_id,
+            period_days=params.period_days,
+        )
 
-            return _format_user_stats(stats, params.period_days)
+        return _format_user_stats(stats, params.period_days)
 
     except Exception as e:
         logger.error("Unexpected error in tool_get_stats", extra={"error": str(e)})

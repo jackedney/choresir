@@ -200,7 +200,7 @@ class TestChoresirAgentErrorHandling:
         with (
             patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
             patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
-            patch("src.agents.choresir_agent.logfire") as mock_logfire,
+            patch("src.agents.choresir_agent.logger") as mock_logger,
         ):
             mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
             mock_get_agent.return_value = mock_agent
@@ -213,11 +213,11 @@ class TestChoresirAgentErrorHandling:
                 member_list=mock_member_list,
             )
 
-            # Verify logfire.error was called with error_category
-            mock_logfire.error.assert_called_once()
-            call_args = mock_logfire.error.call_args
-            assert "error_category" in call_args.kwargs
-            assert call_args.kwargs["error_category"] == ErrorCategory.SERVICE_QUOTA_EXCEEDED.value
+            # Verify logger.error was called with error_category in extra
+            mock_logger.error.assert_called_once()
+            call_args = mock_logger.error.call_args
+            assert "error_category" in call_args.kwargs["extra"]
+            assert call_args.kwargs["extra"]["error_category"] == ErrorCategory.SERVICE_QUOTA_EXCEEDED.value
 
     @pytest.mark.asyncio
     async def test_different_error_types_log_different_categories(self, mock_deps, mock_member_list):
@@ -233,7 +233,7 @@ class TestChoresirAgentErrorHandling:
             with (
                 patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
                 patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
-                patch("src.agents.choresir_agent.logfire") as mock_logfire,
+                patch("src.agents.choresir_agent.logger") as mock_logger,
             ):
                 mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
                 mock_get_agent.return_value = mock_agent
@@ -247,8 +247,8 @@ class TestChoresirAgentErrorHandling:
                 )
 
                 # Verify correct category was logged
-                call_args = mock_logfire.error.call_args
-                assert call_args.kwargs["error_category"] == expected_category
+                call_args = mock_logger.error.call_args
+                assert call_args.kwargs["extra"]["error_category"] == expected_category
 
     @pytest.mark.asyncio
     async def test_whatsapp_friendly_message_format(self, mock_deps, mock_member_list):

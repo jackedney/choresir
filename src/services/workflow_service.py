@@ -1,7 +1,7 @@
 """Workflow service for managing multi-step approval workflows.
 
 This service provides centralized CRUD operations for tracking workflow state
-across different workflow types (deletion approval, chore verification, personal verification).
+across different workflow types (deletion approval, task verification).
 """
 
 import logging

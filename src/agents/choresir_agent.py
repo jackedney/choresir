@@ -5,7 +5,6 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
-import logfire
 from pydantic_ai.messages import ModelMessage
 
 from src.agents.agent_instance import get_agent
@@ -221,15 +220,15 @@ async def run_agent(
 
         # Define the agent execution function for retry wrapper
         async def execute_agent() -> str:
-            with logfire.span("choresir_agent_run", user_id=deps.user_id):
-                result = await agent.run(
-                    user_message,
-                    deps=deps,
-                    message_history=history,
-                    instructions=instructions,
-                )
-                # Sanitize output to remove any leaked special tokens
-                return _sanitize_llm_output(result.output)
+            logger.info("choresir_agent_run", extra={"user_id": deps.user_id})
+            result = await agent.run(
+                user_message,
+                deps=deps,
+                message_history=history,
+                instructions=instructions,
+            )
+            # Sanitize output to remove any leaked special tokens
+            return _sanitize_llm_output(result.output)
 
         # Run the agent with intelligent retry logic
         return await retry_handler.execute_with_retry(execute_agent)
@@ -238,10 +237,9 @@ async def run_agent(
         error_category, user_message = classify_agent_error(e)
 
         # Log the error with category information
-        logfire.error(
+        logger.error(
             "Agent execution failed",
-            error=str(e),
-            error_category=error_category.value,
+            extra={"error": str(e), "error_category": error_category.value},
         )
 
         # Notify admins for critical errors
@@ -300,7 +298,7 @@ async def get_member_list(*, _db: object) -> str:
     """
     members = await db_client.list_records(
         collection="members",
-        sort="+name",
+        sort="name ASC",
     )
 
     if not members:

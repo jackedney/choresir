@@ -153,13 +153,15 @@ async def migrate_personal_chores_to_tasks(conn: aiosqlite.Connection) -> int:
 
         current_state = "TODO" if status == "ACTIVE" else "ARCHIVED"
 
+        verification = "partner" if partner_id else "none"
+
         await conn.execute(
             """INSERT OR IGNORE INTO tasks
                (id, created, updated, title, owner_id, schedule_cron,
                  deadline, scope, verification, accountability_partner_id,
                  current_state, module)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'personal', 'partner', ?, ?, 'task')""",
-            (old_id, created, updated, title, owner_id, recurrence, due_date, partner_id, current_state),
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'personal', ?, ?, ?, 'task')""",
+            (old_id, created, updated, title, owner_id, recurrence, due_date, verification, partner_id, current_state),
         )
         migrated += 1
 

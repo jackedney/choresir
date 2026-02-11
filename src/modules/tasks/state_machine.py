@@ -36,7 +36,7 @@ def get_transitions(*, verification: VerificationType) -> dict[TaskState, set[Ta
     return VERIFIED_TRANSITIONS
 
 
-def _calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None = None) -> datetime:
+def calculate_next_deadline(*, schedule_cron: str, from_time: datetime | None = None) -> datetime:
     """Calculate next deadline from CRON schedule using floating schedule logic."""
     base_time = from_time or datetime.now()
 
@@ -65,7 +65,7 @@ async def transition_to_completed(*, task_id: str) -> dict[str, Any]:
 
         # Calculate next deadline from now for recurring tasks (floating schedule)
         if task.get("schedule_cron"):
-            next_deadline = _calculate_next_deadline(
+            next_deadline = calculate_next_deadline(
                 schedule_cron=task["schedule_cron"],
                 from_time=datetime.now(),
             )
@@ -93,7 +93,7 @@ async def transition_to_completed_no_verification(*, task_id: str) -> dict[str, 
         update_data: dict[str, Any] = {"current_state": TaskState.COMPLETED}
 
         if task.get("schedule_cron"):
-            next_deadline = _calculate_next_deadline(
+            next_deadline = calculate_next_deadline(
                 schedule_cron=task["schedule_cron"],
                 from_time=datetime.now(),
             )
@@ -112,6 +112,11 @@ async def transition_to_completed_no_verification(*, task_id: str) -> dict[str, 
 async def transition_to_todo(*, task_id: str) -> dict[str, Any]:
     """Transition task to TODO state (e.g. after rejection or recurring reset)."""
     with span("task_state_machine.transition_to_todo"):
+        task = await db_client.get_record(collection="tasks", record_id=task_id)
+        if task["current_state"] == TaskState.ARCHIVED:
+            msg = f"Cannot transition to TODO: task {task_id} is ARCHIVED"
+            raise ValueError(msg)
+
         updated_record = await db_client.update_record(
             collection="tasks",
             record_id=task_id,
@@ -143,6 +148,11 @@ async def transition_to_pending_verification(*, task_id: str) -> dict[str, Any]:
 async def transition_to_archived(*, task_id: str) -> dict[str, Any]:
     """Transition task to ARCHIVED state (soft delete)."""
     with span("task_state_machine.transition_to_archived"):
+        task = await db_client.get_record(collection="tasks", record_id=task_id)
+        if task["current_state"] != TaskState.TODO:
+            msg = f"Cannot archive: task {task_id} is in {task['current_state']} state, must be TODO"
+            raise ValueError(msg)
+
         updated_record = await db_client.update_record(
             collection="tasks",
             record_id=task_id,
