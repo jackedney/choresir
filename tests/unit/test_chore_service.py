@@ -7,15 +7,15 @@ from src.domain.task import TaskScope, TaskState, VerificationType
 
 
 @pytest.fixture
-def patched_chore_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
-    return in_memory_db
+def patched_chore_db(mock_db_module_for_unit_tests, db_client):
+    """Patches settings and database for chore service tests.
+
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    from tests.unit.conftest import DatabaseClient
+
+    return DatabaseClient()
 
 
 @pytest.mark.unit

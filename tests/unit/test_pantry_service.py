@@ -7,16 +7,15 @@ from src.services import pantry_service
 
 
 @pytest.fixture
-def patched_pantry_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
+def patched_pantry_db(mock_db_module_for_unit_tests, db_client):
+    """Patches settings and database for pantry service tests.
 
-    return in_memory_db
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    from tests.unit.conftest import DatabaseClient
+
+    return DatabaseClient()
 
 
 @pytest.fixture

@@ -6,6 +6,7 @@ import pytest
 
 import src.modules.tasks.service as chore_service
 import src.modules.tasks.verification as verification_service
+from src.core.db_client import create_record
 from src.core.fuzzy_match import fuzzy_match as _fuzzy_match_chore, fuzzy_match_all as _fuzzy_match_all_chores
 from src.modules.tasks.tools import (
     VerifyChore,
@@ -21,24 +22,21 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def patched_verification_tools_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
+def patched_verification_tools_db(mock_db_module_for_unit_tests, db_client):
+    """Patches settings and database for verification tools tests.
 
-    # Patch all db_client functions
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    from tests.unit.conftest import DatabaseClient
 
-    return in_memory_db
+    return DatabaseClient()
 
 
 @pytest.fixture
 async def claimer(patched_verification_tools_db):
     """Create a test user who claims chore completion."""
-    return await patched_verification_tools_db.create_record(
+    return await create_record(
         collection="members",
         data={
             "phone": "+1234567890",
@@ -52,7 +50,7 @@ async def claimer(patched_verification_tools_db):
 @pytest.fixture
 async def verifier(patched_verification_tools_db):
     """Create a test user who verifies chore completion."""
-    return await patched_verification_tools_db.create_record(
+    return await create_record(
         collection="members",
         data={
             "phone": "+1987654321",

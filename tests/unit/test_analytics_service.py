@@ -10,17 +10,15 @@ import src.modules.tasks.analytics as analytics_service
 
 
 @pytest.fixture
-def patched_analytics_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
-    # Patch all db_client functions
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
+def patched_analytics_db(mock_db_module_for_unit_tests, db_client):
+    """Patches settings and database for analytics service tests.
 
-    return in_memory_db
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    from tests.unit.conftest import DatabaseClient
+
+    return DatabaseClient()
 
 
 @pytest.fixture
@@ -41,6 +39,7 @@ async def sample_users(patched_analytics_db):
         data={
             "name": "Alice",
             "phone": "+1234567890",
+            "role": "member",
             "status": "active",
         },
     )
@@ -49,6 +48,7 @@ async def sample_users(patched_analytics_db):
         data={
             "name": "Bob",
             "phone": "+1234567891",
+            "role": "member",
             "status": "active",
         },
     )
@@ -57,6 +57,7 @@ async def sample_users(patched_analytics_db):
         data={
             "name": "Charlie",
             "phone": "+1234567892",
+            "role": "member",
             "status": "active",
         },
     )
@@ -77,7 +78,7 @@ async def sample_completion_logs(patched_analytics_db, sample_users):
                 "user_id": sample_users[0]["id"],
                 "action": "approve_verification",
                 "timestamp": (now - timedelta(days=i)).isoformat(),
-                "chore_id": f"chore_{i}",
+                "task_id": f"task_{i}",
             },
         )
         logs.append(log)
@@ -416,7 +417,7 @@ class TestGetLeaderboardEdgeCases:
                     "user_id": sample_users[0]["id"],
                     "action": "approve_verification",
                     "timestamp": (now - timedelta(hours=i)).isoformat(),
-                    "chore_id": f"chore_{i}",
+                    "task_id": f"task_{i}",
                 },
             )
 

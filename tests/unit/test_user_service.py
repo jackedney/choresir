@@ -7,18 +7,15 @@ from src.services import user_service
 
 
 @pytest.fixture
-def patched_user_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
+def patched_user_db(mock_db_module_for_unit_tests, db_client):
+    """Patches settings and database for user service tests.
 
-    # Patch all db_client functions
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    from tests.unit.conftest import DatabaseClient
 
-    return in_memory_db
+    return DatabaseClient()
 
 
 @pytest.mark.unit

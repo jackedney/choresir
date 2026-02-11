@@ -8,6 +8,7 @@ import pytest
 
 import src.modules.tasks.service as chore_service
 import src.modules.tasks.verification as verification_service
+from src.core.db_client import create_record
 
 # KeyError replaced with KeyError
 from src.domain.task import TaskState
@@ -15,18 +16,15 @@ from src.modules.tasks.verification import VerificationDecision
 
 
 @pytest.fixture
-def patched_verification_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
+def patched_verification_db(mock_db_module_for_unit_tests, db_client):
+    """Patches settings and database for verification service tests.
 
-    # Patch all db_client functions
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    from tests.unit.conftest import DatabaseClient
 
-    return in_memory_db
+    return DatabaseClient()
 
 
 @pytest.fixture
@@ -35,16 +33,12 @@ async def setup_test_users(patched_verification_db):
     users = {}
     for i in range(1, 4):
         user_data = {
-            "id": f"user{i}",
             "phone": f"+141555555{i}",
             "name": f"User{i}",
-            "email": f"user{i}@test.local",
             "role": "member",
             "status": "active",
-            "created": datetime.now().isoformat(),
-            "updated": datetime.now().isoformat(),
         }
-        user = await patched_verification_db.create_record(collection="members", data=user_data)
+        user = await create_record(collection="members", data=user_data)
         users[f"user{i}"] = user
     return users
 
@@ -54,13 +48,14 @@ class TestRequestVerification:
     """Tests for request_verification function."""
 
     @pytest.fixture
-    async def todo_chore(self, patched_verification_db):
+    async def todo_chore(self, patched_verification_db, setup_test_users):
         """Create a chore in TODO state."""
+        user1_id = setup_test_users["user1"]["id"]
         return await chore_service.create_chore(
             title="Test Chore",
             description="Test chore",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(user1_id),
         )
 
     async def test_request_verification_success(self, patched_verification_db, todo_chore, setup_test_users):
@@ -159,18 +154,19 @@ class TestVerifyChore:
     @pytest.fixture
     async def pending_chore_with_claim(self, patched_verification_db, setup_test_users):
         """Create a chore with a verification claim."""
+        user1_id = setup_test_users["user1"]["id"]
         # Create chore
         chore = await chore_service.create_chore(
             title="Test Chore",
             description="Test",
             recurrence="0 10 * * *",
-            assigned_to="user1",
+            assigned_to=str(user1_id),
         )
 
         # Request verification (creates claim log and workflow)
         await verification_service.request_verification(
             chore_id=chore["id"],
-            claimer_user_id="user1",
+            claimer_user_id=str(user1_id),
             notes="Completed",
         )
 

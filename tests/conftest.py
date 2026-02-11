@@ -20,7 +20,6 @@ import src.core.db_client as db_module
 from src.core.config import Settings
 from src.core.db_client import (
     _db_connections,
-    close_connection,
     create_record,
     delete_record,
     init_db,
@@ -69,7 +68,7 @@ def sqlite_db(tmp_path: Path) -> Generator[Path, None, None]:
         tmp_path: Pytest fixture providing temporary directory path
 
     Yields:
-        Path to the temporary SQLite database file
+        Path to temporary SQLite database file
 
     Cleanup:
         Temp file is automatically cleaned up by pytest's tmp_path fixture
@@ -81,10 +80,8 @@ def sqlite_db(tmp_path: Path) -> Generator[Path, None, None]:
         register_module(PantryModule())
         register_module(OnboardingModule())
         await init_db(db_path=str(db_file))
-        await close_connection(db_path=str(db_file))
 
     asyncio.run(_init_and_close())
-    _db_connections.clear()
     yield db_file
 
 
@@ -112,27 +109,28 @@ async def db_client(sqlite_db: Path) -> AsyncGenerator[None, None]:
     and cleans up all records between tests.
 
     Args:
-        sqlite_db: Path to the test SQLite database
+        sqlite_db: Path to the test database
 
     Yields:
         None - The db_client module functions are patched to use the test database
     """
+
     open_conns: list[aiosqlite.Connection] = []
 
     async def test_get_connection(*, db_path: str | None = None) -> Any:
-        """Override get_connection to use the test database path."""
+        """Override get_connection to use test database path."""
         conn = await aiosqlite.connect(str(sqlite_db))
         await conn.execute("PRAGMA foreign_keys = ON")
         await conn.execute("PRAGMA journal_mode = WAL")
         open_conns.append(conn)
         return conn
 
-    original_conn: Any = db_module.get_connection
-    db_module.get_connection = test_get_connection  # type: ignore[valid-type]
+    original_get_connection: Any = db_module.get_connection
+    db_module.get_connection: Any = test_get_connection
 
     yield
 
-    db_module.get_connection = original_conn
+    db_module.get_connection = original_get_connection
     for conn in open_conns:
         with contextlib.suppress(Exception):
             await conn.close()
