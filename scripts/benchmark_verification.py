@@ -80,7 +80,7 @@ async def mocked_list_records(
             for i in range(1000)
         ]
 
-        # Simulate sort="-created" (newest first) by reversing
+        # Simulate sort="created DESC" (newest first) by reversing
         # This makes log_999 first, log_0 last
         all_logs.reverse()
 

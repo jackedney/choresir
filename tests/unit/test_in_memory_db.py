@@ -173,7 +173,7 @@ class TestInMemoryDBClient:
         await in_memory_db.create_record("members", {"name": "Alice"})
         await in_memory_db.create_record("members", {"name": "Bob"})
 
-        records = await in_memory_db.list_records("members", sort="-name")
+        records = await in_memory_db.list_records("members", sort="name DESC")
         assert records[0]["name"] == "Charlie"
         assert records[1]["name"] == "Bob"
         assert records[2]["name"] == "Alice"
