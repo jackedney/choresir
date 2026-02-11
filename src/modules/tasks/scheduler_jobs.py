@@ -27,15 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _send_reminder_to_user(*, user_id: str, chores: list[OverdueChore]) -> bool:
-    """Send overdue reminder to a single user.
-
-    Args:
-        user_id: User ID to send reminder to
-        chores: List of overdue chores assigned to user
-
-    Returns:
-        True if reminder was sent successfully, False otherwise
-    """
+    """Send overdue reminder to a single user. Returns True if reminder was sent successfully, False otherwise."""
     try:
         # Get user details
         user = await db_client.get_record(collection="members", record_id=user_id)

@@ -32,18 +32,7 @@ class ConfigField(BaseModel):
 
 
 class Module(Protocol):
-    """Protocol defining the interface for feature modules.
-
-    Modules are self-contained plugins that provide:
-    - Database table schemas
-    - Indexes for performance
-    - Tools for the AI agent
-    - System prompt sections
-    - Scheduled jobs
-    - Configuration fields
-
-    This enables modular, extensible architecture without tight coupling.
-    """
+    """Protocol defining the interface for feature modules. Self-contained plugins with schemas, tools, and config."""
 
     @property
     def name(self) -> str:

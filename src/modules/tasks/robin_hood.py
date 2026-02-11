@@ -21,14 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_week_start_date(dt: datetime | None = None) -> datetime:
-    """Get start of week (Monday 00:00) for a given datetime.
-
-    Args:
-        dt: Datetime to get week start for. If None, uses current time.
-
-    Returns:
-        Datetime representing Monday 00:00 of week in UTC
-    """
+    """Get start of week (Monday 00:00) for a given datetime. If None, uses current time."""
     if dt is None:
         dt = datetime.now(UTC)
 
