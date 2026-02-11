@@ -362,9 +362,9 @@ class TestChoresirAgentErrorHandling:
         group_id = "group_123"
 
         mock_group_context = [
-            {"sender_name": "Alice", "content": "I'll do dishes"},
-            {"sender_name": "Bob", "content": "I'll do laundry"},
-            {"sender_name": "Charlie", "content": "I'll cook"},
+            {"sender_name": "Alice", "sender_phone": "+1111111111", "content": "I'll do dishes"},
+            {"sender_name": "Bob", "sender_phone": "+2222222222", "content": "I'll do laundry"},
+            {"sender_name": "Charlie", "sender_phone": "+3333333333", "content": "I'll cook"},
         ]
 
         with (
@@ -404,9 +404,9 @@ class TestChoresirAgentErrorHandling:
 
             # Verify instructions include formatted group context with sender names
             assert "## RECENT GROUP CONVERSATION" in instructions
-            assert "[Alice]: I'll do dishes" in instructions
-            assert "[Bob]: I'll do laundry" in instructions
-            assert "[Charlie]: I'll cook" in instructions
+            assert "[Alice (+1111111111)]: I'll do dishes" in instructions
+            assert "[Bob (+2222222222)]: I'll do laundry" in instructions
+            assert "[Charlie (+3333333333)]: I'll cook" in instructions
 
 
 @pytest.mark.unit

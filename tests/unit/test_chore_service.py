@@ -441,3 +441,68 @@ class TestFuzzyMatchTask:
 
         result = chore_service.fuzzy_match_task(tasks, "swimming")
         assert result is None
+
+
+@pytest.mark.unit
+class TestReassignChore:
+    """Tests for reassign_chore function."""
+
+    @pytest.fixture
+    async def shared_chore(self, patched_chore_db):
+        """Create a shared chore for testing."""
+        return await chore_service.create_chore(
+            title="Dishes",
+            description="Wash dishes",
+            recurrence="0 20 * * *",
+            assigned_to="user1",
+        )
+
+    async def test_reassign_to_different_user(self, patched_chore_db, shared_chore):
+        """Test reassigning a chore to a different user."""
+        result = await chore_service.reassign_chore(
+            task_id=shared_chore["id"],
+            assigned_to="user2",
+        )
+
+        assert result["assigned_to"] == "user2"
+
+    async def test_unassign_chore(self, patched_chore_db, shared_chore):
+        """Test unassigning a chore."""
+        result = await chore_service.reassign_chore(
+            task_id=shared_chore["id"],
+            assigned_to=None,
+        )
+
+        assert result["assigned_to"] == ""
+
+    async def test_reassign_archived_chore_fails(self, patched_chore_db, shared_chore):
+        """Test that reassigning an archived chore raises ValueError."""
+        await chore_service.archive_task(task_id=shared_chore["id"])
+
+        with pytest.raises(ValueError, match="Cannot reassign an archived chore"):
+            await chore_service.reassign_chore(
+                task_id=shared_chore["id"],
+                assigned_to="user2",
+            )
+
+    async def test_reassign_personal_chore_fails(self, patched_chore_db):
+        """Test that reassigning a personal chore raises ValueError."""
+        personal = await chore_service.create_personal_chore(
+            owner_id="user1",
+            title="Gym",
+            recurrence="every 1 day",
+        )
+
+        with pytest.raises(ValueError, match="Only shared chores can be reassigned"):
+            await chore_service.reassign_chore(
+                task_id=personal["id"],
+                assigned_to="user2",
+            )
+
+    async def test_reassign_nonexistent_chore_raises(self, patched_chore_db):
+        """Test reassigning a non-existent chore raises KeyError."""
+        with pytest.raises(KeyError):
+            await chore_service.reassign_chore(
+                task_id="nonexistent_id",
+                assigned_to="user2",
+            )

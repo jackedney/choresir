@@ -298,21 +298,20 @@ async def get_member_list(*, _db: object) -> str:
     Returns:
         Formatted member list string
     """
-    # Get all active members
     members = await db_client.list_records(
         collection="members",
-        filter_query=f'status = "{UserStatus.ACTIVE}"',
         sort="+name",
     )
 
     if not members:
-        return "No active members."
+        return "No members yet."
 
     # Format member list
     lines = []
     for member in members:
         role_indicator = " (admin)" if member["role"] == "admin" else ""
-        lines.append(f"- {member['name']} ({member['phone']}){role_indicator}")
+        status_indicator = " (awaiting name)" if member["status"] == UserStatus.PENDING_NAME else ""
+        lines.append(f"- {member['name']} ({member['phone']}){role_indicator}{status_indicator}")
 
     return "\n".join(lines)
 

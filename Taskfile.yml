@@ -28,6 +28,17 @@ tasks:
     cmds:
       - uv run ruff format
 
+  up:
+    desc: Start WAHA service via docker-compose
+    cmds:
+      - docker-compose up -d waha
+
+  down:
+    desc: Stop WAHA service and reset database
+    cmds:
+      - docker-compose down
+      - rm -f ./data/choresir.db
+
   dev:
     desc: Run FastAPI for local development
     dotenv: ['.env']
@@ -35,7 +46,7 @@ tasks:
       - |
         echo "Development environment ready!"
         echo "  FastAPI    http://0.0.0.0:8001"
-        echo "  WAHA       http://localhost:3000 (start with docker-compose up -d waha)"
+        echo "  WAHA       http://localhost:3000 (start with 'task up')"
         echo ""
         uv run uvicorn src.main:app --host 0.0.0.0 --port 8001
 

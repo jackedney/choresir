@@ -137,8 +137,6 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
     users = await list_records(collection="members", per_page=1000)
 
     total_members = len(users)
-    active_members = sum(1 for user in users if user.get("status") == "active")
-    pending_members = sum(1 for user in users if user.get("status") == "pending_name")
 
     return templates.TemplateResponse(
         request,
@@ -147,8 +145,6 @@ async def get_admin_dashboard(request: Request, _auth: None = Depends(require_au
             "house_name": house_name,
             "bot_name": settings.bot_name,
             "total_members": total_members,
-            "active_members": active_members,
-            "pending_members": pending_members,
         },
     )
 

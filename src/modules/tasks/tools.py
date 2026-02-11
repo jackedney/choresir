@@ -49,6 +49,16 @@ class DefineChore(BaseModel):
     description: str = Field(default="", description="Optional detailed description")
 
 
+class ReassignChore(BaseModel):
+    """Parameters for reassigning a chore to a different user."""
+
+    chore_title_fuzzy: str = Field(description="Chore title or partial match (fuzzy search)")
+    assignee_phone: str | None = Field(
+        default=None,
+        description="Phone number of new assignee (None to unassign)",
+    )
+
+
 class LogChore(BaseModel):
     """Parameters for logging a chore completion."""
 
@@ -468,7 +478,7 @@ async def _get_verification_workflow_by_chore_title(chore_title_fuzzy: str) -> d
         return f"Multiple chores with pending verification found: {chore_list}. Please specify which one."
 
     # Exactly one chore with pending verification - use it
-    matched_chore, pending_workflow = chores_with_pending_verification[0]
+    _matched_chore, pending_workflow = chores_with_pending_verification[0]
     return pending_workflow
 
 
@@ -659,7 +669,7 @@ def _format_user_stats(stats: UserStatistics, period_days: int) -> str:
     return "\n".join(lines)
 
 
-async def tool_define_chore(ctx: RunContext[Deps], params: DefineChore) -> str:
+async def tool_define_chore(ctx: RunContext[Deps], params: DefineChore) -> str:  # noqa: ARG001
     """
     Define a new chore with recurrence schedule.
 
@@ -701,6 +711,87 @@ async def tool_define_chore(ctx: RunContext[Deps], params: DefineChore) -> str:
         return f"Error: Unable to create chore - {e!s}"
 
 
+async def tool_reassign_chore(ctx: RunContext[Deps], params: ReassignChore) -> str:  # noqa: ARG001
+    """
+    Reassign an existing chore to a different household member, or unassign it.
+
+    Args:
+        ctx: Agent runtime context with dependencies
+        params: Reassignment parameters
+
+    Returns:
+        Success or error message
+    """
+    try:
+        with logfire.span("tool_reassign_chore", title=params.chore_title_fuzzy):
+            # Fuzzy match the chore
+            all_chores = await service.get_chores()
+            matched_chore = service.fuzzy_match_task(all_chores, params.chore_title_fuzzy)
+
+            if not matched_chore:
+                return f"Error: No chore found matching '{params.chore_title_fuzzy}'."
+
+            # Resolve new assignee
+            assignee_id = None
+            if params.assignee_phone:
+                user = await src.services.user_service.get_user_by_phone(phone=params.assignee_phone)
+                if not user:
+                    return f"Error: User with phone {params.assignee_phone} not found."
+                assignee_id = user["id"]
+
+            # Reassign
+            await service.reassign_chore(
+                task_id=matched_chore["id"],
+                assigned_to=assignee_id,
+            )
+
+            assignee_msg = f"assigned to {params.assignee_phone}" if assignee_id else "unassigned"
+            return f"Chore '{matched_chore['title']}' is now {assignee_msg}."
+
+    except ValueError as e:
+        logger.warning("Chore reassignment failed", extra={"error": str(e)})
+        return f"Error: {e!s}"
+    except Exception as e:
+        logger.error("Unexpected error in tool_reassign_chore", extra={"error": str(e), "type": type(e).__name__})
+        return f"Error: Unable to reassign chore - {e!s}"
+
+
+async def _validate_log_chore(
+    household_match: dict | None,
+    personal_match: dict | None,
+    params: LogChore,
+    user_id: str,
+) -> str | None:
+    """Validate chore logging preconditions. Returns error message or None."""
+    if household_match and personal_match:
+        return (
+            f"I found both a household chore '{household_match['title']}' and "
+            f"your personal chore '{personal_match['title']}'. "
+            f"Please be more specific: use '/personal done {params.chore_title_fuzzy}' "
+            f"for personal chores or provide full household chore name."
+        )
+    if not household_match:
+        return f"Error: No household chore found matching '{params.chore_title_fuzzy}'."
+    if household_match["current_state"] != TaskState.TODO:
+        return (
+            f"Error: Chore '{household_match['title']}' is in state '{household_match['current_state']}' "
+            "and cannot be logged right now."
+        )
+    if params.is_swap:
+        if household_match["assigned_to"] == user_id:
+            return (
+                f"Error: You are already assigned to '{household_match['title']}'. "
+                f"Robin Hood swaps are only for taking over another member's chore."
+            )
+        import src.modules.tasks.robin_hood as robin_hood_service
+
+        can_takeover, error_message = await robin_hood_service.can_perform_takeover(user_id)
+        if not can_takeover:
+            return f"Error: {error_message}"
+        await robin_hood_service.increment_weekly_takeover_count(user_id)
+    return None
+
+
 async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     """
     Log a chore completion and request verification.
@@ -718,71 +809,25 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
     """
     try:
         with logfire.span("tool_log_chore", title=params.chore_title_fuzzy, is_swap=params.is_swap):
-            # Get all household chores to fuzzy match
             all_chores = await service.get_chores()
-
-            # Fuzzy match household chore
             household_match = fuzzy_match(all_chores, params.chore_title_fuzzy)
 
-            # Get user's personal chores to check for collision
             user = await src.services.user_service.get_user_by_phone(phone=ctx.deps.user_phone)
+            personal_match = None
             if user:
                 personal_chores = await service.get_personal_chores(
                     owner_id=user["id"],
                     include_archived=False,
                 )
                 personal_match = service.fuzzy_match_task(personal_chores, params.chore_title_fuzzy)
-            else:
-                personal_chores = []
-                personal_match = None
 
-            # Check for collision
-            if household_match and personal_match:
-                return (
-                    f"I found both a household chore '{household_match['title']}' and "
-                    f"your personal chore '{personal_match['title']}'. "
-                    f"Please be more specific: use '/personal done {params.chore_title_fuzzy}' "
-                    f"for personal chores or provide full household chore name."
-                )
+            error = await _validate_log_chore(household_match, personal_match, params, ctx.deps.user_id)
+            if error:
+                return error
 
-            # No collision - proceed with household chore logging
-            if not household_match:
-                return f"Error: No household chore found matching '{params.chore_title_fuzzy}'."
-
-            # Check if chore is in TODO state
-            if household_match["current_state"] != TaskState.TODO:
-                return (
-                    f"Error: Chore '{household_match['title']}' is in state '{household_match['current_state']}' "
-                    "and cannot be logged right now."
-                )
-
-            # Robin Hood Protocol: Check if this is a swap and enforce weekly limits
-            if params.is_swap:
-                # Verify that claimer is not original assignee
-                if household_match["assigned_to"] == ctx.deps.user_id:
-                    return (
-                        f"Error: You are already assigned to '{household_match['title']}'. "
-                        f"Robin Hood swaps are only for taking over another member's chore."
-                    )
-
-                # Check weekly takeover limit
-                import src.modules.tasks.robin_hood as robin_hood_service
-
-                can_takeover, error_message = await robin_hood_service.can_perform_takeover(ctx.deps.user_id)
-                if not can_takeover:
-                    return f"Error: {error_message}"
-
-                # Increment takeover count
-                await robin_hood_service.increment_weekly_takeover_count(ctx.deps.user_id)
-
-            # At this point, household_match is guaranteed to be not None
             assert household_match is not None
-            chore_id = household_match["id"]
-            chore_title = household_match["title"]
-
-            # Log completion
             await verification.request_verification(
-                chore_id=chore_id,
+                chore_id=household_match["id"],
                 claimer_user_id=ctx.deps.user_id,
                 notes=params.notes or "",
                 is_swap=params.is_swap,
@@ -790,7 +835,8 @@ async def tool_log_chore(ctx: RunContext[Deps], params: LogChore) -> str:
 
             swap_msg = " (Robin Hood swap)" if params.is_swap else ""
             return (
-                f"Logged completion of '{chore_title}'{swap_msg}. Awaiting verification from another household member."
+                f"Logged completion of '{household_match['title']}'{swap_msg}. "
+                f"Awaiting verification from another household member."
             )
 
     except ValueError as e:
@@ -1054,7 +1100,7 @@ async def tool_list_my_chores(ctx: RunContext[Deps], params: ListMyChores) -> st
         return "Error: Unable to retrieve chores. Please try again."
 
 
-async def tool_get_analytics(ctx: RunContext[Deps], params: GetAnalytics) -> str:
+async def tool_get_analytics(ctx: RunContext[Deps], params: GetAnalytics) -> str:  # noqa: ARG001
     """
     Get household analytics and metrics.
 
@@ -1123,6 +1169,7 @@ async def tool_get_stats(ctx: RunContext[Deps], params: GetStats) -> str:
 def register_tools(agent: Agent[Deps, str]) -> None:
     """Register task tools with agent."""
     agent.tool(tool_define_chore)
+    agent.tool(tool_reassign_chore)
     agent.tool(tool_log_chore)
     agent.tool(tool_request_chore_deletion)
     agent.tool(tool_respond_to_deletion)

@@ -188,7 +188,7 @@ async def test_verifier_cannot_be_claimer(mock_db_module, db_client, sample_user
     )
 
     # Bob tries to verify his own claim
-    with pytest.raises(PermissionError, match="cannot verify their own task claim"):
+    with pytest.raises(ValueError, match="Cannot approve own workflow"):
         await verification_service.verify_chore(
             task_id=chore["id"],
             verifier_user_id=sample_users["bob"]["id"],

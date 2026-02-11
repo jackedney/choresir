@@ -364,6 +364,44 @@ async def archive_task(*, task_id: str) -> dict[str, Any]:
     return await state_machine.transition_to_archived(task_id=task_id)
 
 
+async def reassign_chore(
+    *,
+    task_id: str,
+    assigned_to: str | None,
+) -> dict[str, Any]:
+    """Reassign a shared chore to a different user (or unassign).
+
+    Args:
+        task_id: Task ID to reassign
+        assigned_to: New assignee user ID, or None to unassign
+
+    Returns:
+        Updated task record
+
+    Raises:
+        ValueError: If task is not a shared chore or is archived
+        db_client.RecordNotFoundError: If task not found
+    """
+    with span("task_service.reassign_chore"):
+        task = await db_client.get_record(collection="tasks", record_id=task_id)
+
+        if task.get("scope") != TaskScope.SHARED:
+            raise ValueError("Only shared chores can be reassigned.")
+
+        if task.get("current_state") == TaskState.ARCHIVED:
+            raise ValueError("Cannot reassign an archived chore.")
+
+        update_data: dict[str, Any] = {"assigned_to": assigned_to or ""}
+        record = await db_client.update_record(
+            collection="tasks",
+            record_id=task_id,
+            data=update_data,
+        )
+
+        logger.info("Reassigned chore %s to %s", task_id, assigned_to or "unassigned")
+        return record
+
+
 # Backwards compatibility aliases for chore_service
 async def complete_chore(*, chore_id: str) -> dict[str, Any]:
     """Complete a chore (backwards compatibility wrapper)."""

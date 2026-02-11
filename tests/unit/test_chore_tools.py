@@ -8,8 +8,10 @@ import src.modules.tasks.deletion as deletion_service
 import src.modules.tasks.service as chore_service
 from src.modules.tasks.tools import (
     BatchRespondToWorkflows,
+    ReassignChore,
     RespondToDeletion,
     tool_batch_respond_to_workflows,
+    tool_reassign_chore,
     tool_respond_to_deletion,
 )
 from src.services import workflow_service
@@ -671,3 +673,84 @@ class TestToolBatchRespondToWorkflows:
             wf["status"] == workflow_service.WorkflowStatus.APPROVED.value
             for wf in [updated_wf1, updated_wf2, updated_wf3]
         )
+
+
+@pytest.mark.unit
+class TestToolReassignChore:
+    """Tests for tool_reassign_chore."""
+
+    async def test_reassign_chore_success(self, patched_chore_tools_db, requester, resolver, todo_chore, monkeypatch):
+        """Test reassigning a chore to another user."""
+
+        # Mock get_user_by_phone to return resolver
+        async def mock_get_user_by_phone(phone):
+            if phone == resolver["phone"]:
+                return resolver
+            return None
+
+        monkeypatch.setattr("src.services.user_service.get_user_by_phone", mock_get_user_by_phone)
+
+        ctx = _create_mock_context(requester)
+
+        result = await tool_reassign_chore(
+            ctx=ctx,
+            params=ReassignChore(
+                chore_title_fuzzy="Test Chore",
+                assignee_phone=resolver["phone"],
+            ),
+        )
+
+        assert "Test Chore" in result
+        assert "assigned to" in result
+        assert resolver["phone"] in result
+
+    async def test_reassign_chore_unassign(self, patched_chore_tools_db, requester, todo_chore):
+        """Test unassigning a chore."""
+        ctx = _create_mock_context(requester)
+
+        result = await tool_reassign_chore(
+            ctx=ctx,
+            params=ReassignChore(
+                chore_title_fuzzy="Test Chore",
+                assignee_phone=None,
+            ),
+        )
+
+        assert "Test Chore" in result
+        assert "unassigned" in result
+
+    async def test_reassign_chore_not_found(self, patched_chore_tools_db, requester):
+        """Test reassigning non-existent chore returns error."""
+        ctx = _create_mock_context(requester)
+
+        result = await tool_reassign_chore(
+            ctx=ctx,
+            params=ReassignChore(
+                chore_title_fuzzy="Non-existent Chore",
+                assignee_phone="+1111111111",
+            ),
+        )
+
+        assert "Error" in result
+        assert "No chore found" in result
+
+    async def test_reassign_chore_user_not_found(self, patched_chore_tools_db, requester, todo_chore, monkeypatch):
+        """Test reassigning to non-existent user returns error."""
+
+        async def mock_get_user_by_phone(phone):
+            return None
+
+        monkeypatch.setattr("src.services.user_service.get_user_by_phone", mock_get_user_by_phone)
+
+        ctx = _create_mock_context(requester)
+
+        result = await tool_reassign_chore(
+            ctx=ctx,
+            params=ReassignChore(
+                chore_title_fuzzy="Test Chore",
+                assignee_phone="+9999999999",
+            ),
+        )
+
+        assert "Error" in result
+        assert "not found" in result

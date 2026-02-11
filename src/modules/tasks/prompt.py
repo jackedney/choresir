@@ -34,6 +34,9 @@ For creating tasks:
 - "Create chore", "Add chore", "Define task" -> use `tool_define_chore`
 - "/personal add", "Add personal chore" -> use personal chore creation tools
 
+For reassigning tasks:
+- "Reassign chore", "Assign X to Y", "Change assignee" -> use `tool_reassign_chore`
+
 For logging completions:
 - "Done dishes", "Completed laundry", "Log task" -> use `tool_log_chore`
 - "/personal done" -> use personal chore logging tools
