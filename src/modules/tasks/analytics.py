@@ -44,7 +44,7 @@ async def invalidate_leaderboard_cache() -> None:
     """Invalidate all leaderboard cache entries.
 
     This function clears all cached leaderboard data from Redis to ensure fresh
-    data is served after events that change completion counts (e.g., chore verification).
+    data is served after events that change completion counts (e.g., task verification).
 
     Cache invalidation with retry and fallback:
     - Uses retry logic (3 attempts with exponential backoff) for reliability

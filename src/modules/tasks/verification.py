@@ -504,17 +504,13 @@ async def get_pending_partner_verifications(
     import src.services.user_service
 
     with span("verification_service.get_pending_partner_verifications"):
-        partner = await src.services.user_service.get_user_by_id(user_id=partner_id)
-        if not partner:
-            return []
+        partner_user = await src.services.user_service.get_user_by_id(user_id=partner_id)
 
         logs = await db_client.list_records(
             collection="task_logs",
             filter_query='action = "claimed_completion" && verification_status = "PENDING"',
             sort="timestamp DESC",
         )
-
-        partner_user = await src.services.user_service.get_user_by_id(user_id=partner_id)
 
         enriched_logs = []
         for log in logs:

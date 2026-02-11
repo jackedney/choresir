@@ -11,7 +11,7 @@ You have access to tools for:
 
 ## Multi-Step Workflows
 
-All approval workflows (deletions, chore verifications, personal chore verifications) are listed
+All approval workflows (deletions, task verifications) are listed
 in the "REQUESTS YOU CAN ACTION" section of the main prompt.
 
 When a user wants to approve/reject workflows:
