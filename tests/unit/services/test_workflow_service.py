@@ -1578,16 +1578,16 @@ class TestExpireOldWorkflows:
             )
         )
 
-        # Set expires_at to exactly now
+        # Set expires_at to slightly in the past so it's deterministically expired
         now = datetime.now()
         await patched_workflow_db.update_record(
             collection="workflows",
             record_id=workflow["id"],
-            data={"expires_at": now.isoformat()},
+            data={"expires_at": (now - timedelta(seconds=1)).isoformat()},
         )
 
         # Expire old workflows
         count = await workflow_service.expire_old_workflows()
 
-        # Verify workflow was expired (expires_at < now is true for slightly older times)
-        assert count >= 0
+        # Verify workflow was expired
+        assert count == 1
