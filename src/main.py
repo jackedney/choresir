@@ -11,11 +11,15 @@ from fastapi.templating import Jinja2Templates
 
 from src.core.config import constants, settings
 from src.core.db_client import init_db
-from src.core.logging import configure_logfire, instrument_fastapi, instrument_pydantic_ai
+from src.core.logging import configure_logging, instrument_fastapi, instrument_pydantic_ai
+from src.core.module_registry import get_modules, register_module
 from src.core.scheduler import start_scheduler, stop_scheduler
 from src.core.scheduler_tracker import job_tracker
 from src.interface.admin_router import router as admin_router
 from src.interface.webhook import router as webhook_router
+from src.modules.onboarding import OnboardingModule
+from src.modules.pantry import PantryModule
+from src.modules.tasks import TasksModule
 from src.services.house_config_service import ensure_singleton_config, seed_from_env_vars
 
 
@@ -49,15 +53,22 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan context manager."""
     # Startup
     # Configure logging first so validation logs are captured
-    configure_logfire()
+    configure_logging()
 
     # Validate all credentials
     await validate_startup_configuration()
 
     instrument_pydantic_ai()
+
+    # Register modules before init_db so module table schemas are included
+    register_module(TasksModule())
+    register_module(PantryModule())
+    register_module(OnboardingModule())
+
     await init_db()
     await seed_from_env_vars()
     await ensure_singleton_config()
+
     start_scheduler()
     yield
     # Shutdown
@@ -65,8 +76,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="choresir",
-    description="Household Operating System living in WhatsApp",
+    title=settings.bot_name,
+    description=settings.bot_description,
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -97,17 +108,17 @@ async def health_check() -> JSONResponse:
 @app.get("/health/scheduler")
 async def scheduler_health_check() -> JSONResponse:
     """Scheduler health check endpoint with job statuses."""
-    # Get status for all tracked jobs
-    job_names = [
-        "overdue_reminders",
-        "daily_report",
-        "weekly_leaderboard",
-        "personal_chore_reminders",
-        "auto_verify_personal",
-        "expire_deletion_requests",
-        "expire_workflows",
-        "cleanup_group_context",
-    ]
+    # Core job names
+    core_job_names = ["expire_workflows", "cleanup_group_context"]
+
+    # Get job names from registered modules
+    module_job_names = []
+    for module in get_modules().values():
+        for job in module.get_scheduled_jobs():
+            module_job_names.append(job.id)
+
+    # Combine core jobs and module jobs
+    job_names = core_job_names + module_job_names
 
     job_statuses = {}
     for job_name in job_names:

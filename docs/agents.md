@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 from pydantic_ai import RunContext
 from src.agents.base import Deps
 import logging
-import logfire
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +24,13 @@ class MyParams(BaseModel):
 async def tool_my_action(ctx: RunContext[Deps], params: MyParams) -> str:
     """Single-line description for LLM."""
     try:
-        with logfire.span("tool_my_action", name=params.name):
-            # Use ctx.deps for db, user_id, user_name, etc.
-            result = await some_service.do_thing(
-                name=params.name,
-                user_id=ctx.deps.user_id,
-            )
-            return f"Success: {result}"
+        logger.info("tool_my_action", extra={"name": params.name})
+        # Use ctx.deps for db, user_id, user_name, etc.
+        result = await some_service.do_thing(
+            name=params.name,
+            user_id=ctx.deps.user_id,
+        )
+        return f"Success: {result}"
     except ValueError as e:
         logger.warning("Expected error", extra={"error": str(e)})
         return f"Error: {e}"
@@ -45,7 +44,7 @@ async def tool_my_action(ctx: RunContext[Deps], params: MyParams) -> str:
 1. **Return error strings, don't raise exceptions** - Errors go back to LLM for context
 2. **All errors start with "Error: "** - Consistent format
 3. **Use `ctx.deps`** - Never global state
-4. **Log with logfire spans** - Observability
+4. **Log with standard logging** - Use `logger.info()` or `logger.debug()` with `extra={}` for structured context
 5. **Field descriptions** - Help LLM understand parameters
 
 ## Registration

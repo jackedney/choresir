@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.services import analytics_service, chore_service
+from src.modules.tasks import analytics as analytics_service, service as chore_service
 
 
 @pytest.mark.asyncio
@@ -35,7 +35,7 @@ async def test_analytics_injection():
             filter_query = kwargs.get("filter_query", "")
 
             # Return pending chores to populate pending_chore_ids
-            if collection == "chores" and "PENDING_VERIFICATION" in filter_query:
+            if collection == "tasks" and "PENDING_VERIFICATION" in filter_query:
                 return [{"id": "chore1"}, {"id": "chore2"}]
 
             return []

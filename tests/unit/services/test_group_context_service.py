@@ -5,15 +5,17 @@ from datetime import datetime, timedelta
 import pytest
 
 from src.services import group_context_service
+from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_group_context_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
-    monkeypatch.setattr("src.services.group_context_service.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.services.group_context_service.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.services.group_context_service.db_client.delete_record", in_memory_db.delete_record)
-    return in_memory_db
+def patched_group_context_db(mock_db_module_for_unit_tests, db_client):
+    """Patches settings and database for group context service tests.
+
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    return DatabaseClient()
 
 
 class TestAddGroupMessage:
@@ -45,7 +47,7 @@ class TestAddGroupMessage:
         assert messages[0]["sender_phone"] == sender_phone
         assert messages[0]["sender_name"] == sender_name
         assert messages[0]["content"] == content
-        assert messages[0]["is_bot"] is False
+        assert not messages[0]["is_bot"]
 
     @pytest.mark.asyncio
     async def test_adds_bot_message(
@@ -69,7 +71,7 @@ class TestAddGroupMessage:
         # Verify record was created with is_bot=True
         messages = await patched_group_context_db.list_records(collection="group_context")
         assert len(messages) == 1
-        assert messages[0]["is_bot"] is True
+        assert messages[0]["is_bot"]
 
     @pytest.mark.asyncio
     async def test_raises_value_error_for_empty_group_id(
@@ -288,41 +290,41 @@ class TestFormatGroupContextForPrompt:
 
     def test_formats_single_message(self):
         """Formats a single message correctly."""
-        context = [{"sender_name": "Alice", "content": "Hello everyone"}]
+        context = [{"sender_name": "Alice", "sender_phone": "+1111111111", "content": "Hello everyone"}]
         result = group_context_service.format_group_context_for_prompt(context)
 
         assert "## RECENT GROUP CONVERSATION" in result
-        assert "[Alice]: Hello everyone" in result
+        assert "[Alice (+1111111111)]: Hello everyone" in result
         assert "shared references" in result
 
     def test_formats_multiple_messages(self):
         """Formats multiple messages in order."""
         context = [
-            {"sender_name": "Alice", "content": "First message"},
-            {"sender_name": "Bob", "content": "Second message"},
-            {"sender_name": "Charlie", "content": "Third message"},
+            {"sender_name": "Alice", "sender_phone": "+1111111111", "content": "First message"},
+            {"sender_name": "Bob", "sender_phone": "+2222222222", "content": "Second message"},
+            {"sender_name": "Charlie", "sender_phone": "+3333333333", "content": "Third message"},
         ]
         result = group_context_service.format_group_context_for_prompt(context)
 
-        assert "[Alice]: First message" in result
-        assert "[Bob]: Second message" in result
-        assert "[Charlie]: Third message" in result
+        assert "[Alice (+1111111111)]: First message" in result
+        assert "[Bob (+2222222222)]: Second message" in result
+        assert "[Charlie (+3333333333)]: Third message" in result
 
     def test_truncates_long_messages(self):
         """Truncates messages longer than MAX_CONTEXT_CONTENT_LENGTH."""
         long_content = "x" * 250
-        context = [{"sender_name": "Alice", "content": long_content}]
+        context = [{"sender_name": "Alice", "sender_phone": "+1111111111", "content": long_content}]
         result = group_context_service.format_group_context_for_prompt(context)
 
         # Should be truncated to 200 chars plus "..."
-        assert "[Alice]: " in result
+        assert "[Alice" in result
         assert "..." in result
-        alice_line = next(line for line in result.split("\n") if "[Alice]:" in line)
-        assert len(alice_line) < 250
+        alice_line = next(line for line in result.split("\n") if "[Alice" in line)
+        assert len(alice_line) < 280
 
     def test_includes_helpful_instruction(self):
         """Includes instruction about using context for references."""
-        context = [{"sender_name": "Alice", "content": "Hello"}]
+        context = [{"sender_name": "Alice", "sender_phone": "+1111111111", "content": "Hello"}]
         result = group_context_service.format_group_context_for_prompt(context)
 
         assert "If anyone's current message references something from this context" in result

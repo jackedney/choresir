@@ -4,13 +4,16 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from src.agents.tools.verification_tools import (
+import src.modules.tasks.service as chore_service
+import src.modules.tasks.verification as verification_service
+from src.core.db_client import create_record
+from src.core.fuzzy_match import fuzzy_match as _fuzzy_match_chore, fuzzy_match_all as _fuzzy_match_all_chores
+from src.modules.tasks.tools import (
     VerifyChore,
-    _fuzzy_match_all_chores,
-    _fuzzy_match_chore,
     tool_verify_chore,
 )
-from src.services import chore_service, verification_service, workflow_service
+from src.services import workflow_service
+from tests.unit.conftest import DatabaseClient
 
 
 if TYPE_CHECKING:
@@ -20,24 +23,19 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def patched_verification_tools_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
+def patched_verification_tools_db(mock_db_module_for_unit_tests, db_client):
+    """Patches settings and database for verification tools tests.
 
-    # Patch all db_client functions
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
-
-    return in_memory_db
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    return DatabaseClient()
 
 
 @pytest.fixture
 async def claimer(patched_verification_tools_db):
     """Create a test user who claims chore completion."""
-    return await patched_verification_tools_db.create_record(
+    return await create_record(
         collection="members",
         data={
             "phone": "+1234567890",
@@ -51,7 +49,7 @@ async def claimer(patched_verification_tools_db):
 @pytest.fixture
 async def verifier(patched_verification_tools_db):
     """Create a test user who verifies chore completion."""
-    return await patched_verification_tools_db.create_record(
+    return await create_record(
         collection="members",
         data={
             "phone": "+1987654321",
@@ -145,7 +143,7 @@ class TestToolVerifyChoreByWorkflowId:
         )
 
         assert "Rejected verification of 'Test Chore'" in result
-        assert "Moving to conflict resolution" in result
+        assert "returned to TODO" in result
 
         # Verify workflow was rejected
         updated_workflow = await workflow_service.get_workflow(workflow_id=pending_verification_workflow["id"])
@@ -196,7 +194,7 @@ class TestToolVerifyChoreByWorkflowId:
             ),
         )
 
-        assert "is not a chore verification workflow" in result
+        assert "is not a task verification workflow" in result
 
     async def test_workflow_id_not_pending(self, patched_verification_tools_db, verifier, claimer, todo_chore):
         """Test workflow_id with not pending status returns error."""

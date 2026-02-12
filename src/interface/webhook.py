@@ -392,8 +392,8 @@ async def _handle_button_payload(
         Tuple of (success, error_message)
     """
     # Local imports to avoid circular dependency
-    from src.services import verification_service
-    from src.services.verification_service import VerificationDecision
+    from src.modules.tasks import verification as verification_service
+    from src.modules.tasks.verification import VerificationDecision
 
     payload = message.button_payload
     if not payload:
@@ -420,15 +420,15 @@ async def _handle_button_payload(
         return (False, f"Invalid decision: {decision_str}")
 
     try:
-        # Get log record to find chore_id
-        log_record = await db_client.get_record(collection="logs", record_id=log_id)
-        chore_id = log_record["chore_id"]
-        chore = await db_client.get_record(collection="chores", record_id=chore_id)
+        # Get log record to find task_id
+        log_record = await db_client.get_record(collection="task_logs", record_id=log_id)
+        task_id = log_record["task_id"]
+        task = await db_client.get_record(collection="tasks", record_id=task_id)
 
         # Execute verification
         decision = VerificationDecision(decision_str)
         await verification_service.verify_chore(
-            chore_id=chore_id,
+            task_id=task_id,
             verifier_user_id=user_record["id"],
             decision=decision,
             reason="Via quick reply button",
@@ -436,9 +436,9 @@ async def _handle_button_payload(
 
         # Send confirmation
         if decision == VerificationDecision.APPROVE:
-            response = f"Approved! '{chore['title']}' has been marked as completed."
+            response = f"Approved! '{task['title']}' has been marked as completed."
         else:
-            response = f"Rejected. '{chore['title']}' has been moved to conflict resolution."
+            response = f"Rejected. '{task['title']}' has been returned to TODO."
 
         result = await _send_response(message=message, text=response)
         return (result.success, result.error)
@@ -470,31 +470,15 @@ async def _handle_button_payload(
         return (False, f"Unexpected error: {type(e).__name__}: {e!s}")
 
 
-async def _check_duplicate_message(message_id: str) -> bool:
-    """Check if message has already been processed.
-
-    Args:
-        message_id: WhatsApp message ID
-
-    Returns:
-        True if message is a duplicate, False otherwise
-    """
-    existing_log = await db_client.get_first_record(
-        collection="processed_messages",
-        filter_query=f'message_id = "{sanitize_param(message_id)}"',
-    )
-    if existing_log:
-        logger.info("Message %s already processed, skipping", message_id)
-        return True
-    return False
-
-
-async def _log_message_start(
+async def _try_claim_message(
     message: whatsapp_parser.ParsedMessage,
     message_type: str,
     sender_phone: str | None = None,
-) -> None:
-    """Log the start of message processing.
+) -> bool:
+    """Claim a message for processing, returning False if already claimed.
+
+    Uses the UNIQUE constraint on message_id to prevent duplicate processing.
+    If two concurrent handlers race, only the first insert succeeds.
 
     Args:
         message: Parsed message
@@ -503,20 +487,26 @@ async def _log_message_start(
     """
     phone = sender_phone or message.from_phone
     if not phone:
-        # Can't log without a phone - skip creating the record
         logger.debug("Skipping processed_messages log - no phone available")
-        return
+        return True  # Allow processing even without phone
 
-    await db_client.create_record(
-        collection="processed_messages",
-        data={
-            "message_id": message.message_id,
-            "from_phone": phone,
-            "processed_at": datetime.now().isoformat(),
-            "success": False,
-            "error_message": f"{message_type} processing started",
-        },
-    )
+    try:
+        await db_client.create_record(
+            collection="processed_messages",
+            data={
+                "message_id": message.message_id,
+                "from_phone": phone,
+                "processed_at": datetime.now().isoformat(),
+                "success": False,
+                "error_message": f"{message_type} processing started",
+            },
+        )
+        return True
+    except RuntimeError as e:
+        if "UNIQUE constraint failed" in str(e):
+            logger.info("Message %s already claimed, skipping", message.message_id)
+            return False
+        raise
 
 
 async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None:
@@ -525,9 +515,6 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
     Args:
         message: Parsed message with button payload
     """
-    if await _check_duplicate_message(message.message_id):
-        return
-
     sender_phone = await _get_sender_phone(message)
 
     # Skip messages where we can't determine a valid phone number
@@ -535,8 +522,10 @@ async def _handle_button_message(message: whatsapp_parser.ParsedMessage) -> None
         logger.debug("Skipping button click - no valid sender phone number")
         return
 
+    if not await _try_claim_message(message, "Button", sender_phone):
+        return
+
     logger.info("Processing button click from %s: %s", sender_phone, message.button_payload)
-    await _log_message_start(message, "Button", sender_phone)
 
     user_record = await db_client.get_first_record(
         collection="members",
@@ -569,8 +558,7 @@ async def _handle_new_group_user(*, message: whatsapp_parser.ParsedMessage, send
         response = "Welcome! Please reply with your name to complete registration."
         await _send_response(message=message, text=response)
 
-        # Log message processing
-        await _log_message_start(message, "New user registration", sender_phone)
+        # Message already claimed by _try_claim_message in _handle_text_message
         await _update_message_status(message_id=message.message_id, success=True)
     except ValueError as e:
         # User already exists - this shouldn't happen but handle gracefully
@@ -583,9 +571,6 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
     Args:
         message: Parsed message with text content
     """
-    if await _check_duplicate_message(message.message_id):
-        return
-
     # Get the actual sender phone (handles group messages and @lid resolution)
     sender_phone = await _get_sender_phone(message)
 
@@ -595,8 +580,10 @@ async def _handle_text_message(message: whatsapp_parser.ParsedMessage) -> None:
         logger.debug("Skipping message - no valid sender phone number")
         return
 
+    if not await _try_claim_message(message, "Processing", sender_phone):
+        return
+
     logger.info("Processing message from %s: %s", sender_phone, message.text)
-    await _log_message_start(message, "Processing", sender_phone)
 
     deps = await choresir_agent.build_deps(db=None, user_phone=sender_phone)
 

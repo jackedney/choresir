@@ -1,24 +1,22 @@
 """Unit tests for user_service module."""
 
+from typing import Any
+
 import pytest
 
 from src.domain.user import UserRole, UserStatus
 from src.services import user_service
+from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_user_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
+def patched_user_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
+    """Patches settings and database for user service tests.
 
-    # Patch all db_client functions
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
-
-    return in_memory_db
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    return DatabaseClient()
 
 
 @pytest.mark.unit
@@ -93,89 +91,6 @@ class TestUpdateUserStatus:
 
 
 @pytest.mark.unit
-class TestApproveMember:
-    """Tests for approve_member function."""
-
-    @pytest.fixture
-    async def admin_user(self, patched_user_db):
-        """Create an admin user for testing."""
-        admin_data = {
-            "phone": "+1111111111",
-            "name": "Admin User",
-            "email": "admin@choresir.local",
-            "role": UserRole.ADMIN,
-            "status": UserStatus.ACTIVE,
-            "password": "admin_pass",
-            "passwordConfirm": "admin_pass",
-        }
-        return await patched_user_db.create_record("members", admin_data)
-
-    @pytest.fixture
-    async def pending_name_user(self, patched_user_db):
-        """Create a pending_name user for testing."""
-        pending_data = {
-            "phone": "+2222222222",
-            "name": "Pending User",
-            "email": "2222222222@choresir.local",
-            "role": UserRole.MEMBER,
-            "status": UserStatus.PENDING_NAME,
-            "password": "temp_pass",
-            "passwordConfirm": "temp_pass",
-        }
-        return await patched_user_db.create_record("members", pending_data)
-
-    async def test_approve_member_success(self, patched_user_db, admin_user, pending_name_user):
-        """Test admin successfully approves pending_name member."""
-        result = await user_service.approve_member(
-            admin_user_id=admin_user["id"],
-            target_phone=pending_name_user["phone"],
-        )
-
-        assert result["id"] == pending_name_user["id"]
-        assert result["status"] == UserStatus.ACTIVE
-        assert result["phone"] == pending_name_user["phone"]
-
-    async def test_approve_member_non_admin_fails(self, patched_user_db, pending_name_user):
-        """Test non-admin cannot approve members."""
-        # Create regular member
-        member_data = {
-            "phone": "+3333333333",
-            "name": "Regular Member",
-            "email": "member@choresir.local",
-            "role": UserRole.MEMBER,
-            "status": UserStatus.ACTIVE,
-            "password": "pass",
-            "passwordConfirm": "pass",
-        }
-        member = await patched_user_db.create_record("members", member_data)
-
-        with pytest.raises(PermissionError, match="not authorized to approve"):
-            await user_service.approve_member(admin_user_id=member["id"], target_phone=pending_name_user["phone"])
-
-    async def test_approve_member_user_not_found(self, patched_user_db, admin_user):
-        """Test approving non-existent user raises error."""
-        with pytest.raises(KeyError, match="not found"):
-            await user_service.approve_member(admin_user_id=admin_user["id"], target_phone="+9999999999")
-
-    async def test_approve_member_already_active_fails(self, patched_user_db, admin_user):
-        """Test cannot approve user who is already active."""
-        # Create active user
-        active_data = {
-            "phone": "+4444444444",
-            "name": "Active User",
-            "email": "active@choresir.local",
-            "role": UserRole.MEMBER,
-            "status": UserStatus.ACTIVE,
-            "password": "pass",
-            "passwordConfirm": "pass",
-        }
-        active_user = await patched_user_db.create_record("members", active_data)
-
-        with pytest.raises(ValueError, match="not pending approval"):
-            await user_service.approve_member(admin_user_id=admin_user["id"], target_phone=active_user["phone"])
-
-
-@pytest.mark.unit
 class TestRemoveUser:
     """Tests for remove_user function."""
 
@@ -185,13 +100,10 @@ class TestRemoveUser:
         admin_data = {
             "phone": "+1111111111",
             "name": "Admin User",
-            "email": "admin@choresir.local",
             "role": UserRole.ADMIN,
             "status": UserStatus.ACTIVE,
-            "password": "admin_pass",
-            "passwordConfirm": "admin_pass",
         }
-        return await patched_user_db.create_record("members", admin_data)
+        return await patched_user_db.create_record(collection="members", data=admin_data)
 
     @pytest.fixture
     async def active_user(self, patched_user_db):
@@ -199,13 +111,10 @@ class TestRemoveUser:
         user_data = {
             "phone": "+2222222222",
             "name": "Test User",
-            "email": "test@choresir.local",
             "role": UserRole.MEMBER,
             "status": UserStatus.ACTIVE,
-            "password": "pass",
-            "passwordConfirm": "pass",
         }
-        return await patched_user_db.create_record("members", user_data)
+        return await patched_user_db.create_record(collection="members", data=user_data)
 
     async def test_remove_user_success(self, patched_user_db, admin_user, active_user):
         """Test admin successfully removes user."""
@@ -213,7 +122,7 @@ class TestRemoveUser:
 
         # Verify user was deleted
         with pytest.raises(KeyError):
-            await patched_user_db.get_record("members", active_user["id"])
+            await patched_user_db.get_record(collection="members", record_id=active_user["id"])
 
     async def test_remove_user_non_admin_fails(self, patched_user_db, active_user):
         """Test non-admin cannot remove users."""
@@ -221,13 +130,10 @@ class TestRemoveUser:
         member_data = {
             "phone": "+3333333333",
             "name": "Regular Member",
-            "email": "member@choresir.local",
             "role": UserRole.MEMBER,
             "status": UserStatus.ACTIVE,
-            "password": "pass",
-            "passwordConfirm": "pass",
         }
-        member = await patched_user_db.create_record("members", member_data)
+        member = await patched_user_db.create_record(collection="members", data=member_data)
 
         with pytest.raises(PermissionError, match="not authorized to remove"):
             await user_service.remove_user(admin_user_id=member["id"], target_user_id=active_user["id"])
@@ -235,7 +141,7 @@ class TestRemoveUser:
     async def test_remove_user_not_found(self, patched_user_db, admin_user):
         """Test removing non-existent user raises error."""
         with pytest.raises(KeyError):
-            await user_service.remove_user(admin_user_id=admin_user["id"], target_user_id="nonexistent_id")
+            await user_service.remove_user(admin_user_id=admin_user["id"], target_user_id="99999")
 
 
 @pytest.mark.unit
@@ -248,13 +154,10 @@ class TestGetUserByPhone:
         user_data = {
             "phone": "+1234567890",
             "name": "Test User",
-            "email": "test@choresir.local",
             "role": UserRole.MEMBER,
             "status": UserStatus.ACTIVE,
-            "password": "pass",
-            "passwordConfirm": "pass",
         }
-        return await patched_user_db.create_record("members", user_data)
+        return await patched_user_db.create_record(collection="members", data=user_data)
 
     async def test_get_user_by_phone_found(self, patched_user_db, test_user):
         """Test retrieving user by phone when exists."""
@@ -282,13 +185,10 @@ class TestGetUserById:
         user_data = {
             "phone": "+1234567890",
             "name": "Test User",
-            "email": "test@choresir.local",
             "role": UserRole.MEMBER,
             "status": UserStatus.ACTIVE,
-            "password": "pass",
-            "passwordConfirm": "pass",
         }
-        return await patched_user_db.create_record("members", user_data)
+        return await patched_user_db.create_record(collection="members", data=user_data)
 
     async def test_get_user_by_id_found(self, patched_user_db, test_user):
         """Test retrieving user by ID when exists."""
@@ -301,4 +201,4 @@ class TestGetUserById:
     async def test_get_user_by_id_not_found(self, patched_user_db):
         """Test retrieving non-existent user raises KeyError."""
         with pytest.raises(KeyError):
-            await user_service.get_user_by_id(user_id="nonexistent_id")
+            await user_service.get_user_by_id(user_id="99999")

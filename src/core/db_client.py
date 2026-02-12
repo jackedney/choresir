@@ -1,6 +1,7 @@
 """SQLite database client wrapper with CRUD operations."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -40,6 +41,16 @@ def _convert_record_ids(record: dict[str, Any]) -> dict[str, Any]:
         "requester_user_id",
         "target_id",
         "personal_chore_id",
+        "added_by",
+        "owner_id",
+        "user_id",
+        "accountability_partner_id",
+        "resolver_user_id",
+    }
+
+    # Fields that contain JSON data and should be deserialized
+    json_fields = {
+        "metadata",
     }
 
     converted = record.copy()
@@ -47,6 +58,12 @@ def _convert_record_ids(record: dict[str, Any]) -> dict[str, Any]:
         # Convert if it's a known FK field, ends in _id, or is the primary id
         if isinstance(value, int) and (key in fk_fields or key.endswith("_id")):
             converted[key] = str(value)
+
+        # Deserialize JSON fields
+        if key in json_fields and isinstance(value, str):
+            with contextlib.suppress(json.JSONDecodeError, TypeError):
+                converted[key] = json.loads(value)
+
     return converted
 
 

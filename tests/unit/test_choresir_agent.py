@@ -200,7 +200,7 @@ class TestChoresirAgentErrorHandling:
         with (
             patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
             patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
-            patch("src.agents.choresir_agent.logfire") as mock_logfire,
+            patch("src.agents.choresir_agent.logger") as mock_logger,
         ):
             mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
             mock_get_agent.return_value = mock_agent
@@ -213,11 +213,11 @@ class TestChoresirAgentErrorHandling:
                 member_list=mock_member_list,
             )
 
-            # Verify logfire.error was called with error_category
-            mock_logfire.error.assert_called_once()
-            call_args = mock_logfire.error.call_args
-            assert "error_category" in call_args.kwargs
-            assert call_args.kwargs["error_category"] == ErrorCategory.SERVICE_QUOTA_EXCEEDED.value
+            # Verify logger.error was called with error_category in extra
+            mock_logger.error.assert_called_once()
+            call_args = mock_logger.error.call_args
+            assert "error_category" in call_args.kwargs["extra"]
+            assert call_args.kwargs["extra"]["error_category"] == ErrorCategory.SERVICE_QUOTA_EXCEEDED.value
 
     @pytest.mark.asyncio
     async def test_different_error_types_log_different_categories(self, mock_deps, mock_member_list):
@@ -233,7 +233,7 @@ class TestChoresirAgentErrorHandling:
             with (
                 patch("src.agents.choresir_agent.get_agent") as mock_get_agent,
                 patch("src.agents.choresir_agent.get_retry_handler") as mock_get_retry_handler,
-                patch("src.agents.choresir_agent.logfire") as mock_logfire,
+                patch("src.agents.choresir_agent.logger") as mock_logger,
             ):
                 mock_agent, mock_retry_handler = self._mock_agent_with_error(exception)
                 mock_get_agent.return_value = mock_agent
@@ -247,8 +247,8 @@ class TestChoresirAgentErrorHandling:
                 )
 
                 # Verify correct category was logged
-                call_args = mock_logfire.error.call_args
-                assert call_args.kwargs["error_category"] == expected_category
+                call_args = mock_logger.error.call_args
+                assert call_args.kwargs["extra"]["error_category"] == expected_category
 
     @pytest.mark.asyncio
     async def test_whatsapp_friendly_message_format(self, mock_deps, mock_member_list):
@@ -362,9 +362,9 @@ class TestChoresirAgentErrorHandling:
         group_id = "group_123"
 
         mock_group_context = [
-            {"sender_name": "Alice", "content": "I'll do dishes"},
-            {"sender_name": "Bob", "content": "I'll do laundry"},
-            {"sender_name": "Charlie", "content": "I'll cook"},
+            {"sender_name": "Alice", "sender_phone": "+1111111111", "content": "I'll do dishes"},
+            {"sender_name": "Bob", "sender_phone": "+2222222222", "content": "I'll do laundry"},
+            {"sender_name": "Charlie", "sender_phone": "+3333333333", "content": "I'll cook"},
         ]
 
         with (
@@ -404,9 +404,9 @@ class TestChoresirAgentErrorHandling:
 
             # Verify instructions include formatted group context with sender names
             assert "## RECENT GROUP CONVERSATION" in instructions
-            assert "[Alice]: I'll do dishes" in instructions
-            assert "[Bob]: I'll do laundry" in instructions
-            assert "[Charlie]: I'll cook" in instructions
+            assert "[Alice (+1111111111)]: I'll do dishes" in instructions
+            assert "[Bob (+2222222222)]: I'll do laundry" in instructions
+            assert "[Charlie (+3333333333)]: I'll cook" in instructions
 
 
 @pytest.mark.unit
@@ -439,7 +439,7 @@ class TestBuildWorkflowContext:
             },
             {
                 "id": "wf2",
-                "type": "chore_verification",
+                "type": "task_verification",
                 "target_title": "Take out trash",
                 "requester_name": "Alice",
             },
@@ -454,9 +454,9 @@ class TestBuildWorkflowContext:
 
             result = await _build_workflow_context(user_id="user_123")
 
-            assert "## YOUR PENDING REQUESTS" in result
-            assert "Deletion Approval: Clean kitchen" in result
-            assert "Chore Verification: Take out trash" in result
+        assert "## YOUR PENDING REQUESTS" in result
+        assert "Deletion Approval: Clean kitchen" in result
+        assert "Task Verification: Take out trash" in result
 
     @pytest.mark.asyncio
     async def test_actionable_workflows_section_with_numbering(self):
@@ -470,7 +470,7 @@ class TestBuildWorkflowContext:
             },
             {
                 "id": "wf4",
-                "type": "personal_verification",
+                "type": "task_verification",
                 "target_title": "Gym workout",
                 "requester_name": "Charlie",
             },
@@ -485,9 +485,9 @@ class TestBuildWorkflowContext:
 
             result = await _build_workflow_context(user_id="user_123")
 
-            assert "## REQUESTS YOU CAN ACTION" in result
-            assert "1. Deletion Approval: Do dishes (from Bob)" in result
-            assert "2. Personal Verification: Gym workout (from Charlie)" in result
+        assert "## REQUESTS YOU CAN ACTION" in result
+        assert "1. Deletion Approval: Do dishes (from Bob)" in result
+        assert "2. Task Verification: Gym workout (from Charlie)" in result
 
     @pytest.mark.asyncio
     async def test_both_sections_shown(self):
@@ -504,7 +504,7 @@ class TestBuildWorkflowContext:
         actionable_workflows = [
             {
                 "id": "wf2",
-                "type": "chore_verification",
+                "type": "task_verification",
                 "target_title": "Other chore",
                 "requester_name": "Bob",
             }
@@ -519,10 +519,10 @@ class TestBuildWorkflowContext:
 
             result = await _build_workflow_context(user_id="user_123")
 
-            assert "## YOUR PENDING REQUESTS" in result
-            assert "## REQUESTS YOU CAN ACTION" in result
-            assert "Deletion Approval: My chore" in result
-            assert "1. Chore Verification: Other chore (from Bob)" in result
+        assert "## YOUR PENDING REQUESTS" in result
+        assert "## REQUESTS YOU CAN ACTION" in result
+        assert "Deletion Approval: My chore" in result
+        assert "1. Task Verification: Other chore (from Bob)" in result
 
     @pytest.mark.asyncio
     async def test_hint_message_for_batch_operations(self):

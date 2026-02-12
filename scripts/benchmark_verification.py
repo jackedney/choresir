@@ -26,9 +26,9 @@ from pathlib import Path
 sys.path.append(str(Path.cwd()))
 
 from src.core import db_client
-from src.domain.chore import ChoreState
-from src.services import chore_service, verification_service
-from src.services.verification_service import VerificationDecision
+from src.domain.task import TaskState
+from src.modules.tasks import service as chore_service, verification as verification_service
+from src.modules.tasks.verification import VerificationDecision
 
 
 # Configure logging for benchmark output
@@ -60,7 +60,7 @@ async def mocked_list_records(
     **_kwargs: object,
 ) -> list[dict[str, object]]:
     """Mock list_records for benchmarking."""
-    if collection == "logs":
+    if collection == "task_logs":
         BenchmarkMetrics.increment()
         # Simulate network delay
         await asyncio.sleep(0.005)
@@ -80,7 +80,7 @@ async def mocked_list_records(
             for i in range(1000)
         ]
 
-        # Simulate sort="-created" (newest first) by reversing
+        # Simulate sort="created DESC" (newest first) by reversing
         # This makes log_999 first, log_0 last
         all_logs.reverse()
 
@@ -93,12 +93,12 @@ async def mocked_list_records(
 
 async def mocked_get_chores(**_kwargs: object) -> list[dict[str, object]]:
     """Mock chore_service.get_chores - returns 50 chores."""
-    return [{"id": f"chore_{i}", "current_state": ChoreState.PENDING_VERIFICATION} for i in range(50)]
+    return [{"id": f"chore_{i}", "current_state": TaskState.PENDING_VERIFICATION} for i in range(50)]
 
 
 async def mocked_complete_chore(*, chore_id: str = "unknown", **_kwargs: object) -> dict[str, object]:
     """Mock completing a chore - just returns a chore dict."""
-    return {"id": chore_id, "current_state": ChoreState.COMPLETED}
+    return {"id": chore_id, "current_state": TaskState.COMPLETED}
 
 
 async def mocked_create_record(*, data: dict[str, object] | None = None, **_kwargs: object) -> dict[str, object]:
@@ -161,7 +161,7 @@ async def benchmark_verify_chore() -> tuple[float, int]:
     # However, we're testing that ALL logs are fetched across pages to find ANY matching log
     # This tests pagination correctness for the log fetching
     await verification_service.verify_chore(
-        chore_id="chore_10",
+        task_id="chore_10",
         verifier_user_id="user1",  # Different from claimer (user2)
         decision=VerificationDecision.APPROVE,
         reason="Test verification",

@@ -162,37 +162,12 @@ class TestNotifyAdmins:
             assert "Test message" in message_text
 
     @pytest.mark.asyncio
-    async def test_logs_notification_attempts_to_logfire(self, mock_admin_users):
-        """Test that notification attempts are logged to Logfire."""
-        with (
-            patch("src.core.admin_notifier.list_records") as mock_list_records,
-            patch("src.core.admin_notifier.send_text_message") as mock_send,
-            patch("src.core.admin_notifier.logger") as mock_logger,
-            patch("src.core.admin_notifier.logfire") as mock_logfire,
-        ):
-            mock_list_records.return_value = mock_admin_users
-            mock_send.return_value = MagicMock(success=True, message_id="msg_123")
-
-            await notify_admins("Test notification", severity="warning")
-
-            # Verify logfire span created
-            mock_logfire.span.assert_called_once()
-            span_args = mock_logfire.span.call_args
-            assert span_args.args[0] == "admin_notifier.notify_admins"
-            assert span_args.kwargs["severity"] == "warning"
-
-            # Verify success logging
-            info_calls = [call for call in mock_logger.info.call_args_list]
-            assert len(info_calls) >= 2  # At least one per admin
-
-    @pytest.mark.asyncio
     async def test_handles_send_failures_gracefully(self, mock_admin_users):
         """Test that send failures are logged but don't stop other notifications."""
         with (
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
             patch("src.core.admin_notifier.logger") as mock_logger,
-            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.return_value = mock_admin_users
 
@@ -218,7 +193,6 @@ class TestNotifyAdmins:
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
             patch("src.core.admin_notifier.logger") as mock_logger,
-            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.return_value = []
 
@@ -237,7 +211,6 @@ class TestNotifyAdmins:
         with (
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.logger") as mock_logger,
-            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.side_effect = Exception("Database connection failed")
 
@@ -290,7 +263,6 @@ class TestNotifyAdmins:
             patch("src.core.admin_notifier.list_records") as mock_list_records,
             patch("src.core.admin_notifier.send_text_message") as mock_send,
             patch("src.core.admin_notifier.logger") as mock_logger,
-            patch("src.core.admin_notifier.logfire"),
         ):
             mock_list_records.return_value = mock_admin_users
 

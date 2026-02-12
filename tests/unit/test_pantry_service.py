@@ -1,28 +1,37 @@
 """Unit tests for pantry_service module."""
 
+from typing import Any
+
 import pytest
 
 from src.domain.pantry import PantryItemStatus
 from src.services import pantry_service
+from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_pantry_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
+def patched_pantry_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
+    """Patches settings and database for pantry service tests.
 
-    return in_memory_db
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    return DatabaseClient()
 
 
 @pytest.fixture
-def sample_user_id():
-    """Sample user ID for testing."""
-    return "user_123"
+async def sample_user_id(patched_pantry_db: DatabaseClient) -> str:
+    """Sample user ID for testing - creates a real member in the database."""
+    user = await patched_pantry_db.create_record(
+        collection="members",
+        data={
+            "name": "Test User",
+            "phone": "+19999999999",
+            "role": "member",
+            "status": "active",
+        },
+    )
+    return str(user["id"])
 
 
 @pytest.mark.unit

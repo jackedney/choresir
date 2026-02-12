@@ -17,20 +17,31 @@ from aiosqlite.core import _STOP_RUNNING_SENTINEL
 from fastapi.testclient import TestClient
 
 import src.core.db_client as db_module
+from src.core.cache_client import cache_client
 from src.core.config import Settings
 from src.core.db_client import (
     _db_connections,
-    close_connection,
     create_record,
     delete_record,
     init_db,
     list_records,
 )
+from src.core.module_registry import _registry, register_module
 from src.core.schema import TABLES
 from src.main import app
+from src.modules.onboarding import OnboardingModule
+from src.modules.pantry import PantryModule
+from src.modules.tasks import TasksModule
 
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(autouse=True)
+def clear_module_registry() -> Generator[None, None, None]:
+    """Clear module registry before each test to avoid duplicate registration errors."""
+    _registry.modules.clear()
+    yield
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -58,7 +69,7 @@ def sqlite_db(tmp_path: Path) -> Generator[Path, None, None]:
         tmp_path: Pytest fixture providing temporary directory path
 
     Yields:
-        Path to the temporary SQLite database file
+        Path to temporary SQLite database file
 
     Cleanup:
         Temp file is automatically cleaned up by pytest's tmp_path fixture
@@ -66,11 +77,12 @@ def sqlite_db(tmp_path: Path) -> Generator[Path, None, None]:
     db_file = tmp_path / "test.db"
 
     async def _init_and_close() -> None:
+        register_module(TasksModule())
+        register_module(PantryModule())
+        register_module(OnboardingModule())
         await init_db(db_path=str(db_file))
-        await close_connection(db_path=str(db_file))
 
     asyncio.run(_init_and_close())
-    _db_connections.clear()
     yield db_file
 
 
@@ -90,35 +102,64 @@ def test_settings(sqlite_db: Path) -> Settings:
     )
 
 
+class TestDatabaseClient:
+    """Wrapper for db_client module to provide object-like interface for tests."""
+
+    async def create_record(self, *, collection: str, data: dict) -> dict:
+        return await db_module.create_record(collection=collection, data=data)
+
+    async def get_record(self, *, collection: str, record_id: str) -> dict | None:
+        return await db_module.get_record(collection=collection, record_id=record_id)
+
+    async def update_record(self, *, collection: str, record_id: str, data: dict) -> dict:
+        return await db_module.update_record(collection=collection, record_id=record_id, data=data)
+
+    async def delete_record(self, *, collection: str, record_id: str) -> bool:
+        await db_module.delete_record(collection=collection, record_id=record_id)
+        return True
+
+    async def list_records(self, *, collection: str, **kwargs) -> list[dict]:
+        return await db_module.list_records(collection=collection, **kwargs)
+
+    async def get_first_record(self, *, collection: str, filter_query: str) -> dict | None:
+        return await db_module.get_first_record(collection=collection, filter_query=filter_query)
+
+
 @pytest.fixture
-async def db_client(sqlite_db: Path) -> AsyncGenerator[None, None]:
+async def db_client(sqlite_db: Path) -> AsyncGenerator[TestDatabaseClient, None]:
     """Provide clean database for each test.
 
     This fixture patches the db_client module to use the test SQLite database
     and cleans up all records between tests.
 
     Args:
-        sqlite_db: Path to the test SQLite database
+        sqlite_db: Path to the test database
 
     Yields:
-        None - The db_client module functions are patched to use the test database
+        TestDatabaseClient - A wrapper that uses the patched db_client module
     """
+
+    _db_connections.clear()
+
+    cache_client._data.clear()
+    cache_client._expiry.clear()
+
     open_conns: list[aiosqlite.Connection] = []
 
     async def test_get_connection(*, db_path: str | None = None) -> Any:
-        """Override get_connection to use the test database path."""
+        """Override get_connection to use test database path."""
         conn = await aiosqlite.connect(str(sqlite_db))
         await conn.execute("PRAGMA foreign_keys = ON")
         await conn.execute("PRAGMA journal_mode = WAL")
         open_conns.append(conn)
         return conn
 
-    original_conn: Any = db_module.get_connection
-    db_module.get_connection = test_get_connection  # type: ignore[valid-type]
+    original_get_connection: Any = db_module.get_connection
+    db_module.get_connection = test_get_connection  # type: ignore[assignment]
 
-    yield
+    yield TestDatabaseClient()
 
-    db_module.get_connection = original_conn
+    db_module.get_connection = original_get_connection
     for conn in open_conns:
         with contextlib.suppress(Exception):
             await conn.close()
@@ -211,7 +252,7 @@ async def sample_chores(db_client, sample_users: dict) -> dict[str, dict]:
 
     created = {}
     for key, data in chores.items():
-        created[key] = await create_record(collection="chores", data=data)
+        created[key] = await create_record(collection="tasks", data=data)
 
     return created
 
@@ -257,7 +298,7 @@ def chore_factory() -> Any:
         if "deadline" in kwargs:
             chore_data["deadline"] = kwargs["deadline"]
 
-        return await create_record(collection="chores", data=chore_data)
+        return await create_record(collection="tasks", data=chore_data)
 
     return _create_chore
 

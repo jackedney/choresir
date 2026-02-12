@@ -90,14 +90,17 @@ async def get_group_context(*, group_id: str) -> list[dict]:
             filter_query=(
                 f'group_id = "{db_client.sanitize_param(group_id)}" && expires_at >= "{cutoff_time.isoformat()}"'
             ),
-            sort="-created_at",
+            sort="created_at DESC",
             per_page=MAX_GROUP_MESSAGES,
         )
 
         # Reverse to get chronological order (oldest first)
         messages.reverse()
 
-        return [{"sender_name": msg["sender_name"], "content": msg["content"]} for msg in messages]
+        return [
+            {"sender_name": msg["sender_name"], "sender_phone": msg["sender_phone"], "content": msg["content"]}
+            for msg in messages
+        ]
 
 
 async def cleanup_expired_group_context() -> int:
@@ -171,7 +174,7 @@ def format_group_context_for_prompt(context: list[dict]) -> str:
         content = msg["content"]
         if len(content) > MAX_CONTEXT_CONTENT_LENGTH:
             content = content[:MAX_CONTEXT_CONTENT_LENGTH] + "..."
-        lines.append(f"[{msg['sender_name']}]: {content}")
+        lines.append(f"[{msg['sender_name']} ({msg['sender_phone']})]: {content}")
 
     lines.append("")
     lines.append(

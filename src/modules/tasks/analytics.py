@@ -7,9 +7,9 @@ This module provides functions for:
 
 Key Concepts:
 - Pending Claims: Distinct chores a user has claimed that are awaiting verification.
-  If a user claims the same chore multiple times (e.g., after rejection), it
+  If a user claims same chore multiple times (e.g., after rejection), it
   counts as one pending claim.
-- Completions: Successfully verified chore completions within the time period.
+- Completions: Successfully verified chore completions within time period.
 - Leaderboard: Ranked list of users by completion count.
 """
 
@@ -24,7 +24,7 @@ from src.core import db_client
 from src.core.cache_client import cache_client as redis_client
 from src.core.config import Constants
 from src.core.logging import span
-from src.domain.chore import ChoreState
+from src.domain.task import TaskState
 from src.domain.user import UserStatus
 from src.models.service_models import (
     CompletionRate,
@@ -44,7 +44,7 @@ async def invalidate_leaderboard_cache() -> None:
     """Invalidate all leaderboard cache entries.
 
     This function clears all cached leaderboard data from Redis to ensure fresh
-    data is served after events that change completion counts (e.g., chore verification).
+    data is served after events that change completion counts (e.g., task verification).
 
     Cache invalidation with retry and fallback:
     - Uses retry logic (3 attempts with exponential backoff) for reliability
@@ -82,7 +82,7 @@ async def _fetch_chores_map(chore_ids: list[str]) -> dict[str, dict]:
         chunk = unique_chore_ids[i : i + chunk_size]
         or_clause = " || ".join([f'id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
         chores = await db_client.list_records(
-            collection="chores",
+            collection="tasks",
             filter_query=or_clause,
         )
         for chore in chores:
@@ -97,14 +97,14 @@ async def _fetch_claim_logs_map(chore_ids: list[str]) -> dict[str, dict]:
     chunk_size = 50
     for i in range(0, len(unique_chore_ids), chunk_size):
         chunk = unique_chore_ids[i : i + chunk_size]
-        or_clause = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
+        or_clause = " || ".join([f'task_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
         claim_logs = await db_client.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'action = "claimed_completion" && ({or_clause})',
         )
         for claim_log in claim_logs:
-            chore_id = claim_log["chore_id"]
-            # Keep only the most recent claim log per chore
+            chore_id = claim_log["task_id"]
+            # Keep only most recent claim log per chore
             if chore_id not in claim_logs_map or claim_log.get("timestamp", "") > claim_logs_map[chore_id].get(
                 "timestamp", ""
             ):
@@ -113,12 +113,13 @@ async def _fetch_claim_logs_map(chore_ids: list[str]) -> dict[str, dict]:
 
 
 def _determine_user_to_award(
+    *,
     log: dict,
     claim_log: dict | None,
     chore: dict | None,
 ) -> str:
     """Determine which user should be awarded points based on Robin Hood Protocol."""
-    # Default: award points to the user who got approval
+    # Default: award points to user who got approval
     user_to_award = log["user_id"]
 
     # Robin Hood Protocol: Check if this was a swap and apply point attribution rules
@@ -214,15 +215,13 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
 
         # Get all completion logs within period
         completion_logs = await db_client.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
         )
 
-        # Get chore IDs for Robin Hood Protocol data
-        # Extract chore IDs, filtering out None values
-        claim_log_ids: list[str] = [
-            chore_id for log in completion_logs if (chore_id := log.get("chore_id")) is not None
-        ]
+        # Get task IDs for Robin Hood Protocol data
+        # Extract task IDs, filtering out None values
+        claim_log_ids: list[str] = [task_id for log in completion_logs if (task_id := log.get("task_id")) is not None]
 
         # Fetch chores and claim logs
         chores_map = await _fetch_chores_map(claim_log_ids) if claim_log_ids else {}
@@ -231,14 +230,14 @@ async def get_leaderboard(*, period_days: int = 30) -> list[LeaderboardEntry]:
         # Count completions per user with Robin Hood Protocol rules
         user_completion_counts: dict[str, int] = {}
         for log in completion_logs:
-            chore_id = log.get("chore_id")
-            if not isinstance(chore_id, str):
-                continue  # Skip logs without a valid chore_id
+            task_id = log.get("task_id")
+            if not isinstance(task_id, str):
+                continue  # Skip logs without a valid task_id
 
-            claim_log = claim_logs_map.get(chore_id)
-            chore = chores_map.get(chore_id)
+            claim_log = claim_logs_map.get(task_id)
+            chore = chores_map.get(task_id)
 
-            user_to_award = _determine_user_to_award(log, claim_log, chore)
+            user_to_award = _determine_user_to_award(log=log, claim_log=claim_log, chore=chore)
             user_completion_counts[user_to_award] = user_completion_counts.get(user_to_award, 0) + 1
 
         # Fetch all users for leaderboard
@@ -275,10 +274,10 @@ async def get_completion_rate(*, period_days: int = 30) -> CompletionRate:
         # Calculate cutoff date
         cutoff_date = datetime.now(UTC) - timedelta(days=period_days)
 
-        # Get all chores that were completed in the period
+        # Get all chores that were completed in period
         # We need to check logs for completions, then check if chore was overdue at completion time
         completion_logs = await db_client.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
         )
 
@@ -328,7 +327,7 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
         # Build filter query
         filters = [
             f'deadline < "{now.isoformat()}"',
-            f'current_state != "{ChoreState.COMPLETED}"',
+            f'current_state != "{TaskState.COMPLETED}"',
         ]
 
         if user_id:
@@ -339,16 +338,16 @@ async def get_overdue_chores(*, user_id: str | None = None, limit: int | None = 
         # Fetch overdue chores with optional limit
         if limit is not None:
             overdue_chores = await db_client.list_records(
-                collection="chores",
+                collection="tasks",
                 filter_query=filter_query,
-                sort="+deadline",  # Oldest deadline first
+                sort="deadline ASC",  # Oldest deadline first
                 per_page=limit,
             )
         else:
             overdue_chores = await db_client.list_records(
-                collection="chores",
+                collection="tasks",
                 filter_query=filter_query,
-                sort="+deadline",  # Oldest deadline first
+                sort="deadline ASC",  # Oldest deadline first
             )
 
         # Convert to typed models
@@ -429,8 +428,8 @@ async def _fetch_pending_chore_ids() -> set[str]:
     """
     with span("analytics_service.get_user_statistics.fetch_pending_chores"):
         pending_verification_chores = await db_client.list_records(
-            collection="chores",
-            filter_query=f'current_state = "{ChoreState.PENDING_VERIFICATION}"',
+            collection="tasks",
+            filter_query=f'current_state = "{TaskState.PENDING_VERIFICATION}"',
             per_page=500,
         )
 
@@ -447,7 +446,11 @@ async def _fetch_pending_chore_ids() -> set[str]:
 
 
 async def _fetch_user_claims_for_chunk(
-    user_id: str, chunk: list[str], per_page_limit: int, offset: int
+    *,
+    user_id: str,
+    chunk: list[str],
+    per_page_limit: int,
+    offset: int,
 ) -> tuple[set[str], int]:
     """Fetch user claims for a chunk of chore IDs.
 
@@ -461,7 +464,7 @@ async def _fetch_user_claims_for_chunk(
         Tuple of (claimed_chore_ids, logs_fetched_count)
     """
     claimed_chore_ids: set[str] = set()
-    or_clause = " || ".join([f'chore_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
+    or_clause = " || ".join([f'task_id = "{db_client.sanitize_param(cid)}"' for cid in chunk])
 
     page = 1
     chunk_logs_fetched = 0
@@ -471,14 +474,14 @@ async def _fetch_user_claims_for_chunk(
             action_filter = 'action = "claimed_completion"'
             filter_query = f"{user_filter} && {action_filter} && ({or_clause})"
             logs = await db_client.list_records(
-                collection="logs",
+                collection="task_logs",
                 filter_query=filter_query,
                 per_page=per_page_limit,
                 page=page,
                 sort="",
             )
 
-            claimed_chore_ids.update(log["chore_id"] for log in logs)
+            claimed_chore_ids.update(log["task_id"] for log in logs)
             chunk_logs_fetched += len(logs)
 
             if len(logs) < per_page_limit:
@@ -543,7 +546,12 @@ async def _count_pending_claims_for_user(
                 chunk = chore_ids_list[i : i + chunk_size]
                 chunk_index = i // chunk_size
 
-                chunk_claimed_ids, chunk_logs = await _fetch_user_claims_for_chunk(user_id, chunk, per_page_limit, i)
+                chunk_claimed_ids, chunk_logs = await _fetch_user_claims_for_chunk(
+                    user_id=user_id,
+                    chunk=chunk,
+                    per_page_limit=per_page_limit,
+                    offset=i,
+                )
                 claimed_chore_ids.update(chunk_claimed_ids)
                 total_logs_fetched += chunk_logs
                 chunks_processed += 1
@@ -579,29 +587,6 @@ async def _count_pending_claims_for_user(
         error_msg = f"Unexpected error fetching pending claims: {e}"
         logger.error(error_msg)
         return None, error_msg, 0, 0
-
-
-async def _get_pending_claims_count(user_id: str) -> tuple[int | None, str | None, int, set[str], int]:
-    """Get pending claims count for a user.
-
-    Args:
-        user_id: User ID
-
-    Returns:
-        Tuple of (claims_pending, error_message, chunks_processed, pending_chore_ids, total_logs_fetched)
-    """
-    try:
-        pending_chore_ids = await _fetch_pending_chore_ids()
-        claims_pending, error_msg, chunks, logs = await _count_pending_claims_for_user(user_id, pending_chore_ids)
-        return claims_pending, error_msg, chunks, pending_chore_ids, logs
-    except RuntimeError as e:
-        error_msg = f"Database error fetching pending verification chores: {e}"
-        logger.error(error_msg)
-        return None, error_msg, 0, set(), 0
-    except Exception as e:
-        error_msg = f"Unexpected error fetching pending verification chores: {e}"
-        logger.error(error_msg)
-        return None, error_msg, 0, set(), 0
 
 
 async def _get_overdue_count(user_id: str) -> tuple[int | None, str | None]:
@@ -664,8 +649,14 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
         rank, completions, rank_error = await _get_user_rank_and_completions(user_id, period_days)
 
         # Get pending claims count - BEST EFFORT
-        claims_result = await _get_pending_claims_count(user_id)
-        claims_pending, claims_error, chunks_processed, pending_chore_ids, total_logs_fetched = claims_result
+        try:
+            pending_chore_ids = await _fetch_pending_chore_ids()
+        except Exception as e:
+            logger.error("Failed to fetch pending chore IDs: %s", e)
+            pending_chore_ids = set()
+        claims_pending, claims_error, chunks, logs = await _count_pending_claims_for_user(user_id, pending_chore_ids)
+        if claims_pending is None:
+            claims_pending = 0
 
         # Get overdue chores count - BEST EFFORT
         overdue_chores, overdue_error = await _get_overdue_count(user_id)
@@ -692,8 +683,8 @@ async def get_user_statistics(*, user_id: str, period_days: int = 30) -> UserSta
                 "user_id": user_id,
                 "execution_time_ms": round(elapsed_ms, 2),
                 "pending_chores_count": len(pending_chore_ids),
-                "chunks_processed": chunks_processed,
-                "total_logs_fetched": total_logs_fetched,
+                "chunks_processed": chunks,
+                "total_logs_fetched": logs,
                 "claims_pending": claims_pending,
                 "completions": completions,
                 "rank": rank,
@@ -725,14 +716,8 @@ async def get_household_summary(*, period_days: int = 7) -> HouseholdSummary:
 
         # Get total completions in period
         completion_logs = await db_client.list_records(
-            collection="logs",
+            collection="task_logs",
             filter_query=f'action = "approve_verification" && timestamp >= "{cutoff_date.isoformat()}"',
-        )
-
-        # Get current conflicts
-        conflicts = await db_client.list_records(
-            collection="chores",
-            filter_query=f'current_state = "{ChoreState.CONFLICT}"',
         )
 
         # Get overdue chores
@@ -740,14 +725,13 @@ async def get_household_summary(*, period_days: int = 7) -> HouseholdSummary:
 
         # Get pending verifications
         pending = await db_client.list_records(
-            collection="chores",
-            filter_query=f'current_state = "{ChoreState.PENDING_VERIFICATION}"',
+            collection="tasks",
+            filter_query=f'current_state = "{TaskState.PENDING_VERIFICATION}"',
         )
 
         result = HouseholdSummary(
             active_members=len(active_users),
             completions_this_period=len(completion_logs),
-            current_conflicts=len(conflicts),
             overdue_chores=len(overdue),
             pending_verifications=len(pending),
             period_days=period_days,

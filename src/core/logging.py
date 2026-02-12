@@ -1,8 +1,7 @@
-"""Logging and observability configuration using Pydantic Logfire.
+"""Logging and observability configuration.
 
 This module provides standardized logging utilities and configuration.
-All modules should use Python's standard logging library (logging.getLogger(__name__)),
-and Logfire will automatically capture and enrich these logs.
+All modules should use Python's standard logging library (logging.getLogger(__name__)).
 
 Standard usage:
     import logging
@@ -14,56 +13,45 @@ Structured logging utilities:
 """
 
 import logging
+from collections.abc import Generator
+from contextlib import contextmanager
 
-import logfire
 from fastapi import FastAPI
 
-from src.core.config import settings
 
-
-def configure_logfire() -> None:
-    """Configure Pydantic Logfire with token from environment.
-
-    Automatically integrates with Python's standard logging to capture all log records.
-    """
-    logfire.configure(
-        token=settings.logfire_token,
-        service_name="choresir",
-        service_version="0.1.0",
-        environment="production",
-        send_to_logfire="if-token-present",
-    )
-    # Integrate with standard logging - all logging calls will be captured by logfire
-    # Note: logfire.instrument_logging() removed due to type compatibility issues
-
+def configure_logging() -> None:
+    """Configure standard logging."""
     logger = logging.getLogger(__name__)
-    logger.info("Logfire configured successfully")
+    logger.info("Logging configured")
 
 
-def instrument_fastapi(app: FastAPI) -> None:
-    """Add Logfire instrumentation to FastAPI application."""
-    logfire.instrument_fastapi(app)
+def instrument_fastapi(app: FastAPI) -> None:  # noqa: ARG001
+    """Placeholder for FastAPI instrumentation."""
     logger = logging.getLogger(__name__)
-    logger.info("FastAPI instrumentation configured")
+    logger.info("FastAPI instrumentation placeholder")
 
 
 def instrument_pydantic_ai() -> None:
-    """Configure automatic tracing for Pydantic AI agent calls."""
-    # Pydantic AI tracing is automatic when logfire is configured
-    # The framework automatically creates spans for agent.run() calls
+    """Placeholder for Pydantic AI instrumentation."""
     logger = logging.getLogger(__name__)
-    logger.info("Pydantic AI instrumentation ready (automatic)")
+    logger.info("Pydantic AI instrumentation ready")
 
 
-def span(name: str) -> logfire.LogfireSpan:
-    """Create a custom span for service layer functions.
+@contextmanager
+def span(name: str) -> Generator[None, None, None]:
+    """Create a named logging span for service layer functions.
 
     Usage:
         with span("user_service.create_user"):
             # Your service logic here
             pass
     """
-    return logfire.span(name)
+    _logger = logging.getLogger(__name__)
+    _logger.debug("span:start %s", name)
+    try:
+        yield
+    finally:
+        _logger.debug("span:end %s", name)
 
 
 def log_with_context(

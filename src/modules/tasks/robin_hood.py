@@ -1,6 +1,6 @@
 """Robin Hood Protocol service for chore takeover management.
 
-This module implements the Robin Hood Protocol (ADR-016) which allows
+This module implements Robin Hood Protocol (ADR-016) which allows
 household members to take over each other's chores with weekly limits.
 
 Key Features:
@@ -21,14 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_week_start_date(dt: datetime | None = None) -> datetime:
-    """Get the start of the week (Monday 00:00) for a given datetime.
-
-    Args:
-        dt: Datetime to get week start for. If None, uses current time.
-
-    Returns:
-        Datetime representing Monday 00:00 of the week in UTC
-    """
+    """Get start of week (Monday 00:00) for a given datetime. If None, uses current time."""
     if dt is None:
         dt = datetime.now(UTC)
 
@@ -41,7 +34,7 @@ def get_week_start_date(dt: datetime | None = None) -> datetime:
 
 
 async def get_weekly_takeover_count(user_id: str) -> int:
-    """Get the number of takeovers a user has performed this week.
+    """Get number of takeovers a user has performed this week.
 
     Args:
         user_id: User ID to check
@@ -52,7 +45,7 @@ async def get_weekly_takeover_count(user_id: str) -> int:
     week_start = get_week_start_date()
 
     try:
-        # Query for this user's record for the current week
+        # Query for this user's record for current week
         sanitized_user_id = db_client.sanitize_param(user_id)
         filter_query = f'user_id = "{sanitized_user_id}" && week_start_date = "{week_start.isoformat()}"'
         records = await db_client.list_records(
@@ -71,7 +64,7 @@ async def get_weekly_takeover_count(user_id: str) -> int:
 
 
 async def increment_weekly_takeover_count(user_id: str) -> int:
-    """Increment the weekly takeover count for a user.
+    """Increment weekly takeover count for a user.
 
     Creates a new record if one doesn't exist for this week.
 

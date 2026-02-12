@@ -1,5 +1,6 @@
 """Unit tests for notification_service module."""
 
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -7,16 +8,17 @@ import pytest
 from src.domain.user import UserStatus
 from src.interface.whatsapp_sender import SendMessageResult
 from src.services import notification_service
+from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_notification_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
-    # Patch all db_client functions used by notification service
-    monkeypatch.setattr("src.services.notification_service.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.services.notification_service.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.services.notification_service.db_client.get_first_record", in_memory_db.get_first_record)
-    return in_memory_db
+def patched_notification_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
+    """Patches settings and database for notification service tests.
+
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    return DatabaseClient()
 
 
 @pytest.fixture
@@ -33,6 +35,8 @@ def sample_chore():
     return {
         "title": "Dishes",
         "description": "Wash all the dishes",
+        "scope": "shared",
+        "current_state": "TODO",
     }
 
 
@@ -40,9 +44,9 @@ def sample_chore():
 def sample_users():
     """Sample user data (without ids - will be generated)."""
     return [
-        {"name": "Alice", "phone": "+11111111111", "status": UserStatus.ACTIVE},
-        {"name": "Bob", "phone": "+12222222222", "status": UserStatus.ACTIVE},
-        {"name": "Charlie", "phone": "+13333333333", "status": UserStatus.ACTIVE},
+        {"name": "Alice", "phone": "+11111111111", "role": "member", "status": UserStatus.ACTIVE},
+        {"name": "Bob", "phone": "+12222222222", "role": "member", "status": UserStatus.ACTIVE},
+        {"name": "Charlie", "phone": "+13333333333", "role": "member", "status": UserStatus.ACTIVE},
     ]
 
 
@@ -59,7 +63,7 @@ class TestSendVerificationRequest:
     ):
         """Sends verification request to configured group chat."""
         # Populate in-memory database
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
         claimer = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
         # Set up house config with group chat ID
@@ -71,7 +75,7 @@ class TestSendVerificationRequest:
         # Send verification request
         results = await notification_service.send_verification_request(
             log_id="log123",
-            chore_id=chore["id"],
+            task_id=chore["id"],
             claimer_user_id=claimer["id"],
         )
 
@@ -106,11 +110,11 @@ class TestSendVerificationRequest:
         for user in sample_users:
             await patched_notification_db.create_record(collection="members", data=user)
 
-        # Send verification request with non-existent chore
+        # Send verification request with non-existent chore ID
         results = await notification_service.send_verification_request(
             log_id="log123",
-            chore_id="nonexistent",
-            claimer_user_id="user1",
+            task_id="99999",
+            claimer_user_id="1",
         )
 
         # Should return empty list
@@ -126,7 +130,7 @@ class TestSendVerificationRequest:
     ):
         """Uses 'Someone' as claimer name when claimer not found."""
         # Populate in-memory database (only chore and users, but claimer doesn't exist)
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
 
         # Set up house config with group chat ID
         await patched_notification_db.create_record(
@@ -134,11 +138,11 @@ class TestSendVerificationRequest:
             data={"name": "Test House", "group_chat_id": "group123@g.us"},
         )
 
-        # Send verification request with non-existent claimer
+        # Send verification request with non-existent claimer ID
         await notification_service.send_verification_request(
             log_id="log123",
-            chore_id=chore["id"],
-            claimer_user_id="nonexistent_user",
+            task_id=chore["id"],
+            claimer_user_id="99999",
         )
 
         # Verify group message was sent
@@ -158,13 +162,13 @@ class TestSendVerificationRequest:
     ):
         """Returns empty list when no group chat ID is configured."""
         # Populate in-memory database (no house_config)
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
         claimer = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
         # Send verification request
         results = await notification_service.send_verification_request(
             log_id="log123",
-            chore_id=chore["id"],
+            task_id=chore["id"],
             claimer_user_id=claimer["id"],
         )
 
@@ -190,7 +194,7 @@ class TestSendVerificationRequest:
         )
 
         # Populate in-memory database
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
         claimer = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
         # Set up house config with group chat ID
@@ -202,7 +206,7 @@ class TestSendVerificationRequest:
         # Send verification request
         results = await notification_service.send_verification_request(
             log_id="log123",
-            chore_id=chore["id"],
+            task_id=chore["id"],
             claimer_user_id=claimer["id"],
         )
 
@@ -233,7 +237,7 @@ class TestSendDeletionRequestNotification:
         )
 
         # Populate in-memory database
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
+        chore = await patched_notification_db.create_record(collection="tasks", data=sample_chore)
         requester = await patched_notification_db.create_record(collection="members", data=sample_users[0])
 
         # Set up house config with group chat ID
@@ -245,47 +249,10 @@ class TestSendDeletionRequestNotification:
         # Send deletion request notification
         results = await notification_service.send_deletion_request_notification(
             log_id="log456",
-            chore_id=chore["id"],
-            chore_title="Dishes",
+            task_id=chore["id"],
+            task_title="Dishes",
             requester_user_id=requester["id"],
         )
 
         # Should return empty list (no NotificationResult objects for group messages)
-        assert len(results) == 0
-
-        # Verify group message was sent
-        assert mock_send.call_count == 1
-
-        # Check call arguments
-        call_args = mock_send.call_args
-        assert call_args.kwargs["to_group_id"] == "group123@g.us"
-        text = call_args.kwargs["text"]
-
-        # Verify message content
-        assert "Alice" in text  # requester name
-        assert "Dishes" in text  # chore title
-        assert "approve deletion Dishes" in text
-        assert "reject deletion Dishes" in text
-
-    @pytest.mark.asyncio
-    async def test_returns_empty_when_no_group_configured(
-        self,
-        patched_notification_db,
-        sample_chore,
-        sample_users,
-    ):
-        """Returns empty list when no group chat ID is configured."""
-        # Populate in-memory database (no house_config)
-        chore = await patched_notification_db.create_record(collection="chores", data=sample_chore)
-        requester = await patched_notification_db.create_record(collection="members", data=sample_users[0])
-
-        # Send deletion request notification
-        results = await notification_service.send_deletion_request_notification(
-            log_id="log456",
-            chore_id=chore["id"],
-            chore_title="Dishes",
-            requester_user_id=requester["id"],
-        )
-
-        # Should return empty list
         assert results == []

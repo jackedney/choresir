@@ -4,13 +4,18 @@ from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
-from src.agents.tools.chore_tools import (
+import src.modules.tasks.deletion as deletion_service
+import src.modules.tasks.service as chore_service
+from src.modules.tasks.tools import (
     BatchRespondToWorkflows,
+    ReassignChore,
     RespondToDeletion,
     tool_batch_respond_to_workflows,
+    tool_reassign_chore,
     tool_respond_to_deletion,
 )
-from src.services import chore_service, deletion_service, workflow_service
+from src.services import workflow_service
+from tests.conftest import TestDatabaseClient as DatabaseClient
 
 
 if TYPE_CHECKING:
@@ -20,22 +25,17 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def patched_chore_tools_db(monkeypatch, in_memory_db):
-    """Patches src.core.db_client functions to use InMemoryDBClient."""
+def patched_chore_tools_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
+    """Patches settings and database for chore tools tests.
 
-    # Patch all db_client functions
-    monkeypatch.setattr("src.core.db_client.create_record", in_memory_db.create_record)
-    monkeypatch.setattr("src.core.db_client.get_record", in_memory_db.get_record)
-    monkeypatch.setattr("src.core.db_client.update_record", in_memory_db.update_record)
-    monkeypatch.setattr("src.core.db_client.delete_record", in_memory_db.delete_record)
-    monkeypatch.setattr("src.core.db_client.list_records", in_memory_db.list_records)
-    monkeypatch.setattr("src.core.db_client.get_first_record", in_memory_db.get_first_record)
-
-    return in_memory_db
+    Uses real SQLite database via db_client fixture from tests/conftest.py.
+    Settings are patched by mock_db_module_for_unit_tests fixture.
+    """
+    return db_client
 
 
 @pytest.fixture
-async def requester(patched_chore_tools_db):
+async def requester(patched_chore_tools_db: DatabaseClient) -> dict[str, Any]:
     """Create a test user who requests deletion."""
     return await patched_chore_tools_db.create_record(
         collection="members",
@@ -49,7 +49,7 @@ async def requester(patched_chore_tools_db):
 
 
 @pytest.fixture
-async def resolver(patched_chore_tools_db):
+async def resolver(patched_chore_tools_db: DatabaseClient) -> dict[str, Any]:
     """Create a test user who approves/deletes."""
     return await patched_chore_tools_db.create_record(
         collection="members",
@@ -63,7 +63,7 @@ async def resolver(patched_chore_tools_db):
 
 
 @pytest.fixture
-async def todo_chore(patched_chore_tools_db, requester):
+async def todo_chore(patched_chore_tools_db: DatabaseClient, requester: dict[str, Any]) -> dict[str, Any]:
     """Create a chore in TODO state."""
     return await chore_service.create_chore(
         title="Test Chore",
@@ -74,7 +74,9 @@ async def todo_chore(patched_chore_tools_db, requester):
 
 
 @pytest.fixture
-async def pending_deletion_workflow(patched_chore_tools_db, requester, todo_chore):
+async def pending_deletion_workflow(
+    patched_chore_tools_db: DatabaseClient, requester: dict[str, Any], todo_chore: dict[str, Any]
+) -> dict[str, Any]:
     """Create a pending deletion workflow for the chore."""
     return await deletion_service.request_chore_deletion(
         chore_id=todo_chore["id"],
@@ -173,7 +175,7 @@ class TestToolRespondToDeletionByWorkflowId:
         # Create a chore verification workflow instead of deletion
         await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore_id",
@@ -185,7 +187,7 @@ class TestToolRespondToDeletionByWorkflowId:
 
         # Get the workflow we just created
         workflows = await workflow_service.get_pending_workflows(
-            workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION
+            workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION
         )
         assert len(workflows) > 0
 
@@ -358,7 +360,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -402,7 +404,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -448,7 +450,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -559,7 +561,7 @@ class TestToolBatchRespondToWorkflows:
         # Create workflow from requester (should be resolved)
         other_wf = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -628,7 +630,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf2 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.CHORE_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="chore2",
@@ -637,7 +639,7 @@ class TestToolBatchRespondToWorkflows:
         )
         wf3 = await workflow_service.create_workflow(
             params=workflow_service.WorkflowCreateParams(
-                workflow_type=workflow_service.WorkflowType.PERSONAL_VERIFICATION,
+                workflow_type=workflow_service.WorkflowType.TASK_VERIFICATION,
                 requester_user_id=requester["id"],
                 requester_name=requester["name"],
                 target_id="personal1",
@@ -669,3 +671,69 @@ class TestToolBatchRespondToWorkflows:
             wf["status"] == workflow_service.WorkflowStatus.APPROVED.value
             for wf in [updated_wf1, updated_wf2, updated_wf3]
         )
+
+
+@pytest.mark.unit
+class TestToolReassignChore:
+    """Tests for tool_reassign_chore."""
+
+    async def test_reassign_chore_success(self, patched_chore_tools_db, requester, resolver, todo_chore):
+        """Test reassigning a chore to another user."""
+        ctx = _create_mock_context(requester)
+
+        result = await tool_reassign_chore(
+            ctx=ctx,
+            params=ReassignChore(
+                chore_title_fuzzy="Test Chore",
+                assignee_phone=resolver["phone"],
+            ),
+        )
+
+        assert "Test Chore" in result
+        assert "assigned to" in result
+        assert resolver["phone"] in result
+
+    async def test_reassign_chore_unassign(self, patched_chore_tools_db, requester, todo_chore):
+        """Test unassigning a chore."""
+        ctx = _create_mock_context(requester)
+
+        result = await tool_reassign_chore(
+            ctx=ctx,
+            params=ReassignChore(
+                chore_title_fuzzy="Test Chore",
+                assignee_phone=None,
+            ),
+        )
+
+        assert "Test Chore" in result
+        assert "unassigned" in result
+
+    async def test_reassign_chore_not_found(self, patched_chore_tools_db, requester):
+        """Test reassigning non-existent chore returns error."""
+        ctx = _create_mock_context(requester)
+
+        result = await tool_reassign_chore(
+            ctx=ctx,
+            params=ReassignChore(
+                chore_title_fuzzy="Non-existent Chore",
+                assignee_phone="+1111111111",
+            ),
+        )
+
+        assert "Error" in result
+        assert "No chore found" in result
+
+    async def test_reassign_chore_user_not_found(self, patched_chore_tools_db, requester, todo_chore):
+        """Test reassigning to non-existent user returns error."""
+        ctx = _create_mock_context(requester)
+
+        result = await tool_reassign_chore(
+            ctx=ctx,
+            params=ReassignChore(
+                chore_title_fuzzy="Test Chore",
+                assignee_phone="+1111111111",
+            ),
+        )
+
+        assert "Error" in result
+        assert "not found" in result

@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # House Configuration
     house_name: str | None = Field(default=None, description="House name (fallback if not set in database)")
 
+    # Bot Configuration
+    bot_name: str = Field(default="choresir", description="Bot name")
+    bot_description: str = Field(default="household management assistant", description="Bot description")
+
     # Admin Interface Configuration
     admin_password: str | None = Field(default=None, description="Admin password for web interface access")
     secret_key: str | None = Field(default=None, description="Secret key for session signing")

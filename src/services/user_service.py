@@ -109,58 +109,6 @@ async def update_user_status(*, user_id: str, status: UserStatus) -> dict[str, A
         return updated_record
 
 
-async def approve_member(*, admin_user_id: str, target_phone: str) -> dict[str, Any]:
-    """Approve a pending member (admin-only).
-
-    Changes user status from "pending_name" to "active".
-
-    Args:
-        admin_user_id: ID of the admin performing the approval
-        target_phone: Phone number of the user to approve
-
-    Returns:
-        Updated user record
-
-    Raises:
-        UnauthorizedError: If requesting user is not an admin
-        db_client.RecordNotFoundError: If admin or target user not found
-        UserServiceError: If target user is not pending
-    """
-    with span("user_service.approve_member"):
-        # Guard: Verify admin privileges
-        admin_record = await db_client.get_record(collection="members", record_id=admin_user_id)
-        if admin_record["role"] != UserRole.ADMIN:
-            msg = f"User {admin_user_id} is not authorized to approve members"
-            logger.warning(msg)
-            raise PermissionError(msg)
-
-        # Guard: Find target user
-        target_user = await db_client.get_first_record(
-            collection="members",
-            filter_query=f'phone = "{sanitize_param(target_phone)}"',
-        )
-        if not target_user:
-            msg = f"User with phone {target_phone} not found"
-            raise KeyError(msg)
-
-        # Guard: Check user is pending
-        if target_user["status"] not in (UserStatus.PENDING_NAME,):
-            msg = f"User {target_phone} is not pending approval (status: {target_user['status']})"
-            logger.warning(msg)
-            raise ValueError(msg)
-
-        # Approve user
-        updated_record = await db_client.update_record(
-            collection="members",
-            record_id=target_user["id"],
-            data={"status": UserStatus.ACTIVE},
-        )
-
-        logger.info("Approved user %s by admin %s", target_phone, admin_user_id)
-
-        return updated_record
-
-
 async def remove_user(*, admin_user_id: str, target_user_id: str) -> None:
     """Remove a user (admin-only).
 
