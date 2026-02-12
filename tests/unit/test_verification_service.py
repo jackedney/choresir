@@ -10,7 +10,9 @@ import src.modules.tasks.service as chore_service
 import src.modules.tasks.verification as verification_service
 from src.core import db_client as db_client_module
 from src.core.db_client import create_record
+from src.domain.create_models import UserCreate
 from src.domain.task import TaskState
+from src.domain.user import UserRole, UserStatus
 from src.modules.tasks.verification import VerificationDecision
 from tests.unit.conftest import DatabaseClient
 
@@ -30,13 +32,13 @@ async def setup_test_users(patched_verification_db: DatabaseClient) -> dict[str,
     """Create test users for workflow name resolution."""
     users = {}
     for i in range(1, 4):
-        user_data = {
-            "phone": f"+141555555{i}",
-            "name": f"User{i}",
-            "role": "member",
-            "status": "active",
-        }
-        user = await create_record(collection="members", data=user_data)
+        user_create = UserCreate(
+            phone=f"+141555555{i}",
+            name=f"User{i}",
+            role=UserRole.MEMBER,
+            status=UserStatus.ACTIVE,
+        )
+        user = await create_record(collection="members", data=user_create.model_dump())
         users[f"user{i}"] = user
     return users
 
