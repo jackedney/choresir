@@ -15,7 +15,7 @@ from src.modules.tasks.tools import (
     tool_respond_to_deletion,
 )
 from src.services import workflow_service
-from tests.unit.conftest import DatabaseClient
+from tests.conftest import TestDatabaseClient as DatabaseClient
 
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ def patched_chore_tools_db(mock_db_module_for_unit_tests: Any, db_client: Databa
     Uses real SQLite database via db_client fixture from tests/conftest.py.
     Settings are patched by mock_db_module_for_unit_tests fixture.
     """
-    return DatabaseClient()
+    return db_client
 
 
 @pytest.fixture

@@ -102,8 +102,31 @@ def test_settings(sqlite_db: Path) -> Settings:
     )
 
 
+class TestDatabaseClient:
+    """Wrapper for db_client module to provide object-like interface for tests."""
+
+    async def create_record(self, *, collection: str, data: dict) -> dict:
+        return await db_module.create_record(collection=collection, data=data)
+
+    async def get_record(self, *, collection: str, record_id: str) -> dict | None:
+        return await db_module.get_record(collection=collection, record_id=record_id)
+
+    async def update_record(self, *, collection: str, record_id: str, data: dict) -> dict:
+        return await db_module.update_record(collection=collection, record_id=record_id, data=data)
+
+    async def delete_record(self, *, collection: str, record_id: str) -> bool:
+        await db_module.delete_record(collection=collection, record_id=record_id)
+        return True
+
+    async def list_records(self, *, collection: str, **kwargs) -> list[dict]:
+        return await db_module.list_records(collection=collection, **kwargs)
+
+    async def get_first_record(self, *, collection: str, filter_query: str) -> dict | None:
+        return await db_module.get_first_record(collection=collection, filter_query=filter_query)
+
+
 @pytest.fixture
-async def db_client(sqlite_db: Path) -> AsyncGenerator[None, None]:
+async def db_client(sqlite_db: Path) -> AsyncGenerator[TestDatabaseClient, None]:
     """Provide clean database for each test.
 
     This fixture patches the db_client module to use the test SQLite database
@@ -113,7 +136,7 @@ async def db_client(sqlite_db: Path) -> AsyncGenerator[None, None]:
         sqlite_db: Path to the test database
 
     Yields:
-        None - The db_client module functions are patched to use the test database
+        TestDatabaseClient - A wrapper that uses the patched db_client module
     """
 
     _db_connections.clear()
@@ -132,9 +155,9 @@ async def db_client(sqlite_db: Path) -> AsyncGenerator[None, None]:
         return conn
 
     original_get_connection: Any = db_module.get_connection
-    db_module.get_connection: Any = test_get_connection
+    db_module.get_connection = test_get_connection  # type: ignore[assignment]
 
-    yield
+    yield TestDatabaseClient()
 
     db_module.get_connection = original_get_connection
     for conn in open_conns:
