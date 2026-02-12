@@ -6,7 +6,9 @@ import pytest
 
 import src.modules.tasks.service as chore_service
 from src.core.db_client import create_record
+from src.domain.create_models import UserCreate
 from src.domain.task import TaskScope, TaskState, VerificationType
+from src.domain.user import UserRole, UserStatus
 from tests.unit.conftest import DatabaseClient
 
 
@@ -25,13 +27,13 @@ async def setup_test_users(patched_chore_db: DatabaseClient) -> dict[str, Any]:
     """Create test users for chore service tests."""
     users = {}
     for i in range(1, 4):
-        user_data = {
-            "phone": f"+141555555{i}",
-            "name": f"User{i}",
-            "role": "member",
-            "status": "active",
-        }
-        user = await create_record(collection="members", data=user_data)
+        user_create = UserCreate(
+            phone=f"+1415555555{i}",
+            name=f"User{i}",
+            role=UserRole.MEMBER,
+            status=UserStatus.ACTIVE,
+        )
+        user = await create_record(collection="members", data=user_create.model_dump())
         users[f"user{i}"] = user
     return users
 
