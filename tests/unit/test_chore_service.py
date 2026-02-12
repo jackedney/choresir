@@ -1,5 +1,7 @@
 """Unit tests for chore_service module."""
 
+from typing import Any
+
 import pytest
 
 import src.modules.tasks.service as chore_service
@@ -9,7 +11,7 @@ from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_chore_db(mock_db_module_for_unit_tests, db_client):
+def patched_chore_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
     """Patches settings and database for chore service tests.
 
     Uses real SQLite database via db_client fixture from tests/conftest.py.
@@ -19,7 +21,7 @@ def patched_chore_db(mock_db_module_for_unit_tests, db_client):
 
 
 @pytest.fixture
-async def setup_test_users(patched_chore_db):
+async def setup_test_users(patched_chore_db: DatabaseClient) -> dict[str, Any]:
     """Create test users for chore service tests."""
     users = {}
     for i in range(1, 4):

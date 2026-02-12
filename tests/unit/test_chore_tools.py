@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def patched_chore_tools_db(mock_db_module_for_unit_tests, db_client):
+def patched_chore_tools_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
     """Patches settings and database for chore tools tests.
 
     Uses real SQLite database via db_client fixture from tests/conftest.py.
@@ -675,17 +675,8 @@ class TestToolBatchRespondToWorkflows:
 class TestToolReassignChore:
     """Tests for tool_reassign_chore."""
 
-    async def test_reassign_chore_success(self, patched_chore_tools_db, requester, resolver, todo_chore, monkeypatch):
+    async def test_reassign_chore_success(self, patched_chore_tools_db, requester, resolver, todo_chore):
         """Test reassigning a chore to another user."""
-
-        # Mock get_user_by_phone to return resolver
-        async def mock_get_user_by_phone(phone):
-            if phone == resolver["phone"]:
-                return resolver
-            return None
-
-        monkeypatch.setattr("src.services.user_service.get_user_by_phone", mock_get_user_by_phone)
-
         ctx = _create_mock_context(requester)
 
         result = await tool_reassign_chore(
@@ -730,21 +721,15 @@ class TestToolReassignChore:
         assert "Error" in result
         assert "No chore found" in result
 
-    async def test_reassign_chore_user_not_found(self, patched_chore_tools_db, requester, todo_chore, monkeypatch):
+    async def test_reassign_chore_user_not_found(self, patched_chore_tools_db, requester, todo_chore):
         """Test reassigning to non-existent user returns error."""
-
-        async def mock_get_user_by_phone(phone):
-            return None
-
-        monkeypatch.setattr("src.services.user_service.get_user_by_phone", mock_get_user_by_phone)
-
         ctx = _create_mock_context(requester)
 
         result = await tool_reassign_chore(
             ctx=ctx,
             params=ReassignChore(
                 chore_title_fuzzy="Test Chore",
-                assignee_phone="+9999999999",
+                assignee_phone="+1111111111",
             ),
         )
 

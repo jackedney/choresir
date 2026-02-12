@@ -1,6 +1,7 @@
 """Unit tests for workflow_service module."""
 
 from datetime import datetime, timedelta
+from typing import Any
 
 import pytest
 
@@ -10,7 +11,7 @@ from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_workflow_db(mock_db_module_for_unit_tests, db_client):
+def patched_workflow_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
     """Patches settings and database for workflow service tests.
 
     Uses real SQLite database via db_client fixture from tests/conftest.py.
@@ -20,7 +21,7 @@ def patched_workflow_db(mock_db_module_for_unit_tests, db_client):
 
 
 @pytest.fixture
-async def workflow_test_users(patched_workflow_db):
+async def workflow_test_users(patched_workflow_db: DatabaseClient) -> dict[str, dict[str, Any]]:
     """Create real member records for workflow tests and return a mapping of logical names to user records."""
     members = {
         "alice": {"phone": "+15550000001", "name": "Alice", "role": "member", "status": "active"},

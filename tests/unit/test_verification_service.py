@@ -10,15 +10,13 @@ import src.modules.tasks.service as chore_service
 import src.modules.tasks.verification as verification_service
 from src.core import db_client as db_client_module
 from src.core.db_client import create_record
-
-# KeyError replaced with KeyError
 from src.domain.task import TaskState
 from src.modules.tasks.verification import VerificationDecision
 from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_verification_db(mock_db_module_for_unit_tests, db_client):
+def patched_verification_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
     """Patches settings and database for verification service tests.
 
     Uses real SQLite database via db_client fixture from tests/conftest.py.
@@ -28,7 +26,7 @@ def patched_verification_db(mock_db_module_for_unit_tests, db_client):
 
 
 @pytest.fixture
-async def setup_test_users(patched_verification_db):
+async def setup_test_users(patched_verification_db: DatabaseClient) -> dict[str, dict[str, Any]]:
     """Create test users for workflow name resolution."""
     users = {}
     for i in range(1, 4):
@@ -48,7 +46,9 @@ class TestRequestVerification:
     """Tests for request_verification function."""
 
     @pytest.fixture
-    async def todo_chore(self, patched_verification_db, setup_test_users):
+    async def todo_chore(
+        self, patched_verification_db: DatabaseClient, setup_test_users: dict[str, dict[str, Any]]
+    ) -> dict[str, Any]:
         """Create a chore in TODO state."""
         user1_id = setup_test_users["user1"]["id"]
         return await chore_service.create_chore(
@@ -695,7 +695,7 @@ class TestGetPendingVerificationsPagination:
     """Tests for get_pending_verifications pagination edge cases."""
 
     async def _create_chore_with_claim(
-        self, patched_verification_db, title: str, claimer_user_id: str
+        self, patched_verification_db: DatabaseClient, *, title: str, claimer_user_id: str
     ) -> dict[str, Any]:
         """Helper to create a chore and claim it."""
         chore = await chore_service.create_chore(
@@ -713,7 +713,8 @@ class TestGetPendingVerificationsPagination:
 
     async def _create_logs(
         self,
-        patched_verification_db,
+        patched_verification_db: DatabaseClient,
+        *,
         count: int,
         chore_id: str = "",
         action: str = "other_action",
@@ -735,13 +736,13 @@ class TestGetPendingVerificationsPagination:
 
     async def _create_chore(
         self,
-        patched_verification_db,
+        patched_verification_db: DatabaseClient,
         user_id: str,
         *,
         title: str = "Test Chore",
         description: str = "Test",
         recurrence: str = "0 10 * * *",
-    ):
+    ) -> dict[str, Any]:
         """Helper to create a chore with real user ID."""
         return await chore_service.create_chore(
             title=title,
@@ -752,13 +753,14 @@ class TestGetPendingVerificationsPagination:
 
     async def test_no_user_id_filter(self, patched_verification_db, setup_test_users):
         """Test that without user_id filter, all pending chores are returned."""
-        # Create 3 pending chores claimed by different users
         user1_id = str(setup_test_users["user1"]["id"])
         user2_id = str(setup_test_users["user2"]["id"])
         user3_id = str(setup_test_users["user3"]["id"])
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
-        chore3 = await self._create_chore_with_claim(patched_verification_db, "Chore 3", user3_id)
+        _chore1 = await self._create_chore_with_claim(
+            patched_verification_db, title="Chore 1", claimer_user_id=user1_id
+        )
+        chore2 = await self._create_chore_with_claim(patched_verification_db, title="Chore 2", claimer_user_id=user2_id)
+        chore3 = await self._create_chore_with_claim(patched_verification_db, title="Chore 3", claimer_user_id=user3_id)
 
         # Get all pending verifications
         result = await verification_service.get_pending_verifications()
@@ -774,11 +776,13 @@ class TestGetPendingVerificationsPagination:
         # Create 2 pending chores
         user1_id = str(setup_test_users["user1"]["id"])
         user2_id = str(setup_test_users["user2"]["id"])
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
+        _chore1 = await self._create_chore_with_claim(
+            patched_verification_db, title="Chore 1", claimer_user_id=user1_id
+        )
+        chore2 = await self._create_chore_with_claim(patched_verification_db, title="Chore 2", claimer_user_id=user2_id)
 
         # Create 500 other logs to force pagination
-        await self._create_logs(patched_verification_db, 500)
+        await self._create_logs(patched_verification_db, count=500)
 
         # user1 should only see chore2 (claimed by user2)
         result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
@@ -791,13 +795,15 @@ class TestGetPendingVerificationsPagination:
         # Create chore claimed by user1
         user1_id = str(setup_test_users["user1"]["id"])
         user2_id = str(setup_test_users["user2"]["id"])
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
+        _chore1 = await self._create_chore_with_claim(
+            patched_verification_db, title="Chore 1", claimer_user_id=user1_id
+        )
 
         # Create 500 other logs AFTER claim log (so claim log ends up on page 2)
-        await self._create_logs(patched_verification_db, 500, chore_id="other_chore")
+        await self._create_logs(patched_verification_db, count=500, chore_id="other_chore")
 
         # Create another chore claimed by user2
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
+        chore2 = await self._create_chore_with_claim(patched_verification_db, title="Chore 2", claimer_user_id=user2_id)
 
         # user1 should only see chore2
         result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
@@ -809,9 +815,9 @@ class TestGetPendingVerificationsPagination:
         """Test that user who claimed all pending chores sees empty list."""
         # Create 3 chores all claimed by user1
         user1_id = str(setup_test_users["user1"]["id"])
-        await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
-        await self._create_chore_with_claim(patched_verification_db, "Chore 2", user1_id)
-        await self._create_chore_with_claim(patched_verification_db, "Chore 3", user1_id)
+        await self._create_chore_with_claim(patched_verification_db, title="Chore 1", claimer_user_id=user1_id)
+        await self._create_chore_with_claim(patched_verification_db, title="Chore 2", claimer_user_id=user1_id)
+        await self._create_chore_with_claim(patched_verification_db, title="Chore 3", claimer_user_id=user1_id)
 
         # user1 should see no chores
         result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
@@ -837,13 +843,15 @@ class TestGetPendingVerificationsPagination:
         # Create chore claimed by user1
         user1_id = str(setup_test_users["user1"]["id"])
         user2_id = str(setup_test_users["user2"]["id"])
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
+        _chore1 = await self._create_chore_with_claim(
+            patched_verification_db, title="Chore 1", claimer_user_id=user1_id
+        )
 
         # Create exactly 499 other logs AFTER (so claim log is at position 500)
-        await self._create_logs(patched_verification_db, 499, chore_id="other_chore")
+        await self._create_logs(patched_verification_db, count=499, chore_id="other_chore")
 
         # Create another chore claimed by user2
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
+        chore2 = await self._create_chore_with_claim(patched_verification_db, title="Chore 2", claimer_user_id=user2_id)
 
         # user1 should only see chore2
         result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
@@ -857,12 +865,14 @@ class TestGetPendingVerificationsPagination:
         user1_id = str(setup_test_users["user1"]["id"])
         user2_id = str(setup_test_users["user2"]["id"])
         user3_id = str(setup_test_users["user3"]["id"])
-        _chore1 = await self._create_chore_with_claim(patched_verification_db, "Chore 1", user1_id)
-        chore2 = await self._create_chore_with_claim(patched_verification_db, "Chore 2", user2_id)
-        chore3 = await self._create_chore_with_claim(patched_verification_db, "Chore 3", user3_id)
+        _chore1 = await self._create_chore_with_claim(
+            patched_verification_db, title="Chore 1", claimer_user_id=user1_id
+        )
+        chore2 = await self._create_chore_with_claim(patched_verification_db, title="Chore 2", claimer_user_id=user2_id)
+        chore3 = await self._create_chore_with_claim(patched_verification_db, title="Chore 3", claimer_user_id=user3_id)
 
         # Create 1000 other logs
-        await self._create_logs(patched_verification_db, 1000, chore_id="other_chore")
+        await self._create_logs(patched_verification_db, count=1000, chore_id="other_chore")
 
         # user1 should see chore2 and chore3
         result = await verification_service.get_pending_verifications(user_id=str(setup_test_users["user1"]["id"]))
@@ -889,7 +899,9 @@ class TestGetPendingVerificationsPagination:
         for i in range(12):
             # Alternate between user1 and user2 claiming chores
             claimer = user1_id if i % 2 == 0 else user2_id
-            chore = await self._create_chore_with_claim(patched_verification_db, f"Chore {i}", claimer)
+            chore = await self._create_chore_with_claim(
+                patched_verification_db, title=f"Chore {i}", claimer_user_id=claimer
+            )
             if claimer == user1_id:
                 user1_chores.append(chore)
             else:

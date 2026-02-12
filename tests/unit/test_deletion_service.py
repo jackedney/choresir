@@ -1,5 +1,7 @@
 """Unit tests for deletion_service module."""
 
+from typing import Any
+
 import pytest
 
 import src.modules.tasks.deletion as deletion_service
@@ -10,7 +12,7 @@ from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_deletion_db(mock_db_module_for_unit_tests, db_client):
+def patched_deletion_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
     """Patches settings and database for deletion service tests.
 
     Uses real SQLite database via db_client fixture from tests/conftest.py.

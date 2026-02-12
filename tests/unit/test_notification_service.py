@@ -1,5 +1,6 @@
 """Unit tests for notification_service module."""
 
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -11,7 +12,7 @@ from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_notification_db(mock_db_module_for_unit_tests, db_client):
+def patched_notification_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
     """Patches settings and database for notification service tests.
 
     Uses real SQLite database via db_client fixture from tests/conftest.py.

@@ -17,6 +17,7 @@ from aiosqlite.core import _STOP_RUNNING_SENTINEL
 from fastapi.testclient import TestClient
 
 import src.core.db_client as db_module
+from src.core.cache_client import cache_client
 from src.core.config import Settings
 from src.core.db_client import (
     _db_connections,
@@ -114,6 +115,11 @@ async def db_client(sqlite_db: Path) -> AsyncGenerator[None, None]:
     Yields:
         None - The db_client module functions are patched to use the test database
     """
+
+    _db_connections.clear()
+
+    cache_client._data.clear()
+    cache_client._expiry.clear()
 
     open_conns: list[aiosqlite.Connection] = []
 

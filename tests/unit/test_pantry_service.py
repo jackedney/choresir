@@ -1,5 +1,7 @@
 """Unit tests for pantry_service module."""
 
+from typing import Any
+
 import pytest
 
 from src.domain.pantry import PantryItemStatus
@@ -8,7 +10,7 @@ from tests.unit.conftest import DatabaseClient
 
 
 @pytest.fixture
-def patched_pantry_db(mock_db_module_for_unit_tests, db_client):
+def patched_pantry_db(mock_db_module_for_unit_tests: Any, db_client: DatabaseClient) -> DatabaseClient:
     """Patches settings and database for pantry service tests.
 
     Uses real SQLite database via db_client fixture from tests/conftest.py.
@@ -18,7 +20,7 @@ def patched_pantry_db(mock_db_module_for_unit_tests, db_client):
 
 
 @pytest.fixture
-async def sample_user_id(patched_pantry_db):
+async def sample_user_id(patched_pantry_db: DatabaseClient) -> str:
     """Sample user ID for testing - creates a real member in the database."""
     user = await patched_pantry_db.create_record(
         collection="members",
