@@ -80,9 +80,10 @@ class TestRequestChoreDeletion:
         assert workflow["status"] == workflow_service.WorkflowStatus.PENDING.value
 
         # Verify log was created
+        task_id = todo_chore["id"]
         logs = await patched_deletion_db.list_records(
             collection="task_logs",
-            filter_query=f'task_id = "{todo_chore["id"]}" && action = "deletion_requested"',
+            filter_query=f'task_id = "{task_id}" && action = "deletion_requested"',
         )
         assert len(logs) == 1
         assert logs[0]["user_id"] == user1["id"]
@@ -99,9 +100,10 @@ class TestRequestChoreDeletion:
         assert workflow["status"] == workflow_service.WorkflowStatus.PENDING.value
 
         # Verify log was created
+        task_id = todo_chore["id"]
         logs = await patched_deletion_db.list_records(
             collection="task_logs",
-            filter_query=f'task_id = "{todo_chore["id"]}" && action = "deletion_requested"',
+            filter_query=f'task_id = "{task_id}" && action = "deletion_requested"',
         )
         assert logs[0]["notes"] == ""
 
@@ -179,9 +181,10 @@ class TestApproveChoreDeletion:
         assert result["current_state"] == TaskState.ARCHIVED
 
         # Verify workflow was resolved
+        target_id = chore_with_pending_deletion["id"]
         workflows = await patched_deletion_db.list_records(
             collection="workflows",
-            filter_query=f'target_id = "{chore_with_pending_deletion["id"]}"',
+            filter_query=f'target_id = "{target_id}"',
         )
         assert len(workflows) == 1
         assert workflows[0]["status"] == workflow_service.WorkflowStatus.APPROVED.value
@@ -190,7 +193,7 @@ class TestApproveChoreDeletion:
         # Verify log was created
         logs = await patched_deletion_db.list_records(
             collection="task_logs",
-            filter_query=f'task_id = "{chore_with_pending_deletion["id"]}" && action = "deletion_approved"',
+            filter_query=f'task_id = "{target_id}" && action = "deletion_approved"',
         )
         assert len(logs) == 1
         assert logs[0]["user_id"] == user2["id"]
@@ -254,9 +257,10 @@ class TestRejectChoreDeletion:
         assert "Still needed" in result["notes"]
 
         # Verify workflow was resolved
+        target_id = chore_with_pending_deletion["id"]
         workflows = await patched_deletion_db.list_records(
             collection="workflows",
-            filter_query=f'target_id = "{chore_with_pending_deletion["id"]}"',
+            filter_query=f'target_id = "{target_id}"',
         )
         assert len(workflows) == 1
         assert workflows[0]["status"] == workflow_service.WorkflowStatus.REJECTED.value
