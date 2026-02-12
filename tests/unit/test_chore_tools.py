@@ -35,7 +35,7 @@ def patched_chore_tools_db(mock_db_module_for_unit_tests: Any, db_client: Databa
 
 
 @pytest.fixture
-async def requester(patched_chore_tools_db):
+async def requester(patched_chore_tools_db: DatabaseClient) -> dict[str, Any]:
     """Create a test user who requests deletion."""
     return await patched_chore_tools_db.create_record(
         collection="members",
@@ -49,7 +49,7 @@ async def requester(patched_chore_tools_db):
 
 
 @pytest.fixture
-async def resolver(patched_chore_tools_db):
+async def resolver(patched_chore_tools_db: DatabaseClient) -> dict[str, Any]:
     """Create a test user who approves/deletes."""
     return await patched_chore_tools_db.create_record(
         collection="members",
@@ -63,7 +63,7 @@ async def resolver(patched_chore_tools_db):
 
 
 @pytest.fixture
-async def todo_chore(patched_chore_tools_db, requester):
+async def todo_chore(patched_chore_tools_db: DatabaseClient, requester: dict[str, Any]) -> dict[str, Any]:
     """Create a chore in TODO state."""
     return await chore_service.create_chore(
         title="Test Chore",
@@ -74,7 +74,9 @@ async def todo_chore(patched_chore_tools_db, requester):
 
 
 @pytest.fixture
-async def pending_deletion_workflow(patched_chore_tools_db, requester, todo_chore):
+async def pending_deletion_workflow(
+    patched_chore_tools_db: DatabaseClient, requester: dict[str, Any], todo_chore: dict[str, Any]
+) -> dict[str, Any]:
     """Create a pending deletion workflow for the chore."""
     return await deletion_service.request_chore_deletion(
         chore_id=todo_chore["id"],
