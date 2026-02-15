@@ -1,5 +1,6 @@
 """SQLite database client wrapper with CRUD operations."""
 
+import ast
 import asyncio
 import contextlib
 import json
@@ -112,7 +113,7 @@ def _get_sql_operator(op: str) -> str:
 def _parse_single_comparison(comparison: str) -> tuple[str, str | int | float | None]:
     """Parse a single comparison expression into a SQL condition and parameter."""
     match = re.match(
-        r"""(\w+)\s*(=|!=|>|<|>=|<=|~)\s*(['"])([^'"]*)\3""",
+        r"""(\w+)\s*(=|!=|>|<|>=|<=|~)\s*(?:'([^'\\]*(?:\\.[^'\\]*)*)'|"([^"\\]*(?:\\.[^"\\]*)*)")""",
         comparison,
     )
     if not match:
@@ -121,10 +122,33 @@ def _parse_single_comparison(comparison: str) -> tuple[str, str | int | float | 
 
     field = match.group(1)
     op = match.group(2)
-    raw_value = match.group(4)
+
+    # Check if we matched single or double quoted string
+    if match.group(3) is not None:
+        # Single quoted string
+        raw_value = match.group(3)
+        try:
+            # Unescape using ast.literal_eval for Python-style string
+            unescaped_value = ast.literal_eval(f"'{raw_value}'")
+            # Ensure it stays as string for _parse_value to handle type conversion if needed
+            raw_value = unescaped_value if isinstance(unescaped_value, str) else str(unescaped_value)
+        except (ValueError, SyntaxError) as e:
+            logger.warning("Failed to unescape single-quoted filter value: %s", e)
+            # Fallback to raw value if unescaping fails
+    else:
+        # Double quoted string
+        raw_value = match.group(4)
+        try:
+            # Unescape using json.loads for JSON-style string (used by sanitize_param)
+            unescaped_value = json.loads(f'"{raw_value}"')
+            raw_value = unescaped_value if isinstance(unescaped_value, str) else str(unescaped_value)
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning("Failed to unescape double-quoted filter value: %s", e)
+            # Fallback to raw value if unescaping fails
 
     sql_op = _get_sql_operator(op)
     is_like = sql_op == "LIKE"
+    # Note: _parse_value handles type conversion (int, float, bool) from string
     value = _parse_value(raw_value, is_like=is_like)
 
     return f"{field} {sql_op} ?", value
