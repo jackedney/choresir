@@ -47,9 +47,10 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_security_config(self) -> "Settings":
         """Enforce secure configuration in production and provide safe defaults in dev."""
+        min_secret_length = 12
         if self.is_production:
-            if not self.secret_key or len(self.secret_key) < 12:
-                msg = "SECRET_KEY must be set and have at least 12 characters in production."
+            if not self.secret_key or len(self.secret_key) < min_secret_length:
+                msg = f"SECRET_KEY must be set and have at least {min_secret_length} characters in production."
                 raise ValueError(msg)
             if not self.admin_password:
                 msg = "ADMIN_PASSWORD must be set in production."
@@ -58,9 +59,9 @@ class Settings(BaseSettings):
             # In development, set explicit insecure defaults if missing to prevent 'None' issues
             if not self.secret_key:
                 # Use a constant string instead of None to prevent str(None) -> 'None' ambiguity
-                self.secret_key = "insecure_dev_secret_key"
+                self.secret_key = "insecure_dev_secret_key"  # noqa: S105
             if not self.admin_password:
-                self.admin_password = "insecure_dev_admin_password"
+                self.admin_password = "insecure_dev_admin_password"  # noqa: S105
 
         return self
 
