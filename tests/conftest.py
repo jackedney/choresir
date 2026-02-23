@@ -55,7 +55,7 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if t.daemon or t is threading.main_thread():
             continue
         with contextlib.suppress(Exception):
-            tx = getattr(t, "_args", (None,))[0]  # type: ignore[index]
+            tx = getattr(t, "_args", (None,))[0]
             if tx is not None and hasattr(tx, "put_nowait"):
                 tx.put_nowait((None, lambda: _STOP_RUNNING_SENTINEL))
     _db_connections.clear()
