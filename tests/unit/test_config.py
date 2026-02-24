@@ -32,7 +32,7 @@ def test_require_credential_with_empty_string_raises_error():
 
 def test_require_credential_error_message_includes_field_name():
     """Test error message includes the environment variable name."""
-    settings = Settings(admin_password=None)
+    settings = Settings(openrouter_api_key=None)
 
-    with pytest.raises(ValueError, match="ADMIN_PASSWORD"):
-        settings.require_credential("admin_password", "Admin password")
+    with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
+        settings.require_credential("openrouter_api_key", "OpenRouter API key")

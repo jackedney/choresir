@@ -86,26 +86,26 @@ def test_login_with_invalid_password_shows_error(client: TestClient) -> None:
         assert "admin_session" not in response.cookies
 
 
-def test_startup_fails_without_admin_password() -> None:
-    """Test that application startup fails when admin_password is missing."""
-    settings = Settings(
-        openrouter_api_key="test_key",
-        admin_password=None,
-        secret_key="test_secret",
-    )
-    with pytest.raises(ValueError, match="Admin password for web interface credential not configured"):
-        settings.require_credential("admin_password", "Admin password for web interface")
+def test_startup_fails_without_admin_password_in_prod() -> None:
+    """Test that application startup fails when admin_password is missing in production."""
+    with pytest.raises(ValueError, match="ADMIN_PASSWORD must be set in production"):
+        Settings(
+            openrouter_api_key="test_key",
+            admin_password=None,
+            secret_key="test_secret_key_long_enough",
+            is_production=True,
+        )
 
 
-def test_startup_fails_without_secret_key() -> None:
-    """Test that application startup fails when secret_key is missing."""
-    settings = Settings(
-        openrouter_api_key="test_key",
-        admin_password="admin_password",
-        secret_key=None,
-    )
-    with pytest.raises(ValueError, match="Secret key for session signing credential not configured"):
-        settings.require_credential("secret_key", "Secret key for session signing")
+def test_startup_fails_without_secret_key_in_prod() -> None:
+    """Test that application startup fails when secret_key is missing in production."""
+    with pytest.raises(ValueError, match="SECRET_KEY must be set"):
+        Settings(
+            openrouter_api_key="test_key",
+            admin_password="admin_password",
+            secret_key=None,
+            is_production=True,
+        )
 
 
 def test_protected_route_without_session_redirects(client: TestClient) -> None:

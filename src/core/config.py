@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +43,27 @@ class Settings(BaseSettings):
 
     # Environment Configuration
     is_production: bool = Field(default=False, description="Production mode flag for secure cookies and other settings")
+
+    @model_validator(mode="after")
+    def validate_security_config(self) -> "Settings":
+        """Enforce secure configuration in production and provide safe defaults in dev."""
+        min_secret_length = 12
+        if self.is_production:
+            if not self.secret_key or len(self.secret_key) < min_secret_length:
+                msg = f"SECRET_KEY must be set and have at least {min_secret_length} characters in production."
+                raise ValueError(msg)
+            if not self.admin_password:
+                msg = "ADMIN_PASSWORD must be set in production."
+                raise ValueError(msg)
+        else:
+            # In development, set explicit insecure defaults if missing to prevent 'None' issues
+            if not self.secret_key:
+                # Use a constant string instead of None to prevent str(None) -> 'None' ambiguity
+                self.secret_key = "insecure_dev_secret_key"  # noqa: S105
+            if not self.admin_password:
+                self.admin_password = "insecure_dev_admin_password"  # noqa: S105
+
+        return self
 
     def require_credential(self, field_name: str, service_name: str) -> str:
         """Validate that a required credential is set, raising a clear error if missing.

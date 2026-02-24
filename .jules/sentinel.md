@@ -57,3 +57,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The admin login endpoint (`/admin/login`) did not implement rate limiting, allowing attackers to perform brute-force attacks against the admin password.
 **Learning:** Sensitive authentication endpoints must always be protected by rate limiting to mitigate brute-force and credential stuffing attacks. Relying solely on password complexity is insufficient.
 **Prevention:** Implemented IP-based rate limiting using Redis. The system now limits login attempts to 5 per minute per IP address, returning `429 Too Many Requests` when exceeded.
+
+## 2026-10-27 - [Insecure Default Secret Key]
+**Vulnerability:** The `Settings` class defined `secret_key` and `admin_password` as optional fields defaulting to `None`. In production, if these environment variables were missing, the application would start with `None` values, leading to predictable session tokens (`str(None)` -> `"None"`) and allowing full authentication bypass.
+**Learning:** Default values in configuration schemas can mask missing critical secrets. Using `None` as a default for string fields can lead to unexpected type coercion vulnerabilities. Relying on "dev defaults" without explicit production checks is dangerous.
+**Prevention:** Implemented a Pydantic `model_validator` that enforces strict requirements in production (secrets must be set and strong), while providing explicit, safe defaults (e.g., `"insecure_dev_secret_key"`) in development mode to maintain developer experience without compromising security.
