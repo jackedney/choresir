@@ -59,9 +59,9 @@ class Settings(BaseSettings):
             # In development, set explicit insecure defaults if missing to prevent 'None' issues
             if not self.secret_key:
                 # Use a constant string instead of None to prevent str(None) -> 'None' ambiguity
-                self.secret_key = "insecure_dev_secret_key"  # noqa: S105
+                self.secret_key = "insecure_dev_secret_key"  # noqa: S105 # nosec B105
             if not self.admin_password:
-                self.admin_password = "insecure_dev_admin_password"  # noqa: S105
+                self.admin_password = "insecure_dev_admin_password"  # noqa: S105 # nosec B105
 
         return self
 
