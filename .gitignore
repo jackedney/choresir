@@ -1,82 +1,29 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
+dist/
+build/
 *.egg
 
-# Virtual Environments
+# Virtual environments
 .venv/
-venv/
-ENV/
-env/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-*.bak
-
-# MCP Servers
-.serena/
-
-# Environment Variables
-.env
-.env.local
-.env.*.local
-
-# SQLite data files
-data/*.db
-
-# SQLite data directory
-data/
+# uv
+uv.lock
 
 # Testing
 .pytest_cache/
-.coverage
+.mutmut-cache/
 htmlcov/
-*.cover
+.coverage
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
-
-# Process IDs
-*.pid
-
-# uv
-.uv_cache/
-
-# Node
-node_modules/
-package-lock.json
-
-# AI/Agent Tool Directories
-.claude/
-.opencode/
-.ralph/
-.agents/
-
-# Architecture Decision Records
-docs/adr/
-site/adr/

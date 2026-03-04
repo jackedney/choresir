@@ -1,128 +1,96 @@
 [project]
 name = "choresir"
 version = "0.1.0"
-description = "Household Operating System living in WhatsApp"
+description = "chore agent"
+requires-python = ">=3.13"
+
+license = "MIT"
+
+
+authors = [
+    { name = "Jack Edney", email = "jack.edney@outlook.com" },
+]
+
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-    "fastapi[standard]>=0.115.0",
-    "pydantic>=2.10.0",
-    "pydantic-ai-slim[openrouter]>=1.56.0",
-    "python-dotenv>=1.0.0",
-    "apscheduler>=3.10.0",
-    "croniter>=3.0.0",
-
-    "httpx>=0.28.0",
-    "aiosqlite>=0.22.0",
-    "python-dateutil>=2.9.0.post0",
-    "mkdocs>=1.6.1",
-    "mkdocs-material>=9.7.1",
-    "jinja2>=3.1.6",
-    "python-multipart>=0.0.21",
-    "itsdangerous>=2.2.0",
-    "openai>=2.17.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "ruff>=0.8.0",
-    "pytest>=8.3.0",
-    "pytest-asyncio>=0.24.0",
-    "ty>=0.0.12",
-]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
-
-[tool.ruff]
-line-length = 120
-target-version = "py312"
-
-[tool.ruff.lint]
-select = [
-    "E",      # pycodestyle errors
-    "W",      # pycodestyle warnings
-    "F",      # pyflakes
-    "I",      # isort (import sorting)
-    "UP",     # pyupgrade
-    "B",      # flake8-bugbear
-    "C90",    # mccabe complexity
-    "N",      # pep8-naming
-    "ANN",    # flake8-annotations
-    "ASYNC",  # flake8-async
-    "S",      # flake8-bandit (security)
-    "COM",    # flake8-commas (trailing commas)
-    "T20",    # flake8-print
-    "RET",    # flake8-return
-    "SIM",    # flake8-simplify
-    "ARG",    # flake8-unused-arguments
-    "PTH",    # flake8-use-pathlib
-    "ERA",    # eradicate (commented-out code)
-    "PL",     # pylint
-    "RUF",    # ruff-specific rules
-]
-ignore = [
-    "COM812",  # Trailing comma missing (conflicts with formatter)
-    "S101",    # Use of assert (allowed in tests)
-]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = [
-    "S101",    # Allow assert in tests
-    "S106",    # Allow hardcoded passwords in tests
-    "S105",    # Allow hardcoded passwords in tests
-    "S603",    # Allow subprocess calls in tests
-    "S110",    # Allow try-except-pass in tests
-    "ANN",     # Don't require type annotations in tests
-    "ARG",     # Allow unused arguments in test fixtures
-    "PLR2004", # Allow magic values in tests
-    "PLR0913", # Allow many arguments in test functions (common with mocks)
-]
-"src/interface/admin_router.py" = [
-    "PLR2004", # Allow magic values for validation constants (min/max lengths)
-]
-"src/interface/webhook.py" = [
-    "PLC0415", # Allow local imports to avoid circular dependencies
-    "C901",    # Allow complex functions (webhook processing logic)
-    "PLR0911", # Allow multiple return statements in webhook handlers
-]
-"src/agents/agent_instance.py" = [
-    "PLC0415", # Allow imports inside functions to avoid circular imports
-]
-"src/modules/**/*.py" = [
-    "PLC0415", # Allow imports inside functions to avoid circular dependencies
-]
-
-[tool.ruff.lint.isort]
-force-single-line = false
-lines-after-imports = 2
-known-first-party = ["choresir"]
-combine-as-imports = true
-split-on-trailing-comma = true
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-markers = [
-    "unit: Unit tests (no external dependencies)",
-    "integration: Integration tests",
-]
+packages = ["src/choresir"]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.2",
-    "pytest-asyncio>=1.3.0",
+    "poethepoet>=0.32",
+    "pytest>=8.0",
+    "hypothesis>=6.0",
+    "mutmut>=3.0",
+    "ruff>=0.15",
+    "ty>=0.0.17",
+    "bandit[toml]>=1.9",
+    "vulture>=2.14",
+    "complexipy>=5.0",
+    "pre-commit>=4.0",
 ]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["I", "E", "F", "W", "UP", "B", "SIM", "N"]
+
+[tool.ty.environment]
+python-version = "3.13"
+root = ["src"]
+
+[tool.ty.rules]
+all = "warn"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+strict = true
+xfail_strict = true
+
+[tool.mutmut]
+paths_to_mutate = "src/choresir/"
+tests_dir = "tests/"
+
+[tool.bandit]
+targets = ["src"]
+
+[tool.vulture]
+paths = ["src"]
+min_confidence = 80
+
+[tool.poe.tasks]
+install = { cmd = "uv sync", help = "Install dependencies" }
+fmt = { cmd = "uv run ruff format src/ tests/", help = "Format code" }
+security = { cmd = "uv run bandit -c pyproject.toml -r src/", help = "Run security checks only" }
+test = { cmd = "uv run pytest", help = "Run tests" }
+test-mut = { cmd = "uv run mutmut run", help = "Run mutation testing" }
+check = { sequence = ["lint", "test"], help = "Run all quality checks" }
+
+[tool.poe.tasks.lint]
+help = "Run all linters"
+
+[[tool.poe.tasks.lint.sequence]]
+cmd = "uv run ruff check src/ tests/"
+
+[[tool.poe.tasks.lint.sequence]]
+cmd = "uv run ty check"
+
+[[tool.poe.tasks.lint.sequence]]
+cmd = "uv run bandit -c pyproject.toml -r src/"
+
+[[tool.poe.tasks.lint.sequence]]
+cmd = "uv run vulture src/"
+
+[[tool.poe.tasks.lint.sequence]]
+cmd = "uv run complexipy src/"
+
+[tool.prothon.ci]
+auto_version = true
