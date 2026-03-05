@@ -57,6 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         deps = AgentDeps(
                             task_service=task_service,
                             member_service=member_service,
+                            sender_id=job.sender_id,
                         )
                         result = await agent.run(job.body, deps=deps)
                         await sender.send(job.group_id, result.output)

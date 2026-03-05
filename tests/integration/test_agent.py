@@ -47,6 +47,8 @@ async def test_agent_has_all_tools_registered(settings):
         "get_stats",
         "get_leaderboard",
         "get_overdue_tasks",
+        "check_member_status",
+        "register_name",
     ]
 
     for expected in expected_tools:
@@ -60,7 +62,9 @@ async def test_create_task_success(session, test_model, test_usage, fake_sender)
     member = await member_svc.activate("test@c.us", "Test User")
 
     task_svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
-    deps = AgentDeps(task_service=task_svc, member_service=member_svc)
+    deps = AgentDeps(
+        task_service=task_svc, member_service=member_svc, sender_id="test@c.us"
+    )
     ctx = RunContext(
         deps=deps,
         model=test_model,
@@ -94,7 +98,9 @@ async def test_complete_task_success(session, test_model, test_usage, fake_sende
     )
     await session.commit()
 
-    deps = AgentDeps(task_service=task_svc, member_service=member_svc)
+    deps = AgentDeps(
+        task_service=task_svc, member_service=member_svc, sender_id="test@c.us"
+    )
     ctx = RunContext(
         deps=deps,
         model=test_model,
@@ -117,7 +123,9 @@ async def test_complete_task_not_found(session, test_model, test_usage, fake_sen
     member = await member_svc.activate("test@c.us", "Test User")
 
     task_svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
-    deps = AgentDeps(task_service=task_svc, member_service=member_svc)
+    deps = AgentDeps(
+        task_service=task_svc, member_service=member_svc, sender_id="test@c.us"
+    )
     ctx = RunContext(
         deps=deps,
         model=test_model,
@@ -136,7 +144,9 @@ async def test_complete_task_not_found(session, test_model, test_usage, fake_sen
 async def test_list_tasks_empty(session, test_model, test_usage, fake_sender):
     task_svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
     member_svc = MemberService(session)
-    deps = AgentDeps(task_service=task_svc, member_service=member_svc)
+    deps = AgentDeps(
+        task_service=task_svc, member_service=member_svc, sender_id="test@c.us"
+    )
     ctx = RunContext(
         deps=deps,
         model=test_model,
@@ -163,7 +173,9 @@ async def test_list_tasks_with_tasks(session, test_model, test_usage, fake_sende
     await task_svc.create_task(title="Task 2", assignee_id=member.id)
     await session.commit()
 
-    deps = AgentDeps(task_service=task_svc, member_service=member_svc)
+    deps = AgentDeps(
+        task_service=task_svc, member_service=member_svc, sender_id="test@c.us"
+    )
     ctx = RunContext(
         deps=deps,
         model=test_model,

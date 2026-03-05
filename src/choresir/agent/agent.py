@@ -21,6 +21,7 @@ class AgentDeps:
 
     task_service: TaskService
     member_service: MemberService
+    sender_id: str
 
 
 def create_agent(settings: Settings) -> Agent[AgentDeps, str]:
@@ -35,15 +36,12 @@ def create_agent(settings: Settings) -> Agent[AgentDeps, str]:
     async def _household_ctx(ctx: RunContext[AgentDeps]) -> str:
         members = await ctx.deps.member_service.list_active()
         tasks = await ctx.deps.task_service.list_tasks()
-        parts = []
+        parts = [f"Sender WhatsApp ID: {ctx.deps.sender_id}"]
         if members:
             lines = [f"- {m.name} (ID {m.id})" for m in members]
             parts.append("Active members:\n" + "\n".join(lines))
         if tasks:
-            lines = [
-                f"- [{t.status.value}] {t.title} (ID {t.id})"
-                for t in tasks
-            ]
+            lines = [f"- [{t.status.value}] {t.title} (ID {t.id})" for t in tasks]
             parts.append("Current tasks:\n" + "\n".join(lines))
         return "\n\n".join(parts) if parts else ""
 
