@@ -17,6 +17,9 @@ WhatsApp Group Chat
         +-- Webhook Handler --> SQLite Job Queue --> Message Worker(s)
         |                                               |
         |                                               v
+        |                                         [PydanticAI Agent]
+        |                                               |
+        |                                               v
         |                                         [LiteLLM + OpenRouter]
         |                                               |
         |                                               v
@@ -44,8 +47,8 @@ Receives incoming WhatsApp messages from WAHA, validates webhook authenticity, i
 **SQLite Job Queue + Message Workers** (SPEC reqs 2, 3, 4, 28)
 Durable message processing pipeline. Deduplicates via primary key, enforces per-user rate limits, retries with exponential backoff on AI unavailability. Workers run as background coroutines in the FastAPI lifespan.
 
-**LLM Layer** (SPEC reqs 1, 6-17)
-Processes natural language messages via LiteLLM calling OpenRouter. Extracts intent and executes structured tool calls for task management operations (create, complete, verify, reassign, delete).
+**AI Agent Layer** (SPEC reqs 1, 6-17)
+A PydanticAI agent processes natural language messages. The agent is configured with a dynamic system prompt (base template from disk + household context from DB at runtime) and typed tool functions for task management operations (create, complete, verify, reassign, delete). PydanticAI handles tool schema generation, structured output validation, and conversation flow. LiteLLM provides the provider abstraction to route requests through OpenRouter.
 
 **Task Management Core** (SPEC reqs 6-17)
 Domain logic for tasks, verification, recurrence, completion history, and takeovers. Accessed by the LLM layer via tool functions and by the scheduler for recurring task resets.
@@ -64,10 +67,10 @@ Detects new members joining the WhatsApp group via WAHA webhooks, registers them
 1. User sends message in WhatsApp group
 2. WAHA receives it and POSTs webhook to FastAPI
 3. Webhook handler validates signature, inserts job into `message_jobs` table, returns 200
-4. Message worker claims the job, applies rate limiting, sends message to LiteLLM
-5. LLM returns tool calls (e.g., `create_task`, `complete_task`)
-6. Tool execution layer runs the operation against SQLite via SQLModel
-7. Response is sent back to the WhatsApp group via WAHA HTTP API
+4. Message worker claims the job, applies rate limiting, invokes the PydanticAI agent
+5. Agent assembles system prompt (base template + household context from DB), sends to LLM via LiteLLM/OpenRouter
+6. LLM returns tool calls (e.g., `create_task`, `complete_task`); PydanticAI executes them and validates outputs
+7. Agent returns final response, sent back to the WhatsApp group via WAHA HTTP API
 
 ### Deployment
 
@@ -83,7 +86,8 @@ Single SQLite database file shared across all components within the choresir con
 |---------|---------|-------------------|------------------------|
 | FastAPI | HTTP framework, ASGI server | Reqs 1, 2, 5, 29 (webhook handling) | Litestar, Flask |
 | WAHA | WhatsApp integration (self-hosted) | Reqs 1, 18 (messaging interface) | Meta Cloud API, Twilio, Baileys |
-| LiteLLM | LLM SDK (provider-agnostic) | Reqs 1, 6-17, 28 (NL processing, retry/fallback) | anthropic SDK, openai SDK |
+| PydanticAI | AI agent framework (tools, structured output, prompts) | Reqs 1, 6-17 (agent orchestration, tool calling, validation) | LangChain, raw LiteLLM, manual tool parsing |
+| LiteLLM | LLM provider abstraction (via PydanticAI) | Req 28 (provider-agnostic, retry/fallback) | anthropic SDK, openai SDK |
 | OpenRouter | LLM provider | Reqs 1, 6-17 (AI model access) | Anthropic direct, OpenAI direct, Ollama |
 | SQLModel | ORM (Pydantic + SQLAlchemy) | Req constraint 2 (SQLite data store) | SQLAlchemy, Tortoise ORM, Peewee |
 | Alembic | Database migrations | Req constraint 2 (schema management) | Tortoise Aerich, manual SQL |
@@ -113,13 +117,16 @@ The application sends messages back to WhatsApp via WAHA's REST API.
 - **Send message**: `POST /api/sendText` with session, chatId, text
 - **Authentication**: WAHA API key in header
 
-### LLM Tool Interface
+### AI Agent Interface
 
-LiteLLM calls OpenRouter with a set of tool definitions. The LLM returns structured tool calls that the application executes.
+A PydanticAI agent handles all LLM interaction. LiteLLM routes requests through OpenRouter.
 
-- **Tools defined as**: JSON schema function definitions passed to `litellm.completion()`
+- **Agent definition**: `pydantic_ai.Agent` with typed tool functions and structured output models
+- **System prompt**: Hybrid — base template loaded from disk + dynamic household context (member names, roles, active tasks) assembled from DB per request via `@agent.system_prompt` decorator
+- **Tools defined as**: Decorated Python functions with type-annotated parameters; PydanticAI auto-generates JSON schemas
 - **Tool categories**: Task CRUD, verification, assignment, analytics queries
-- **Response format**: Tool call results fed back to LLM for natural language response generation
+- **Structured output**: Pydantic models validate LLM responses; auto-retry on malformed output
+- **Response flow**: Agent runs tool calls, feeds results back to LLM, returns validated natural language response
 
 ### Admin Interface
 
@@ -155,7 +162,10 @@ APScheduler jobs query the database for relevant data and send messages via WAHA
 |----------|--------|------------------------|-----------|
 | Application framework | FastAPI | Litestar, Flask | Largest async Python ecosystem, native Starlette ASGI, best integration story with SQLModel and tooling |
 | WhatsApp integration | WAHA (self-hosted) | Meta Cloud API, Twilio, Baileys | Fully self-hosted (constraint 4), REST API, free, group chat support, Docker deployment |
-| LLM approach | LiteLLM + OpenRouter | Direct provider SDKs, Ollama | Provider-agnostic with unified tool calling, easy model switching, built-in retry/fallback |
+| AI agent framework | PydanticAI | LangChain, raw LiteLLM, manual parsing | Type-safe tools via decorators, structured output validation, dynamic prompts, same ecosystem as FastAPI/SQLModel |
+| LLM provider abstraction | LiteLLM (via PydanticAI) | Direct provider SDKs | Provider-agnostic, easy model switching, built-in retry/fallback |
+| LLM provider | OpenRouter | Anthropic direct, OpenAI direct, Ollama | Single API key for all models, unified billing |
+| System prompt management | Hybrid (disk template + DB context) | Hardcoded strings, fully DB-stored | Base prompt is version-controlled and testable; dynamic context keeps agent aware of current household state |
 | Database layer | SQLModel + Alembic | SQLAlchemy, Tortoise, Peewee, raw SQL | Pydantic + SQLAlchemy in one model class, native FastAPI fit, minimal boilerplate |
 | Task scheduling | APScheduler v4 | Celery, arq, Huey, manual asyncio | Native async cron triggers, zero external deps, single-process compatible |
 | Admin interface | FastHTML | SQLAdmin, Starlette Admin, React SPA | Pure Python (no JS/templates), full control over custom pages like WAHA session setup |
