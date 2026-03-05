@@ -9,7 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, func, select
 
 from choresir.enums import TaskStatus, TaskVisibility, VerificationMode
-from choresir.errors import AuthorizationError, InvalidTransitionError, NotFoundError
+from choresir.errors import (
+    AuthorizationError,
+    InvalidTransitionError,
+    NotFoundError,
+)
 from choresir.models.task import CompletionHistory, Task
 
 _VALID_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
@@ -25,22 +29,20 @@ def transition_task(task: Task, to: TaskStatus) -> None:
     task.status = to
 
 
-def _calculate_next_deadline(current_deadline: datetime, recurrence: str) -> datetime:
-    """Advance deadline by the recurrence interval, anchored to the schedule."""
+def _next_deadline(current: datetime, recurrence: str) -> datetime:
+    """Advance deadline by the recurrence interval."""
     match recurrence:
         case "daily":
-            return current_deadline + timedelta(days=1)
+            return current + timedelta(days=1)
         case "weekly":
-            return current_deadline + timedelta(weeks=1)
+            return current + timedelta(weeks=1)
         case "monthly":
-            year = current_deadline.year + (current_deadline.month // 12)
-            month = (current_deadline.month % 12) + 1
-            max_day = calendar.monthrange(year, month)[1]
-            day = min(current_deadline.day, max_day)
-            return current_deadline.replace(year=year, month=month, day=day)
+            y = current.year + (current.month // 12)
+            m = (current.month % 12) + 1
+            d = min(current.day, calendar.monthrange(y, m)[1])
+            return current.replace(year=y, month=m, day=d)
         case _:
-            msg = f"Unsupported recurrence schedule: {recurrence}"
-            raise ValueError(msg)
+            raise ValueError(f"Unsupported recurrence: {recurrence}")
 
 
 class TaskService:
@@ -48,6 +50,18 @@ class TaskService:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def _pending_history(self, task_id: int) -> CompletionHistory | None:
+        """Return the latest unverified completion history entry."""
+        result = await self._session.exec(
+            select(CompletionHistory)
+            .where(
+                CompletionHistory.task_id == task_id,
+                col(CompletionHistory.verified_at).is_(None),
+            )
+            .order_by(col(CompletionHistory.completed_at).desc())
+        )
+        return result.first()
 
     async def create_task(
         self,
@@ -85,30 +99,31 @@ class TaskService:
         return task
 
     async def claim_completion(self, task_id: int, member_id: int) -> Task:
-        """Claim a task as completed. Skips to VERIFIED when no verification needed."""
+        """Claim completion. Skips to VERIFIED if no verification needed."""
         task = await self.get_task(task_id)
-
+        now = datetime.now(UTC)
         if task.verification_mode == VerificationMode.NONE:
             transition_task(task, TaskStatus.CLAIMED)
             transition_task(task, TaskStatus.VERIFIED)
-            history = CompletionHistory(
-                task_id=task.id,  # type: ignore[arg-type]
-                completed_by_id=member_id,
-                completed_at=datetime.now(UTC),
-                verified_at=datetime.now(UTC),
+            self._session.add(
+                CompletionHistory(
+                    task_id=task.id,  # type: ignore[arg-type]
+                    completed_by_id=member_id,
+                    completed_at=now,
+                    verified_at=now,
+                )
             )
-            self._session.add(history)
             self._handle_recurrence_reset(task)
         else:
             transition_task(task, TaskStatus.CLAIMED)
-            history = CompletionHistory(
-                task_id=task.id,  # type: ignore[arg-type]
-                completed_by_id=member_id,
-                completed_at=datetime.now(UTC),
+            self._session.add(
+                CompletionHistory(
+                    task_id=task.id,  # type: ignore[arg-type]
+                    completed_by_id=member_id,
+                    completed_at=now,
+                )
             )
-            self._session.add(history)
-
-        task.updated_at = datetime.now(UTC)
+        task.updated_at = now
         self._session.add(task)
         await self._session.commit()
         await self._session.refresh(task)
@@ -122,29 +137,14 @@ class TaskService:
     ) -> Task:
         """Verify a claimed task, rejecting self-verification."""
         task = await self.get_task(task_id)
-
         if task.status != TaskStatus.CLAIMED:
             raise InvalidTransitionError(task.status, TaskStatus.VERIFIED)
 
-        # Find who claimed (latest unverified history, or use assignee as fallback)
-        result = await self._session.exec(
-            select(CompletionHistory)
-            .where(
-                CompletionHistory.task_id == task_id,
-                col(CompletionHistory.verified_at).is_(None),
-            )
-            .order_by(col(CompletionHistory.completed_at).desc())
-        )
-        pending_history = result.first()
-
-        # Determine the claimant: from pending history or infer from context
-        claimant_id: int | None = (
-            pending_history.completed_by_id if pending_history else None
-        )
+        pending = await self._pending_history(task_id)
+        claimant_id = pending.completed_by_id if pending else None
 
         if verifier_id == claimant_id:
             raise AuthorizationError("Cannot verify your own completion claim")
-
         if (
             task.verification_mode == VerificationMode.PARTNER
             and verifier_id != task.partner_id
@@ -152,26 +152,24 @@ class TaskService:
             raise AuthorizationError("Only the designated partner can verify this task")
 
         transition_task(task, TaskStatus.VERIFIED)
-
         now = datetime.now(UTC)
-        if pending_history:
-            pending_history.verified_by_id = verifier_id
-            pending_history.verified_at = now
-            pending_history.feedback = feedback
-            self._session.add(pending_history)
+        if pending:
+            pending.verified_by_id = verifier_id
+            pending.verified_at = now
+            pending.feedback = feedback
+            self._session.add(pending)
         else:
-            history = CompletionHistory(
-                task_id=task.id,  # type: ignore[arg-type]
-                completed_by_id=task.assignee_id,
-                verified_by_id=verifier_id,
-                feedback=feedback,
-                completed_at=now,
-                verified_at=now,
+            self._session.add(
+                CompletionHistory(
+                    task_id=task.id,  # type: ignore[arg-type]
+                    completed_by_id=task.assignee_id,
+                    verified_by_id=verifier_id,
+                    feedback=feedback,
+                    completed_at=now,
+                    verified_at=now,
+                )
             )
-            self._session.add(history)
-
         self._handle_recurrence_reset(task)
-
         task.updated_at = now
         self._session.add(task)
         await self._session.commit()
@@ -179,36 +177,19 @@ class TaskService:
         return task
 
     async def reject_completion(self, task_id: int, verifier_id: int) -> Task:
-        """Reject a completion claim, returning the task to PENDING."""
+        """Reject a completion claim, returning task to PENDING."""
         task = await self.get_task(task_id)
-
         if task.status != TaskStatus.CLAIMED:
             raise InvalidTransitionError(task.status, TaskStatus.PENDING)
 
-        # Find the claimant to prevent self-rejection
-        result = await self._session.exec(
-            select(CompletionHistory)
-            .where(
-                CompletionHistory.task_id == task_id,
-                col(CompletionHistory.verified_at).is_(None),
-            )
-            .order_by(col(CompletionHistory.completed_at).desc())
-        )
-        pending_history = result.first()
-
-        claimant_id: int | None = (
-            pending_history.completed_by_id if pending_history else None
-        )
-
+        pending = await self._pending_history(task_id)
+        claimant_id = pending.completed_by_id if pending else None
         if verifier_id == claimant_id:
             raise AuthorizationError("Cannot reject your own completion claim")
 
         transition_task(task, TaskStatus.PENDING)
-
-        # Remove the unverified history entry
-        if pending_history:
-            await self._session.delete(pending_history)
-
+        if pending:
+            await self._session.delete(pending)
         task.updated_at = datetime.now(UTC)
         self._session.add(task)
         await self._session.commit()
@@ -236,20 +217,17 @@ class TaskService:
         return task
 
     async def approve_deletion(self, task_id: int, approver_id: int) -> None:
-        """Approve and execute task deletion. Approver must differ from requester."""
+        """Approve and delete. Approver must differ from requester."""
         task = await self.get_task(task_id)
-
         if task.deletion_requested_by is None:
-            raise AuthorizationError("No deletion request pending for this task")
-
+            raise AuthorizationError("No deletion request pending")
         if approver_id == task.deletion_requested_by:
             raise AuthorizationError("Cannot approve your own deletion request")
-
         await self._session.delete(task)
         await self._session.commit()
 
     async def list_tasks(self, member_id: int | None = None) -> list[Task]:
-        """List tasks, respecting visibility rules when scoped to a member."""
+        """List tasks, respecting visibility for a given member."""
         if member_id is not None:
             stmt = select(Task).where(
                 (Task.visibility == TaskVisibility.SHARED)
@@ -261,7 +239,7 @@ class TaskService:
         return list(result.all())
 
     async def get_overdue(self) -> list[Task]:
-        """Return tasks past their deadline that are not yet verified."""
+        """Return tasks past deadline that are not yet verified."""
         now = datetime.now(UTC)
         stmt = select(Task).where(
             Task.status != TaskStatus.VERIFIED,
@@ -273,22 +251,18 @@ class TaskService:
 
     async def get_stats(self, member_id: int) -> dict:
         """Return completion count and rank for a member."""
-        # Count completions for the target member
         count_result = await self._session.exec(
             select(func.count())
             .select_from(CompletionHistory)
             .where(CompletionHistory.completed_by_id == member_id)
         )
         completion_count: int = count_result.one()
-
-        # Get all members' counts for ranking
         leaderboard = await self.get_leaderboard()
         rank = 1
         for entry in leaderboard:
             if entry["member_id"] == member_id:
                 rank = entry["rank"]
                 break
-
         return {
             "member_id": member_id,
             "completion_count": completion_count,
@@ -309,25 +283,17 @@ class TaskService:
             )
         )
         result = await self._session.exec(stmt)
-        rows = result.all()
-
-        leaderboard: list[dict] = []
-        for rank, row in enumerate(rows, start=1):
-            leaderboard.append(
-                {
-                    "rank": rank,
-                    "member_id": row[0],
-                    "completion_count": row[1],
-                }
-            )
-        return leaderboard
+        return [
+            {"rank": i, "member_id": r[0], "completion_count": r[1]}
+            for i, r in enumerate(result.all(), start=1)
+        ]
 
     async def count_weekly_takeovers(self, member_id: int) -> int:
-        """Count completions this week where the completer is not the task assignee."""
+        """Count completions this week where completer != assignee."""
         now = datetime.now(UTC)
-        week_start = now - timedelta(days=now.weekday())
-        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-
+        week_start = (now - timedelta(days=now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         stmt = (
             select(func.count())
             .select_from(CompletionHistory)
@@ -342,18 +308,11 @@ class TaskService:
         return result.one()
 
     def _handle_recurrence_reset(self, task: Task) -> None:
-        """Reset a recurring task to PENDING with the next scheduled deadline."""
+        """Reset a recurring task to PENDING with next deadline."""
         if task.recurrence is None:
             return
-
-        if task.next_deadline is not None:
-            task.next_deadline = _calculate_next_deadline(
-                task.next_deadline, task.recurrence
-            )
-        elif task.deadline is not None:
-            task.next_deadline = _calculate_next_deadline(
-                task.deadline, task.recurrence
-            )
-
+        anchor = task.next_deadline or task.deadline
+        if anchor is not None:
+            task.next_deadline = _next_deadline(anchor, task.recurrence)
         task.deadline = task.next_deadline
         task.status = TaskStatus.PENDING
