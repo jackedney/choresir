@@ -1,0 +1,108 @@
+"""Task CRUD tools for the AI agent."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic_ai import RunContext
+
+from choresir.agent.registry import registry
+from choresir.errors import AuthorizationError, NotFoundError
+
+_DOMAIN_ERRORS = (NotFoundError, AuthorizationError)
+
+
+@registry.register
+async def create_task(
+    ctx: RunContext,  # type: ignore[type-arg]
+    title: str,
+    assignee_id: int,
+    description: str | None = None,
+    deadline: str | None = None,
+    recurrence: str | None = None,
+    verification_mode: str = "none",
+    visibility: str = "shared",
+    partner_id: int | None = None,
+) -> str:
+    """Create a new household task."""
+    from choresir.enums import TaskVisibility, VerificationMode
+
+    try:
+        dl = datetime.fromisoformat(deadline) if deadline else None
+        task = await ctx.deps.task_service.create_task(
+            title=title,
+            assignee_id=assignee_id,
+            description=description,
+            deadline=dl,
+            recurrence=recurrence,
+            verification_mode=VerificationMode(verification_mode),
+            visibility=TaskVisibility(visibility),
+            partner_id=partner_id,
+        )
+        return f"Task '{task.title}' (ID {task.id}) created."
+    except (*_DOMAIN_ERRORS, ValueError) as e:
+        return str(e)
+
+
+@registry.register
+async def reassign_task(
+    ctx: RunContext,  # type: ignore[type-arg]
+    task_id: int,
+    new_assignee_id: int,
+) -> str:
+    """Reassign a task to a different household member."""
+    try:
+        task = await ctx.deps.task_service.reassign(
+            task_id, new_assignee_id
+        )
+        return f"Task '{task.title}' reassigned to member {new_assignee_id}."
+    except _DOMAIN_ERRORS as e:
+        return str(e)
+
+
+@registry.register
+async def delete_task(
+    ctx: RunContext,  # type: ignore[type-arg]
+    task_id: int,
+    requester_id: int,
+) -> str:
+    """Request task deletion. Requires another member's approval."""
+    try:
+        task = await ctx.deps.task_service.request_deletion(
+            task_id, requester_id
+        )
+        return f"Deletion requested for '{task.title}'. Needs approval."
+    except _DOMAIN_ERRORS as e:
+        return str(e)
+
+
+@registry.register
+async def approve_deletion(
+    ctx: RunContext,  # type: ignore[type-arg]
+    task_id: int,
+    approver_id: int,
+) -> str:
+    """Approve a pending task deletion request."""
+    try:
+        await ctx.deps.task_service.approve_deletion(
+            task_id, approver_id
+        )
+        return f"Task {task_id} deleted."
+    except _DOMAIN_ERRORS as e:
+        return str(e)
+
+
+@registry.register
+async def list_tasks(
+    ctx: RunContext,  # type: ignore[type-arg]
+    member_id: int | None = None,
+) -> str:
+    """List tasks visible to a member, or all tasks."""
+    tasks = await ctx.deps.task_service.list_tasks(member_id)
+    if not tasks:
+        return "No tasks found."
+    lines = []
+    for t in tasks:
+        dl = f", due: {t.deadline.isoformat()}" if t.deadline else ""
+        lines.append(f"- [{t.status.value}] {t.title} (ID {t.id}{dl})")
+    return "\n".join(lines)
