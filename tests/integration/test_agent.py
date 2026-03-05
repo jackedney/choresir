@@ -59,7 +59,7 @@ async def test_create_task_success(session, test_model, test_usage):
     member = await member_svc.register_pending("test@c.us")
     member = await member_svc.activate("test@c.us", "Test User")
 
-    task_svc = TaskService(session)
+    task_svc = TaskService(session, max_takeovers_per_week=3)
     deps = AgentDeps(task_service=task_svc, member_service=member_svc)
     ctx = RunContext(
         deps=deps,
@@ -86,7 +86,7 @@ async def test_complete_task_success(session, test_model, test_usage):
     member = await member_svc.register_pending("test@c.us")
     member = await member_svc.activate("test@c.us", "Test User")
 
-    task_svc = TaskService(session)
+    task_svc = TaskService(session, max_takeovers_per_week=3)
 
     task = await task_svc.create_task(
         title="Task to complete",
@@ -116,7 +116,7 @@ async def test_complete_task_not_found(session, test_model, test_usage):
     member = await member_svc.register_pending("test@c.us")
     member = await member_svc.activate("test@c.us", "Test User")
 
-    task_svc = TaskService(session)
+    task_svc = TaskService(session, max_takeovers_per_week=3)
     deps = AgentDeps(task_service=task_svc, member_service=member_svc)
     ctx = RunContext(
         deps=deps,
@@ -134,7 +134,7 @@ async def test_complete_task_not_found(session, test_model, test_usage):
 
 @pytest.mark.anyio
 async def test_list_tasks_empty(session, test_model, test_usage):
-    task_svc = TaskService(session)
+    task_svc = TaskService(session, max_takeovers_per_week=3)
     member_svc = MemberService(session)
     deps = AgentDeps(task_service=task_svc, member_service=member_svc)
     ctx = RunContext(
@@ -157,7 +157,7 @@ async def test_list_tasks_with_tasks(session, test_model, test_usage):
     member = await member_svc.register_pending("test@c.us")
     member = await member_svc.activate("test@c.us", "Test User")
 
-    task_svc = TaskService(session)
+    task_svc = TaskService(session, max_takeovers_per_week=3)
 
     await task_svc.create_task(title="Task 1", assignee_id=member.id)
     await task_svc.create_task(title="Task 2", assignee_id=member.id)

@@ -32,9 +32,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        async with httpx.AsyncClient(
-            base_url=settings.waha_url, timeout=10.0
-        ) as http:
+        async with httpx.AsyncClient(base_url=settings.waha_url, timeout=10.0) as http:
             sender = WAHAClient(
                 settings.waha_url,
                 settings.waha_api_key,
@@ -52,7 +50,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
                 async def process_message(job: MessageJob) -> None:
                     async with session_factory() as session:
-                        task_service = TaskService(session)
+                        task_service = TaskService(
+                            session, settings.max_takeovers_per_week
+                        )
                         member_service = MemberService(session)
                         deps = AgentDeps(
                             task_service=task_service,

@@ -9,9 +9,15 @@ from choresir.errors import (
     AuthorizationError,
     InvalidTransitionError,
     NotFoundError,
+    TakeoverLimitExceededError,
 )
 
-_ERRORS = (NotFoundError, AuthorizationError, InvalidTransitionError)
+_ERRORS = (
+    NotFoundError,
+    AuthorizationError,
+    InvalidTransitionError,
+    TakeoverLimitExceededError,
+)
 
 
 @registry.register
@@ -22,9 +28,7 @@ async def complete_task(
 ) -> str:
     """Mark a task as complete."""
     try:
-        task = await ctx.deps.task_service.claim_completion(
-            task_id, member_id
-        )
+        task = await ctx.deps.task_service.claim_completion(task_id, member_id)
         if task.status.value == "verified":
             return f"Task '{task.title}' completed."
         return f"Task '{task.title}' awaiting verification."
@@ -57,9 +61,7 @@ async def reject_completion(
 ) -> str:
     """Reject a completion claim, returning task to pending."""
     try:
-        task = await ctx.deps.task_service.reject_completion(
-            task_id, verifier_id
-        )
+        task = await ctx.deps.task_service.reject_completion(task_id, verifier_id)
         return f"Task '{task.title}' rejected, back to pending."
     except _ERRORS as e:
         return str(e)

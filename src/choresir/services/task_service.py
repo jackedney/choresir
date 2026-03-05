@@ -13,6 +13,7 @@ from choresir.errors import (
     AuthorizationError,
     InvalidTransitionError,
     NotFoundError,
+    TakeoverLimitExceededError,
 )
 from choresir.models.task import CompletionHistory, Task
 
@@ -48,8 +49,9 @@ def _next_deadline(current: datetime, recurrence: str) -> datetime:
 class TaskService:
     """Task lifecycle: creation, completion, verification."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, max_takeovers_per_week: int) -> None:
         self._session = session
+        self._max_takeovers_per_week = max_takeovers_per_week
 
     async def _pending_history(self, task_id: int) -> CompletionHistory | None:
         """Return the latest unverified completion history entry."""
@@ -101,6 +103,12 @@ class TaskService:
     async def claim_completion(self, task_id: int, member_id: int) -> Task:
         """Claim completion. Skips to VERIFIED if no verification needed."""
         task = await self.get_task(task_id)
+
+        if member_id != task.assignee_id:
+            takeover_count = await self.count_weekly_takeovers(member_id)
+            if takeover_count >= self._max_takeovers_per_week:
+                raise TakeoverLimitExceededError(self._max_takeovers_per_week)
+
         now = datetime.now(UTC)
         if task.verification_mode == VerificationMode.NONE:
             transition_task(task, TaskStatus.CLAIMED)

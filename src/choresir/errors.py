@@ -35,3 +35,11 @@ class RateLimitExceededError(ChoresirError):
 
 class WebhookAuthError(ChoresirError):
     """Invalid webhook signature."""
+
+
+class TakeoverLimitExceededError(ChoresirError):
+    """Weekly takeover limit exceeded."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        super().__init__(f"Weekly takeover limit of {limit} exceeded")

@@ -57,12 +57,8 @@ class TestMemberService:
 
 
 class TestTaskService:
-    async def _create_active_member(
-        self, session, whatsapp_id="member@c.us"
-    ):
-        member = make_member(
-            whatsapp_id=whatsapp_id, status=MemberStatus.ACTIVE
-        )
+    async def _create_active_member(self, session, whatsapp_id="member@c.us"):
+        member = make_member(whatsapp_id=whatsapp_id, status=MemberStatus.ACTIVE)
         session.add(member)
         await session.commit()
         await session.refresh(member)
@@ -71,7 +67,7 @@ class TestTaskService:
     @pytest.mark.anyio
     async def test_create_task(self, session):
         member = await self._create_active_member(session)
-        svc = TaskService(session)
+        svc = TaskService(session, max_takeovers_per_week=3)
         task = await svc.create_task(
             title="Wash dishes",
             assignee_id=member.id,
@@ -81,11 +77,9 @@ class TestTaskService:
         assert task.id is not None
 
     @pytest.mark.anyio
-    async def test_claim_completion_none_mode_goes_to_verified(
-        self, session
-    ):
+    async def test_claim_completion_none_mode_goes_to_verified(self, session):
         member = await self._create_active_member(session)
-        svc = TaskService(session)
+        svc = TaskService(session, max_takeovers_per_week=3)
         task = await svc.create_task(
             title="Quick task",
             assignee_id=member.id,
@@ -95,11 +89,9 @@ class TestTaskService:
         assert result.status == TaskStatus.VERIFIED
 
     @pytest.mark.anyio
-    async def test_claim_completion_peer_mode_stays_claimed(
-        self, session
-    ):
+    async def test_claim_completion_peer_mode_stays_claimed(self, session):
         member = await self._create_active_member(session)
-        svc = TaskService(session)
+        svc = TaskService(session, max_takeovers_per_week=3)
         task = await svc.create_task(
             title="Peer task",
             assignee_id=member.id,
@@ -111,10 +103,8 @@ class TestTaskService:
     @pytest.mark.anyio
     async def test_verify_completion(self, session):
         member = await self._create_active_member(session)
-        verifier = await self._create_active_member(
-            session, "verifier@c.us"
-        )
-        svc = TaskService(session)
+        verifier = await self._create_active_member(session, "verifier@c.us")
+        svc = TaskService(session, max_takeovers_per_week=3)
         task = await svc.create_task(
             title="Verified task",
             assignee_id=member.id,
@@ -127,25 +117,21 @@ class TestTaskService:
     @pytest.mark.anyio
     async def test_self_verification_raises(self, session):
         member = await self._create_active_member(session)
-        svc = TaskService(session)
+        svc = TaskService(session, max_takeovers_per_week=3)
         task = await svc.create_task(
             title="Self-verify attempt",
             assignee_id=member.id,
             verification_mode=VerificationMode.PEER,
         )
         await svc.claim_completion(task.id, member.id)
-        with pytest.raises(
-            AuthorizationError, match="Cannot verify your own"
-        ):
+        with pytest.raises(AuthorizationError, match="Cannot verify your own"):
             await svc.verify_completion(task.id, member.id)
 
     @pytest.mark.anyio
     async def test_reject_completion(self, session):
         member = await self._create_active_member(session)
-        verifier = await self._create_active_member(
-            session, "verifier@c.us"
-        )
-        svc = TaskService(session)
+        verifier = await self._create_active_member(session, "verifier@c.us")
+        svc = TaskService(session, max_takeovers_per_week=3)
         task = await svc.create_task(
             title="Reject me",
             assignee_id=member.id,
@@ -158,10 +144,8 @@ class TestTaskService:
     @pytest.mark.anyio
     async def test_reassign(self, session):
         member = await self._create_active_member(session)
-        new_member = await self._create_active_member(
-            session, "new@c.us"
-        )
-        svc = TaskService(session)
+        new_member = await self._create_active_member(session, "new@c.us")
+        svc = TaskService(session, max_takeovers_per_week=3)
         task = await svc.create_task(
             title="Reassign me",
             assignee_id=member.id,
@@ -171,6 +155,6 @@ class TestTaskService:
 
     @pytest.mark.anyio
     async def test_get_task_not_found(self, session):
-        svc = TaskService(session)
+        svc = TaskService(session, max_takeovers_per_week=3)
         with pytest.raises(NotFoundError):
             await svc.get_task(9999)

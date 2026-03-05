@@ -16,7 +16,7 @@ async def send_daily_summary(
 ) -> None:
     """Query task stats and send a daily activity summary to the group."""
     async with session_factory() as session:
-        svc = TaskService(session)
+        svc = TaskService(session, max_takeovers_per_week=0)
         tasks = await svc.list_tasks()
         overdue = await svc.get_overdue()
         by_status = {s: 0 for s in TaskStatus}
@@ -39,7 +39,7 @@ async def send_weekly_leaderboard(
 ) -> None:
     """Query leaderboard rankings and send a weekly report."""
     async with session_factory() as session:
-        svc = TaskService(session)
+        svc = TaskService(session, max_takeovers_per_week=0)
         board = await svc.get_leaderboard()
         if not board:
             msg = "Weekly Leaderboard\n  No completions yet!"
@@ -61,7 +61,7 @@ async def send_overdue_reminders(
 ) -> None:
     """Query overdue tasks and send a reminder for each."""
     async with session_factory() as session:
-        svc = TaskService(session)
+        svc = TaskService(session, max_takeovers_per_week=0)
         for task in await svc.get_overdue():
             await sender.send(
                 group_chat_id,
@@ -75,7 +75,7 @@ async def reset_recurring_tasks(
 ) -> None:
     """Reset verified recurring tasks that may have been missed."""
     async with session_factory() as session:
-        svc = TaskService(session)
+        svc = TaskService(session, max_takeovers_per_week=0)
         changed = False
         for task in await svc.list_tasks():
             if task.status == TaskStatus.VERIFIED and task.recurrence:
