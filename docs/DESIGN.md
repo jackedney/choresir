@@ -44,8 +44,8 @@ WhatsApp Group Chat
 **Webhook Handler** (SPEC reqs 1, 2, 3, 4, 5, 29)
 Receives incoming WhatsApp messages from WAHA, validates webhook authenticity, inserts into the SQLite job queue for async processing, and returns 200 immediately.
 
-**SQLite Job Queue + Message Workers** (SPEC reqs 2, 3, 4, 28)
-Durable message processing pipeline. Deduplicates via primary key, enforces per-user rate limits, retries with exponential backoff on AI unavailability. Workers run as background coroutines in the FastAPI lifespan.
+**SQLite Job Queue + Message Workers** (SPEC reqs 2, 3, 4, 28, 30)
+Durable message processing pipeline. Deduplicates via primary key, enforces global and per-user rate limits (via aiolimiter — a global AsyncLimiter instance alongside a per-user dict), retries with exponential backoff on AI unavailability. Workers run as background coroutines in the FastAPI lifespan.
 
 **AI Agent Layer** (SPEC reqs 1, 6-17)
 A PydanticAI agent processes natural language messages. The agent is configured with a dynamic system prompt (base template from disk + household context from DB at runtime) and typed tool functions for task management operations (create, complete, verify, reassign, delete). PydanticAI handles tool schema generation, structured output validation, and conversation flow. LiteLLM provides the provider abstraction to route requests through OpenRouter.
@@ -94,7 +94,7 @@ Single SQLite database file shared across all components within the choresir con
 | APScheduler v4 | Task scheduling (async, cron) | Reqs 14, 24, 25, 26, 27 (reminders, reports, recurrence) | Celery, arq, Huey |
 | FastHTML | Admin web interface (pure Python) | Reqs 21, 31 (admin UI, auth, CSRF) | SQLAdmin, Starlette Admin, React SPA |
 | httpx | Async HTTP client (WAHA API calls) | Reqs 1, 25, 26, 27 (outbound messages) | aiohttp, requests |
-| aiolimiter | Per-user async rate limiting | Reqs 4, 30 (rate limits) | Manual token bucket |
+| aiolimiter | Global and per-user async rate limiting | Reqs 4, 30 (rate limits) | Manual token bucket |
 | tenacity | Retry/backoff decorator | Req 28 (AI unavailability handling) | Manual retry loops |
 | aiosqlite | Async SQLite driver | Req constraint 2 (async DB access) | sqlite3 (sync) |
 
