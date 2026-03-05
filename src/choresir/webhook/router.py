@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from choresir.errors import WebhookAuthError
 from choresir.models.job import MessageJob
+from choresir.services.member_service import MemberService
 from choresir.webhook.auth import validate_webhook
 
 
@@ -34,6 +35,13 @@ def create_webhook_router(
 
         # Only process "message" events
         if payload.get("event") != "message":
+            # Handle group.v2.join events for auto-registration
+            if payload.get("event") == "group.v2.join":
+                recipients: list[str] = payload.get("payload", {}).get("recipients", [])
+                async with session_factory() as session:
+                    member_service = MemberService(session)
+                    for whatsapp_id in recipients:
+                        await member_service.register_pending(whatsapp_id)
             return {"status": "ok"}
 
         message = payload.get("payload", {})
