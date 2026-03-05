@@ -1,0 +1,4 @@
+# file: /home/jackedney/Dev/choresir/src/choresir/agent/tools/analytics.py
+# hypothesis_version: 6.151.9
+
+['No overdue tasks.', 'completion_count']

@@ -12,6 +12,10 @@ from choresir.errors import AuthorizationError, NotFoundError
 _DOMAIN_ERRORS = (NotFoundError, AuthorizationError)
 
 
+async def _ensure_active_member(ctx: RunContext, member_id: int) -> None:
+    await ctx.deps.member_service.get_active(member_id)
+
+
 @registry.register
 async def create_task(
     ctx: RunContext,  # type: ignore[type-arg]
@@ -28,6 +32,7 @@ async def create_task(
     from choresir.enums import TaskVisibility, VerificationMode
 
     try:
+        await _ensure_active_member(ctx, assignee_id)
         dl = datetime.fromisoformat(deadline) if deadline else None
         task = await ctx.deps.task_service.create_task(
             title=title,
@@ -52,9 +57,8 @@ async def reassign_task(
 ) -> str:
     """Reassign a task to a different household member."""
     try:
-        task = await ctx.deps.task_service.reassign(
-            task_id, new_assignee_id
-        )
+        await _ensure_active_member(ctx, new_assignee_id)
+        task = await ctx.deps.task_service.reassign(task_id, new_assignee_id)
         return f"Task '{task.title}' reassigned to member {new_assignee_id}."
     except _DOMAIN_ERRORS as e:
         return str(e)
@@ -68,9 +72,8 @@ async def delete_task(
 ) -> str:
     """Request task deletion. Requires another member's approval."""
     try:
-        task = await ctx.deps.task_service.request_deletion(
-            task_id, requester_id
-        )
+        await _ensure_active_member(ctx, requester_id)
+        task = await ctx.deps.task_service.request_deletion(task_id, requester_id)
         return f"Deletion requested for '{task.title}'. Needs approval."
     except _DOMAIN_ERRORS as e:
         return str(e)
@@ -84,9 +87,8 @@ async def approve_deletion(
 ) -> str:
     """Approve a pending task deletion request."""
     try:
-        await ctx.deps.task_service.approve_deletion(
-            task_id, approver_id
-        )
+        await _ensure_active_member(ctx, approver_id)
+        await ctx.deps.task_service.approve_deletion(task_id, approver_id)
         return f"Task {task_id} deleted."
     except _DOMAIN_ERRORS as e:
         return str(e)

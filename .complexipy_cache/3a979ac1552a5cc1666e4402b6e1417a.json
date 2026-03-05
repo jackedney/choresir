@@ -1,0 +1,475 @@
+{
+  "functions": [
+    {
+      "complexity": 0,
+      "file_name": "app.py",
+      "function_name": "create_admin_app",
+      "path": "src/choresir/admin/app.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "app.py",
+      "function_name": "_auth_before",
+      "path": "src/choresir/admin/app.py"
+    },
+    {
+      "complexity": 11,
+      "file_name": "app.py",
+      "function_name": "_csrf_before",
+      "path": "src/choresir/admin/app.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "pages.py",
+      "function_name": "_get_csrf_token",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "pages.py",
+      "function_name": "register_pages",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "agent.py",
+      "function_name": "create_agent",
+      "path": "src/choresir/agent/agent.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "registry.py",
+      "function_name": "ToolRegistry::register",
+      "path": "src/choresir/agent/registry.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "registry.py",
+      "function_name": "ToolRegistry::apply",
+      "path": "src/choresir/agent/registry.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "analytics.py",
+      "function_name": "get_leaderboard",
+      "path": "src/choresir/agent/tools/analytics.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "analytics.py",
+      "function_name": "get_overdue_tasks",
+      "path": "src/choresir/agent/tools/analytics.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "analytics.py",
+      "function_name": "get_stats",
+      "path": "src/choresir/agent/tools/analytics.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "onboarding.py",
+      "function_name": "check_member_status",
+      "path": "src/choresir/agent/tools/onboarding.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "onboarding.py",
+      "function_name": "register_name",
+      "path": "src/choresir/agent/tools/onboarding.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "tasks.py",
+      "function_name": "approve_deletion",
+      "path": "src/choresir/agent/tools/tasks.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "tasks.py",
+      "function_name": "delete_task",
+      "path": "src/choresir/agent/tools/tasks.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "tasks.py",
+      "function_name": "reassign_task",
+      "path": "src/choresir/agent/tools/tasks.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "tasks.py",
+      "function_name": "create_task",
+      "path": "src/choresir/agent/tools/tasks.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "tasks.py",
+      "function_name": "list_tasks",
+      "path": "src/choresir/agent/tools/tasks.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "verification.py",
+      "function_name": "reject_completion",
+      "path": "src/choresir/agent/tools/verification.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "verification.py",
+      "function_name": "verify_completion",
+      "path": "src/choresir/agent/tools/verification.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "verification.py",
+      "function_name": "complete_task",
+      "path": "src/choresir/agent/tools/verification.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "app.py",
+      "function_name": "call_agent_with_retry",
+      "path": "src/choresir/app.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "app.py",
+      "function_name": "create_app",
+      "path": "src/choresir/app.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "db.py",
+      "function_name": "_set_sqlite_pragmas",
+      "path": "src/choresir/db.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "db.py",
+      "function_name": "create_engine",
+      "path": "src/choresir/db.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "db.py",
+      "function_name": "create_session_factory",
+      "path": "src/choresir/db.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "errors.py",
+      "function_name": "InvalidTransitionError::__init__",
+      "path": "src/choresir/errors.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "errors.py",
+      "function_name": "NotFoundError::__init__",
+      "path": "src/choresir/errors.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "errors.py",
+      "function_name": "TakeoverLimitExceededError::__init__",
+      "path": "src/choresir/errors.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "job.py",
+      "function_name": "_utcnow",
+      "path": "src/choresir/models/job.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task.py",
+      "function_name": "_utcnow",
+      "path": "src/choresir/models/task.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "jobs.py",
+      "function_name": "_NullSender::send",
+      "path": "src/choresir/scheduler/jobs.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "jobs.py",
+      "function_name": "send_daily_summary",
+      "path": "src/choresir/scheduler/jobs.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "jobs.py",
+      "function_name": "send_overdue_reminders",
+      "path": "src/choresir/scheduler/jobs.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "jobs.py",
+      "function_name": "send_upcoming_reminders",
+      "path": "src/choresir/scheduler/jobs.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "jobs.py",
+      "function_name": "send_weekly_leaderboard",
+      "path": "src/choresir/scheduler/jobs.py"
+    },
+    {
+      "complexity": 8,
+      "file_name": "jobs.py",
+      "function_name": "reset_recurring_tasks",
+      "path": "src/choresir/scheduler/jobs.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "setup.py",
+      "function_name": "create_scheduler",
+      "path": "src/choresir/scheduler/setup.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "member_service.py",
+      "function_name": "MemberService::__init__",
+      "path": "src/choresir/services/member_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "member_service.py",
+      "function_name": "MemberService::activate",
+      "path": "src/choresir/services/member_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "member_service.py",
+      "function_name": "MemberService::list_active",
+      "path": "src/choresir/services/member_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "member_service.py",
+      "function_name": "MemberService::list_all",
+      "path": "src/choresir/services/member_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "member_service.py",
+      "function_name": "MemberService::register_pending",
+      "path": "src/choresir/services/member_service.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "member_service.py",
+      "function_name": "MemberService::get_by_whatsapp_id",
+      "path": "src/choresir/services/member_service.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "member_service.py",
+      "function_name": "MemberService::set_role",
+      "path": "src/choresir/services/member_service.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "member_service.py",
+      "function_name": "MemberService::get_active",
+      "path": "src/choresir/services/member_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "messaging.py",
+      "function_name": "MessageSender::send",
+      "path": "src/choresir/services/messaging.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "messaging.py",
+      "function_name": "WAHAClient::__init__",
+      "path": "src/choresir/services/messaging.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "messaging.py",
+      "function_name": "WAHAClient::send",
+      "path": "src/choresir/services/messaging.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::__init__",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::_pending_history",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::count_weekly_takeovers",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::create_task",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::get_leaderboard",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::get_overdue",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::get_upcoming",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::reassign",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::request_deletion",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "task_service.py",
+      "function_name": "_next_deadline",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::get_task",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "task_service.py",
+      "function_name": "transition_task",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::approve_deletion",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::list_tasks",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::_handle_recurrence_reset",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::get_stats",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::reject_completion",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::claim_completion",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::verify_completion",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "auth.py",
+      "function_name": "validate_webhook",
+      "path": "src/choresir/webhook/auth.py"
+    },
+    {
+      "complexity": 14,
+      "file_name": "router.py",
+      "function_name": "create_webhook_router",
+      "path": "src/choresir/webhook/router.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "processor.py",
+      "function_name": "init_limiters",
+      "path": "src/choresir/worker/processor.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "processor.py",
+      "function_name": "get_user_limiter",
+      "path": "src/choresir/worker/processor.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "processor.py",
+      "function_name": "message_worker_loop",
+      "path": "src/choresir/worker/processor.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "processor.py",
+      "function_name": "_process_job",
+      "path": "src/choresir/worker/processor.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "queue.py",
+      "function_name": "complete_job",
+      "path": "src/choresir/worker/queue.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "queue.py",
+      "function_name": "fail_job",
+      "path": "src/choresir/worker/queue.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "queue.py",
+      "function_name": "retry_job",
+      "path": "src/choresir/worker/queue.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "queue.py",
+      "function_name": "claim_next_job",
+      "path": "src/choresir/worker/queue.py"
+    }
+  ],
+  "targets": [
+    "/home/jackedney/Dev/choresir/src"
+  ]
+}
