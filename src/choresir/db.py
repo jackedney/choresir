@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import (
 from choresir.config import Settings
 
 
-def _set_sqlite_pragmas(dbapi_conn, connection_record) -> None:  # noqa: ANN001 — raw DBAPI types
+def _set_sqlite_pragmas(dbapi_conn, _connection_record) -> None:  # noqa: ANN001 — raw DBAPI types
     """Set SQLite pragmas on every new connection."""
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")

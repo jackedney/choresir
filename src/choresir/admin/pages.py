@@ -11,6 +11,17 @@ from choresir.services.member_service import MemberService
 from choresir.services.messaging import WAHAClient
 
 
+def _get_csrf_token(sess) -> str:
+    """Get or create CSRF token from session."""
+    token = sess.get("csrf_token")
+    if not token:
+        import secrets
+
+        token = secrets.token_urlsafe(32)
+        sess["csrf_token"] = token
+    return token
+
+
 def register_pages(
     rt,
     session_factory: async_sessionmaker,
@@ -57,7 +68,7 @@ def register_pages(
         return RedirectResponse("/admin/login", status_code=303)  # noqa: F405
 
     @rt("/members")
-    async def members_get():
+    async def members_get(sess):
         async with session_factory() as session:
             svc = MemberService(session)
             members = await svc.list_all()
@@ -69,6 +80,11 @@ def register_pages(
                 Td(m.status),  # noqa: F405
                 Td(  # noqa: F405
                     Form(  # noqa: F405
+                        Input(  # noqa: F405
+                            name="csrf_token",
+                            type="hidden",
+                            value=_get_csrf_token(sess),
+                        ),
                         Input(  # noqa: F405
                             name="role",
                             value="admin" if m.role == MemberRole.MEMBER else "member",
@@ -97,7 +113,7 @@ def register_pages(
         )
 
     @rt("/members/{member_id}/role")
-    async def member_role_post(member_id: int, role: str):
+    async def member_role_post(member_id: int, role: str, sess):
         member_role = MemberRole(role)
         async with session_factory() as session:
             svc = MemberService(session)
@@ -114,7 +130,7 @@ def register_pages(
         )
 
     @rt("/waha")
-    async def waha_get():
+    async def waha_get(sess):
         status_text = "Unknown"
         try:
             resp = await waha_client._http.get(
@@ -130,6 +146,7 @@ def register_pages(
             "WAHA Session",
             P(f"Session status: {status_text}"),  # noqa: F405
             Form(  # noqa: F405
+                Input(name="csrf_token", type="hidden", value=_get_csrf_token(sess)),  # noqa: F405
                 Button("Start Session"),  # noqa: F405
                 action="/admin/waha/start",
                 method="POST",
@@ -138,7 +155,7 @@ def register_pages(
         )
 
     @rt("/waha/start")
-    async def waha_start_post():
+    async def waha_start_post(sess):
         try:
             resp = await waha_client._http.post(
                 f"{waha_client._base_url}/api/sessions/start",
@@ -146,7 +163,7 @@ def register_pages(
                 headers={"X-Api-Key": waha_client._api_key},
             )
             resp.raise_for_status()
-        except Exception:  # noqa: BLE001, S110
+        except Exception:  # noqa: BLE001, S110 # nosec B110
             pass
 
         return RedirectResponse("/admin/waha", status_code=303)  # noqa: F405
