@@ -70,6 +70,22 @@ async def send_overdue_reminders(
             )
 
 
+async def send_upcoming_reminders(
+    session_factory: async_sessionmaker,
+    sender: MessageSender,
+    group_chat_id: str,
+) -> None:
+    """Query upcoming tasks (next 24h) and send a reminder for each."""
+    async with session_factory() as session:
+        svc = TaskService(session, max_takeovers_per_week=0)
+        for task in await svc.get_upcoming(hours=24):
+            await sender.send(
+                group_chat_id,
+                f'Reminder: "{task.title}" is due soon'
+                f" (assigned to member {task.assignee_id}).",
+            )
+
+
 async def reset_recurring_tasks(
     session_factory: async_sessionmaker,
 ) -> None:

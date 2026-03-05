@@ -257,6 +257,23 @@ class TaskService:
         result = await self._session.exec(stmt)
         return list(result.all())
 
+    async def get_upcoming(self, hours: int = 24) -> list[Task]:
+        """Return tasks with deadlines in the next N hours that are not yet verified."""
+        now = datetime.now(UTC)
+        cutoff = now + timedelta(hours=hours)
+        stmt = (
+            select(Task)
+            .where(
+                Task.status != TaskStatus.VERIFIED,
+                col(Task.deadline).isnot(None),
+                col(Task.deadline) >= now,
+                col(Task.deadline) <= cutoff,
+            )
+            .order_by(col(Task.deadline).asc())
+        )
+        result = await self._session.exec(stmt)
+        return list(result.all())
+
     async def get_stats(self, member_id: int) -> dict:
         """Return completion count and rank for a member."""
         count_result = await self._session.exec(

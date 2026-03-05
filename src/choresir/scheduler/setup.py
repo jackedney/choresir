@@ -12,6 +12,7 @@ from choresir.scheduler.jobs import (
     reset_recurring_tasks,
     send_daily_summary,
     send_overdue_reminders,
+    send_upcoming_reminders,
     send_weekly_leaderboard,
 )
 from choresir.services.messaging import MessageSender
@@ -44,6 +45,12 @@ async def create_scheduler(
         functools.partial(send_overdue_reminders, *args),
         CronTrigger(hour="8,12,18", minute=0),
         id="overdue_reminders",
+        conflict_policy=_REPLACE,
+    )
+    await scheduler.add_schedule(
+        functools.partial(send_upcoming_reminders, *args),
+        CronTrigger(hour=6, minute=0),
+        id="upcoming_reminders",
         conflict_policy=_REPLACE,
     )
     await scheduler.add_schedule(
