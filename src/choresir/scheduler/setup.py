@@ -16,6 +16,8 @@ from choresir.scheduler.jobs import (
 )
 from choresir.services.messaging import MessageSender
 
+_REPLACE = ConflictPolicy.replace
+
 
 async def create_scheduler(
     session_factory: async_sessionmaker,
@@ -24,49 +26,30 @@ async def create_scheduler(
 ) -> AsyncScheduler:
     """Create an AsyncScheduler with all cron jobs registered."""
     scheduler = AsyncScheduler()
+    args = (session_factory, sender, group_chat_id)
 
-    # Bind dependencies to job functions via functools.partial
-    daily_summary = functools.partial(
-        send_daily_summary, session_factory, sender, group_chat_id
-    )
-    weekly_leaderboard = functools.partial(
-        send_weekly_leaderboard, session_factory, sender, group_chat_id
-    )
-    overdue_reminders = functools.partial(
-        send_overdue_reminders, session_factory, sender, group_chat_id
-    )
-    recurring_reset = functools.partial(reset_recurring_tasks, session_factory)
-
-    # Daily summary at 8pm every day
     await scheduler.add_schedule(
-        daily_summary,
+        functools.partial(send_daily_summary, *args),
         CronTrigger(hour=20, minute=0),
         id="daily_summary",
-        conflict_policy=ConflictPolicy.replace,
+        conflict_policy=_REPLACE,
     )
-
-    # Weekly leaderboard at 6pm every Sunday
     await scheduler.add_schedule(
-        weekly_leaderboard,
+        functools.partial(send_weekly_leaderboard, *args),
         CronTrigger(day_of_week="sun", hour=18, minute=0),
         id="weekly_leaderboard",
-        conflict_policy=ConflictPolicy.replace,
+        conflict_policy=_REPLACE,
     )
-
-    # Overdue reminders at 8am, 12pm, 6pm every day
     await scheduler.add_schedule(
-        overdue_reminders,
+        functools.partial(send_overdue_reminders, *args),
         CronTrigger(hour="8,12,18", minute=0),
         id="overdue_reminders",
-        conflict_policy=ConflictPolicy.replace,
+        conflict_policy=_REPLACE,
     )
-
-    # Recurring task reset every hour on the hour
     await scheduler.add_schedule(
-        recurring_reset,
+        functools.partial(reset_recurring_tasks, session_factory),
         CronTrigger(minute=0),
         id="recurring_reset",
-        conflict_policy=ConflictPolicy.replace,
+        conflict_policy=_REPLACE,
     )
-
     return scheduler
