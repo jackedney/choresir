@@ -7,7 +7,6 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import Any
 
-import httpx
 from aiolimiter import AsyncLimiter
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -17,7 +16,6 @@ from choresir.worker.queue import claim_next_job, complete_job, fail_job, retry_
 
 logger = logging.getLogger(__name__)
 
-_MAX_ATTEMPTS = 5
 _POLL_INTERVAL = 1.0
 _RATE_LIMIT_RETRY_DELAY = 5
 
@@ -48,11 +46,6 @@ def get_user_limiter(
     return user_limiters[user_id]
 
 
-def _backoff_delay(attempts: int) -> int:
-    """Calculate exponential backoff delay in seconds, capped at 60."""
-    return min(2**attempts, 60)
-
-
 async def _process_job(
     job: MessageJob,
     session_factory: async_sessionmaker,
@@ -65,17 +58,13 @@ async def _process_job(
     try:
         # Check global rate limit
         if not global_limiter.has_capacity(1):
-            logger.info(
-                "Global rate limit reached, deferring job %s", job.id
-            )
+            logger.info("Global rate limit reached, deferring job %s", job.id)
             async with session_factory() as session:
                 await retry_job(session, job, _RATE_LIMIT_RETRY_DELAY)
             return
 
         # Check per-user rate limit
-        user_limiter = get_user_limiter(
-            user_limiters, job.sender_id, settings
-        )
+        user_limiter = get_user_limiter(user_limiters, job.sender_id, settings)
         if not user_limiter.has_capacity(1):
             logger.info(
                 "Per-user rate limit for %s, deferring job %s",
@@ -95,34 +84,13 @@ async def _process_job(
 
     except asyncio.CancelledError:
         raise
-    except (TimeoutError, httpx.RequestError):
-        logger.warning(
-            "Transient error processing job %s (attempt %d)",
-            job.id,
-            job.attempts + 1,
-            exc_info=True,
-        )
-        async with session_factory() as session:
-            if job.attempts + 1 >= _MAX_ATTEMPTS:
-                logger.error(
-                    "Job %s exceeded max attempts, marking failed",
-                    job.id,
-                )
-                await fail_job(session, job)
-            else:
-                delay = _backoff_delay(job.attempts + 1)
-                await retry_job(session, job, delay)
     except Exception:
-        logger.exception(
-            "Unexpected error processing job %s", job.id
-        )
+        logger.exception("Error processing job %s", job.id)
         try:
             async with session_factory() as session:
                 await fail_job(session, job)
         except Exception:
-            logger.exception(
-                "Failed to mark job %s as failed", job.id
-            )
+            logger.exception("Failed to mark job %s as failed", job.id)
 
 
 async def message_worker_loop(

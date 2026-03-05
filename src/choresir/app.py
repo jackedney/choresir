@@ -8,6 +8,12 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from choresir.admin.app import create_admin_app
 from choresir.agent.agent import AgentDeps, create_agent
@@ -21,6 +27,18 @@ from choresir.services.messaging import WAHAClient
 from choresir.services.task_service import TaskService
 from choresir.webhook.router import create_webhook_router
 from choresir.worker.processor import message_worker_loop
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=60),
+    retry=retry_if_exception_type((TimeoutError, httpx.RequestError)),
+    reraise=True,
+)
+async def call_agent_with_retry(agent, message: str, deps: AgentDeps) -> str:
+    """Call the agent with retry logic for transient errors."""
+    result = await agent.run(message, deps=deps)
+    return result.output
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -59,8 +77,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             member_service=member_service,
                             sender_id=job.sender_id,
                         )
-                        result = await agent.run(job.body, deps=deps)
-                        await sender.send(job.group_id, result.output)
+                        response = await call_agent_with_retry(agent, job.body, deps)
+                        await sender.send(job.group_id, response)
 
                 worker_task = asyncio.create_task(
                     message_worker_loop(session_factory, process_message, settings)
