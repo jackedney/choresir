@@ -62,7 +62,7 @@ select = ["I", "E", "F", "W", "UP", "B", "SIM", "N"]
 
 [tool.ty.environment]
 python-version = "3.13"
-root = ["src"]
+root = ["src", "."]
 
 [tool.ty.rules]
 all = "warn"

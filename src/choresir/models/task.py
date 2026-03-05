@@ -1,9 +1,7 @@
 """Task and CompletionHistory table models."""
 
-from __future__ import annotations
-
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -37,14 +35,14 @@ class Task(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
-    assignee: Member | None = Relationship(
+    assignee: Optional["Member"] = Relationship(
         back_populates="tasks",
         sa_relationship_kwargs={"foreign_keys": "[Task.assignee_id]"},
     )
-    partner: Member | None = Relationship(
+    partner: Optional["Member"] = Relationship(
         sa_relationship_kwargs={"foreign_keys": "[Task.partner_id]"},
     )
-    completion_history: list[CompletionHistory] = Relationship(
+    completion_history: list["CompletionHistory"] = Relationship(
         back_populates="task",
     )
 
@@ -60,4 +58,4 @@ class CompletionHistory(SQLModel, table=True):
     completed_at: datetime = Field(default_factory=_utcnow)
     verified_at: datetime | None = None
 
-    task: Task | None = Relationship(back_populates="completion_history")
+    task: Optional["Task"] = Relationship(back_populates="completion_history")
