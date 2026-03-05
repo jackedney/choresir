@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, func, select
@@ -16,6 +17,9 @@ from choresir.errors import (
     TakeoverLimitExceededError,
 )
 from choresir.models.task import CompletionHistory, Task
+
+if TYPE_CHECKING:
+    from choresir.services.messaging import MessageSender
 
 _VALID_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
     TaskStatus.PENDING: frozenset({TaskStatus.CLAIMED}),
@@ -49,8 +53,14 @@ def _next_deadline(current: datetime, recurrence: str) -> datetime:
 class TaskService:
     """Task lifecycle: creation, completion, verification."""
 
-    def __init__(self, session: AsyncSession, max_takeovers_per_week: int) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        sender: MessageSender,
+        max_takeovers_per_week: int,
+    ) -> None:
         self._session = session
+        self._sender = sender
         self._max_takeovers_per_week = max_takeovers_per_week
 
     async def _pending_history(self, task_id: int) -> CompletionHistory | None:

@@ -16,7 +16,7 @@ async def send_daily_summary(
 ) -> None:
     """Query task stats and send a daily activity summary to the group."""
     async with session_factory() as session:
-        svc = TaskService(session, max_takeovers_per_week=0)
+        svc = TaskService(session, sender, max_takeovers_per_week=0)
         tasks = await svc.list_tasks()
         overdue = await svc.get_overdue()
         by_status = {s: 0 for s in TaskStatus}
@@ -39,7 +39,7 @@ async def send_weekly_leaderboard(
 ) -> None:
     """Query leaderboard rankings and send a weekly report."""
     async with session_factory() as session:
-        svc = TaskService(session, max_takeovers_per_week=0)
+        svc = TaskService(session, sender, max_takeovers_per_week=0)
         board = await svc.get_leaderboard()
         if not board:
             msg = "Weekly Leaderboard\n  No completions yet!"
@@ -61,7 +61,7 @@ async def send_overdue_reminders(
 ) -> None:
     """Query overdue tasks and send a reminder for each."""
     async with session_factory() as session:
-        svc = TaskService(session, max_takeovers_per_week=0)
+        svc = TaskService(session, sender, max_takeovers_per_week=0)
         for task in await svc.get_overdue():
             await sender.send(
                 group_chat_id,
@@ -77,7 +77,7 @@ async def send_upcoming_reminders(
 ) -> None:
     """Query upcoming tasks (next 24h) and send a reminder for each."""
     async with session_factory() as session:
-        svc = TaskService(session, max_takeovers_per_week=0)
+        svc = TaskService(session, sender, max_takeovers_per_week=0)
         for task in await svc.get_upcoming(hours=24):
             await sender.send(
                 group_chat_id,
@@ -91,7 +91,8 @@ async def reset_recurring_tasks(
 ) -> None:
     """Reset verified recurring tasks that may have been missed."""
     async with session_factory() as session:
-        svc = TaskService(session, max_takeovers_per_week=0)
+        sender = _NullSender()
+        svc = TaskService(session, sender, max_takeovers_per_week=0)
         changed = False
         for task in await svc.list_tasks():
             if task.status == TaskStatus.VERIFIED and task.recurrence:
@@ -100,3 +101,10 @@ async def reset_recurring_tasks(
                 changed = True
         if changed:
             await session.commit()
+
+
+class _NullSender:
+    """No-op sender for jobs that don't send messages."""
+
+    async def send(self, chat_id: str, text: str) -> None:
+        pass

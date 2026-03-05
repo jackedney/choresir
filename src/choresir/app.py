@@ -51,7 +51,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 async def process_message(job: MessageJob) -> None:
                     async with session_factory() as session:
                         task_service = TaskService(
-                            session, settings.max_takeovers_per_week
+                            session, sender, settings.max_takeovers_per_week
                         )
                         member_service = MemberService(session)
                         deps = AgentDeps(
