@@ -172,7 +172,7 @@ The FastAPI app factory wires everything together — no global mutable state:
 ```python
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
-    engine = create_engine(settings.database_url)
+    engine = create_async_engine(settings.database_url)
     http_client = httpx.AsyncClient()
     sender = WAHAClient(settings.waha_url, settings.waha_api_key, http_client)
     task_service = TaskService(session_factory, sender)
