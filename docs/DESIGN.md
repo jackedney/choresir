@@ -51,13 +51,13 @@ Durable message processing pipeline. Deduplicates via primary key, enforces glob
 A PydanticAI agent processes natural language messages. The agent is configured with a dynamic system prompt (base template from disk + household context from DB at runtime) and typed tool functions for task management operations (create, complete, verify, reassign, delete). PydanticAI handles tool schema generation, structured output validation, and conversation flow. LiteLLM provides the provider abstraction to route requests through OpenRouter.
 
 **Task Management Core** (SPEC reqs 6-17)
-Domain logic for tasks, verification, recurrence, completion history, and takeovers. Accessed by the LLM layer via tool functions and by the scheduler for recurring task resets.
+Domain logic for tasks, verification, recurrence, completion history, and takeovers. Personal task deletion by the owner is immediate; shared task deletion requires peer approval. Accessed by the LLM layer via tool functions and by the scheduler for recurring task resets.
 
 **Scheduler** (SPEC reqs 14, 24, 25, 26, 27)
 APScheduler v4 running cron-triggered jobs: overdue task reminders, daily activity summary, weekly leaderboard, and recurring task deadline resets. Sends messages via WAHA API.
 
 **Admin Interface** (SPEC reqs 21, 31)
-FastHTML web application mounted alongside the FastAPI app. Provides member management, household configuration, and WAHA session setup. Protected by authentication and CSRF.
+FastHTML web application mounted alongside the FastAPI app. Provides member management, task management (viewing, editing, deleting), household configuration, and WAHA session setup. Protected by authentication and CSRF.
 
 **Onboarding Flow** (SPEC reqs 18, 19, 20)
 Detects new members joining the WhatsApp group via WAHA webhooks, registers them with pending status, and prompts for their name before granting full access.
@@ -135,7 +135,7 @@ FastHTML application serving the admin web UI.
 - **Mount point**: `/admin` (sub-application within FastAPI)
 - **Authentication**: Session-based with signed cookies (SPEC req 31)
 - **CSRF protection**: Token-based middleware (SPEC req 31)
-- **Pages**: Member management, household settings, WAHA session setup
+- **Pages**: Member management, task management (list, edit, delete), household settings (household name, takeover limit per week, reminder/summary schedule times, default verification mode), WAHA session setup
 
 ### Internal: Job Queue Contract
 
