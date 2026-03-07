@@ -9,7 +9,11 @@ from choresir.enums import (
     TaskStatus,
     VerificationMode,
 )
-from choresir.errors import AuthorizationError, NotFoundError
+from choresir.errors import (
+    AuthorizationError,
+    InvalidTransitionError,
+    NotFoundError,
+)
 from choresir.services.member_service import MemberService
 from choresir.services.task_service import TaskService
 from tests.conftest import make_member
@@ -160,3 +164,19 @@ class TestTaskService:
         svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
         with pytest.raises(NotFoundError):
             await svc.get_task(9999)
+
+    @pytest.mark.anyio
+    async def test_claim_completion_non_assignee_non_pending_fails_early(
+        self, session, fake_sender
+    ):
+        assignee = await self._create_active_member(session, "assignee@c.us")
+        other = await self._create_active_member(session, "other@c.us")
+        svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
+        task = await svc.create_task(
+            title="Already claimed",
+            assignee_id=assignee.id,  # type: ignore[arg-type]
+            verification_mode=VerificationMode.PEER,
+        )
+        await svc.claim_completion(task.id, assignee.id)  # type: ignore[arg-type]
+        with pytest.raises(InvalidTransitionError):
+            await svc.claim_completion(task.id, other.id)  # type: ignore[arg-type]

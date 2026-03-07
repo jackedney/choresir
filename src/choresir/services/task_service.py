@@ -115,6 +115,8 @@ class TaskService:
         task = await self.get_task(task_id)
 
         if member_id != task.assignee_id:
+            if task.status != TaskStatus.PENDING:
+                raise InvalidTransitionError(task.status, TaskStatus.CLAIMED)
             takeover_count = await self.count_weekly_takeovers(member_id)
             if takeover_count >= self._max_takeovers_per_week:
                 raise TakeoverLimitExceededError(self._max_takeovers_per_week)
@@ -351,3 +353,20 @@ class TaskService:
             task.next_deadline = _next_deadline(anchor, task.recurrence)
         task.deadline = task.next_deadline
         task.status = TaskStatus.PENDING
+
+    async def reset_recurring_tasks(self) -> int:
+        """Reset all verified recurring tasks to pending. Returns count reset."""
+        stmt = select(Task).where(
+            Task.status == TaskStatus.VERIFIED,
+            col(Task.recurrence).isnot(None),
+        )
+        result = await self._session.exec(stmt)
+        tasks = list(result.all())
+        count = 0
+        for task in tasks:
+            self._handle_recurrence_reset(task)
+            self._session.add(task)
+            count += 1
+        if count:
+            await self._session.commit()
+        return count

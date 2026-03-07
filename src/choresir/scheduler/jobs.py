@@ -93,14 +93,7 @@ async def reset_recurring_tasks(
     async with session_factory() as session:
         sender = _NullSender()
         svc = TaskService(session, sender, max_takeovers_per_week=0)
-        changed = False
-        for task in await svc.list_tasks():
-            if task.status == TaskStatus.VERIFIED and task.recurrence:
-                svc._handle_recurrence_reset(task)
-                session.add(task)
-                changed = True
-        if changed:
-            await session.commit()
+        await svc.reset_recurring_tasks()
 
 
 class _NullSender:
