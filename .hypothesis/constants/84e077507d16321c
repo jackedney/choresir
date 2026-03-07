@@ -1,4 +1,0 @@
-# file: /home/jackedney/Dev/choresir/src/choresir/webhook/router.py
-# hypothesis_version: 6.151.9
-
-['/webhook', 'X-WAHA-Signature-256', 'body', 'event', 'from', 'fromMe', 'group.v2.join', 'id', 'message', 'ok', 'payload', 'recipients', 'status', 'to']

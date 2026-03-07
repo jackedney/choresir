@@ -1,4 +1,0 @@
-# file: /home/jackedney/Dev/choresir/src/choresir/enums.py
-# hypothesis_version: 6.151.9
-
-['active', 'admin', 'claimed', 'done', 'failed', 'member', 'none', 'partner', 'peer', 'pending', 'personal', 'processing', 'shared', 'verified']

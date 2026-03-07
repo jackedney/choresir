@@ -1,4 +1,0 @@
-# file: /home/jackedney/Dev/choresir/src/choresir/models/member.py
-# hypothesis_version: 6.151.9
-
-['Task', 'Task.assignee_id', 'assignee', 'foreign_keys']

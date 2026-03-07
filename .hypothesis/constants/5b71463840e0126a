@@ -1,4 +1,0 @@
-# file: /home/jackedney/Dev/choresir/src/choresir/models/task.py
-# hypothesis_version: 6.151.9
-
-['CompletionHistory', 'Member', 'Task', '[Task.assignee_id]', '[Task.partner_id]', 'completion_history', 'foreign_keys', 'member.id', 'task', 'task.id', 'tasks']
