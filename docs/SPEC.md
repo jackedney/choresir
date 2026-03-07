@@ -25,7 +25,7 @@ Choresir is a household operating system accessed through WhatsApp group chat. I
 12. A member must not be able to verify their own completion claim.
 13. Rejected completion claims must return the task to its uncompleted state.
 14. Verified tasks with a recurrence schedule must automatically reset and calculate their next deadline.
-15. Task deletion must require approval from another household member before taking effect.
+15. Shared task deletion must require approval from another household member before taking effect. Personal task deletion by the task owner does not require approval.
 16. Any household member may claim and complete another member's task, limited to a configurable maximum number of takeovers per week per user.
 17. The system must track task completion history including who completed it, who verified it, and any feedback.
 
@@ -34,7 +34,7 @@ Choresir is a household operating system accessed through WhatsApp group chat. I
 18. New members joining the designated WhatsApp group must be automatically registered with a pending status.
 19. The system must prompt new members for their name before granting full access.
 20. Members must have one of two roles: admin or member.
-21. The system must provide a web-based admin interface for managing members, household configuration, and WhatsApp session setup.
+21. The system must provide a web-based admin interface for managing members, managing tasks (viewing, editing, and deleting), household configuration, and WhatsApp session setup.
 
 ### Analytics & Notifications
 
