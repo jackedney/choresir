@@ -15,8 +15,8 @@ context_files = ["alembic/env.py", "alembic.ini"]
 doc_sections = ["DESIGN.md#Deployment", "PATTERNS.md#Dependency-Assembly-via-App-Factory"]
 reference_skills = ["tech-alembic", "tech-fastapi"]
 dependencies = []
-completed = false
-attempts = 0
+completed = true
+attempts = 2
 
 [[tasks]]
 title = "Add test for agent retry wrapper"
