@@ -13,98 +13,17 @@ from choresir.enums import MemberRole, VerificationMode
 from choresir.services.member_service import MemberService
 
 
-def register_pages(
-    rt,
-    session_factory: async_sessionmaker,
-    settings: Settings,
-) -> None:
-    """Register all admin page routes on the given FastHTML route decorator."""
-
-    @rt("/")
-    def get():
-        return Titled(  # noqa: F405
-            "Admin Dashboard",
-            Div(  # noqa: F405
-                P(A("Members", href="/admin/members")),  # noqa: F405
-                P(A("Household Settings", href="/admin/settings")),  # noqa: F405
-                P(A("WAHA Session", href="/admin/waha")),  # noqa: F405
-                P(A("Logout", href="/admin/logout")),  # noqa: F405
-            ),
-        )
-
-    @rt("/login")
-    def login_get():
-        return Titled(  # noqa: F405
-            "Login",
-            Form(  # noqa: F405
-                Input(name="username", placeholder="Username"),  # noqa: F405
-                Input(name="password", type="password", placeholder="Password"),  # noqa: F405
-                Button("Login"),  # noqa: F405
-                action="/admin/login/submit",
-                method="POST",
-            ),
-        )
-
-    @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
-        if username == settings.admin_user and password == settings.admin_password:
-            sess["admin_user"] = username
-            return RedirectResponse("/admin", status_code=303)  # noqa: F405
-        return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
-
-    @rt("/logout")
-    def logout_get(sess):
-        sess.pop("admin_user", None)
-        return RedirectResponse("/admin/login", status_code=303)  # noqa: F405
-
-    @rt("/members")
-    async def members_get(sess):
-        async with session_factory() as session:
-            svc = MemberService(session)
-            members = await svc.list_all()
-
-        rows = [
-            Tr(  # noqa: F405
-                Td(m.name or "(unnamed)"),  # noqa: F405
-                Td(m.role),  # noqa: F405
-                Td(m.status),  # noqa: F405
-                Td(  # noqa: F405
-                    Form(  # noqa: F405
-                        Input(  # noqa: F405
-                            name="role",
-                            value="admin" if m.role == MemberRole.MEMBER else "member",
-                            type="hidden",
-                        ),
-                        Button(  # noqa: F405
-                            "Make Admin"
-                            if m.role == MemberRole.MEMBER
-                            else "Make Member"
-                        ),
-                        action=f"/admin/members/{m.id}/role",
-                        method="POST",
-                    ),
-                ),
-            )
-            for m in members
-        ]
-
-        return Titled(  # noqa: F405
-            "Members",
-            Table(  # noqa: F405
-                Tr(Th("Name"), Th("Role"), Th("Status"), Th("Action")),  # noqa: F405
-                *rows,
-            ),
-            P(A("Back to Dashboard", href="/admin")),  # noqa: F405
-        )
-
-    @rt("/members/{member_id}/role")
-    async def member_role_post(member_id: int, role: str, sess):
-        member_role = MemberRole(role)
-        async with session_factory() as session:
-            svc = MemberService(session)
-            await svc.set_role(member_id, member_role)
-
-        return RedirectResponse("/admin/members", status_code=303)  # noqa: F405
+def _build_settings_routes(rt, settings: Settings) -> None:
+    """Register settings page routes."""
+    days = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ]
 
     @rt("/settings")
     def settings_get(sess, saved: str = ""):
@@ -133,23 +52,14 @@ def register_pages(
             ),
         ]
 
-        day_options = []
-        for day in [
-            "monday",
-            "tuesday",
-            "wednesday",
-            "thursday",
-            "friday",
-            "saturday",
-            "sunday",
-        ]:
-            day_options.append(
-                Option(  # noqa: F405
-                    day.capitalize(),
-                    value=day,
-                    selected=weekly_leaderboard_day == day,
-                )
+        day_options = [
+            Option(  # noqa: F405
+                day.capitalize(),
+                value=day,
+                selected=weekly_leaderboard_day == day,
             )
+            for day in days
+        ]
 
         success_msg = (
             P("Settings saved successfully!", style="color:green;margin-bottom:1rem")  # noqa: F405
@@ -183,7 +93,9 @@ def register_pages(
                 Div(  # noqa: F405
                     Label("Default Verification Mode", For="verification_mode"),  # noqa: F405
                     Select(  # noqa: F405
-                        mode_options, name="verification_mode", id="verification_mode"
+                        mode_options,
+                        name="verification_mode",
+                        id="verification_mode",
                     ),
                     style="margin-bottom:1rem",
                 ),
@@ -247,6 +159,10 @@ def register_pages(
         sess["weekly_leaderboard_time"] = weekly_leaderboard_time
 
         return RedirectResponse("/admin/settings?saved=1", status_code=303)  # noqa: F405
+
+
+def _build_waha_routes(rt, settings: Settings) -> None:
+    """Register WAHA session page routes."""
 
     @rt("/waha")
     async def waha_get(sess):
@@ -386,3 +302,116 @@ def register_pages(
             print(f"WAHA start error: {exc}")
 
         return RedirectResponse("/admin/waha", status_code=303)  # noqa: F405
+
+
+def _build_members_routes(
+    rt, session_factory: async_sessionmaker, settings: Settings
+) -> None:
+    """Register members page routes."""
+
+    @rt("/members")
+    async def members_get(sess):
+        async with session_factory() as session:
+            svc = MemberService(session)
+            members = await svc.list_all()
+
+        rows = [
+            Tr(  # noqa: F405
+                Td(m.name or "(unnamed)"),  # noqa: F405
+                Td(m.role),  # noqa: F405
+                Td(m.status),  # noqa: F405
+                Td(  # noqa: F405
+                    Form(  # noqa: F405
+                        Input(  # noqa: F405
+                            name="role",
+                            value="admin" if m.role == MemberRole.MEMBER else "member",
+                            type="hidden",
+                        ),
+                        Button(  # noqa: F405
+                            "Make Admin"
+                            if m.role == MemberRole.MEMBER
+                            else "Make Member"
+                        ),
+                        action=f"/admin/members/{m.id}/role",
+                        method="POST",
+                    ),
+                ),
+            )
+            for m in members
+        ]
+
+        return Titled(  # noqa: F405
+            "Members",
+            Table(  # noqa: F405
+                Tr(Th("Name"), Th("Role"), Th("Status"), Th("Action")),  # noqa: F405
+                *rows,
+            ),
+            P(A("Back to Dashboard", href="/admin")),  # noqa: F405
+        )
+
+    @rt("/members/{member_id}/role")
+    async def member_role_post(member_id: int, role: str, sess):
+        member_role = MemberRole(role)
+        async with session_factory() as session:
+            svc = MemberService(session)
+            await svc.set_role(member_id, member_role)
+
+        return RedirectResponse("/admin/members", status_code=303)  # noqa: F405
+
+
+def _build_auth_routes(rt, settings: Settings) -> None:
+    """Register authentication page routes."""
+
+    @rt("/login")
+    def login_get():
+        return Titled(  # noqa: F405
+            "Login",
+            Form(  # noqa: F405
+                Input(name="username", placeholder="Username"),  # noqa: F405
+                Input(name="password", type="password", placeholder="Password"),  # noqa: F405
+                Button("Login"),  # noqa: F405
+                action="/admin/login/submit",
+                method="POST",
+            ),
+        )
+
+    @rt("/login/submit")
+    def login_post(username: str, password: str, sess):
+        if username == settings.admin_user and password == settings.admin_password:
+            sess["admin_user"] = username
+            return RedirectResponse("/admin", status_code=303)  # noqa: F405
+        return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
+
+    @rt("/logout")
+    def logout_get(sess):
+        sess.pop("admin_user", None)
+        return RedirectResponse("/admin/login", status_code=303)  # noqa: F405
+
+
+def _build_dashboard_route(rt) -> None:
+    """Register dashboard page route."""
+
+    @rt("/")
+    def get():
+        return Titled(  # noqa: F405
+            "Admin Dashboard",
+            Div(  # noqa: F405
+                P(A("Members", href="/admin/members")),  # noqa: F405
+                P(A("Household Settings", href="/admin/settings")),  # noqa: F405
+                P(A("WAHA Session", href="/admin/waha")),  # noqa: F405
+                P(A("Logout", href="/admin/logout")),  # noqa: F405
+            ),
+        )
+
+
+def register_pages(
+    rt,
+    session_factory: async_sessionmaker,
+    settings: Settings,
+) -> None:
+    """Register all admin page routes on the given FastHTML route decorator."""
+    _build_dashboard_route(rt)
+    _build_auth_routes(rt, settings)
+    _build_members_routes(rt, session_factory, settings)
+    _build_settings_routes(rt, settings)
+    _build_waha_routes(rt, settings)
