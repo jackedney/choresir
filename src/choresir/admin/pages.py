@@ -643,7 +643,12 @@ def _build_tasks_routes(
 
 
 def _build_auth_routes(rt, settings: Settings) -> None:
-    """Register authentication page routes."""
+    """Register authentication page routes.
+
+    Note: Login form intentionally omits CSRF protection because there is no
+    authenticated session at login time. CSRF attacks require an existing
+    session to exploit. This is standard practice for login forms.
+    """
 
     @rt("/login")
     def login_get():
