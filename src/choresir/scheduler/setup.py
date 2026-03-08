@@ -20,13 +20,18 @@ from choresir.services.messaging import MessageSender
 _REPLACE = ConflictPolicy.replace
 
 
-async def create_scheduler(
+def create_scheduler() -> AsyncScheduler:
+    """Create an AsyncScheduler instance."""
+    return AsyncScheduler()
+
+
+async def register_schedules(
+    scheduler: AsyncScheduler,
     session_factory: async_sessionmaker,
     sender: MessageSender,
     group_chat_id: str,
-) -> AsyncScheduler:
-    """Create an AsyncScheduler with all cron jobs registered."""
-    scheduler = AsyncScheduler()
+) -> None:
+    """Register all cron jobs on an already-initialized scheduler."""
     args = (session_factory, sender, group_chat_id)
 
     await scheduler.add_schedule(
@@ -59,4 +64,3 @@ async def create_scheduler(
         id="recurring_reset",
         conflict_policy=_REPLACE,
     )
-    return scheduler

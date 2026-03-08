@@ -8,10 +8,10 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Choresir configuration, loaded from env vars with sensible defaults."""
 
-    model_config = {"env_prefix": "CHORESIR_"}
+    model_config = {"env_prefix": "CHORESIR_", "env_file": ".env"}
 
     # Database
-    database_url: str = "sqlite+aiosqlite:///choresir.db"
+    database_url: str = "sqlite+aiosqlite:///data/choresir.db"
 
     # WAHA integration
     waha_url: str = ""
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # LLM
     openrouter_api_key: str = ""
-    llm_model: str = ""
+    llm_model: str = "litellm:openrouter/google/gemini-3.1-flash-lite-preview"
 
     # Admin
     admin_secret: str = ""

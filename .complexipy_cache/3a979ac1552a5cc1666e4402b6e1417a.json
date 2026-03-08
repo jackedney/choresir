@@ -13,25 +13,13 @@
       "path": "src/choresir/admin/app.py"
     },
     {
-      "complexity": 11,
-      "file_name": "app.py",
-      "function_name": "_csrf_before",
-      "path": "src/choresir/admin/app.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "pages.py",
-      "function_name": "_get_csrf_token",
-      "path": "src/choresir/admin/pages.py"
-    },
-    {
-      "complexity": 5,
+      "complexity": 12,
       "file_name": "pages.py",
       "function_name": "register_pages",
       "path": "src/choresir/admin/pages.py"
     },
     {
-      "complexity": 7,
+      "complexity": 6,
       "file_name": "agent.py",
       "function_name": "create_agent",
       "path": "src/choresir/agent/agent.py"
@@ -77,6 +65,12 @@
       "file_name": "onboarding.py",
       "function_name": "register_name",
       "path": "src/choresir/agent/tools/onboarding.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "tasks.py",
+      "function_name": "_ensure_active_member",
+      "path": "src/choresir/agent/tools/tasks.py"
     },
     {
       "complexity": 1,
@@ -193,6 +187,12 @@
       "path": "src/choresir/scheduler/jobs.py"
     },
     {
+      "complexity": 0,
+      "file_name": "jobs.py",
+      "function_name": "reset_recurring_tasks",
+      "path": "src/choresir/scheduler/jobs.py"
+    },
+    {
       "complexity": 2,
       "file_name": "jobs.py",
       "function_name": "send_daily_summary",
@@ -217,15 +217,15 @@
       "path": "src/choresir/scheduler/jobs.py"
     },
     {
-      "complexity": 8,
-      "file_name": "jobs.py",
-      "function_name": "reset_recurring_tasks",
-      "path": "src/choresir/scheduler/jobs.py"
+      "complexity": 0,
+      "file_name": "setup.py",
+      "function_name": "create_scheduler",
+      "path": "src/choresir/scheduler/setup.py"
     },
     {
       "complexity": 0,
       "file_name": "setup.py",
-      "function_name": "create_scheduler",
+      "function_name": "register_schedules",
       "path": "src/choresir/scheduler/setup.py"
     },
     {
@@ -379,6 +379,12 @@
       "path": "src/choresir/services/task_service.py"
     },
     {
+      "complexity": 2,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::reset_recurring_tasks",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
       "complexity": 3,
       "file_name": "task_service.py",
       "function_name": "TaskService::_handle_recurrence_reset",
@@ -397,7 +403,7 @@
       "path": "src/choresir/services/task_service.py"
     },
     {
-      "complexity": 5,
+      "complexity": 7,
       "file_name": "task_service.py",
       "function_name": "TaskService::claim_completion",
       "path": "src/choresir/services/task_service.py"

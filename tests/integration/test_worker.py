@@ -19,7 +19,11 @@ async def sf(engine):
 
 async def _insert(sf, job_id="job-1", **kw):
     job = MessageJob(
-        id=job_id, sender_id="s@c.us", group_id="g@g.us", body="x", **kw,
+        id=job_id,
+        sender_id="s@c.us",
+        group_id="g@g.us",
+        body="x",
+        **kw,
     )
     async with sf() as s:
         s.add(job)

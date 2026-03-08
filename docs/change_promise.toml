@@ -1,147 +1,131 @@
 [metadata]
-base_commit = "11dcc3db153289802c603788d6139ba284a1b609"
-created_at = "2026-03-05T10:45:00Z"
+base_commit = "4f0941bbcb6e2a0ed9d6abbb37265b7ba770bd6d"
+created_at = "2026-03-07T23:55:00Z"
 
 [[tasks]]
-title = "Enforce takeover limit in claim_completion"
-goal = "Call count_weekly_takeovers() and reject when member exceeds max_takeovers_per_week setting"
-success_criteria = "claim_completion raises TakeoverLimitExceededError when completer != assignee and weekly limit reached"
+title = "Add household settings admin page"
+goal = "Implement the settings page with form for household name, takeover limit, reminder times, and default verification mode"
+success_criteria = "Admin settings page displays and saves household configuration to database"
 files_to_create = []
-files_to_modify = ["src/choresir/services/task_service.py", "src/choresir/errors.py", "src/choresir/agent/tools/verification.py"]
+files_to_modify = ["src/choresir/admin/pages.py"]
 files_to_remove = []
-expected_lines_added = 25
-expected_lines_removed = 3
-context_files = ["src/choresir/config.py"]
-doc_sections = ["SPEC.md#Task-Management", "PATTERNS.md#Error-Handling"]
-reference_skills = ["style-python", "domain-household-task-management"]
-dependencies = []
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Add group-join webhook handler"
-goal = "Handle WAHA group.v2.join events to auto-register new members with pending status"
-success_criteria = "Webhook accepts group.v2.join events and creates pending members via MemberService"
-files_to_create = []
-files_to_modify = ["src/choresir/webhook/router.py"]
-files_to_remove = []
-expected_lines_added = 30
+expected_lines_added = 80
 expected_lines_removed = 5
-context_files = ["src/choresir/services/member_service.py", "src/choresir/models/member.py"]
-doc_sections = ["SPEC.md#Onboarding-Membership", "DESIGN.md#Onboarding-Flow"]
-reference_skills = ["tech-fastapi", "tech-waha", "style-python"]
-dependencies = []
-completed = true
-attempts = 1
-
-[[tasks]]
-title = "Add onboarding prompt flow for pending members"
-goal = "Detect pending members on incoming messages and prompt them to provide their name"
-success_criteria = "Pending members receive name prompt when they send a message; name is captured to activate them"
-files_to_create = ["src/choresir/agent/tools/onboarding.py"]
-files_to_modify = ["src/choresir/agent/agent.py", "src/choresir/app.py", "src/choresir/agent/tools/__init__.py"]
-files_to_remove = []
-expected_lines_added = 60
-expected_lines_removed = 10
-context_files = ["src/choresir/services/member_service.py", "src/choresir/agent/registry.py"]
-doc_sections = ["SPEC.md#Onboarding-Membership", "DESIGN.md#Onboarding-Flow"]
-reference_skills = ["tech-pydanticai", "style-python"]
-dependencies = []
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Add CSRF protection to admin interface"
-goal = "Implement token-based CSRF middleware for the FastHTML admin app"
-success_criteria = "Admin forms include CSRF token; requests without valid token are rejected"
-files_to_create = []
-files_to_modify = ["src/choresir/admin/app.py", "src/choresir/admin/pages.py"]
-files_to_remove = []
-expected_lines_added = 40
-expected_lines_removed = 5
-context_files = ["src/choresir/config.py"]
-doc_sections = ["SPEC.md#Reliability-Security", "DESIGN.md#Admin-Interface"]
+context_files = ["src/choresir/config.py", "src/choresir/admin/app.py"]
+doc_sections = ["DESIGN.md#Admin-Interface", "PATTERNS.md#Code-Organization"]
 reference_skills = ["tech-fasthtml", "style-python"]
 dependencies = []
 completed = false
 attempts = 0
 
 [[tasks]]
-title = "Add upcoming task reminders"
-goal = "Implement get_upcoming() in TaskService and scheduler job for upcoming deadline reminders"
-success_criteria = "Tasks with deadlines in next 24 hours trigger reminder messages"
+title = "Add task management admin pages"
+goal = "Add admin pages to list, edit, and delete tasks"
+success_criteria = "Admin can view all tasks, edit task properties, and delete tasks through the web interface"
 files_to_create = []
-files_to_modify = ["src/choresir/services/task_service.py", "src/choresir/scheduler/jobs.py", "src/choresir/scheduler/setup.py"]
+files_to_modify = ["src/choresir/admin/pages.py"]
+files_to_remove = []
+expected_lines_added = 100
+expected_lines_removed = 0
+context_files = ["src/choresir/services/task_service.py", "src/choresir/models/task.py"]
+doc_sections = ["DESIGN.md#Admin-Interface", "SPEC.md#Onboarding-Membership"]
+reference_skills = ["tech-fasthtml", "tech-sqlmodel", "style-python"]
+dependencies = []
+completed = false
+attempts = 0
+
+[[tasks]]
+title = "Add task visibility tests"
+goal = "Add test verifying personal tasks are hidden from non-owners in list_tasks"
+success_criteria = "Test passes confirming personal tasks only visible to their owner"
+files_to_create = []
+files_to_modify = ["tests/unit/test_services.py"]
 files_to_remove = []
 expected_lines_added = 35
-expected_lines_removed = 2
-context_files = ["src/choresir/models/task.py", "src/choresir/enums.py"]
-doc_sections = ["SPEC.md#Analytics-Notifications", "DESIGN.md#Scheduler"]
-reference_skills = ["tech-apscheduler", "tech-sqlmodel", "style-python"]
-dependencies = []
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Replace manual retry with tenacity decorator"
-goal = "Use tenacity retry decorator in processor.py instead of manual backoff logic"
-success_criteria = "LLM calls use @retry decorator with exponential backoff; manual retry logic removed"
-files_to_create = []
-files_to_modify = ["src/choresir/worker/processor.py", "src/choresir/app.py"]
-files_to_remove = []
-expected_lines_added = 20
-expected_lines_removed = 30
-context_files = ["src/choresir/config.py"]
-doc_sections = ["SPEC.md#Reliability-Security", "DESIGN.md#Technology-Choices"]
-reference_skills = ["tech-tenacity", "style-python"]
-dependencies = []
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Integrate Alembic for database migrations"
-goal = "Set up Alembic with async SQLite configuration and generate initial migration"
-success_criteria = "alembic.ini and alembic/ directory exist; alembic upgrade head applies schema"
-files_to_create = ["alembic.ini", "alembic/env.py", "alembic/script.py.mako", "alembic/versions/001_initial.py"]
-files_to_modify = ["pyproject.toml"]
-files_to_remove = []
-expected_lines_added = 120
 expected_lines_removed = 0
-context_files = ["src/choresir/models/task.py", "src/choresir/models/member.py", "src/choresir/models/job.py", "src/choresir/db.py"]
-doc_sections = ["DESIGN.md#Technology-Choices", "PATTERNS.md#Code-Organization"]
-reference_skills = ["tech-alembic", "tech-sqlmodel", "style-python"]
+context_files = ["src/choresir/services/task_service.py", "src/choresir/enums.py", "tests/conftest.py"]
+doc_sections = ["PATTERNS.md#Testing-Task-Visibility"]
+reference_skills = ["style-python", "domain-household-task-management"]
 dependencies = []
 completed = false
 attempts = 0
 
 [[tasks]]
-title = "Add sender parameter to TaskService signature"
-goal = "Update TaskService constructor to accept MessageSender for consistency with PATTERNS.md"
-success_criteria = "TaskService.__init__ accepts (session, sender) matching PATTERNS specification"
+title = "Add takeover limit enforcement tests"
+goal = "Add test verifying weekly takeover limit is enforced in claim_completion"
+success_criteria = "Test passes confirming TakeoverLimitExceededError raised when limit exceeded"
 files_to_create = []
-files_to_modify = ["src/choresir/services/task_service.py", "src/choresir/app.py", "tests/unit/test_services.py"]
+files_to_modify = ["tests/unit/test_services.py"]
 files_to_remove = []
-expected_lines_added = 15
-expected_lines_removed = 5
-context_files = ["src/choresir/services/messaging.py"]
-doc_sections = ["PATTERNS.md#Design-Patterns"]
-reference_skills = ["style-python", "tech-sqlmodel"]
+expected_lines_added = 40
+expected_lines_removed = 0
+context_files = ["src/choresir/services/task_service.py", "src/choresir/errors.py", "tests/conftest.py"]
+doc_sections = ["PATTERNS.md#Testing-Takeover-Limit", "domain-household-task-management"]
+reference_skills = ["style-python", "domain-household-task-management"]
 dependencies = []
 completed = false
 attempts = 0
 
 [[tasks]]
-title = "Create test_agent.py integration test"
-goal = "Add integration test file for agent tool execution with mock LLM"
-success_criteria = "tests/integration/test_agent.py exists with basic tool execution tests"
-files_to_create = ["tests/integration/test_agent.py"]
+title = "Add dynamic system prompt tests"
+goal = "Add tests verifying the system prompt includes current members and tasks from the database"
+success_criteria = "Test passes confirming system prompt contains member names and task info"
+files_to_create = []
+files_to_modify = ["tests/integration/test_agent.py"]
+files_to_remove = []
+expected_lines_added = 45
+expected_lines_removed = 0
+context_files = ["src/choresir/agent/agent.py", "tests/conftest.py"]
+doc_sections = ["PATTERNS.md#Testing-Dynamic-System-Prompt", "PATTERNS.md#Dynamic-System-Prompt"]
+reference_skills = ["tech-pydanticai", "style-python"]
+dependencies = []
+completed = false
+attempts = 0
+
+[[tasks]]
+title = "Add member status transition validation"
+goal = "Add transition_member function and _MEMBER_TRANSITIONS dict following the enum-driven state machine pattern"
+success_criteria = "Members can only transition from PENDING to ACTIVE; invalid transitions raise InvalidTransitionError"
+files_to_create = []
+files_to_modify = ["src/choresir/services/member_service.py"]
+files_to_remove = []
+expected_lines_added = 25
+expected_lines_removed = 5
+context_files = ["src/choresir/enums.py", "src/choresir/errors.py", "src/choresir/services/task_service.py"]
+doc_sections = ["PATTERNS.md#Enum-Driven-State-Machines"]
+reference_skills = ["style-python"]
+dependencies = []
+completed = false
+attempts = 0
+
+[[tasks]]
+title = "Add member status transition tests"
+goal = "Add Hypothesis property-based tests for member status state machine transitions"
+success_criteria = "Tests pass for valid and invalid member status transitions"
+files_to_create = []
+files_to_modify = ["tests/unit/test_transitions.py"]
+files_to_remove = []
+expected_lines_added = 50
+expected_lines_removed = 0
+context_files = ["src/choresir/services/member_service.py", "src/choresir/enums.py"]
+doc_sections = ["PATTERNS.md#Testing-State-Machines", "PATTERNS.md#Enum-Driven-State-Machines"]
+reference_skills = ["style-python"]
+dependencies = ["Add member status transition validation"]
+completed = false
+attempts = 0
+
+[[tasks]]
+title = "Add domain invariant property tests"
+goal = "Add property-based tests for critical domain invariants from domain skill validation rules"
+success_criteria = "Tests pass for all 6 invariants: active-only completions, no self-verify, NONE skips CLAIMED, recurring next_deadline future, takeover limit, personal visibility"
+files_to_create = ["tests/unit/test_invariants.py"]
 files_to_modify = []
 files_to_remove = []
-expected_lines_added = 80
+expected_lines_added = 130
 expected_lines_removed = 0
-context_files = ["tests/conftest.py", "tests/integration/test_worker.py", "src/choresir/agent/agent.py"]
-doc_sections = ["PATTERNS.md#Testing-Patterns"]
-reference_skills = ["style-python", "tech-pydanticai"]
+context_files = ["src/choresir/services/task_service.py", "src/choresir/models/task.py", "src/choresir/enums.py", "src/choresir/errors.py"]
+doc_sections = ["domain-household-task-management#Validation-Rules", "PATTERNS.md#Testing-Patterns"]
+reference_skills = ["domain-household-task-management", "style-python"]
 dependencies = []
 completed = false
 attempts = 0

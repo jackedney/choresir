@@ -6,19 +6,20 @@ from datetime import datetime
 
 from pydantic_ai import RunContext
 
+from choresir.agent.agent import AgentDeps
 from choresir.agent.registry import registry
 from choresir.errors import AuthorizationError, NotFoundError
 
 _DOMAIN_ERRORS = (NotFoundError, AuthorizationError)
 
 
-async def _ensure_active_member(ctx: RunContext, member_id: int) -> None:
+async def _ensure_active_member(ctx: RunContext[AgentDeps], member_id: int) -> None:
     await ctx.deps.member_service.get_active(member_id)
 
 
 @registry.register
 async def create_task(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
     title: str,
     assignee_id: int,
     description: str | None = None,
@@ -51,7 +52,7 @@ async def create_task(
 
 @registry.register
 async def reassign_task(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
     task_id: int,
     new_assignee_id: int,
 ) -> str:
@@ -66,22 +67,29 @@ async def reassign_task(
 
 @registry.register
 async def delete_task(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
     task_id: int,
     requester_id: int,
 ) -> str:
-    """Request task deletion. Requires another member's approval."""
+    """Delete a task. Personal tasks are deleted immediately by owner; shared tasks need approval."""
+    from choresir.enums import TaskVisibility
+
     try:
         await _ensure_active_member(ctx, requester_id)
         task = await ctx.deps.task_service.request_deletion(task_id, requester_id)
-        return f"Deletion requested for '{task.title}'. Needs approval."
+        if (
+            task.visibility == TaskVisibility.PERSONAL
+            and task.assignee_id == requester_id
+        ):
+            return f"Task '{task.title}' deleted."
+        return f"Deletion requested for '{task.title}'. Needs approval from another member."
     except _DOMAIN_ERRORS as e:
         return str(e)
 
 
 @registry.register
 async def approve_deletion(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
     task_id: int,
     approver_id: int,
 ) -> str:
@@ -96,7 +104,7 @@ async def approve_deletion(
 
 @registry.register
 async def list_tasks(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
     member_id: int | None = None,
 ) -> str:
     """List tasks visible to a member, or all tasks."""

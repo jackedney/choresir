@@ -466,7 +466,7 @@ async def test_takeover_limit_enforced(session, fake_sender):
     for _ in range(3):
         task = await svc.create_task("Task", assignee_id=assignee.id)
         await svc.claim_completion(task.id, taker.id)
-    
+
     fourth = await svc.create_task("Fourth", assignee_id=assignee.id)
     with pytest.raises(TakeoverLimitExceededError):
         await svc.claim_completion(fourth.id, taker.id)
@@ -481,10 +481,10 @@ Verify context assembly:
 async def test_system_prompt_includes_members(agent_deps):
     await agent_deps.member_service.register_pending("wa_123")
     await agent_deps.member_service.set_name("wa_123", "Alice")
-    
+
     ctx = RunContext(deps=agent_deps, retry=0, messages=[])
     prompt = await _household_ctx(ctx)
-    
+
     assert "Alice" in prompt
     assert "ID 1" in prompt
 ```
@@ -498,17 +498,17 @@ Mock transient failures to verify retry behavior:
 async def test_agent_retry_on_timeout(agent, agent_deps):
     call_count = 0
     original_run = agent.run
-    
+
     async def flaky_run(message, deps):
         nonlocal call_count
         call_count += 1
         if call_count < 3:
             raise TimeoutError("LLM timeout")
         return await original_run(message, deps)
-    
+
     with patch.object(agent, "run", flaky_run):
         result = await call_agent_with_retry(agent, "hello", agent_deps)
-    
+
     assert call_count == 3
 ```
 
@@ -523,7 +523,7 @@ async def test_reset_recurring_sends_no_message(session_factory):
     class SpySender:
         async def send(self, chat_id, text):
             calls.append((chat_id, text))
-    
+
     await reset_recurring_tasks(session_factory)
     assert calls == []
 ```

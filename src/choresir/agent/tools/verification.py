@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic_ai import RunContext
 
+from choresir.agent.agent import AgentDeps
 from choresir.agent.registry import registry
 from choresir.errors import (
     AuthorizationError,
@@ -22,7 +23,7 @@ _ERRORS = (
 
 @registry.register
 async def complete_task(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
     task_id: int,
     member_id: int,
 ) -> str:
@@ -38,7 +39,7 @@ async def complete_task(
 
 @registry.register
 async def verify_completion(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
     task_id: int,
     verifier_id: int,
     feedback: str | None = None,
@@ -55,7 +56,7 @@ async def verify_completion(
 
 @registry.register
 async def reject_completion(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
     task_id: int,
     verifier_id: int,
 ) -> str:

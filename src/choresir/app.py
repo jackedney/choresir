@@ -21,7 +21,7 @@ from choresir.config import Settings
 from choresir.db import create_engine, create_session_factory
 from choresir.errors import RateLimitExceededError, WebhookAuthError
 from choresir.models.job import MessageJob
-from choresir.scheduler.setup import create_scheduler
+from choresir.scheduler.setup import create_scheduler, register_schedules
 from choresir.services.member_service import MemberService
 from choresir.services.messaging import WAHAClient
 from choresir.services.task_service import TaskService
@@ -58,10 +58,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 http,
             )
 
-            scheduler = await create_scheduler(
-                session_factory, sender, settings.group_chat_id
-            )
+            scheduler = create_scheduler()
             async with scheduler:
+                await register_schedules(
+                    scheduler, session_factory, sender, settings.group_chat_id
+                )
                 await scheduler.start_in_background()
 
                 agent = create_agent(settings)
@@ -96,6 +97,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan)
 
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
+
     @app.exception_handler(WebhookAuthError)
     async def webhook_auth_handler(
         request: Request, exc: WebhookAuthError
@@ -113,7 +118,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(webhook_router)
 
-    admin_app = create_admin_app(settings, session_factory, None)  # type: ignore[arg-type]  # waha_client created in lifespan
+    admin_app = create_admin_app(settings, session_factory)
     app.mount("/admin", admin_app)
 
     return app

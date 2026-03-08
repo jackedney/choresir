@@ -29,9 +29,7 @@ class Task(SQLModel, table=True):
     recurrence: str | None = None
     deadline: datetime | None = None
     next_deadline: datetime | None = None
-    deletion_requested_by: int | None = Field(
-        default=None, foreign_key="member.id"
-    )
+    deletion_requested_by: int | None = Field(default=None, foreign_key="member.id")
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 

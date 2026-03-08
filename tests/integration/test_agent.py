@@ -7,7 +7,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
-from choresir.agent.agent import AgentDeps, create_agent
+from choresir.agent.agent import AgentDeps, _household_ctx, create_agent
 from choresir.agent.tools.tasks import create_task, list_tasks
 from choresir.agent.tools.verification import complete_task
 from choresir.config import Settings
@@ -92,10 +92,12 @@ async def test_complete_task_success(session, test_model, test_usage, fake_sende
 
     task_svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
 
+    assert member.id is not None
     task = await task_svc.create_task(
         title="Task to complete",
         assignee_id=member.id,
     )
+    assert task.id is not None
     await session.commit()
 
     deps = AgentDeps(
@@ -169,6 +171,7 @@ async def test_list_tasks_with_tasks(session, test_model, test_usage, fake_sende
 
     task_svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
 
+    assert member.id is not None
     await task_svc.create_task(title="Task 1", assignee_id=member.id)
     await task_svc.create_task(title="Task 2", assignee_id=member.id)
     await session.commit()
@@ -190,3 +193,38 @@ async def test_list_tasks_with_tasks(session, test_model, test_usage, fake_sende
     assert "Task 1" in result
     assert "Task 2" in result
     assert "[pending]" in result
+
+
+@pytest.mark.anyio
+async def test_system_prompt_includes_members_and_tasks(
+    session, test_model, test_usage, fake_sender
+):
+    member_svc = MemberService(session)
+    member = await member_svc.register_pending("test@c.us")
+    member = await member_svc.activate("test@c.us", "Alice Johnson")
+
+    task_svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
+
+    assert member.id is not None
+    task = await task_svc.create_task(title="Clean the kitchen", assignee_id=member.id)
+    await session.commit()
+
+    deps = AgentDeps(
+        task_service=task_svc, member_service=member_svc, sender_id="test@c.us"
+    )
+    ctx = RunContext(
+        deps=deps,
+        model=test_model,
+        usage=test_usage,
+        retry=0,
+        messages=[],
+    )
+
+    prompt = await _household_ctx(ctx)
+
+    assert "Alice Johnson" in prompt
+    assert f"ID {member.id}" in prompt
+    assert "Clean the kitchen" in prompt
+    assert f"ID {task.id}" in prompt
+    assert "[pending]" in prompt
+    assert "test@c.us" in prompt

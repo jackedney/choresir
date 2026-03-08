@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from choresir.config import Settings
 
@@ -30,4 +27,4 @@ def create_engine(settings: Settings) -> AsyncEngine:
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker:
     """Create an async session factory with expire_on_commit disabled."""
-    return async_sessionmaker(engine, expire_on_commit=False)
+    return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

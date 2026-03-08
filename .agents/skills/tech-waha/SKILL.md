@@ -30,15 +30,31 @@ services:
 ### Webhook payload structure (inbound)
 
 ```python
-# WAHA posts this JSON to POST /webhook
+# Group message — "from" is the GROUP, "participant" is the sender
 {
     "event": "message",
     "session": "default",
     "payload": {
-        "id": "true_120363XXXX@g.us_ABCD1234",  # unique message ID
-        "from": "1234567890@c.us",               # sender JID
-        "to": "120363XXXX@g.us",                  # group JID
+        "id": "true_120363XXXX@g.us_ABCD1234",
+        "from": "120363XXXX@g.us",          # group JID (@g.us)
+        "to": "1234567890@c.us",             # bot's own JID
+        "participant": "9876543210@c.us",    # actual sender JID
         "body": "Hello, can you add a task?",
+        "timestamp": 1700000000,
+        "fromMe": false,
+        "_data": {...}
+    }
+}
+
+# DM — "from" is the sender, no "participant" field
+{
+    "event": "message",
+    "session": "default",
+    "payload": {
+        "id": "true_1234567890@c.us_ABCD1234",
+        "from": "1234567890@c.us",           # sender JID (@c.us)
+        "to": "9876543210@c.us",             # bot's own JID
+        "body": "Hi there!",
         "timestamp": 1700000000,
         "fromMe": false,
         "_data": {...}
@@ -90,11 +106,11 @@ async def send_text(chat_id: str, text: str) -> None:
 
 ```python
 # Start a session (done once via admin UI or CLI)
-POST /api/sessions/start
-{"name": "default"}
+POST /api/sessions/default/start
+{}
 
-# Check session status
-GET /api/sessions/default/status
+# Check session status (returns JSON with "status" field)
+GET /api/sessions/default
 
 # QR code for authentication
 GET /api/screenshot?session=default
@@ -114,6 +130,7 @@ if payload["event"] == "group.v2.join":
 - **`id` field is the dedup key**: Use `payload.id` as the primary key for the message job queue — WAHA guarantees uniqueness per message.
 - **`fromMe: true` messages must be filtered**: WAHA delivers your own outbound messages back as webhooks. Filter `payload.fromMe == true` before processing.
 - **Group JID format**: Group chats use `@g.us` suffix; individual chats use `@c.us`. The agent only processes group messages.
+- **Group `from`/`to` swap**: In group messages, `from` is the **group JID** (not the sender) and `participant` holds the actual sender. Check `from.endswith("@g.us")` to detect group messages.
 - **Session must be authenticated before webhooks flow**: If the WAHA session is not QR-authenticated, no webhooks arrive. The admin interface handles session setup.
 - **Webhook events must be configured**: Set `WHATSAPP_HOOK_EVENTS=message,group.v2.join` (or equivalent) — by default WAHA may not emit all event types.
 - **Rate limits from WhatsApp**: WhatsApp may throttle accounts that send too many messages. Respect outbound rate limits — do not send more than ~20 messages/minute.

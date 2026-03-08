@@ -21,7 +21,7 @@ class ToolRegistry:
         self._tools.append(fn)
         return fn
 
-    def apply(self, agent: Agent) -> None:  # type: ignore[type-arg]
+    def apply[D, R](self, agent: Agent[D, R]) -> None:
         """Register all collected tools on the given agent."""
         for tool_fn in self._tools:
             agent.tool(tool_fn)

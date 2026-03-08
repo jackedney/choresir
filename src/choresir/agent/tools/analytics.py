@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from pydantic_ai import RunContext
 
+from choresir.agent.agent import AgentDeps
 from choresir.agent.registry import registry
 from choresir.errors import NotFoundError
 
 
 @registry.register
 async def get_stats(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
     member_id: int,
 ) -> str:
     """Get completion stats for a household member."""
@@ -24,7 +25,7 @@ async def get_stats(
 
 @registry.register
 async def get_leaderboard(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
 ) -> str:
     """Get the household task completion leaderboard."""
     entries = await ctx.deps.task_service.get_leaderboard()
@@ -38,13 +39,10 @@ async def get_leaderboard(
 
 @registry.register
 async def get_overdue_tasks(
-    ctx: RunContext,  # type: ignore[type-arg]
+    ctx: RunContext[AgentDeps],
 ) -> str:
     """Get all overdue tasks."""
     tasks = await ctx.deps.task_service.get_overdue()
     if not tasks:
         return "No overdue tasks."
-    return "\n".join(
-        f"- {t.title} (ID {t.id}, due: {t.deadline})"
-        for t in tasks
-    )
+    return "\n".join(f"- {t.title} (ID {t.id}, due: {t.deadline})" for t in tasks)

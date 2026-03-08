@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from choresir.enums import MemberRole, MemberStatus
-from choresir.errors import AuthorizationError, NotFoundError
+from choresir.errors import AuthorizationError, InvalidTransitionError, NotFoundError
 from choresir.models.member import Member
+
+_MEMBER_TRANSITIONS: dict[MemberStatus, frozenset[MemberStatus]] = {
+    MemberStatus.PENDING: frozenset({MemberStatus.ACTIVE}),
+    MemberStatus.ACTIVE: frozenset(),
+}
+
+
+def transition_member(member: Member, to: MemberStatus) -> None:
+    """Validate and apply a state transition on a member."""
+    if to not in _MEMBER_TRANSITIONS.get(member.status, frozenset()):
+        raise InvalidTransitionError(member.status, to)
+    member.status = to
 
 
 class MemberService:
@@ -25,7 +37,7 @@ class MemberService:
             role=MemberRole.MEMBER,
         )
         stmt = stmt.on_conflict_do_nothing(index_elements=["whatsapp_id"])
-        await self._session.exec(stmt)  # type: ignore[arg-type]
+        await self._session.exec(stmt)
         await self._session.commit()
 
         return await self.get_by_whatsapp_id(whatsapp_id)
@@ -33,7 +45,8 @@ class MemberService:
     async def activate(self, whatsapp_id: str, name: str) -> Member:
         """Set name and transition member to ACTIVE status."""
         member = await self.get_by_whatsapp_id(whatsapp_id)
-        member.sqlmodel_update({"name": name, "status": MemberStatus.ACTIVE})
+        member.name = name
+        transition_member(member, MemberStatus.ACTIVE)
         self._session.add(member)
         await self._session.commit()
         await self._session.refresh(member)

@@ -7,7 +7,8 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from choresir.errors import WebhookAuthError
 from choresir.models.job import MessageJob
@@ -26,7 +27,9 @@ def create_webhook_router(
     async def receive_webhook(request: Request) -> dict[str, str]:
         """Receive a WAHA webhook, validate, dedup, and enqueue for processing."""
         body = await request.body()
-        signature = request.headers.get("X-WAHA-Signature-256", "")
+        signature = request.headers.get("X-Webhook-Hmac") or request.headers.get(
+            "X-WAHA-Signature-256", ""
+        )
 
         if not validate_webhook(body, signature, webhook_secret):
             raise WebhookAuthError("Invalid webhook signature")
@@ -51,9 +54,18 @@ def create_webhook_router(
             return {"status": "ok"}
 
         message_id: str = message.get("id", "")
-        sender_id: str = message.get("from", "")
-        group_id: str = message.get("to", "")
+        from_id: str = message.get("from", "")
+        to_id: str = message.get("to", "")
         message_body: str = message.get("body", "")
+
+        # In group messages, "from" is the group JID and the actual
+        # sender is in "participant".  For DMs, "from" is the sender.
+        if from_id.endswith("@g.us"):
+            group_id = from_id
+            sender_id = message.get("participant", from_id)
+        else:
+            sender_id = from_id
+            group_id = to_id
 
         # INSERT OR IGNORE for deduplication via primary key
         stmt = sqlite_insert(MessageJob).values(
@@ -65,7 +77,7 @@ def create_webhook_router(
         stmt = stmt.on_conflict_do_nothing(index_elements=["id"])
 
         async with session_factory() as session:
-            await session.execute(stmt)
+            await session.exec(stmt)
             await session.commit()
 
         return {"status": "ok"}

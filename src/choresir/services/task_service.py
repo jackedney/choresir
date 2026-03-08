@@ -6,8 +6,8 @@ import calendar
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, func, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from choresir.enums import TaskStatus, TaskVisibility, VerificationMode
 from choresir.errors import (
@@ -227,8 +227,15 @@ class TaskService:
         return task
 
     async def request_deletion(self, task_id: int, requester_id: int) -> Task:
-        """Mark a task for deletion pending approval."""
+        """Delete personal tasks immediately if owner; otherwise mark for approval."""
         task = await self.get_task(task_id)
+        if (
+            task.visibility == TaskVisibility.PERSONAL
+            and task.assignee_id == requester_id
+        ):
+            await self._session.delete(task)
+            await self._session.commit()
+            return task
         task.deletion_requested_by = requester_id
         task.updated_at = datetime.now(UTC)
         self._session.add(task)

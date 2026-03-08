@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col
 
 from choresir.enums import JobStatus
 from choresir.models.job import MessageJob
@@ -17,8 +18,8 @@ async def claim_next_job(session: AsyncSession) -> MessageJob | None:
     stmt = (
         update(MessageJob)
         .where(
-            MessageJob.status == JobStatus.PENDING,
-            (MessageJob.run_after <= now) | (MessageJob.run_after.is_(None)),
+            col(MessageJob.status) == JobStatus.PENDING,
+            (col(MessageJob.run_after) <= now) | (col(MessageJob.run_after).is_(None)),
         )
         .values(status=JobStatus.PROCESSING, claimed_at=now)
         .returning(MessageJob)
@@ -36,7 +37,7 @@ async def complete_job(session: AsyncSession, job: MessageJob) -> None:
     now = datetime.now(UTC)
     stmt = (
         update(MessageJob)
-        .where(MessageJob.id == job.id)
+        .where(col(MessageJob.id) == job.id)
         .values(status=JobStatus.DONE, completed_at=now)
     )
     await session.execute(stmt)
@@ -52,7 +53,7 @@ async def retry_job(
     now = datetime.now(UTC)
     stmt = (
         update(MessageJob)
-        .where(MessageJob.id == job.id)
+        .where(col(MessageJob.id) == job.id)
         .values(
             status=JobStatus.PENDING,
             attempts=job.attempts + 1,
@@ -67,7 +68,7 @@ async def fail_job(session: AsyncSession, job: MessageJob) -> None:
     """Mark a job as permanently failed."""
     stmt = (
         update(MessageJob)
-        .where(MessageJob.id == job.id)
+        .where(col(MessageJob.id) == job.id)
         .values(status=JobStatus.FAILED)
     )
     await session.execute(stmt)
