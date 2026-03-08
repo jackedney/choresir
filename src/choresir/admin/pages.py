@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets as _secrets
 import time
 from datetime import UTC, datetime
 
@@ -18,6 +19,33 @@ from choresir.enums import (
 )
 from choresir.services.member_service import MemberService
 from choresir.services.task_service import TaskService
+
+
+def _get_csrf_token(sess) -> str:
+    """Get or create CSRF token for the session."""
+    token = sess.get("_csrf_token")
+    if not token:
+        token = _secrets.token_hex(16)
+        sess["_csrf_token"] = token
+    return token
+
+
+def _validate_csrf(sess, token: str | None) -> bool:
+    """Validate CSRF token matches session."""
+    if not token:
+        return False
+    return sess.get("_csrf_token") == token
+
+
+def _csrf_input(sess):
+    """Hidden input field with CSRF token."""
+    return Input(name="_csrf", type="hidden", value=_get_csrf_token(sess))  # noqa: F405
+
+
+def _check_csrf(sess, csrf_token: str):
+    """Validate CSRF or redirect to login."""
+    if not _validate_csrf(sess, csrf_token):
+        raise ValueError("Invalid CSRF token")
 
 
 def _build_settings_routes(rt, settings: Settings) -> None:
@@ -78,6 +106,7 @@ def _build_settings_routes(rt, settings: Settings) -> None:
             "Household Settings",
             success_msg,
             Form(  # noqa: F405
+                _csrf_input(sess),
                 Div(  # noqa: F405
                     Label("Household Name", For="household_name"),  # noqa: F405
                     Input(  # noqa: F405
@@ -153,12 +182,14 @@ def _build_settings_routes(rt, settings: Settings) -> None:
     @rt("/settings")
     def settings_post(
         sess,
+        _csrf: str = "",
         household_name: str = "",
         verification_mode: str = VerificationMode.NONE.value,
         daily_summary_time: str = "20:00",
         weekly_leaderboard_day: str = "sunday",
         weekly_leaderboard_time: str = "20:00",
     ):
+        _check_csrf(sess, _csrf)
         sess["household_name"] = household_name
         sess["verification_mode"] = verification_mode
         sess["daily_summary_time"] = daily_summary_time
@@ -214,6 +245,7 @@ def _build_waha_routes(rt, settings: Settings) -> None:
                     style="margin-top:1rem;font-size:0.9rem;color:#666",
                 ),
                 footer=Form(  # noqa: F405
+                    _csrf_input(sess),
                     Button(  # noqa: F405
                         "Reload QR Code",
                         cls="secondary outline",
@@ -231,6 +263,7 @@ def _build_waha_routes(rt, settings: Settings) -> None:
                 method="GET",
             ),
             Form(  # noqa: F405
+                _csrf_input(sess),
                 Button("Start Session", cls="outline", style="width:100%"),  # noqa: F405
                 action="/admin/waha/start",
                 method="POST",
@@ -276,7 +309,8 @@ def _build_waha_routes(rt, settings: Settings) -> None:
             )
 
     @rt("/waha/restart")
-    async def waha_restart_post(sess):
+    async def waha_restart_post(_csrf: str, sess):
+        _check_csrf(sess, _csrf)
         try:
             async with httpx.AsyncClient() as http:
                 await http.post(
@@ -295,7 +329,8 @@ def _build_waha_routes(rt, settings: Settings) -> None:
         return RedirectResponse("/admin/waha", status_code=303)  # noqa: F405
 
     @rt("/waha/start")
-    async def waha_start_post(sess):
+    async def waha_start_post(_csrf: str, sess):
+        _check_csrf(sess, _csrf)
         try:
             async with httpx.AsyncClient() as http:
                 resp = await http.post(
@@ -329,6 +364,7 @@ def _build_members_routes(
                 Td(m.status),  # noqa: F405
                 Td(  # noqa: F405
                     Form(  # noqa: F405
+                        _csrf_input(sess),
                         Input(  # noqa: F405
                             name="role",
                             value="admin" if m.role == MemberRole.MEMBER else "member",
@@ -357,7 +393,8 @@ def _build_members_routes(
         )
 
     @rt("/members/{member_id}/role")
-    async def member_role_post(member_id: int, role: str, sess):
+    async def member_role_post(member_id: int, role: str, _csrf: str, sess):
+        _check_csrf(sess, _csrf)
         member_role = MemberRole(role)
         async with session_factory() as session:
             svc = MemberService(session)
@@ -467,6 +504,7 @@ def _build_tasks_routes(
         return Titled(  # noqa: F405
             f"Edit Task: {task.title}",
             Form(  # noqa: F405
+                _csrf_input(sess),
                 Div(  # noqa: F405
                     Label("Title", For="title"),  # noqa: F405
                     Input(name="title", id="title", value=task.title),  # noqa: F405
@@ -538,6 +576,7 @@ def _build_tasks_routes(
     @rt("/tasks/{task_id}/edit")
     async def task_edit_post(
         task_id: int,
+        _csrf: str,
         title: str,
         description: str = "",
         assignee_id: int = 0,
@@ -547,6 +586,7 @@ def _build_tasks_routes(
         deadline: str = "",
         sess=None,
     ):
+        _check_csrf(sess, _csrf)
         async with session_factory() as session:
             task_svc = TaskService(session, None, settings.max_takeovers_per_week)
             task = await task_svc.get_task(task_id)
@@ -582,6 +622,7 @@ def _build_tasks_routes(
                 style="margin-bottom:1rem",
             ),  # noqa: F405
             Form(  # noqa: F405
+                _csrf_input(sess),
                 Button("Delete", cls="primary", style="background-color:#dc3545"),  # noqa: F405
                 action=f"/admin/tasks/{task_id}/delete",
                 method="POST",
@@ -590,7 +631,8 @@ def _build_tasks_routes(
         )
 
     @rt("/tasks/{task_id}/delete")
-    async def task_delete_post(task_id: int, sess):
+    async def task_delete_post(task_id: int, _csrf: str, sess):
+        _check_csrf(sess, _csrf)
         async with session_factory() as session:
             task_svc = TaskService(session, None, settings.max_takeovers_per_week)
             task = await task_svc.get_task(task_id)

@@ -1,35 +1,19 @@
 [metadata]
-base_commit = "35a3a8ebb58017a555af01b1501ee556df27a907"
-created_at = "2026-03-08T12:58:59Z"
+base_commit = "76e0225dc8f6d6bb8e15184ff89f349c1a7e59fe"
+created_at = "2026-03-08T13:30:00Z"
 
 [[tasks]]
-title = "Run database migrations at application startup"
-goal = "Execute Alembic migrations in the FastAPI lifespan handler before accepting requests"
-success_criteria = "When the app starts, migrations are run automatically. Container can start fresh and have the correct schema."
+title = "Add explicit CSRF protection to admin forms"
+goal = "Add CSRF token generation, inclusion in forms, and validation for all POST handlers in the admin interface"
+success_criteria = "All 7 POST forms include a hidden csrf_token field; POST handlers validate the token matches session; SPEC req 31 satisfied"
 files_to_create = []
-files_to_modify = ["src/choresir/app.py"]
+files_to_modify = ["src/choresir/admin/pages.py"]
 files_to_remove = []
-expected_lines_added = 20
-expected_lines_removed = 2
-context_files = ["alembic/env.py", "alembic.ini"]
-doc_sections = ["DESIGN.md#Deployment", "PATTERNS.md#Dependency-Assembly-via-App-Factory"]
-reference_skills = ["tech-alembic", "tech-fastapi"]
-dependencies = []
-completed = true
-attempts = 2
-
-[[tasks]]
-title = "Add test for agent retry wrapper"
-goal = "Verify call_agent_with_retry retries on transient failures and respects stop conditions"
-success_criteria = "Test mocks transient errors (TimeoutError, httpx.RequestError) and verifies retry behavior matches tenacity config"
-files_to_create = ["tests/unit/test_retry.py"]
-files_to_modify = []
-files_to_remove = []
-expected_lines_added = 60
-expected_lines_removed = 0
-context_files = ["src/choresir/app.py"]
-doc_sections = ["PATTERNS.md#Testing-Retry-Wrapper"]
-reference_skills = ["tech-tenacity", "style-python"]
+expected_lines_added = 50
+expected_lines_removed = 5
+context_files = ["src/choresir/admin/app.py"]
+doc_sections = ["SPEC.md#Reliability-Security", "DESIGN.md#Admin-Interface"]
+reference_skills = ["tech-fasthtml", "style-python"]
 dependencies = []
 completed = false
 attempts = 0
