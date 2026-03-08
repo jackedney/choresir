@@ -13,15 +13,57 @@
       "path": "src/choresir/admin/app.py"
     },
     {
-      "complexity": 12,
+      "complexity": 0,
+      "file_name": "pages.py",
+      "function_name": "_build_dashboard_route",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "pages.py",
+      "function_name": "_build_members_routes",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 0,
       "file_name": "pages.py",
       "function_name": "register_pages",
       "path": "src/choresir/admin/pages.py"
     },
     {
-      "complexity": 6,
+      "complexity": 2,
+      "file_name": "pages.py",
+      "function_name": "_build_settings_routes",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "pages.py",
+      "function_name": "_build_auth_routes",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "pages.py",
+      "function_name": "_build_tasks_routes",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "pages.py",
+      "function_name": "_build_waha_routes",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 0,
       "file_name": "agent.py",
       "function_name": "create_agent",
+      "path": "src/choresir/agent/agent.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "agent.py",
+      "function_name": "_household_ctx",
       "path": "src/choresir/agent/agent.py"
     },
     {
@@ -81,12 +123,6 @@
     {
       "complexity": 1,
       "file_name": "tasks.py",
-      "function_name": "delete_task",
-      "path": "src/choresir/agent/tools/tasks.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "tasks.py",
       "function_name": "reassign_task",
       "path": "src/choresir/agent/tools/tasks.py"
     },
@@ -94,6 +130,12 @@
       "complexity": 3,
       "file_name": "tasks.py",
       "function_name": "create_task",
+      "path": "src/choresir/agent/tools/tasks.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "tasks.py",
+      "function_name": "delete_task",
       "path": "src/choresir/agent/tools/tasks.py"
     },
     {
@@ -124,6 +166,12 @@
       "complexity": 0,
       "file_name": "app.py",
       "function_name": "call_agent_with_retry",
+      "path": "src/choresir/app.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "app.py",
+      "function_name": "run_migrations",
       "path": "src/choresir/app.py"
     },
     {
@@ -199,13 +247,13 @@
       "path": "src/choresir/scheduler/jobs.py"
     },
     {
-      "complexity": 2,
+      "complexity": 3,
       "file_name": "jobs.py",
       "function_name": "send_overdue_reminders",
       "path": "src/choresir/scheduler/jobs.py"
     },
     {
-      "complexity": 2,
+      "complexity": 3,
       "file_name": "jobs.py",
       "function_name": "send_upcoming_reminders",
       "path": "src/choresir/scheduler/jobs.py"
@@ -268,6 +316,12 @@
       "complexity": 1,
       "file_name": "member_service.py",
       "function_name": "MemberService::set_role",
+      "path": "src/choresir/services/member_service.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "member_service.py",
+      "function_name": "transition_member",
       "path": "src/choresir/services/member_service.py"
     },
     {
@@ -345,12 +399,6 @@
     {
       "complexity": 0,
       "file_name": "task_service.py",
-      "function_name": "TaskService::request_deletion",
-      "path": "src/choresir/services/task_service.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "task_service.py",
       "function_name": "_next_deadline",
       "path": "src/choresir/services/task_service.py"
     },
@@ -376,6 +424,12 @@
       "complexity": 2,
       "file_name": "task_service.py",
       "function_name": "TaskService::list_tasks",
+      "path": "src/choresir/services/task_service.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "task_service.py",
+      "function_name": "TaskService::request_deletion",
       "path": "src/choresir/services/task_service.py"
     },
     {
@@ -415,13 +469,13 @@
       "path": "src/choresir/services/task_service.py"
     },
     {
-      "complexity": 0,
+      "complexity": 2,
       "file_name": "auth.py",
       "function_name": "validate_webhook",
       "path": "src/choresir/webhook/auth.py"
     },
     {
-      "complexity": 14,
+      "complexity": 18,
       "file_name": "router.py",
       "function_name": "create_webhook_router",
       "path": "src/choresir/webhook/router.py"

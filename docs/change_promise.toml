@@ -1,131 +1,35 @@
 [metadata]
-base_commit = "4f0941bbcb6e2a0ed9d6abbb37265b7ba770bd6d"
-created_at = "2026-03-07T23:55:00Z"
+base_commit = "35a3a8ebb58017a555af01b1501ee556df27a907"
+created_at = "2026-03-08T12:58:59Z"
 
 [[tasks]]
-title = "Add household settings admin page"
-goal = "Implement the settings page with form for household name, takeover limit, reminder times, and default verification mode"
-success_criteria = "Admin settings page displays and saves household configuration to database"
+title = "Run database migrations at application startup"
+goal = "Execute Alembic migrations in the FastAPI lifespan handler before accepting requests"
+success_criteria = "When the app starts, migrations are run automatically. Container can start fresh and have the correct schema."
 files_to_create = []
-files_to_modify = ["src/choresir/admin/pages.py"]
+files_to_modify = ["src/choresir/app.py"]
 files_to_remove = []
-expected_lines_added = 80
-expected_lines_removed = 5
-context_files = ["src/choresir/config.py", "src/choresir/admin/app.py"]
-doc_sections = ["DESIGN.md#Admin-Interface", "PATTERNS.md#Code-Organization"]
-reference_skills = ["tech-fasthtml", "style-python"]
+expected_lines_added = 20
+expected_lines_removed = 2
+context_files = ["alembic/env.py", "alembic.ini"]
+doc_sections = ["DESIGN.md#Deployment", "PATTERNS.md#Dependency-Assembly-via-App-Factory"]
+reference_skills = ["tech-alembic", "tech-fastapi"]
 dependencies = []
 completed = false
 attempts = 0
 
 [[tasks]]
-title = "Add task management admin pages"
-goal = "Add admin pages to list, edit, and delete tasks"
-success_criteria = "Admin can view all tasks, edit task properties, and delete tasks through the web interface"
-files_to_create = []
-files_to_modify = ["src/choresir/admin/pages.py"]
-files_to_remove = []
-expected_lines_added = 100
-expected_lines_removed = 0
-context_files = ["src/choresir/services/task_service.py", "src/choresir/models/task.py"]
-doc_sections = ["DESIGN.md#Admin-Interface", "SPEC.md#Onboarding-Membership"]
-reference_skills = ["tech-fasthtml", "tech-sqlmodel", "style-python"]
-dependencies = []
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Add task visibility tests"
-goal = "Add test verifying personal tasks are hidden from non-owners in list_tasks"
-success_criteria = "Test passes confirming personal tasks only visible to their owner"
-files_to_create = []
-files_to_modify = ["tests/unit/test_services.py"]
-files_to_remove = []
-expected_lines_added = 35
-expected_lines_removed = 0
-context_files = ["src/choresir/services/task_service.py", "src/choresir/enums.py", "tests/conftest.py"]
-doc_sections = ["PATTERNS.md#Testing-Task-Visibility"]
-reference_skills = ["style-python", "domain-household-task-management"]
-dependencies = []
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Add takeover limit enforcement tests"
-goal = "Add test verifying weekly takeover limit is enforced in claim_completion"
-success_criteria = "Test passes confirming TakeoverLimitExceededError raised when limit exceeded"
-files_to_create = []
-files_to_modify = ["tests/unit/test_services.py"]
-files_to_remove = []
-expected_lines_added = 40
-expected_lines_removed = 0
-context_files = ["src/choresir/services/task_service.py", "src/choresir/errors.py", "tests/conftest.py"]
-doc_sections = ["PATTERNS.md#Testing-Takeover-Limit", "domain-household-task-management"]
-reference_skills = ["style-python", "domain-household-task-management"]
-dependencies = []
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Add dynamic system prompt tests"
-goal = "Add tests verifying the system prompt includes current members and tasks from the database"
-success_criteria = "Test passes confirming system prompt contains member names and task info"
-files_to_create = []
-files_to_modify = ["tests/integration/test_agent.py"]
-files_to_remove = []
-expected_lines_added = 45
-expected_lines_removed = 0
-context_files = ["src/choresir/agent/agent.py", "tests/conftest.py"]
-doc_sections = ["PATTERNS.md#Testing-Dynamic-System-Prompt", "PATTERNS.md#Dynamic-System-Prompt"]
-reference_skills = ["tech-pydanticai", "style-python"]
-dependencies = []
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Add member status transition validation"
-goal = "Add transition_member function and _MEMBER_TRANSITIONS dict following the enum-driven state machine pattern"
-success_criteria = "Members can only transition from PENDING to ACTIVE; invalid transitions raise InvalidTransitionError"
-files_to_create = []
-files_to_modify = ["src/choresir/services/member_service.py"]
-files_to_remove = []
-expected_lines_added = 25
-expected_lines_removed = 5
-context_files = ["src/choresir/enums.py", "src/choresir/errors.py", "src/choresir/services/task_service.py"]
-doc_sections = ["PATTERNS.md#Enum-Driven-State-Machines"]
-reference_skills = ["style-python"]
-dependencies = []
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Add member status transition tests"
-goal = "Add Hypothesis property-based tests for member status state machine transitions"
-success_criteria = "Tests pass for valid and invalid member status transitions"
-files_to_create = []
-files_to_modify = ["tests/unit/test_transitions.py"]
-files_to_remove = []
-expected_lines_added = 50
-expected_lines_removed = 0
-context_files = ["src/choresir/services/member_service.py", "src/choresir/enums.py"]
-doc_sections = ["PATTERNS.md#Testing-State-Machines", "PATTERNS.md#Enum-Driven-State-Machines"]
-reference_skills = ["style-python"]
-dependencies = ["Add member status transition validation"]
-completed = false
-attempts = 0
-
-[[tasks]]
-title = "Add domain invariant property tests"
-goal = "Add property-based tests for critical domain invariants from domain skill validation rules"
-success_criteria = "Tests pass for all 6 invariants: active-only completions, no self-verify, NONE skips CLAIMED, recurring next_deadline future, takeover limit, personal visibility"
-files_to_create = ["tests/unit/test_invariants.py"]
+title = "Add test for agent retry wrapper"
+goal = "Verify call_agent_with_retry retries on transient failures and respects stop conditions"
+success_criteria = "Test mocks transient errors (TimeoutError, httpx.RequestError) and verifies retry behavior matches tenacity config"
+files_to_create = ["tests/unit/test_retry.py"]
 files_to_modify = []
 files_to_remove = []
-expected_lines_added = 130
+expected_lines_added = 60
 expected_lines_removed = 0
-context_files = ["src/choresir/services/task_service.py", "src/choresir/models/task.py", "src/choresir/enums.py", "src/choresir/errors.py"]
-doc_sections = ["domain-household-task-management#Validation-Rules", "PATTERNS.md#Testing-Patterns"]
-reference_skills = ["domain-household-task-management", "style-python"]
+context_files = ["src/choresir/app.py"]
+doc_sections = ["PATTERNS.md#Testing-Retry-Wrapper"]
+reference_skills = ["tech-tenacity", "style-python"]
 dependencies = []
 completed = false
 attempts = 0

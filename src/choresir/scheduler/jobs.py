@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from choresir.enums import TaskStatus
 from choresir.services.messaging import MessageSender
 from choresir.services.task_service import TaskService
+
+logger = logging.getLogger(__name__)
 
 
 async def send_daily_summary(
@@ -63,11 +67,14 @@ async def send_overdue_reminders(
     async with session_factory() as session:
         svc = TaskService(session, sender, max_takeovers_per_week=0)
         for task in await svc.get_overdue():
-            await sender.send(
-                group_chat_id,
-                f'Reminder: "{task.title}" is overdue'
-                f" (assigned to member {task.assignee_id}).",
-            )
+            try:
+                await sender.send(
+                    group_chat_id,
+                    f'Reminder: "{task.title}" is overdue'
+                    f" (assigned to member {task.assignee_id}).",
+                )
+            except Exception:
+                logger.exception("Failed to send overdue reminder for task %s", task.id)
 
 
 async def send_upcoming_reminders(
@@ -79,11 +86,16 @@ async def send_upcoming_reminders(
     async with session_factory() as session:
         svc = TaskService(session, sender, max_takeovers_per_week=0)
         for task in await svc.get_upcoming(hours=24):
-            await sender.send(
-                group_chat_id,
-                f'Reminder: "{task.title}" is due soon'
-                f" (assigned to member {task.assignee_id}).",
-            )
+            try:
+                await sender.send(
+                    group_chat_id,
+                    f'Reminder: "{task.title}" is due soon'
+                    f" (assigned to member {task.assignee_id}).",
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to send upcoming reminder for task %s", task.id
+                )
 
 
 async def reset_recurring_tasks(

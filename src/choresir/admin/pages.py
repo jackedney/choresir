@@ -389,7 +389,7 @@ def _build_tasks_routes(
                 Td(t.visibility),  # noqa: F405
                 Td(t.deadline.strftime("%Y-%m-%d %H:%M") if t.deadline else "-"),  # noqa: F405
                 Td(  # noqa: F405
-                    A(
+                    A(  # noqa: F405
                         "Edit",
                         href=f"/admin/tasks/{t.id}/edit",
                         style="margin-right:0.5rem",
@@ -403,13 +403,13 @@ def _build_tasks_routes(
         return Titled(  # noqa: F405
             "Tasks",
             Table(  # noqa: F405
-                Tr(
-                    Th("Title"),
-                    Th("Assignee"),
-                    Th("Status"),
-                    Th("Visibility"),
-                    Th("Deadline"),
-                    Th("Actions"),
+                Tr(  # noqa: F405
+                    Th("Title"),  # noqa: F405
+                    Th("Assignee"),  # noqa: F405
+                    Th("Status"),  # noqa: F405
+                    Th("Visibility"),  # noqa: F405
+                    Th("Deadline"),  # noqa: F405
+                    Th("Actions"),  # noqa: F405
                 ),  # noqa: F405
                 *rows,
             ),
@@ -577,7 +577,7 @@ def _build_tasks_routes(
 
         return Titled(  # noqa: F405
             f"Delete Task: {task.title}",
-            P(
+            P(  # noqa: F405
                 f"Are you sure you want to delete '{task.title}'?",
                 style="margin-bottom:1rem",
             ),  # noqa: F405

@@ -79,6 +79,10 @@ tests_dir = "tests/"
 
 [tool.bandit]
 targets = ["src"]
+exclude_dirs = ["tests"]
+
+[tool.complexipy]
+max-complexity-allowed = 20
 
 [tool.vulture]
 paths = ["src"]

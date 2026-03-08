@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
+from alembic import command
+from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncEngine
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -29,6 +33,18 @@ from choresir.webhook.router import create_webhook_router
 from choresir.worker.processor import message_worker_loop
 
 
+async def run_migrations(engine: AsyncEngine, database_url: str) -> None:
+    cfg = AlembicConfig(str(Path("alembic.ini")))
+    cfg.set_main_option("sqlalchemy.url", database_url)
+
+    def _run(connection) -> None:
+        cfg.attributes["connection"] = connection
+        command.upgrade(cfg, "head")
+
+    async with engine.begin() as conn:
+        await conn.run_sync(_run)
+
+
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=2, max=60),
@@ -36,7 +52,6 @@ from choresir.worker.processor import message_worker_loop
     reraise=True,
 )
 async def call_agent_with_retry(agent, message: str, deps: AgentDeps) -> str:
-    """Call the agent with retry logic for transient errors."""
     result = await agent.run(message, deps=deps)
     return result.output
 
@@ -50,6 +65,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        await run_migrations(engine, settings.database_url)
+
         async with httpx.AsyncClient(base_url=settings.waha_url, timeout=10.0) as http:
             sender = WAHAClient(
                 settings.waha_url,

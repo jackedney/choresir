@@ -71,7 +71,8 @@ async def delete_task(
     task_id: int,
     requester_id: int,
 ) -> str:
-    """Delete a task. Personal tasks are deleted immediately by owner; shared tasks need approval."""
+    """Delete a task. Personal tasks are deleted immediately by owner;
+    shared tasks need approval."""
     from choresir.enums import TaskVisibility
 
     try:
@@ -82,7 +83,10 @@ async def delete_task(
             and task.assignee_id == requester_id
         ):
             return f"Task '{task.title}' deleted."
-        return f"Deletion requested for '{task.title}'. Needs approval from another member."
+        return (
+            f"Deletion requested for '{task.title}'. "
+            f"Needs approval from another member."
+        )
     except _DOMAIN_ERRORS as e:
         return str(e)
 

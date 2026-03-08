@@ -26,7 +26,4 @@ def validate_webhook(body: bytes, signature: str, secret: str) -> bool:
         body,
         hashlib.sha512,
     ).hexdigest()
-    if hmac.compare_digest(expected_sha512, signature):
-        return True
-
-    return False
+    return hmac.compare_digest(expected_sha512, signature)

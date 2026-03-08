@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Protocol
 
 import httpx
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class MessageSender(Protocol):
@@ -28,6 +37,13 @@ class WAHAClient:
         self._session = session
         self._http = http
 
+    @retry(
+        retry=retry_if_exception_type(httpx.HTTPStatusError)
+        | retry_if_exception_type(httpx.RequestError),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        reraise=True,
+    )
     async def send(self, chat_id: str, text: str) -> None:
         """POST a text message to WAHA's /api/sendText endpoint."""
         resp = await self._http.post(

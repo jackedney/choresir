@@ -99,13 +99,9 @@ Tools self-register via a registry, keeping the agent definition clean and tool 
 class ToolRegistry:
     _tools: list[Callable] = field(default_factory=list)
 
-    def register(self, fn: Callable) -> Callable:
-        self._tools.append(fn)
-        return fn
+    def register(self, fn: Callable) -> Callable: ...
 
-    def apply[D, R](self, agent: Agent[D, R]) -> None:
-        for tool_fn in self._tools:
-            agent.tool(tool_fn)
+    def apply[D, R](self, agent: Agent[D, R]) -> None: ...
 
 registry = ToolRegistry()
 
@@ -145,10 +141,7 @@ _VALID_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
     TaskStatus.CLAIMED: frozenset({TaskStatus.PENDING, TaskStatus.VERIFIED}),
 }
 
-def transition_task(task: Task, to: TaskStatus) -> None:
-    if to not in _VALID_TRANSITIONS.get(task.status, frozenset()):
-        raise InvalidTransitionError(task.status, to)
-    task.status = to
+def transition_task(task: Task, to: TaskStatus) -> None: ...
 ```
 
 Member onboarding follows the same pattern:
@@ -182,8 +175,7 @@ class AgentDeps:
     sender_id: str
 
 @registry.register
-async def create_task(ctx: RunContext[AgentDeps], title: str, assignee_id: int) -> str:
-    await ctx.deps.task_service.create_task(...)
+async def create_task(ctx: RunContext[AgentDeps], title: str, assignee_id: int) -> str: ...
 ```
 
 Tools call `ctx.deps.task_service` and `ctx.deps.member_service`. This isolates tool functions from service wiring changes.
@@ -196,21 +188,7 @@ Base template loaded from disk, household context assembled from DB per request 
 _PROMPT = (Path(__file__).parent / "prompts" / "base.txt").read_text()
 
 @agent.system_prompt
-async def _household_ctx(ctx: RunContext[AgentDeps]) -> str:
-    members = await ctx.deps.member_service.list_active()
-    tasks = await ctx.deps.task_service.list_tasks()
-    today = date.today()
-    parts = [
-        f"Today's date: {today.strftime('%A, %B %-d, %Y')}",
-        f"Sender WhatsApp ID: {ctx.deps.sender_id}",
-    ]
-    if members:
-        lines = [f"- {m.name} (ID {m.id})" for m in members]
-        parts.append("Active members:\n" + "\n".join(lines))
-    if tasks:
-        lines = [f"- [{t.status.value}] {t.title} (ID {t.id})" for t in tasks]
-        parts.append("Current tasks:\n" + "\n".join(lines))
-    return "\n\n".join(parts) if parts else ""
+async def _household_ctx(ctx: RunContext[AgentDeps]) -> str: ...
 ```
 
 The decorator runs before each agent call, injecting current members, tasks, and date.
@@ -226,9 +204,7 @@ Tenacity handles transient LLM failures at the call site, not inside services:
     retry=retry_if_exception_type((TimeoutError, httpx.RequestError)),
     reraise=True,
 )
-async def call_agent_with_retry(agent, message: str, deps: AgentDeps) -> str:
-    result = await agent.run(message, deps=deps)
-    return result.output
+async def call_agent_with_retry(agent, message: str, deps: AgentDeps) -> str: ...
 ```
 
 Services remain unaware of retry logic. The worker loop catches final failures and marks jobs as failed.
@@ -249,14 +225,7 @@ This avoids branching on `sender is None` in `TaskService`.
 The FastAPI app factory wires everything together — no global mutable state:
 
 ```python
-def create_app(settings: Settings | None = None) -> FastAPI:
-    settings = settings or Settings()
-    engine = create_async_engine(settings.database_url)
-    session_factory = create_session_factory(engine)
-    http_client = httpx.AsyncClient()
-    sender = WAHAClient(settings.waha_url, settings.waha_api_key, "default", http_client)
-    # ... wire into routers, agent, scheduler
-    return app
+def create_app(settings: Settings | None = None) -> FastAPI: ...
 ```
 
 Tests call `create_app(test_settings)` with an in-memory DB and fake sender.
@@ -274,25 +243,17 @@ class ChoresirError(Exception):
     """Base for all domain errors."""
 
 class InvalidTransitionError(ChoresirError):
-    def __init__(self, current: str, target: str) -> None:
-        self.current = current
-        self.target = target
-        super().__init__(f"Cannot transition from {current} to {target}")
+    def __init__(self, current: str, target: str) -> None: ...
 
 class NotFoundError(ChoresirError):
-    def __init__(self, entity: str, identifier: str | int) -> None:
-        self.entity = entity
-        self.identifier = identifier
-        super().__init__(f"{entity} not found: {identifier}")
+    def __init__(self, entity: str, identifier: str | int) -> None: ...
 
 class AuthorizationError(ChoresirError):
     """Member lacks permission for the operation (e.g., self-verification)."""
 
 class TakeoverLimitExceededError(ChoresirError):
     """Weekly takeover limit exceeded."""
-    def __init__(self, limit: int) -> None:
-        self.limit = limit
-        super().__init__(f"Weekly takeover limit of {limit} exceeded")
+    def __init__(self, limit: int) -> None: ...
 
 class RateLimitExceededError(ChoresirError):
     """Per-user or global rate limit hit."""
@@ -319,13 +280,7 @@ Tools define a tuple of caught domain errors and return their string representat
 _DOMAIN_ERRORS = (NotFoundError, AuthorizationError)
 
 @registry.register
-async def create_task(ctx: RunContext[AgentDeps], title: str, assignee_id: int) -> str:
-    try:
-        await _ensure_active_member(ctx, assignee_id)
-        task = await ctx.deps.task_service.create_task(...)
-        return f"Task '{task.title}' (ID {task.id}) created."
-    except (*_DOMAIN_ERRORS, ValueError) as e:
-        return str(e)
+async def create_task(ctx: RunContext[AgentDeps], title: str, assignee_id: int) -> str: ...
 ```
 
 Tools that perform takeovers also catch `TakeoverLimitExceededError`. The pattern is consistent: catch specific domain errors, return their string representation so the LLM can communicate naturally.
@@ -367,35 +322,16 @@ from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 @pytest.fixture
-async def engine():
-    eng = create_async_engine("sqlite+aiosqlite://", echo=False)
-    async with eng.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-    yield eng
-    await eng.dispose()
+async def engine(): ...
 
 @pytest.fixture
-async def session(engine):
-    sm = async_sessionmaker(engine, expire_on_commit=False)
-    async with sm() as s:
-        yield s
+async def session(engine): ...
 
 @pytest.fixture
-def fake_sender():
-    class FakeSender:
-        def __init__(self):
-            self.sent: list[tuple[str, str]] = []
-        async def send(self, chat_id: str, text: str) -> None:
-            self.sent.append((chat_id, text))
-    return FakeSender()
+def fake_sender(): ...
 
 @pytest.fixture
-def agent_deps(session, fake_sender):
-    return AgentDeps(
-        task_service=TaskService(session, fake_sender, max_takeovers_per_week=3),
-        member_service=MemberService(session),
-        sender_id="test_sender",
-    )
+def agent_deps(session, fake_sender): ...
 ```
 
 ### Testing Agent Tools with AgentDeps
@@ -404,10 +340,7 @@ Build deps with real services and fake externals, then construct a RunContext:
 
 ```python
 @pytest.mark.anyio
-async def test_create_task_success(agent_deps):
-    ctx = RunContext(deps=agent_deps, retry=0, messages=[])
-    result = await create_task(ctx, title="Dishes", assignee_id=1)
-    assert "created" in result.lower()
+async def test_create_task_success(agent_deps): ...
 ```
 
 ### Testing State Machines
@@ -418,18 +351,10 @@ Hypothesis for domain invariants. Add MemberStatus to coverage:
 from hypothesis import given, strategies as st
 
 @given(st.sampled_from(TaskStatus), st.sampled_from(TaskStatus))
-def test_invalid_task_transitions_raise(current, target):
-    if target not in _VALID_TRANSITIONS.get(current, frozenset()):
-        task = make_task(status=current)
-        with pytest.raises(InvalidTransitionError):
-            transition_task(task, target)
+def test_invalid_task_transitions_raise(current, target): ...
 
 @given(st.sampled_from(MemberStatus), st.sampled_from(MemberStatus))
-def test_invalid_member_transitions_raise(current, target):
-    if target not in _MEMBER_TRANSITIONS.get(current, frozenset()):
-        member = make_member(status=current)
-        with pytest.raises(InvalidTransitionError):
-            transition_member(member, target)
+def test_invalid_member_transitions_raise(current, target): ...
 ```
 
 ### Testing Task Visibility
@@ -438,19 +363,7 @@ Verify personal tasks are hidden from non-owners:
 
 ```python
 @pytest.mark.anyio
-async def test_list_tasks_hides_personal_from_non_owner(session, fake_sender):
-    svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
-    owner = await make_member(session, id=1)
-    other = await make_member(session, id=2)
-    personal = await svc.create_task(
-        title="Personal", assignee_id=owner.id, visibility=TaskVisibility.PERSONAL
-    )
-    shared = await svc.create_task(
-        title="Shared", assignee_id=owner.id, visibility=TaskVisibility.SHARED
-    )
-    tasks_for_other = await svc.list_tasks(member_id=other.id)
-    assert personal not in tasks_for_other
-    assert shared in tasks_for_other
+async def test_list_tasks_hides_personal_from_non_owner(session, fake_sender): ...
 ```
 
 ### Testing Takeover Limit
@@ -459,17 +372,7 @@ Verify limit enforcement:
 
 ```python
 @pytest.mark.anyio
-async def test_takeover_limit_enforced(session, fake_sender):
-    svc = TaskService(session, fake_sender, max_takeovers_per_week=3)
-    assignee = await make_member(session, id=1)
-    taker = await make_member(session, id=2)
-    for _ in range(3):
-        task = await svc.create_task("Task", assignee_id=assignee.id)
-        await svc.claim_completion(task.id, taker.id)
-
-    fourth = await svc.create_task("Fourth", assignee_id=assignee.id)
-    with pytest.raises(TakeoverLimitExceededError):
-        await svc.claim_completion(fourth.id, taker.id)
+async def test_takeover_limit_enforced(session, fake_sender): ...
 ```
 
 ### Testing Dynamic System Prompt
@@ -478,15 +381,7 @@ Verify context assembly:
 
 ```python
 @pytest.mark.anyio
-async def test_system_prompt_includes_members(agent_deps):
-    await agent_deps.member_service.register_pending("wa_123")
-    await agent_deps.member_service.set_name("wa_123", "Alice")
-
-    ctx = RunContext(deps=agent_deps, retry=0, messages=[])
-    prompt = await _household_ctx(ctx)
-
-    assert "Alice" in prompt
-    assert "ID 1" in prompt
+async def test_system_prompt_includes_members(agent_deps): ...
 ```
 
 ### Testing Retry Wrapper
@@ -495,21 +390,7 @@ Mock transient failures to verify retry behavior:
 
 ```python
 @pytest.mark.anyio
-async def test_agent_retry_on_timeout(agent, agent_deps):
-    call_count = 0
-    original_run = agent.run
-
-    async def flaky_run(message, deps):
-        nonlocal call_count
-        call_count += 1
-        if call_count < 3:
-            raise TimeoutError("LLM timeout")
-        return await original_run(message, deps)
-
-    with patch.object(agent, "run", flaky_run):
-        result = await call_agent_with_retry(agent, "hello", agent_deps)
-
-    assert call_count == 3
+async def test_agent_retry_on_timeout(agent, agent_deps): ...
 ```
 
 ### Testing Scheduler Jobs with NullSender
@@ -518,14 +399,7 @@ Use a spy to verify no messages sent when not needed:
 
 ```python
 @pytest.mark.anyio
-async def test_reset_recurring_sends_no_message(session_factory):
-    calls = []
-    class SpySender:
-        async def send(self, chat_id, text):
-            calls.append((chat_id, text))
-
-    await reset_recurring_tasks(session_factory)
-    assert calls == []
+async def test_reset_recurring_sends_no_message(session_factory): ...
 ```
 
 ### Conventions
@@ -542,8 +416,7 @@ def make_task(
     status: TaskStatus = TaskStatus.PENDING,
     assignee_id: int = 1,
     **overrides,
-) -> Task:
-    return Task(title=title, status=status, assignee_id=assignee_id, **overrides)
+) -> Task: ...
 
 def make_member(
     session: AsyncSession,
@@ -551,12 +424,7 @@ def make_member(
     whatsapp_id: str = "wa_123",
     name: str = "Test Member",
     status: MemberStatus = MemberStatus.ACTIVE,
-) -> Member:
-    member = Member(id=id, whatsapp_id=whatsapp_id, name=name, status=status)
-    session.add(member)
-    await session.commit()
-    await session.refresh(member)
-    return member
+) -> Member: ...
 ```
 
 - **Integration tests use `httpx.AsyncClient` with the app.** Test the full HTTP path for webhook and admin routes:
@@ -565,9 +433,7 @@ def make_member(
 from httpx import ASGITransport, AsyncClient
 
 @pytest.fixture
-async def client(app):
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        yield c
+async def client(app): ...
 ```
 
 - **Mark async tests** with `pytest.mark.anyio` (or configure `anyio` as the default async backend in `pyproject.toml`).
