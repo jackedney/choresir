@@ -116,17 +116,17 @@ def register_pages(
         weekly_leaderboard_time = sess.get("weekly_leaderboard_time", "20:00")
 
         mode_options = [
-            Option(
+            Option(  # noqa: F405
                 "None (no verification required)",
                 value=VerificationMode.NONE.value,
                 selected=verification_mode == VerificationMode.NONE.value,
             ),
-            Option(
+            Option(  # noqa: F405
                 "Peer (any member can verify)",
                 value=VerificationMode.PEER.value,
                 selected=verification_mode == VerificationMode.PEER.value,
             ),
-            Option(
+            Option(  # noqa: F405
                 "Partner (assigned partner verifies)",
                 value=VerificationMode.PARTNER.value,
                 selected=verification_mode == VerificationMode.PARTNER.value,
@@ -144,7 +144,7 @@ def register_pages(
             "sunday",
         ]:
             day_options.append(
-                Option(
+                Option(  # noqa: F405
                     day.capitalize(),
                     value=day,
                     selected=weekly_leaderboard_day == day,
@@ -152,18 +152,18 @@ def register_pages(
             )
 
         success_msg = (
-            P("Settings saved successfully!", style="color:green;margin-bottom:1rem")
+            P("Settings saved successfully!", style="color:green;margin-bottom:1rem")  # noqa: F405
             if saved == "1"
             else None
         )
 
-        return Titled(
+        return Titled(  # noqa: F405
             "Household Settings",
             success_msg,
-            Form(
-                Div(
-                    Label("Household Name", For="household_name"),
-                    Input(
+            Form(  # noqa: F405
+                Div(  # noqa: F405
+                    Label("Household Name", For="household_name"),  # noqa: F405
+                    Input(  # noqa: F405
                         name="household_name",
                         id="household_name",
                         value=household_name,
@@ -171,26 +171,27 @@ def register_pages(
                     ),
                     style="margin-bottom:1rem",
                 ),
-                Div(
-                    Label("Max Takeovers per Week", For="max_takeovers"),
-                    P(
-                        f"Current limit: {max_takeovers} (configured via CHORESIR_MAX_TAKEOVERS_PER_WEEK)",
+                Div(  # noqa: F405
+                    Label("Max Takeovers per Week", For="max_takeovers"),  # noqa: F405
+                    P(  # noqa: F405
+                        f"Current limit: {max_takeovers} "
+                        "(configured via CHORESIR_MAX_TAKEOVERS_PER_WEEK)",
                         style="font-size:0.85rem;color:#666;margin-top:0.25rem",
                     ),
                     style="margin-bottom:1rem",
                 ),
-                Div(
-                    Label("Default Verification Mode", For="verification_mode"),
-                    Select(
+                Div(  # noqa: F405
+                    Label("Default Verification Mode", For="verification_mode"),  # noqa: F405
+                    Select(  # noqa: F405
                         mode_options, name="verification_mode", id="verification_mode"
                     ),
                     style="margin-bottom:1rem",
                 ),
-                Fieldset(
-                    Legend("Daily Summary"),
-                    Div(
-                        Label("Time", For="daily_summary_time"),
-                        Input(
+                Fieldset(  # noqa: F405
+                    Legend("Daily Summary"),  # noqa: F405
+                    Div(  # noqa: F405
+                        Label("Time", For="daily_summary_time"),  # noqa: F405
+                        Input(  # noqa: F405
                             name="daily_summary_time",
                             id="daily_summary_time",
                             type="time",
@@ -200,20 +201,20 @@ def register_pages(
                     ),
                     style="margin-bottom:1rem",
                 ),
-                Fieldset(
-                    Legend("Weekly Leaderboard"),
-                    Div(
-                        Label("Day", For="weekly_leaderboard_day"),
-                        Select(
+                Fieldset(  # noqa: F405
+                    Legend("Weekly Leaderboard"),  # noqa: F405
+                    Div(  # noqa: F405
+                        Label("Day", For="weekly_leaderboard_day"),  # noqa: F405
+                        Select(  # noqa: F405
                             day_options,
                             name="weekly_leaderboard_day",
                             id="weekly_leaderboard_day",
                         ),
                         style="margin-top:0.5rem",
                     ),
-                    Div(
-                        Label("Time", For="weekly_leaderboard_time"),
-                        Input(
+                    Div(  # noqa: F405
+                        Label("Time", For="weekly_leaderboard_time"),  # noqa: F405
+                        Input(  # noqa: F405
                             name="weekly_leaderboard_time",
                             id="weekly_leaderboard_time",
                             type="time",
@@ -223,11 +224,11 @@ def register_pages(
                     ),
                     style="margin-bottom:1rem",
                 ),
-                Button("Save Settings", cls="primary"),
+                Button("Save Settings", cls="primary"),  # noqa: F405
                 action="/admin/settings",
                 method="POST",
             ),
-            P(A("← Back to Dashboard", href="/admin"), style="margin-top:1.5rem"),
+            P(A("← Back to Dashboard", href="/admin"), style="margin-top:1.5rem"),  # noqa: F405
         )
 
     @rt("/settings")
@@ -245,7 +246,7 @@ def register_pages(
         sess["weekly_leaderboard_day"] = weekly_leaderboard_day
         sess["weekly_leaderboard_time"] = weekly_leaderboard_time
 
-        return RedirectResponse("/admin/settings?saved=1", status_code=303)
+        return RedirectResponse("/admin/settings?saved=1", status_code=303)  # noqa: F405
 
     @rt("/waha")
     async def waha_get(sess):
