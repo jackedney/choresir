@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime
 
 import httpx
 from fasthtml.common import *  # noqa: F403 — FastHTML convention
@@ -11,9 +12,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from choresir.config import Settings
 from choresir.enums import (
     MemberRole,
+    TaskStatus,
+    TaskVisibility,
     VerificationMode,
 )
 from choresir.services.member_service import MemberService
+from choresir.services.task_service import TaskService
 
 
 def _build_settings_routes(rt, settings: Settings) -> None:
@@ -362,6 +366,240 @@ def _build_members_routes(
         return RedirectResponse("/admin/members", status_code=303)  # noqa: F405
 
 
+def _build_tasks_routes(
+    rt, session_factory: async_sessionmaker, settings: Settings
+) -> None:
+    """Register tasks page routes."""
+
+    @rt("/tasks")
+    async def tasks_get(sess):
+        async with session_factory() as session:
+            member_svc = MemberService(session)
+            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            tasks = await task_svc.list_tasks()
+            members = await member_svc.list_all()
+
+        member_map = {m.id: m.name or "(unnamed)" for m in members}
+
+        rows = [
+            Tr(  # noqa: F405
+                Td(t.title),  # noqa: F405
+                Td(member_map.get(t.assignee_id, "Unknown")),  # noqa: F405
+                Td(t.status),  # noqa: F405
+                Td(t.visibility),  # noqa: F405
+                Td(t.deadline.strftime("%Y-%m-%d %H:%M") if t.deadline else "-"),  # noqa: F405
+                Td(  # noqa: F405
+                    A(
+                        "Edit",
+                        href=f"/admin/tasks/{t.id}/edit",
+                        style="margin-right:0.5rem",
+                    ),  # noqa: F405
+                    A("Delete", href=f"/admin/tasks/{t.id}/delete"),  # noqa: F405
+                ),
+            )
+            for t in tasks
+        ]
+
+        return Titled(  # noqa: F405
+            "Tasks",
+            Table(  # noqa: F405
+                Tr(
+                    Th("Title"),
+                    Th("Assignee"),
+                    Th("Status"),
+                    Th("Visibility"),
+                    Th("Deadline"),
+                    Th("Actions"),
+                ),  # noqa: F405
+                *rows,
+            ),
+            P(A("Back to Dashboard", href="/admin")),  # noqa: F405
+        )
+
+    @rt("/tasks/{task_id}/edit")
+    async def task_edit_get(task_id: int, sess):
+        async with session_factory() as session:
+            member_svc = MemberService(session)
+            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            task = await task_svc.get_task(task_id)
+            members = await member_svc.list_all()
+
+        member_options = [
+            Option(  # noqa: F405
+                m.name or "(unnamed)",
+                value=str(m.id),
+                selected=m.id == task.assignee_id,
+            )
+            for m in members
+        ]
+
+        status_options = [
+            Option(  # noqa: F405
+                s.value,
+                value=s.value,
+                selected=s == task.status,
+            )
+            for s in TaskStatus
+        ]
+
+        visibility_options = [
+            Option(  # noqa: F405
+                v.value,
+                value=v.value,
+                selected=v == task.visibility,
+            )
+            for v in TaskVisibility
+        ]
+
+        verification_options = [
+            Option(  # noqa: F405
+                v.value,
+                value=v.value,
+                selected=v == task.verification_mode,
+            )
+            for v in VerificationMode
+        ]
+
+        deadline_value = (
+            task.deadline.strftime("%Y-%m-%dT%H:%M") if task.deadline else ""
+        )
+
+        return Titled(  # noqa: F405
+            f"Edit Task: {task.title}",
+            Form(  # noqa: F405
+                Div(  # noqa: F405
+                    Label("Title", For="title"),  # noqa: F405
+                    Input(name="title", id="title", value=task.title),  # noqa: F405
+                    style="margin-bottom:1rem",
+                ),
+                Div(  # noqa: F405
+                    Label("Description", For="description"),  # noqa: F405
+                    Textarea(  # noqa: F405
+                        task.description or "",
+                        name="description",
+                        id="description",
+                        rows=3,
+                    ),
+                    style="margin-bottom:1rem",
+                ),
+                Div(  # noqa: F405
+                    Label("Assignee", For="assignee_id"),  # noqa: F405
+                    Select(  # noqa: F405
+                        member_options,
+                        name="assignee_id",
+                        id="assignee_id",
+                    ),
+                    style="margin-bottom:1rem",
+                ),
+                Div(  # noqa: F405
+                    Label("Status", For="status"),  # noqa: F405
+                    Select(  # noqa: F405
+                        status_options,
+                        name="status",
+                        id="status",
+                    ),
+                    style="margin-bottom:1rem",
+                ),
+                Div(  # noqa: F405
+                    Label("Verification Mode", For="verification_mode"),  # noqa: F405
+                    Select(  # noqa: F405
+                        verification_options,
+                        name="verification_mode",
+                        id="verification_mode",
+                    ),
+                    style="margin-bottom:1rem",
+                ),
+                Div(  # noqa: F405
+                    Label("Visibility", For="visibility"),  # noqa: F405
+                    Select(  # noqa: F405
+                        visibility_options,
+                        name="visibility",
+                        id="visibility",
+                    ),
+                    style="margin-bottom:1rem",
+                ),
+                Div(  # noqa: F405
+                    Label("Deadline", For="deadline"),  # noqa: F405
+                    Input(  # noqa: F405
+                        name="deadline",
+                        id="deadline",
+                        type="datetime-local",
+                        value=deadline_value,
+                    ),
+                    style="margin-bottom:1rem",
+                ),
+                Button("Save Changes", cls="primary"),  # noqa: F405
+                action=f"/admin/tasks/{task_id}/edit",
+                method="POST",
+            ),
+            P(A("Cancel", href="/admin/tasks"), style="margin-top:1.5rem"),  # noqa: F405
+        )
+
+    @rt("/tasks/{task_id}/edit")
+    async def task_edit_post(
+        task_id: int,
+        title: str,
+        description: str = "",
+        assignee_id: int = 0,
+        status: str = "pending",
+        verification_mode: str = "none",
+        visibility: str = "shared",
+        deadline: str = "",
+        sess=None,
+    ):
+        async with session_factory() as session:
+            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            task = await task_svc.get_task(task_id)
+
+            task.title = title
+            task.description = description if description else None
+            task.assignee_id = assignee_id
+            task.status = TaskStatus(status)
+            task.verification_mode = VerificationMode(verification_mode)
+            task.visibility = TaskVisibility(visibility)
+            task.deadline = (
+                datetime.fromisoformat(deadline).replace(tzinfo=UTC)
+                if deadline
+                else None
+            )
+            task.updated_at = datetime.now(UTC)
+
+            session.add(task)
+            await session.commit()
+
+        return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
+
+    @rt("/tasks/{task_id}/delete")
+    async def task_delete_get(task_id: int, sess):
+        async with session_factory() as session:
+            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            task = await task_svc.get_task(task_id)
+
+        return Titled(  # noqa: F405
+            f"Delete Task: {task.title}",
+            P(
+                f"Are you sure you want to delete '{task.title}'?",
+                style="margin-bottom:1rem",
+            ),  # noqa: F405
+            Form(  # noqa: F405
+                Button("Delete", cls="primary", style="background-color:#dc3545"),  # noqa: F405
+                action=f"/admin/tasks/{task_id}/delete",
+                method="POST",
+            ),
+            P(A("Cancel", href="/admin/tasks"), style="margin-top:1rem"),  # noqa: F405
+        )
+
+    @rt("/tasks/{task_id}/delete")
+    async def task_delete_post(task_id: int, sess):
+        async with session_factory() as session:
+            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            task = await task_svc.get_task(task_id)
+            await session.delete(task)
+            await session.commit()
+
+        return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes."""
 
@@ -400,6 +638,7 @@ def _build_dashboard_route(rt) -> None:
             "Admin Dashboard",
             Div(  # noqa: F405
                 P(A("Members", href="/admin/members")),  # noqa: F405
+                P(A("Tasks", href="/admin/tasks")),  # noqa: F405
                 P(A("Household Settings", href="/admin/settings")),  # noqa: F405
                 P(A("WAHA Session", href="/admin/waha")),  # noqa: F405
                 P(A("Logout", href="/admin/logout")),  # noqa: F405
@@ -416,5 +655,6 @@ def register_pages(
     _build_dashboard_route(rt)
     _build_auth_routes(rt, settings)
     _build_members_routes(rt, session_factory, settings)
+    _build_tasks_routes(rt, session_factory, settings)
     _build_settings_routes(rt, settings)
     _build_waha_routes(rt, settings)
