@@ -80,3 +80,18 @@ def make_task(
         visibility=visibility,
         **overrides,
     )
+
+
+@pytest.fixture
+async def agent_deps(session, fake_sender):
+    from choresir.agent.agent import AgentDeps
+    from choresir.services.member_service import MemberService
+    from choresir.services.task_service import TaskService
+
+    task_service = TaskService(session, fake_sender, max_takeovers_per_week=3)
+    member_service = MemberService(session)
+    return AgentDeps(
+        task_service=task_service,
+        member_service=member_service,
+        sender_id="test@c.us",
+    )
