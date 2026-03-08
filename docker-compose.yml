@@ -1,0 +1,32 @@
+services:
+  choresir:
+    build: .
+    volumes:
+      - choresir_data:/app/data
+    env_file:
+      - .env
+    environment:
+      - OPENAI_API_KEY=${CHORESIR_OPENROUTER_API_KEY}
+      - OPENAI_BASE_URL=https://openrouter.ai/api/v1
+    ports:
+      - "8001:8001"
+    depends_on:
+      - waha
+    restart: always
+
+  waha:
+    image: devlikeapro/waha
+    ports:
+      - "3000:3000"
+    volumes:
+      - waha_sessions:/app/.sessions
+    environment:
+      - WAHA_API_KEY=${WAHA_API_KEY}
+      - WHATSAPP_HOOK_URL=http://choresir:8001/webhook
+      - WHATSAPP_HOOK_EVENTS=message,group.v2.join
+      - WHATSAPP_HOOK_HMAC_KEY=${CHORESIR_WAHA_WEBHOOK_SECRET}
+    restart: always
+
+volumes:
+  choresir_data:
+  waha_sessions:

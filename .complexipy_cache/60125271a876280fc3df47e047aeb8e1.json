@@ -1,0 +1,13 @@
+{
+  "functions": [
+    {
+      "complexity": 16,
+      "file_name": "pages.py",
+      "function_name": "register_pages",
+      "path": "pages.py"
+    }
+  ],
+  "targets": [
+    "/home/jackedney/Dev/choresir/src/choresir/admin/pages.py"
+  ]
+}

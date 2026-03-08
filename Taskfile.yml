@@ -1,0 +1,56 @@
+version: '3'
+
+tasks:
+  setup:
+    desc: Initial setup for the project
+    cmds:
+      - uv sync
+      - task: db:migrate
+      - task: check
+
+  db:migrate:
+    desc: Run database migrations
+    cmds:
+      - uv run alembic upgrade head
+
+  db:new:
+    desc: Create a new migration (usage task db:new -- name="migration_name")
+    cmds:
+      - uv run alembic revision --autogenerate -m "{{.name}}"
+
+  check:
+    desc: Run all quality checks (lint, type-check, security, tests)
+    cmds:
+      - uv run poe check
+
+  test:
+    desc: Run tests
+    cmds:
+      - uv run poe test
+
+  up:
+    desc: Start all services and tail logs
+    cmds:
+      - docker compose up -d --build
+      - docker compose logs -f
+
+  down:
+    desc: Stop all Docker services
+    cmds:
+      - docker compose down
+
+  logs:
+    desc: Tail Docker logs
+    cmds:
+      - docker compose logs -f
+
+  logs:waha:
+    desc: Tail WAHA logs (useful for scanning QR code)
+    cmds:
+      - docker compose logs -f waha
+
+  clean:
+    desc: Remove cache files and the database
+    cmds:
+      - rm -rf .ruff_cache .pytest_cache .venv choresir.db data/choresir.db
+      - find . -name "__pycache__" -exec rm -rf {} +
