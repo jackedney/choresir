@@ -6,10 +6,11 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from choresir.enums import TaskStatus
+from choresir.enums import MemberStatus, TaskStatus
 from choresir.errors import InvalidTransitionError
+from choresir.services.member_service import _MEMBER_TRANSITIONS, transition_member
 from choresir.services.task_service import _VALID_TRANSITIONS, transition_task
-from tests.conftest import make_task
+from tests.conftest import make_member, make_task
 
 
 class TestValidTransitions:
@@ -64,3 +65,28 @@ class TestTransitionsHypothesis:
             task = make_task(status=current)
             with pytest.raises(InvalidTransitionError):
                 transition_task(task, target)
+
+
+class TestMemberTransitions:
+    def test_pending_to_active(self):
+        member = make_member(status=MemberStatus.PENDING)
+        transition_member(member, MemberStatus.ACTIVE)
+        assert member.status == MemberStatus.ACTIVE
+
+    def test_active_to_any_raises(self):
+        for target in MemberStatus:
+            member = make_member(status=MemberStatus.ACTIVE)
+            with pytest.raises(InvalidTransitionError):
+                transition_member(member, target)
+
+
+class TestMemberTransitionsHypothesis:
+    @given(
+        current=st.sampled_from(MemberStatus),
+        target=st.sampled_from(MemberStatus),
+    )
+    def test_invalid_transitions_raise(self, current, target):
+        if target not in _MEMBER_TRANSITIONS.get(current, frozenset()):
+            member = make_member(status=current)
+            with pytest.raises(InvalidTransitionError):
+                transition_member(member, target)

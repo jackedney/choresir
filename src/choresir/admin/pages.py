@@ -9,7 +9,10 @@ from fasthtml.common import *  # noqa: F403 — FastHTML convention
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from choresir.config import Settings
-from choresir.enums import MemberRole, VerificationMode
+from choresir.enums import (
+    MemberRole,
+    VerificationMode,
+)
 from choresir.services.member_service import MemberService
 
 
