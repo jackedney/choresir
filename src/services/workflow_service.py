@@ -60,7 +60,7 @@ async def create_workflow(*, params: WorkflowCreateParams) -> dict[str, Any]:
         created_at = datetime.now()
         expires_at = created_at + timedelta(hours=params.expires_hours)
 
-        workflow_data = {
+        workflow_data: dict[str, Any] = {
             "type": params.workflow_type.value,
             "status": WorkflowStatus.PENDING.value,
             "requester_user_id": params.requester_user_id,

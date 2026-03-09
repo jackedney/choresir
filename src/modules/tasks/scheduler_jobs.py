@@ -333,8 +333,7 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
         # Resolve user ID from phone number first to avoid unsupported SQL subqueries
         # that bypass the db_client's filter parser
         user = await db_client.get_first_record(
-            collection="members",
-            filter_query=f'phone = "{sanitize_param(owner_phone)}"'
+            collection="members", filter_query=f'phone = "{sanitize_param(owner_phone)}"'
         )
         if not user:
             return None
