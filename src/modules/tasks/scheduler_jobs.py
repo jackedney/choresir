@@ -330,13 +330,24 @@ async def _get_last_completion_date(chore_id: str, owner_phone: str) -> date | N
         Date of last completion, or None if never completed
     """
     try:
+        # Resolve user ID from phone number first to avoid unsupported SQL subqueries
+        # that bypass the db_client's filter parser
+        user = await db_client.get_first_record(
+            collection="members",
+            filter_query=f'phone = "{sanitize_param(owner_phone)}"'
+        )
+        if not user:
+            return None
+
+        user_id = user["id"]
+
         # Query for most recent completion log
         logs = await db_client.list_records(
             collection="task_logs",
             filter_query=(
-                f'task_id = "{sanitize_param(chore_id)}" && '  # noqa: S608
+                f'task_id = "{sanitize_param(chore_id)}" && '
                 f'action = "claimed_completion" && '
-                f'user_id IN (SELECT id FROM members WHERE phone = "{sanitize_param(owner_phone)}")'
+                f'user_id = "{sanitize_param(user_id)}"'
             ),
             sort="timestamp DESC",
             per_page=1,
