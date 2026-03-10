@@ -32,4 +32,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8001
 
 # Start the application
-CMD ["sh", "-c", "alembic upgrade head && uvicorn choresir.app:create_app --factory --host 0.0.0.0 --port 8001"]
+CMD ["uvicorn", "choresir.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001", "--log-level", "warning"]
