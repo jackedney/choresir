@@ -1,0 +1,43 @@
+{
+  "functions": [
+    {
+      "complexity": 0,
+      "file_name": "pages.py",
+      "function_name": "_build_dashboard_route",
+      "path": "pages.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "pages.py",
+      "function_name": "_build_members_routes",
+      "path": "pages.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "pages.py",
+      "function_name": "register_pages",
+      "path": "pages.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "pages.py",
+      "function_name": "_build_settings_routes",
+      "path": "pages.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "pages.py",
+      "function_name": "_build_auth_routes",
+      "path": "pages.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "pages.py",
+      "function_name": "_build_waha_routes",
+      "path": "pages.py"
+    }
+  ],
+  "targets": [
+    "/home/jackedney/Dev/choresir/src/choresir/admin/pages.py"
+  ]
+}

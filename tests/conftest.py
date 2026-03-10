@@ -1,335 +1,97 @@
-"""Pytest configuration and shared fixtures."""
+"""Shared test fixtures."""
 
-import asyncio
-import contextlib
-import logging
-import secrets
-import threading
-import uuid
-from collections.abc import AsyncGenerator, Generator
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from typing import Any
+from __future__ import annotations
 
-import aiosqlite
 import pytest
-from aiosqlite.core import _STOP_RUNNING_SENTINEL
-from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-import src.core.db_client as db_module
-from src.core.cache_client import cache_client
-from src.core.config import Settings
-from src.core.db_client import (
-    _db_connections,
-    create_record,
-    delete_record,
-    init_db,
-    list_records,
+# Ensure all table models are imported so metadata.create_all sees them.
+import choresir.models.job  # noqa: F401
+from choresir.enums import (
+    MemberRole,
+    MemberStatus,
+    TaskStatus,
+    TaskVisibility,
+    VerificationMode,
 )
-from src.core.module_registry import _registry, register_module
-from src.core.schema import TABLES
-from src.main import app
-from src.modules.onboarding import OnboardingModule
-from src.modules.pantry import PantryModule
-from src.modules.tasks import TasksModule
-
-
-logger = logging.getLogger(__name__)
-
-
-@pytest.fixture(autouse=True)
-def clear_module_registry() -> Generator[None, None, None]:
-    """Clear module registry before each test to avoid duplicate registration errors."""
-    _registry.modules.clear()
-    yield
-
-
-def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
-    """Force-close any leaked aiosqlite connections so the process can exit.
-
-    aiosqlite worker threads are non-daemon and block on a SimpleQueue.
-    They only exit when a function returns _STOP_RUNNING_SENTINEL.
-    We send that sentinel to every leaked worker thread's queue.
-    """
-    for t in threading.enumerate():
-        if t.daemon or t is threading.main_thread():
-            continue
-        with contextlib.suppress(Exception):
-            tx = getattr(t, "_args", (None,))[0]
-            if tx is not None and hasattr(tx, "put_nowait"):
-                tx.put_nowait((None, lambda: _STOP_RUNNING_SENTINEL))
-    _db_connections.clear()
+from choresir.models.member import Member
+from choresir.models.task import Task
 
 
 @pytest.fixture
-def sqlite_db(tmp_path: Path) -> Generator[Path, None, None]:
-    """Create fresh temp SQLite file per test and initialize schema.
-
-    Args:
-        tmp_path: Pytest fixture providing temporary directory path
-
-    Yields:
-        Path to temporary SQLite database file
-
-    Cleanup:
-        Temp file is automatically cleaned up by pytest's tmp_path fixture
-    """
-    db_file = tmp_path / "test.db"
-
-    async def _init_and_close() -> None:
-        register_module(TasksModule())
-        register_module(PantryModule())
-        register_module(OnboardingModule())
-        await init_db(db_path=str(db_file))
-
-    asyncio.run(_init_and_close())
-    yield db_file
+def anyio_backend():
+    return "asyncio"
 
 
 @pytest.fixture
-def test_settings(sqlite_db: Path) -> Settings:
-    """Override settings for testing with SQLite configuration."""
-    return Settings(
-        sqlite_db_path=str(sqlite_db),
-        openrouter_api_key="test_key",
-        waha_base_url="http://waha:3000",
-        waha_webhook_secret="test_secret",
-        admin_password="test_admin",
-        secret_key="test_key",
-        logfire_token="test_logfire",
-        model_id="anthropic/claude-3.5-sonnet",
-        is_production=False,
+async def engine():
+    eng = create_async_engine("sqlite+aiosqlite://", echo=False)
+    async with eng.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    yield eng
+    await eng.dispose()
+
+
+@pytest.fixture
+async def session(engine):
+    async with AsyncSession(engine, expire_on_commit=False) as s:
+        yield s
+
+
+@pytest.fixture
+def fake_sender():
+    class FakeSender:
+        def __init__(self):
+            self.sent: list[tuple[str, str]] = []
+
+        async def send(self, chat_id: str, text: str) -> None:
+            self.sent.append((chat_id, text))
+
+    return FakeSender()
+
+
+def make_member(
+    whatsapp_id: str = "test@c.us",
+    name: str = "Test User",
+    role: MemberRole = MemberRole.MEMBER,
+    status: MemberStatus = MemberStatus.ACTIVE,
+    **overrides,
+) -> Member:
+    return Member(
+        whatsapp_id=whatsapp_id, name=name, role=role, status=status, **overrides
     )
 
 
-class TestDatabaseClient:
-    """Wrapper for db_client module to provide object-like interface for tests."""
-
-    async def create_record(self, *, collection: str, data: dict) -> dict:
-        return await db_module.create_record(collection=collection, data=data)
-
-    async def get_record(self, *, collection: str, record_id: str) -> dict | None:
-        return await db_module.get_record(collection=collection, record_id=record_id)
-
-    async def update_record(self, *, collection: str, record_id: str, data: dict) -> dict:
-        return await db_module.update_record(collection=collection, record_id=record_id, data=data)
-
-    async def delete_record(self, *, collection: str, record_id: str) -> bool:
-        await db_module.delete_record(collection=collection, record_id=record_id)
-        return True
-
-    async def list_records(self, *, collection: str, **kwargs) -> list[dict]:
-        return await db_module.list_records(collection=collection, **kwargs)
-
-    async def get_first_record(self, *, collection: str, filter_query: str) -> dict | None:
-        return await db_module.get_first_record(collection=collection, filter_query=filter_query)
+def make_task(
+    title: str = "Test task",
+    status: TaskStatus = TaskStatus.PENDING,
+    assignee_id: int = 1,
+    verification_mode: VerificationMode = VerificationMode.NONE,
+    visibility: TaskVisibility = TaskVisibility.SHARED,
+    **overrides,
+) -> Task:
+    return Task(
+        title=title,
+        status=status,
+        assignee_id=assignee_id,
+        verification_mode=verification_mode,
+        visibility=visibility,
+        **overrides,
+    )
 
 
 @pytest.fixture
-async def db_client(sqlite_db: Path) -> AsyncGenerator[TestDatabaseClient, None]:
-    """Provide clean database for each test.
+async def agent_deps(session, fake_sender):
+    from choresir.agent.agent import AgentDeps
+    from choresir.services.member_service import MemberService
+    from choresir.services.task_service import TaskService
 
-    This fixture patches the db_client module to use the test SQLite database
-    and cleans up all records between tests.
-
-    Args:
-        sqlite_db: Path to the test database
-
-    Yields:
-        TestDatabaseClient - A wrapper that uses the patched db_client module
-    """
-
-    _db_connections.clear()
-
-    cache_client._data.clear()
-    cache_client._expiry.clear()
-
-    open_conns: list[aiosqlite.Connection] = []
-
-    async def test_get_connection(*, db_path: str | None = None) -> Any:
-        """Override get_connection to use test database path."""
-        conn = await aiosqlite.connect(str(sqlite_db))
-        await conn.execute("PRAGMA foreign_keys = ON")
-        await conn.execute("PRAGMA journal_mode = WAL")
-        open_conns.append(conn)
-        return conn
-
-    original_get_connection: Any = db_module.get_connection
-    db_module.get_connection = test_get_connection  # type: ignore[assignment]
-
-    yield TestDatabaseClient()
-
-    db_module.get_connection = original_get_connection
-    for conn in open_conns:
-        with contextlib.suppress(Exception):
-            await conn.close()
-
-
-@pytest.fixture
-def test_client(test_settings: Settings) -> TestClient:
-    """Provide a FastAPI test client."""
-    return TestClient(app)
-
-
-@pytest.fixture
-async def sample_users(db_client) -> dict[str, dict]:
-    """Create sample members for testing."""
-    members = {
-        "alice": {
-            "phone": "+15551234567",
-            "name": "Alice Admin",
-            "role": "admin",
-            "status": "active",
-        },
-        "bob": {
-            "phone": "+15557654321",
-            "name": "Bob Member",
-            "role": "member",
-            "status": "active",
-        },
-        "charlie": {
-            "phone": "+15559876543",
-            "name": "Charlie Member",
-            "role": "member",
-            "status": "active",
-        },
-    }
-
-    created = {}
-    for key, data in members.items():
-        created[key] = await create_record(collection="members", data=data)
-
-    return created
-
-
-async def create_test_admin(phone: str, name: str) -> dict[str, Any]:
-    """Create admin member for testing, bypassing normal join workflow.
-
-    This is a test helper - in production, admins are created through
-    the normal onboarding process (via request_join) and promoted manually.
-
-    NOTE: This uses raw db operations intentionally for test setup,
-    but should ONLY be used in test fixtures or conftest.py helpers.
-    Production code and test workflows must use the service layer.
-
-    Args:
-        phone: Admin's phone number in E.164 format
-        name: Admin's display name
-
-    Returns:
-        Created admin member record
-    """
-    admin_data = {
-        "phone": phone,
-        "name": name,
-        "role": "admin",
-        "status": "active",
-    }
-    return await create_record(collection="members", data=admin_data)
-
-
-@pytest.fixture
-async def sample_chores(db_client, sample_users: dict) -> dict[str, dict]:
-    """Create sample chores for testing."""
-    chores = {
-        "dishes": {
-            "title": "Wash Dishes",
-            "description": "Clean all dishes in the sink",
-            "schedule_cron": "0 20 * * *",
-            "assigned_to": sample_users["bob"]["id"],
-            "current_state": "TODO",
-            "deadline": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
-        },
-        "trash": {
-            "title": "Take Out Trash",
-            "description": "Empty all trash bins",
-            "schedule_cron": "0 9 * * 1",
-            "assigned_to": sample_users["charlie"]["id"],
-            "current_state": "TODO",
-            "deadline": (datetime.now(UTC) + timedelta(days=4)).isoformat(),
-        },
-    }
-
-    created = {}
-    for key, data in chores.items():
-        created[key] = await create_record(collection="tasks", data=data)
-
-    return created
-
-
-@pytest.fixture
-def user_factory() -> Any:
-    """Factory for creating members with custom data.
-
-    Usage:
-        user = await user_factory(name="Test User", phone="+1234567890", role="admin")
-    """
-
-    async def _create_user(**kwargs):
-        random_suffix = "".join(secrets.choice("0123456789") for _ in range(10))
-        member_data = {
-            "phone": kwargs.get("phone", f"+1{random_suffix}"),
-            "name": kwargs.get("name", f"User {uuid.uuid4().hex[:8]}"),
-            "role": kwargs.get("role", "member"),
-            "status": kwargs.get("status", "active"),
-        }
-        return await create_record(collection="members", data=member_data)
-
-    return _create_user
-
-
-@pytest.fixture
-def chore_factory() -> Any:
-    """Factory for creating chores with custom data.
-
-    Usage:
-        chore = await chore_factory(title="Test Chore", assigned_to=user_id, current_state="TODO")
-    """
-
-    async def _create_chore(**kwargs):
-        chore_data = {
-            "title": kwargs.get("title", f"Chore {uuid.uuid4().hex[:8]}"),
-            "description": kwargs.get("description", "A test chore"),
-            "schedule_cron": kwargs.get("schedule_cron", "0 10 * * *"),
-            "current_state": kwargs.get("current_state", "TODO"),
-        }
-        if "assigned_to" in kwargs:
-            chore_data["assigned_to"] = kwargs["assigned_to"]
-        if "deadline" in kwargs:
-            chore_data["deadline"] = kwargs["deadline"]
-
-        return await create_record(collection="tasks", data=chore_data)
-
-    return _create_chore
-
-
-@pytest.fixture
-async def clean_db(sqlite_db: Path, db_client) -> AsyncGenerator[None, None]:
-    """Ensure clean database state, failing loudly on cleanup errors.
-
-    This fixture ensures cleanup happens after the test,
-    failing the test if cleanup encounters any errors.
-    Uses the patched db_client connection to ensure cleanup operates
-    on the correct test database.
-
-    Args:
-        sqlite_db: Path to the test database
-        db_client: Patched db_client fixture for test database access
-    """
-    yield
-
-    cleanup_errors = []
-    for table in reversed(TABLES):
-        try:
-            records = await list_records(collection=table)
-            for record in records:
-                try:
-                    await delete_record(collection=table, record_id=record["id"])
-                except Exception as e:
-                    cleanup_errors.append(f"{table}/{record['id']}: {e!s}")
-        except Exception as e:
-            cleanup_errors.append(f"{table} (list): {e!s}")
-
-    if cleanup_errors:
-        error_msg = "Database cleanup failed:\n" + "\n".join(cleanup_errors)
-        pytest.fail(error_msg)
+    task_service = TaskService(session, fake_sender, max_takeovers_per_week=3)
+    member_service = MemberService(session)
+    return AgentDeps(
+        task_service=task_service,
+        member_service=member_service,
+        sender_id="test@c.us",
+    )
