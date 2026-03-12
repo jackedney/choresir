@@ -22,6 +22,13 @@ class MessageSender(Protocol):
     async def send(self, chat_id: str, text: str) -> None: ...
 
 
+class NullSender:
+    """No-op sender for jobs that don't send messages."""
+
+    async def send(self, chat_id: str, text: str) -> None:
+        pass
+
+
 class WAHAClient:
     """Send messages via the WAHA HTTP API."""
 

@@ -7,7 +7,7 @@ import logging
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from choresir.enums import TaskStatus
-from choresir.services.messaging import MessageSender
+from choresir.services.messaging import MessageSender, NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
@@ -111,13 +111,6 @@ async def reset_recurring_tasks(
 ) -> None:
     """Reset verified recurring tasks that may have been missed."""
     async with session_factory() as session:
-        sender = _NullSender()
+        sender = NullSender()
         svc = TaskService(session, sender, max_takeovers_per_week=0)
         await svc.reset_recurring_tasks()
-
-
-class _NullSender:
-    """No-op sender for jobs that don't send messages."""
-
-    async def send(self, chat_id: str, text: str) -> None:
-        pass
