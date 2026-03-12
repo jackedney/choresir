@@ -8,6 +8,8 @@ from choresir.agent.agent import AgentDeps
 from choresir.agent.registry import registry
 from choresir.errors import NotFoundError
 
+_DOMAIN_ERRORS = (NotFoundError,)
+
 
 @registry.register
 async def get_stats(
@@ -19,7 +21,7 @@ async def get_stats(
         s = await ctx.deps.task_service.get_stats(member_id)
         count = s["completion_count"]
         return f"Member {s['member_id']}: {count} completions, rank #{s['rank']}."
-    except NotFoundError as e:
+    except _DOMAIN_ERRORS as e:
         return str(e)
 
 
