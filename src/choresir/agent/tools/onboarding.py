@@ -6,7 +6,9 @@ from pydantic_ai import RunContext
 
 from choresir.agent.agent import AgentDeps
 from choresir.agent.registry import registry
-from choresir.errors import NotFoundError
+from choresir.errors import InvalidTransitionError, NotFoundError
+
+_DOMAIN_ERRORS = (NotFoundError, InvalidTransitionError)
 
 
 @registry.register
@@ -30,7 +32,5 @@ async def register_name(
     try:
         member = await ctx.deps.member_service.activate(ctx.deps.sender_id, name)
         return f"Welcome {member.name}! Your account is now active."
-    except NotFoundError:
-        return "Member not found in the system."
-    except Exception as e:  # noqa: BLE001
-        return f"Failed to register name: {e}"
+    except _DOMAIN_ERRORS as e:
+        return str(e)

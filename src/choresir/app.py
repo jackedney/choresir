@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -31,6 +32,8 @@ from choresir.services.messaging import WAHAClient
 from choresir.services.task_service import TaskService
 from choresir.webhook.router import create_webhook_router
 from choresir.worker.processor import message_worker_loop
+
+logger = logging.getLogger(__name__)
 
 
 async def run_migrations(engine: AsyncEngine, database_url: str) -> None:
@@ -80,7 +83,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await register_schedules(
                     scheduler, session_factory, sender, settings.group_chat_id
                 )
+                logger.info(
+                    "Scheduler jobs registered, starting scheduler in background"
+                )
                 await scheduler.start_in_background()
+                logger.info("Scheduler started in background mode")
 
                 agent = create_agent(settings)
 

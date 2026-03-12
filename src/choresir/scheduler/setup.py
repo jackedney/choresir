@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import logging
 
 from apscheduler import AsyncScheduler, ConflictPolicy
 from apscheduler.triggers.cron import CronTrigger
@@ -16,6 +17,8 @@ from choresir.scheduler.jobs import (
     send_weekly_leaderboard,
 )
 from choresir.services.messaging import MessageSender
+
+logger = logging.getLogger(__name__)
 
 _REPLACE = ConflictPolicy.replace
 
@@ -32,6 +35,7 @@ async def register_schedules(
     group_chat_id: str,
 ) -> None:
     """Register all cron jobs on an already-initialized scheduler."""
+    logger.info("Registering scheduler jobs")
     args = (session_factory, sender, group_chat_id)
 
     await scheduler.add_schedule(
@@ -40,27 +44,37 @@ async def register_schedules(
         id="daily_summary",
         conflict_policy=_REPLACE,
     )
+    logger.info("Registered daily_summary job at 20:00")
+
     await scheduler.add_schedule(
         functools.partial(send_weekly_leaderboard, *args),
         CronTrigger(day_of_week="sun", hour=18, minute=0),
         id="weekly_leaderboard",
         conflict_policy=_REPLACE,
     )
+    logger.info("Registered weekly_leaderboard job at Sun 18:00")
+
     await scheduler.add_schedule(
         functools.partial(send_overdue_reminders, *args),
         CronTrigger(hour="8,12,18", minute=0),
         id="overdue_reminders",
         conflict_policy=_REPLACE,
     )
+    logger.info("Registered overdue_reminders job at 8:00, 12:00, 18:00")
+
     await scheduler.add_schedule(
         functools.partial(send_upcoming_reminders, *args),
         CronTrigger(hour=6, minute=0),
         id="upcoming_reminders",
         conflict_policy=_REPLACE,
     )
+    logger.info("Registered upcoming_reminders job at 6:00")
+
     await scheduler.add_schedule(
         functools.partial(reset_recurring_tasks, session_factory),
         CronTrigger(minute=0),
         id="recurring_reset",
         conflict_policy=_REPLACE,
     )
+    logger.info("Registered recurring_reset job every hour")
+    logger.info("All scheduler jobs registered")
