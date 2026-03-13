@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import secrets as _secrets
 import time
 from datetime import UTC, datetime
@@ -20,6 +21,8 @@ from choresir.enums import (
 from choresir.services.member_service import MemberService
 from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
+
+logger = logging.getLogger(__name__)
 
 
 def _get_csrf_token(sess) -> str:
@@ -325,7 +328,7 @@ def _build_waha_routes(rt, settings: Settings) -> None:
                     timeout=10.0,
                 )
         except Exception as exc:  # noqa: BLE001
-            print(f"WAHA restart error: {exc}")
+            logger.error("WAHA restart error: %s", exc)
 
         return RedirectResponse("/admin/waha", status_code=303)  # noqa: F405
 
@@ -340,9 +343,9 @@ def _build_waha_routes(rt, settings: Settings) -> None:
                     timeout=10.0,
                 )
                 resp.raise_for_status()
-                print(f"WAHA start response: {resp.status_code} - {resp.text}")
+                logger.info("WAHA start response: %d - %s", resp.status_code, resp.text)
         except Exception as exc:  # noqa: BLE001
-            print(f"WAHA start error: {exc}")
+            logger.error("WAHA start error: %s", exc)
 
         return RedirectResponse("/admin/waha", status_code=303)  # noqa: F405
 
