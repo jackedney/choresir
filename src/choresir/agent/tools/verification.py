@@ -13,7 +13,7 @@ from choresir.errors import (
     TakeoverLimitExceededError,
 )
 
-_ERRORS = (
+_DOMAIN_ERRORS = (
     NotFoundError,
     AuthorizationError,
     InvalidTransitionError,
@@ -33,7 +33,7 @@ async def complete_task(
         if task.status.value == "verified":
             return f"Task '{task.title}' completed."
         return f"Task '{task.title}' awaiting verification."
-    except _ERRORS as e:
+    except _DOMAIN_ERRORS as e:
         return str(e)
 
 
@@ -50,7 +50,7 @@ async def verify_completion(
             task_id, verifier_id, feedback
         )
         return f"Task '{task.title}' verified."
-    except _ERRORS as e:
+    except _DOMAIN_ERRORS as e:
         return str(e)
 
 
@@ -64,5 +64,5 @@ async def reject_completion(
     try:
         task = await ctx.deps.task_service.reject_completion(task_id, verifier_id)
         return f"Task '{task.title}' rejected, back to pending."
-    except _ERRORS as e:
+    except _DOMAIN_ERRORS as e:
         return str(e)

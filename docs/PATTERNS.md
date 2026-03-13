@@ -182,16 +182,21 @@ Tools call `ctx.deps.task_service` and `ctx.deps.member_service`. This isolates 
 
 ### Dynamic System Prompt
 
-Base template loaded from disk, household context assembled from DB per request via decorator:
+Base template loaded from disk, household context assembled from DB per request. Two equivalent patterns:
 
 ```python
 _PROMPT = (Path(__file__).parent / "prompts" / "base.txt").read_text()
 
+# Pattern 1: Decorator
 @agent.system_prompt
 async def _household_ctx(ctx: RunContext[AgentDeps]) -> str: ...
+
+# Pattern 2: Method call (equivalent)
+async def _household_ctx(ctx: RunContext[AgentDeps]) -> str: ...
+agent.system_prompt(_household_ctx)
 ```
 
-The decorator runs before each agent call, injecting current members, tasks, and date.
+The function runs before each agent call, injecting current members, tasks, and date.
 
 ### Retry Wrapper for AI Calls
 
@@ -211,14 +216,15 @@ Services remain unaware of retry logic. The worker loop catches final failures a
 
 ### Null Object for Non-Messaging Jobs
 
-Scheduler jobs that don't send messages use a no-op sender:
+Scheduler jobs that don't send messages use a no-op sender defined alongside the protocol in `services/messaging.py`:
 
 ```python
-class _NullSender:
-    async def send(self, chat_id: str, text: str) -> None: ...
+class NullSender:
+    async def send(self, chat_id: str, text: str) -> None:
+        pass
 ```
 
-This avoids branching on `sender is None` in `TaskService`.
+This avoids branching on `sender is None` in `TaskService`. Scheduler jobs instantiate `TaskService` with `max_takeovers_per_week=0` since they never call `claim_completion` (takeover logic doesn't apply to automated resets).
 
 ### Dependency Assembly via App Factory
 

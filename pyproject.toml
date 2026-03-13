@@ -50,6 +50,7 @@ dev = [
     "pre-commit>=4.0",
     "pytest-anyio>=0.0.0",
     "anyio[trio]>=4.0",
+    "respx>=0.22.0",
 ]
 
 [tool.ruff]
