@@ -7,6 +7,7 @@ import logging
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from choresir.enums import TaskStatus
+from choresir.services.member_service import MemberService
 from choresir.services.messaging import MessageSender, NullSender
 from choresir.services.task_service import TaskService
 
@@ -103,6 +104,48 @@ async def send_upcoming_reminders(
             except Exception:
                 logger.exception(
                     "Failed to send upcoming reminder for task %s", task.id
+                )
+
+
+async def send_daily_personal_reminders(
+    session_factory: async_sessionmaker,
+    sender: MessageSender,
+) -> None:
+    """Send each active member a personalized list of their pending/claimed tasks."""
+    logger.info("Running daily personal reminders job")
+    async with session_factory() as session:
+        member_svc = MemberService(session)
+        task_svc = TaskService(session, sender, max_takeovers_per_week=0)
+
+        members = await member_svc.list_active()
+        logger.info("Found %d active members", len(members))
+
+        for member in members:
+            tasks = await task_svc.list_tasks(member_id=member.id)
+            pending = [
+                t for t in tasks if t.status in (TaskStatus.PENDING, TaskStatus.CLAIMED)
+            ]
+
+            if not pending:
+                logger.debug("No pending tasks for member %s", member.id)
+                continue
+
+            lines = [f"Good morning, {member.name or 'there'}! Your chores for today:"]
+            for t in pending:
+                status = (
+                    "awaiting verification"
+                    if t.status == TaskStatus.CLAIMED
+                    else "pending"
+                )
+                dl = f" (due: {t.deadline.strftime('%a %b %d')})" if t.deadline else ""
+                lines.append(f"  • {t.title}{dl} [{status}]")
+
+            try:
+                await sender.send(member.whatsapp_id, "\n".join(lines))
+                logger.info("Sent daily reminder to member %s", member.id)
+            except Exception:
+                logger.exception(
+                    "Failed to send daily reminder to member %s", member.id
                 )
 
 
