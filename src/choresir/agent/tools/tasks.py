@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic_ai import RunContext
 
@@ -34,7 +34,12 @@ async def create_task(
 
     try:
         await _ensure_active_member(ctx, assignee_id)
-        dl = datetime.fromisoformat(deadline) if deadline else None
+        if deadline:
+            dl = datetime.fromisoformat(deadline)
+            if dl.tzinfo is None:
+                dl = dl.replace(tzinfo=UTC)
+        else:
+            dl = None
         task = await ctx.deps.task_service.create_task(
             title=title,
             assignee_id=assignee_id,

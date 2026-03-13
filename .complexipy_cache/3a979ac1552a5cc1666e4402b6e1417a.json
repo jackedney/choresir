@@ -27,7 +27,31 @@
     {
       "complexity": 0,
       "file_name": "pages.py",
+      "function_name": "_csrf_input",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "pages.py",
       "function_name": "register_pages",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "pages.py",
+      "function_name": "_check_csrf",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "pages.py",
+      "function_name": "_get_csrf_token",
+      "path": "src/choresir/admin/pages.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "pages.py",
+      "function_name": "_validate_csrf",
       "path": "src/choresir/admin/pages.py"
     },
     {
@@ -97,15 +121,15 @@
       "path": "src/choresir/agent/tools/analytics.py"
     },
     {
-      "complexity": 2,
+      "complexity": 1,
       "file_name": "onboarding.py",
-      "function_name": "check_member_status",
+      "function_name": "register_name",
       "path": "src/choresir/agent/tools/onboarding.py"
     },
     {
       "complexity": 2,
       "file_name": "onboarding.py",
-      "function_name": "register_name",
+      "function_name": "check_member_status",
       "path": "src/choresir/agent/tools/onboarding.py"
     },
     {
@@ -127,12 +151,6 @@
       "path": "src/choresir/agent/tools/tasks.py"
     },
     {
-      "complexity": 3,
-      "file_name": "tasks.py",
-      "function_name": "create_task",
-      "path": "src/choresir/agent/tools/tasks.py"
-    },
-    {
       "complexity": 4,
       "file_name": "tasks.py",
       "function_name": "delete_task",
@@ -142,6 +160,12 @@
       "complexity": 4,
       "file_name": "tasks.py",
       "function_name": "list_tasks",
+      "path": "src/choresir/agent/tools/tasks.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "tasks.py",
+      "function_name": "create_task",
       "path": "src/choresir/agent/tools/tasks.py"
     },
     {
@@ -231,12 +255,6 @@
     {
       "complexity": 0,
       "file_name": "jobs.py",
-      "function_name": "_NullSender::send",
-      "path": "src/choresir/scheduler/jobs.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "jobs.py",
       "function_name": "reset_recurring_tasks",
       "path": "src/choresir/scheduler/jobs.py"
     },
@@ -262,6 +280,12 @@
       "complexity": 6,
       "file_name": "jobs.py",
       "function_name": "send_weekly_leaderboard",
+      "path": "src/choresir/scheduler/jobs.py"
+    },
+    {
+      "complexity": 18,
+      "file_name": "jobs.py",
+      "function_name": "send_daily_personal_reminders",
       "path": "src/choresir/scheduler/jobs.py"
     },
     {
@@ -339,13 +363,31 @@
     {
       "complexity": 0,
       "file_name": "messaging.py",
-      "function_name": "WAHAClient::__init__",
+      "function_name": "NullSender::send",
       "path": "src/choresir/services/messaging.py"
     },
     {
       "complexity": 0,
       "file_name": "messaging.py",
+      "function_name": "WAHAClient::__init__",
+      "path": "src/choresir/services/messaging.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "messaging.py",
+      "function_name": "WAHAClient::_start_session",
+      "path": "src/choresir/services/messaging.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "messaging.py",
       "function_name": "WAHAClient::send",
+      "path": "src/choresir/services/messaging.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "messaging.py",
+      "function_name": "WAHAClient::_is_session_stopped",
       "path": "src/choresir/services/messaging.py"
     },
     {

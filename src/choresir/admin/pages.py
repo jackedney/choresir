@@ -18,6 +18,7 @@ from choresir.enums import (
     VerificationMode,
 )
 from choresir.services.member_service import MemberService
+from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 
@@ -412,7 +413,9 @@ def _build_tasks_routes(
     async def tasks_get(sess):
         async with session_factory() as session:
             member_svc = MemberService(session)
-            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            task_svc = TaskService(
+                session, NullSender(), settings.max_takeovers_per_week
+            )
             tasks = await task_svc.list_tasks()
             members = await member_svc.list_all()
 
@@ -457,7 +460,9 @@ def _build_tasks_routes(
     async def task_edit_get(task_id: int, sess):
         async with session_factory() as session:
             member_svc = MemberService(session)
-            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            task_svc = TaskService(
+                session, NullSender(), settings.max_takeovers_per_week
+            )
             task = await task_svc.get_task(task_id)
             members = await member_svc.list_all()
 
@@ -588,7 +593,9 @@ def _build_tasks_routes(
     ):
         _check_csrf(sess, _csrf)
         async with session_factory() as session:
-            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            task_svc = TaskService(
+                session, NullSender(), settings.max_takeovers_per_week
+            )
             task = await task_svc.get_task(task_id)
 
             task.title = title
@@ -612,7 +619,9 @@ def _build_tasks_routes(
     @rt("/tasks/{task_id}/delete")
     async def task_delete_get(task_id: int, sess):
         async with session_factory() as session:
-            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            task_svc = TaskService(
+                session, NullSender(), settings.max_takeovers_per_week
+            )
             task = await task_svc.get_task(task_id)
 
         return Titled(  # noqa: F405
@@ -634,7 +643,9 @@ def _build_tasks_routes(
     async def task_delete_post(task_id: int, _csrf: str, sess):
         _check_csrf(sess, _csrf)
         async with session_factory() as session:
-            task_svc = TaskService(session, None, settings.max_takeovers_per_week)
+            task_svc = TaskService(
+                session, NullSender(), settings.max_takeovers_per_week
+            )
             task = await task_svc.get_task(task_id)
             await session.delete(task)
             await session.commit()
