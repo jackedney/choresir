@@ -679,7 +679,10 @@ def _build_auth_routes(rt, settings: Settings) -> None:
 
     @rt("/login/submit")
     def login_post(username: str, password: str, sess):
-        if username == settings.admin_user and password == settings.admin_password:
+        user_match = _secrets.compare_digest(username, settings.admin_user)
+        pass_match = _secrets.compare_digest(password, settings.admin_password)
+
+        if user_match and pass_match:
             sess["admin_user"] = username
             return RedirectResponse("/admin", status_code=303)  # noqa: F405
         return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
