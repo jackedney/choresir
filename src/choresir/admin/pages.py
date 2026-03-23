@@ -24,6 +24,8 @@ from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
 
+_login_attempts: dict[str, list[float]] = {}
+
 
 def _get_csrf_token(sess) -> str:
     """Get or create CSRF token for the session."""
@@ -678,12 +680,29 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        ip = req.client.host if req.client else "unknown"
+        now = time.time()
+
+        # Prevent memory exhaustion DoS
+        if len(_login_attempts) > 1000:
+            _login_attempts.clear()
+
+        # Clean up old attempts for this IP
+        attempts = [t for t in _login_attempts.get(ip, []) if now - t < 60]
+        if len(attempts) >= 5:
+            return Response("Too Many Requests", status_code=429)  # noqa: F405
+
+        attempts.append(now)
+        _login_attempts[ip] = attempts
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
         if user_match and pass_match:
             sess["admin_user"] = username
+            # On successful login, clear attempts
+            _login_attempts.pop(ip, None)
             return RedirectResponse("/admin", status_code=303)  # noqa: F405
         return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
 
