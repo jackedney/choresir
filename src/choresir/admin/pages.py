@@ -656,6 +656,11 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+# In-memory rate limiting dictionary for admin login attempts
+# Maps IP address to a list of attempt timestamps
+_login_attempts: dict[str, list[float]] = {}
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -678,12 +683,34 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(req, username: str, password: str, sess):
+        # Admin login rate limiting
+        ip = req.client.host if req.client else "unknown"
+        now = time.time()
+
+        # Initialize or clean up old attempts
+        if ip not in _login_attempts:
+            # Prevent memory exhaustion DoS
+            if len(_login_attempts) >= 1000:
+                _login_attempts.clear()
+            _login_attempts[ip] = []
+
+        # Keep only attempts from the last 60 seconds
+        _login_attempts[ip] = [ts for ts in _login_attempts[ip] if now - ts < 60]
+
+        # Check limit (5 attempts per minute)
+        if len(_login_attempts[ip]) >= 5:
+            return Response("Too Many Requests", status_code=429)  # noqa: F405
+
+        _login_attempts[ip].append(now)
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
         if user_match and pass_match:
             sess["admin_user"] = username
+            # Successful login, clear attempts
+            _login_attempts.pop(ip, None)
             return RedirectResponse("/admin", status_code=303)  # noqa: F405
         return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
 

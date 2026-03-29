@@ -54,9 +54,9 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Prevention:** Implemented a shared secret mechanism (`X-Webhook-Secret`) verified with constant-time comparison (`secrets.compare_digest`). Configuration defaults to "fail open" (optional) to preserve backward compatibility, but enables enforcement when the secret is set.
 
 ## 2026-10-26 - [Missing Rate Limiting on Admin Login]
-**Vulnerability:** The admin login endpoint (`/admin/login`) did not implement rate limiting, allowing attackers to perform brute-force attacks against the admin password.
+**Vulnerability:** The admin login endpoint (`/admin/login/submit`) did not implement rate limiting, allowing attackers to perform brute-force attacks against the admin password.
 **Learning:** Sensitive authentication endpoints must always be protected by rate limiting to mitigate brute-force and credential stuffing attacks. Relying solely on password complexity is insufficient.
-**Prevention:** Implemented IP-based rate limiting using Redis. The system now limits login attempts to 5 per minute per IP address, returning `429 Too Many Requests` when exceeded.
+**Prevention:** Implemented an in-memory, IP-based rate limiting dictionary (`_login_attempts`) that limits attempts to 5 per minute and implements size-bounding to prevent memory exhaustion DoS, returning `429 Too Many Requests` when exceeded. (Note: Originally designed for Redis, updated to in-memory to reduce dependencies).
 
 ## 2026-10-27 - [Insecure Default Secret Key]
 **Vulnerability:** The `Settings` class defined `secret_key` and `admin_password` as optional fields defaulting to `None`. In production, if these environment variables were missing, the application would start with `None` values, leading to predictable session tokens (`str(None)` -> `"None"`) and allowing full authentication bypass.
