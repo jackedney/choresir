@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from choresir.admin.pages import register_pages
 from choresir.config import Settings
+from choresir.errors import RateLimitExceededError
 
 
 def _auth_before(req, sess):
@@ -29,5 +30,9 @@ def create_admin_app(
     app, rt = fast_app(before=beforeware, secret_key=settings.admin_secret)
 
     register_pages(rt, session_factory, settings)
+
+    app.exception_handlers[RateLimitExceededError] = lambda req, exc: RedirectResponse(
+        "/admin/login?ratelimit=1", status_code=303
+    )
 
     return app
