@@ -18,11 +18,49 @@ from choresir.enums import (
     TaskVisibility,
     VerificationMode,
 )
+from choresir.errors import RateLimitExceededError
 from choresir.services.member_service import MemberService
 from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
+
+# Simple in-memory rate limiting for admin login
+# In a multi-worker setup, use Redis or DB instead
+_login_attempts: dict[str, list[float]] = {}
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_RATE_LIMIT_WINDOW = 60.0  # seconds
+
+
+def _check_rate_limit(ip: str) -> None:
+    """Check if the IP has exceeded the login rate limit."""
+    now = time.time()
+
+    # Clean up old attempts for this IP
+    if ip in _login_attempts:
+        _login_attempts[ip] = [
+            t for t in _login_attempts[ip] if now - t < LOGIN_RATE_LIMIT_WINDOW
+        ]
+    else:
+        # Prevent memory leak by bounding dictionary size safely
+        if len(_login_attempts) > 1000:
+            # Instead of clearing everything, remove oldest
+            # to maintain size and prevent rate limit bypass
+            oldest_ip = min(
+                _login_attempts.keys(),
+                key=lambda k: _login_attempts[k][-1] if _login_attempts[k] else 0,
+                default=None,
+            )
+            if oldest_ip:
+                del _login_attempts[oldest_ip]
+        _login_attempts[ip] = []
+
+    # Check limit
+    if len(_login_attempts[ip]) >= MAX_LOGIN_ATTEMPTS:
+        raise RateLimitExceededError()
+
+    # Record attempt
+    _login_attempts[ip].append(now)
 
 
 def _get_csrf_token(sess) -> str:
@@ -665,9 +703,19 @@ def _build_auth_routes(rt, settings: Settings) -> None:
     """
 
     @rt("/login")
-    def login_get():
+    def login_get(error: str = "", ratelimit: str = ""):
+        error_msg = None
+        if error == "1":
+            error_msg = P("Invalid credentials", style="color:red;margin-bottom:1rem")  # noqa: F405
+        elif ratelimit == "1":
+            error_msg = P(  # noqa: F405
+                "Too many login attempts. Please try again later.",
+                style="color:red;margin-bottom:1rem",
+            )
+
         return Titled(  # noqa: F405
             "Login",
+            error_msg,
             Form(  # noqa: F405
                 Input(name="username", placeholder="Username"),  # noqa: F405
                 Input(name="password", type="password", placeholder="Password"),  # noqa: F405
@@ -678,7 +726,10 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(req, username: str, password: str, sess):
+        ip = getattr(req.client, "host", "unknown")
+        _check_rate_limit(ip)
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
