@@ -18,6 +18,7 @@ from choresir.enums import (
     TaskVisibility,
     VerificationMode,
 )
+from choresir.errors import RateLimitExceededError
 from choresir.services.member_service import MemberService
 from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
@@ -656,6 +657,9 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+_login_attempts: dict[str, list[float]] = {}
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -678,12 +682,37 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(req, username: str, password: str, sess):
+        global _login_attempts
+
+        # Prevent memory exhaustion
+        if len(_login_attempts) > 1000:
+            _login_attempts.clear()
+
+        client_ip = getattr(req.client, "host", "unknown")
+        now = time.time()
+
+        # Clean up old attempts for this IP
+        if client_ip in _login_attempts:
+            _login_attempts[client_ip] = [
+                t for t in _login_attempts[client_ip] if now - t < 60
+            ]
+
+        attempts = _login_attempts.get(client_ip, [])
+        if len(attempts) >= 5:
+            raise RateLimitExceededError()
+
+        attempts.append(now)
+        _login_attempts[client_ip] = attempts
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
         if user_match and pass_match:
             sess["admin_user"] = username
+            # On successful login, clear attempts for this IP
+            if client_ip in _login_attempts:
+                del _login_attempts[client_ip]
             return RedirectResponse("/admin", status_code=303)  # noqa: F405
         return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
 
