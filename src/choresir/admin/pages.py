@@ -24,6 +24,10 @@ from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
 
+# In-memory IP-based rate limiting dictionary
+_login_attempts: dict[str, list[float]] = {}
+
+
 
 def _get_csrf_token(sess) -> str:
     """Get or create CSRF token for the session."""
@@ -665,9 +669,18 @@ def _build_auth_routes(rt, settings: Settings) -> None:
     """
 
     @rt("/login")
-    def login_get():
+    def login_get(req):
+        error_msg = ""
+        if req.query_params.get("error") == "1":
+            error_msg = P("Invalid credentials", style="color: red")  # noqa: F405
+        elif req.query_params.get("error") == "2":
+            error_msg = P(  # noqa: F405
+                "Too many login attempts. Please try again later.", style="color: red"
+            )
+
         return Titled(  # noqa: F405
             "Login",
+            error_msg if error_msg else "",
             Form(  # noqa: F405
                 Input(name="username", placeholder="Username"),  # noqa: F405
                 Input(name="password", type="password", placeholder="Password"),  # noqa: F405
@@ -678,7 +691,24 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(req, username: str, password: str, sess):
+        ip = req.client.host if req.client else "unknown"
+        now = time.time()
+
+        if len(_login_attempts) > 10000:
+            # pop an arbitrary item to keep size bounded without clearing everything
+            _login_attempts.pop(next(iter(_login_attempts)))
+
+        if ip not in _login_attempts:
+            _login_attempts[ip] = []
+
+        _login_attempts[ip] = [ts for ts in _login_attempts[ip] if now - ts < 60]
+
+        if len(_login_attempts[ip]) >= 5:
+            return RedirectResponse("/admin/login?error=2", status_code=303)  # noqa: F405
+
+        _login_attempts[ip].append(now)
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
