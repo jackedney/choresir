@@ -656,6 +656,9 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+_login_attempts: dict[str, list[float]] = {}
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -678,12 +681,45 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        # Fallback to remote host if X-Forwarded-For is not present (local testing)
+        ip = req.client.host if req.client else "unknown"
+        forwarded = req.headers.get("X-Forwarded-For")
+        if forwarded:
+            ip = forwarded.split(",")[0].strip()
+
+        now = time.time()
+
+        # Check rate limit
+        # Fast cleanup for the current IP to avoid O(N) loop over all IPs
+        # on every single request.
+        if ip in _login_attempts:
+            _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < 60]
+
+        attempts = _login_attempts.setdefault(ip, [])
+        if len(attempts) >= 5:
+            return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+        attempts.append(now)
+
+        # Periodic cleanup of all IPs (1% chance to run)
+        if _secrets.randbelow(100) == 0:
+            # list(keys()) creates a static copy of keys to iterate over safely, avoiding
+            # dictionary changed size during iteration. Use .get to avoid KeyError
+            for key in list(_login_attempts.keys()):
+                val = _login_attempts.get(key)
+                if val is not None:
+                    _login_attempts[key] = [t for t in val if now - t < 60]
+                    if not _login_attempts.get(key):
+                        _login_attempts.pop(key, None)
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
         if user_match and pass_match:
             sess["admin_user"] = username
+            # Successful login, reset attempts for this IP
+            _login_attempts.pop(ip, None)
             return RedirectResponse("/admin", status_code=303)  # noqa: F405
         return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
 
