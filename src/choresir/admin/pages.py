@@ -24,6 +24,8 @@ from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
 
+_login_attempts: dict[str, list[float]] = {}
+
 
 def _get_csrf_token(sess) -> str:
     """Get or create CSRF token for the session."""
@@ -678,7 +680,40 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        ip = req.headers.get(
+            "X-Forwarded-For", req.client.host if req.client else "127.0.0.1"
+        )
+        now = time.time()
+
+        # Evict old attempts periodically based on dictionary size
+        # to prevent memory exhaustion without wiping valid limits
+        if len(_login_attempts) > 1000:
+            for key in list(_login_attempts.keys()):
+                attempts = _login_attempts.get(key, [])
+                valid_attempts = [t for t in attempts if now - t < 60]
+                if not valid_attempts:
+                    _login_attempts.pop(key, None)
+                else:
+                    _login_attempts[key] = valid_attempts
+
+            # If still too large after cleanup, remove oldest
+            if len(_login_attempts) > 1000:
+                oldest_key = min(
+                    _login_attempts.keys(),
+                    key=lambda k: min(_login_attempts[k] + [float("inf")]),
+                )
+                _login_attempts.pop(oldest_key, None)
+
+        attempts = _login_attempts.get(ip, [])
+        valid_attempts = [t for t in attempts if now - t < 60]
+
+        if len(valid_attempts) >= 5:
+            return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+        valid_attempts.append(now)
+        _login_attempts[ip] = valid_attempts
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
