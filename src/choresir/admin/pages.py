@@ -656,6 +656,21 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+_login_attempts: dict[str, list[float]] = {}
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_RATE_LIMIT_WINDOW = 60
+MAX_LOGIN_ATTEMPTS_DICT_SIZE = 1000
+
+
+def _get_client_ip(req) -> str:
+    if req.client and req.client.host:
+        return req.client.host
+    forwarded_for = req.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return "unknown"
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -678,12 +693,40 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        ip = _get_client_ip(req)
+        now = time.time()
+
+        # Clean up old attempts and add new one
+        attempts = [
+            t for t in _login_attempts.get(ip, []) if now - t < LOGIN_RATE_LIMIT_WINDOW
+        ]
+
+        if len(attempts) >= MAX_LOGIN_ATTEMPTS:
+            return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+        attempts.append(now)
+        _login_attempts[ip] = attempts
+
+        # Size bounding to prevent memory exhaustion DoS
+        if len(_login_attempts) > MAX_LOGIN_ATTEMPTS_DICT_SIZE:
+            # Evict oldest entry safely
+            oldest_ip = None
+            oldest_time = now
+            for k in list(_login_attempts.keys()):
+                v = _login_attempts.get(k)
+                if v and v[-1] < oldest_time:
+                    oldest_time = v[-1]
+                    oldest_ip = k
+            if oldest_ip and oldest_ip in _login_attempts:
+                _login_attempts.pop(oldest_ip, None)
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
         if user_match and pass_match:
             sess["admin_user"] = username
+            _login_attempts.pop(ip, None)  # Reset attempts on success
             return RedirectResponse("/admin", status_code=303)  # noqa: F405
         return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
 
