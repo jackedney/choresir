@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -656,6 +657,48 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+_login_attempts: dict[str, list[float]] = {}
+_login_attempts_lock = threading.Lock()
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_RATE_LIMIT_WINDOW = 60
+MAX_TRACKED_IPS = 1000
+
+
+def _cleanup_rate_limits():
+    """Safely clean up expired rate limit entries."""
+    now = time.time()
+
+    with _login_attempts_lock:
+        # Safely iterate using a copy of keys to avoid concurrent modification issues
+        for ip in list(_login_attempts.keys()):
+            attempts = _login_attempts.get(ip)
+            if attempts is not None:
+                # Keep only attempts within the window
+                valid_attempts = [
+                    t for t in attempts if now - t < LOGIN_RATE_LIMIT_WINDOW
+                ]
+                if not valid_attempts:
+                    # Safe to pop since we check if it's empty
+                    _login_attempts.pop(ip, None)
+                else:
+                    _login_attempts[ip] = valid_attempts
+
+        # Enforce size bounds to prevent memory DoS via IP spoofing
+        if len(_login_attempts) > MAX_TRACKED_IPS:
+            # Sort IPs by oldest attempt to evict
+            ips_by_oldest = sorted(
+                [
+                    (ip, min(attempts))
+                    for ip, attempts in _login_attempts.items()
+                    if attempts
+                ],
+                key=lambda x: x[1],
+            )
+            # Remove the oldest 100 entries
+            for ip, _ in ips_by_oldest[:100]:
+                _login_attempts.pop(ip, None)
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -678,11 +721,47 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        # Implement IP-based rate limiting
+        _cleanup_rate_limits()
+
+        # Extract real IP carefully to avoid spoofing bypass via X-Forwarded-For.
+        # When behind a proxy, XFF format is typically: client_ip, proxy1_ip, proxy2_ip
+        # A malicious client can send a fake XFF like: fake_ip
+        # The proxy will append the real IP: fake_ip, real_ip
+        # So we should trust the *last* IP in the chain (the one added by our proxy),
+        # not the first (which could be spoofed). If there are multiple trusted proxies,
+        # we'd need to count backwards. For now, grabbing the rightmost IP is safer
+        # than grabbing the leftmost if we aren't enforcing a strict proxy depth.
+        forwarded = req.headers.get("x-forwarded-for")
+        if forwarded:
+            # Safest bet without explicit trusted proxy config is the *last* appended IP
+            client_ip = forwarded.split(",")[-1].strip()
+        else:
+            client_ip = req.client.host if req.client else "unknown"
+
+        now = time.time()
+
+        with _login_attempts_lock:
+            attempts = _login_attempts.setdefault(client_ip, [])
+
+            # Check limit
+            if len(attempts) >= MAX_LOGIN_ATTEMPTS:
+                logger.warning(
+                    f"Rate limit exceeded for admin login from IP: {client_ip}"
+                )
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            # Record attempt
+            attempts.append(now)
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
         if user_match and pass_match:
+            # On successful login, clear the attempts for this IP
+            with _login_attempts_lock:
+                _login_attempts.pop(client_ip, None)
             sess["admin_user"] = username
             return RedirectResponse("/admin", status_code=303)  # noqa: F405
         return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
