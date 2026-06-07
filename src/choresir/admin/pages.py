@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -23,6 +24,46 @@ from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
+
+
+_login_attempts_lock = threading.Lock()
+_login_attempts = {}
+
+
+def _check_rate_limit(ip: str) -> bool:
+    """Check if IP has exceeded 5 login attempts per minute."""
+    now = time.time()
+    with _login_attempts_lock:
+        attempts = _login_attempts.get(ip, [])
+        # Evict old attempts
+        attempts = [t for t in attempts if now - t < 60]
+
+        if len(attempts) >= 5:
+            _login_attempts[ip] = attempts
+            return False
+
+        attempts.append(now)
+        _login_attempts[ip] = attempts
+
+        # Size bounding without using clear() which could reset limits
+        if len(_login_attempts) > 1000:
+            expired = [
+                k for k, v in _login_attempts.items()
+                if not any(now - t < 60 for t in v)
+            ]
+            for k in expired:
+                del _login_attempts[k]
+
+            if len(_login_attempts) > 1000:
+                # Evict oldest entry if still too large
+                oldest_ip = min(
+                    _login_attempts.keys(), key=lambda k: _login_attempts[k][-1]
+                )
+                if oldest_ip != ip:
+                    del _login_attempts[oldest_ip]
+
+        return True
+
 
 
 def _get_csrf_token(sess) -> str:
@@ -678,7 +719,16 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(req, username: str, password: str, sess):
+        forwarded = req.headers.get("X-Forwarded-For")
+        if forwarded:
+            ip = forwarded.split(",")[-1].strip()
+        else:
+            ip = req.client.host if req.client else "unknown"
+
+        if not _check_rate_limit(ip):
+            return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 

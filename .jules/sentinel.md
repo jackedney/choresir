@@ -62,3 +62,8 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The `Settings` class defined `secret_key` and `admin_password` as optional fields defaulting to `None`. In production, if these environment variables were missing, the application would start with `None` values, leading to predictable session tokens (`str(None)` -> `"None"`) and allowing full authentication bypass.
 **Learning:** Default values in configuration schemas can mask missing critical secrets. Using `None` as a default for string fields can lead to unexpected type coercion vulnerabilities. Relying on "dev defaults" without explicit production checks is dangerous.
 **Prevention:** Implemented a Pydantic `model_validator` that enforces strict requirements in production (secrets must be set and strong), while providing explicit, safe defaults (e.g., `"insecure_dev_secret_key"`) in development mode to maintain developer experience without compromising security.
+
+## 2026-10-28 - [In-memory IP Rate Limiting Reset Vulnerability]
+**Vulnerability:** Implementing in-memory rate limiting dictionaries by using `.clear()` to handle size limits allows attackers to spoof IPs (e.g., via `X-Forwarded-For`) to artificially inflate the dictionary size, trigger a reset, and bypass limits for their actual IP.
+**Learning:** Size-bounding mechanisms for security controls must be precise. Evicting all entries to manage memory footprint creates a secondary attack vector where the security control itself can be DoS'd or bypassed.
+**Prevention:** Always use targeted eviction (e.g., removing expired entries or specifically the oldest entry) rather than bulk clearing when enforcing dictionary size constraints.
