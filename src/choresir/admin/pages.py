@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -23,6 +24,10 @@ from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
+
+# Rate limiting for login
+_login_attempts: dict[str, list[float]] = {}
+_login_attempts_lock = threading.Lock()
 
 
 def _get_csrf_token(sess) -> str:
@@ -678,7 +683,40 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        # Extract IP, preferring X-Forwarded-For (last IP in chain)
+        forwarded = req.headers.get("X-Forwarded-For")
+        if forwarded:
+            ip = forwarded.split(",")[-1].strip()
+        else:
+            ip = req.client.host if req.client else "unknown"
+
+        now = time.time()
+        with _login_attempts_lock:
+            # Clean up expired attempts for this IP
+            attempts = [t for t in _login_attempts.get(ip, []) if now - t < 60]
+
+            if len(attempts) >= 5:
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            attempts.append(now)
+            _login_attempts[ip] = attempts
+
+            # Bound dictionary size by removing expired IPs
+            if len(_login_attempts) > 10000:
+                expired_ips = [
+                    k for k, v in _login_attempts.items() if not v or now - v[-1] >= 60
+                ]
+                for k in expired_ips:
+                    _login_attempts.pop(k, None)
+                # If still too large, forcefully evict oldest accessed
+                if len(_login_attempts) > 10000:
+                    sorted_ips = sorted(
+                        _login_attempts.keys(), key=lambda k: _login_attempts[k][-1]
+                    )
+                    for k in sorted_ips[:1000]:
+                        _login_attempts.pop(k, None)
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
