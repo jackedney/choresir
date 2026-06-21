@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
 import httpx
 from fasthtml.common import *  # noqa: F403 — FastHTML convention
 from sqlalchemy.ext.asyncio import async_sessionmaker
+from starlette.requests import Request
 
 from choresir.config import Settings
 from choresir.enums import (
@@ -23,6 +25,10 @@ from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
+
+# Global state for admin login rate limiting
+_login_attempts: dict[str, list[float]] = {}
+_rate_limit_lock = threading.Lock()
 
 
 def _get_csrf_token(sess) -> str:
@@ -665,9 +671,18 @@ def _build_auth_routes(rt, settings: Settings) -> None:
     """
 
     @rt("/login")
-    def login_get():
+    def login_get(error: str = ""):
+        error_msg = None
+        if error == "ratelimit":
+            error_msg = P(
+                "Rate limit exceeded. Please try again later.", style="color:red;"
+            )  # noqa: F405
+        elif error == "1":
+            error_msg = P("Invalid credentials.", style="color:red;")  # noqa: F405
+
         return Titled(  # noqa: F405
             "Login",
+            error_msg if error_msg else "",
             Form(  # noqa: F405
                 Input(name="username", placeholder="Username"),  # noqa: F405
                 Input(name="password", type="password", placeholder="Password"),  # noqa: F405
@@ -678,7 +693,47 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req: Request):
+        # Extract IP address safely (handling proxies)
+        forwarded = req.headers.get("X-Forwarded-For")
+        if forwarded:
+            client_ip = forwarded.split(",")[-1].strip()
+        else:
+            client_ip = req.client.host if req.client else "unknown"
+
+        now = time.time()
+
+        with _rate_limit_lock:
+            # Clean up old attempts globally to prevent memory exhaustion
+            if len(_login_attempts) > 1000:
+                expired_keys = [
+                    ip
+                    for ip, attempts in _login_attempts.items()
+                    if not attempts or now - attempts[-1] > 60
+                ]
+                # If everything is active, drop the oldest ones to maintain size limit safely
+                if len(expired_keys) < 200:
+                    sorted_ips = sorted(
+                        _login_attempts.items(), key=lambda x: x[1][-1] if x[1] else 0
+                    )
+                    expired_keys.extend([ip for ip, _ in sorted_ips[:200]])
+
+                for key in set(expired_keys):
+                    if key in _login_attempts:
+                        del _login_attempts[key]
+
+            # Get current attempts for this IP
+            attempts = _login_attempts.get(client_ip, [])
+            # Filter attempts in the last 60 seconds
+            attempts = [t for t in attempts if now - t < 60]
+
+            if len(attempts) >= 5:
+                # Rate limited
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            attempts.append(now)
+            _login_attempts[client_ip] = attempts
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
