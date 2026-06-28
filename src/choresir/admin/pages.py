@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -656,6 +657,39 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+_login_attempts: dict[str, list[float]] = {}
+_login_attempts_lock = threading.Lock()
+
+
+def _check_rate_limit(ip: str) -> bool:
+    """Check if the IP has exceeded 5 login attempts per minute."""
+    with _login_attempts_lock:
+        now = time.monotonic()
+
+        # Keep only attempts from the last 60 seconds
+        attempts = [t for t in _login_attempts.get(ip, []) if now - t < 60]
+
+        if len(attempts) >= 5:
+            # Re-insert to update insertion order
+            _login_attempts.pop(ip, None)
+            _login_attempts[ip] = attempts
+            return False
+
+        attempts.append(now)
+        # Re-insert to update insertion order
+        _login_attempts.pop(ip, None)
+        _login_attempts[ip] = attempts
+
+        # Prevent memory exhaustion (DoS) by capping dictionary size
+        if len(_login_attempts) > 1000:
+            # Safely evict the oldest entry in O(1) time. Since we re-insert on update,
+            # the first item in the dict is truly the least recently updated.
+            oldest_k = next(iter(_login_attempts))
+            del _login_attempts[oldest_k]
+
+        return True
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -678,7 +712,12 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(req, username: str, password: str, sess):
+        ip = req.client.host if req.client else "unknown"
+
+        if not _check_rate_limit(ip):
+            return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
