@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -656,6 +657,10 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+_login_attempts: dict[str, list[float]] = {}
+_login_lock = threading.Lock()
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -665,9 +670,22 @@ def _build_auth_routes(rt, settings: Settings) -> None:
     """
 
     @rt("/login")
-    def login_get():
+    def login_get(error: str = ""):
+        error_msg = None
+        if error == "ratelimit":
+            error_msg = P(  # noqa: F405
+                "Too many attempts. Please try again later.",
+                style="color:red;margin-bottom:1rem",
+            )
+        elif error == "1":
+            error_msg = P(  # noqa: F405
+                "Invalid username or password.",
+                style="color:red;margin-bottom:1rem",
+            )
+
         return Titled(  # noqa: F405
             "Login",
+            error_msg,
             Form(  # noqa: F405
                 Input(name="username", placeholder="Username"),  # noqa: F405
                 Input(name="password", type="password", placeholder="Password"),  # noqa: F405
@@ -678,7 +696,27 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, req, sess):
+        ip = req.client.host if req.client else "0.0.0.0"
+        now = time.monotonic()
+
+        with _login_lock:
+            # Clean up old entries or enforce size limit
+            if ip not in _login_attempts and len(_login_attempts) >= 1000:
+                oldest_ip = next(iter(_login_attempts))
+                del _login_attempts[oldest_ip]
+
+            attempts = _login_attempts.get(ip, [])
+            # Filter attempts in the last 60 seconds
+            valid_attempts = [t for t in attempts if now - t < 60]
+
+            if len(valid_attempts) >= 5:
+                _login_attempts[ip] = valid_attempts
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            valid_attempts.append(now)
+            _login_attempts[ip] = valid_attempts
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
