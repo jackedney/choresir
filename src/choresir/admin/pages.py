@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -23,6 +24,32 @@ from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
+
+_login_attempts: dict[str, tuple[int, float]] = {}
+_login_attempts_lock = threading.Lock()
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_RATE_LIMIT_WINDOW = 60
+MAX_TRACKED_IPS = 1000
+
+def _check_rate_limit(ip: str) -> bool:
+    now = time.monotonic()
+    with _login_attempts_lock:
+        if ip in _login_attempts:
+            count, window_start = _login_attempts[ip]
+            if now - window_start > LOGIN_RATE_LIMIT_WINDOW:
+                _login_attempts[ip] = (1, now)
+                return True
+            if count >= MAX_LOGIN_ATTEMPTS:
+                return False
+            _login_attempts[ip] = (count + 1, window_start)
+            return True
+        else:
+            if len(_login_attempts) >= MAX_TRACKED_IPS:
+                oldest_ip = next(iter(_login_attempts))
+                del _login_attempts[oldest_ip]
+            _login_attempts[ip] = (1, now)
+            return True
+
 
 
 def _get_csrf_token(sess) -> str:
@@ -678,7 +705,11 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        ip = req.client.host if req.client else "unknown"
+        if not _check_rate_limit(ip):
+            return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
