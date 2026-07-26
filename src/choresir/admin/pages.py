@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -656,6 +657,10 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+_login_attempts: dict[str, list[float]] = {}
+_login_attempts_lock = threading.Lock()
+MAX_TRACKED_IPS = 1000
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -678,7 +683,25 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        # Apply rate limiting to login endpoint
+        ip = req.client.host if req.client else "unknown"
+        now = time.monotonic()
+        with _login_attempts_lock:
+            if len(_login_attempts) >= MAX_TRACKED_IPS and ip not in _login_attempts:
+                oldest_ip = next(iter(_login_attempts))
+                del _login_attempts[oldest_ip]
+
+            attempts = _login_attempts.get(ip, [])
+            attempts = [t for t in attempts if now - t < 60]
+
+            if len(attempts) >= 5:
+                _login_attempts[ip] = attempts
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            attempts.append(now)
+            _login_attempts[ip] = attempts
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
