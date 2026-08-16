@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -22,6 +23,8 @@ from choresir.services.member_service import MemberService
 from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
+_login_attempts_lock = threading.Lock()
+_login_attempts: dict[str, list[float]] = {}
 logger = logging.getLogger(__name__)
 
 
@@ -665,9 +668,22 @@ def _build_auth_routes(rt, settings: Settings) -> None:
     """
 
     @rt("/login")
-    def login_get():
+    def login_get(error: str = ""):
+        error_msg = ""
+        if error == "1":
+            error_msg = P(  # noqa: F405
+                "Invalid username or password.",
+                style="color: red; margin-bottom: 1rem;",
+            )
+        elif error == "ratelimit":
+            error_msg = P(  # noqa: F405
+                "Too many login attempts. Please try again later.",
+                style="color: red; margin-bottom: 1rem;",
+            )
+
         return Titled(  # noqa: F405
             "Login",
+            error_msg,
             Form(  # noqa: F405
                 Input(name="username", placeholder="Username"),  # noqa: F405
                 Input(name="password", type="password", placeholder="Password"),  # noqa: F405
@@ -678,7 +694,26 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        ip = req.client.host if req.client else "unknown"
+
+        with _login_attempts_lock:
+            now = time.monotonic()
+            attempts = _login_attempts.get(ip, [])
+            # Keep only attempts from the last 60 seconds
+            attempts = [t for t in attempts if now - t < 60]
+
+            if len(attempts) >= 5:
+                _login_attempts[ip] = attempts
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            attempts.append(now)
+            _login_attempts[ip] = attempts
+
+            # O(1) eviction if size > 1000
+            if len(_login_attempts) > 1000:
+                del _login_attempts[next(iter(_login_attempts))]
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
