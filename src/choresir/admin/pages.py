@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -656,6 +657,36 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+_login_attempts: dict[str, list[float]] = {}
+_login_attempts_lock = threading.Lock()
+_MAX_LOGIN_ATTEMPTS = 5
+_LOGIN_RATE_LIMIT_WINDOW = 60
+_MAX_LOGIN_DICT_SIZE = 1000
+
+def _check_login_rate_limit(ip: str) -> bool:
+    """Check if the given IP has exceeded the login rate limit."""
+    now = time.monotonic()
+    with _login_attempts_lock:
+        attempts = _login_attempts.get(ip, [])
+        # Keep only attempts within the window
+        attempts = [t for t in attempts if now - t < _LOGIN_RATE_LIMIT_WINDOW]
+
+        if len(attempts) >= _MAX_LOGIN_ATTEMPTS:
+            _login_attempts[ip] = attempts
+            return False
+
+        attempts.append(now)
+        # Pop and re-insert to maintain insertion order for LRU eviction
+        _login_attempts.pop(ip, None)
+        _login_attempts[ip] = attempts
+
+        # Bounded size eviction (O(1))
+        if len(_login_attempts) > _MAX_LOGIN_DICT_SIZE:
+            del _login_attempts[next(iter(_login_attempts))]
+
+    return True
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -678,7 +709,11 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        ip = req.client.host if req.client and req.client.host else "127.0.0.1"
+        if not _check_login_rate_limit(ip):
+            return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
