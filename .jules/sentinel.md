@@ -62,3 +62,13 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The `Settings` class defined `secret_key` and `admin_password` as optional fields defaulting to `None`. In production, if these environment variables were missing, the application would start with `None` values, leading to predictable session tokens (`str(None)` -> `"None"`) and allowing full authentication bypass.
 **Learning:** Default values in configuration schemas can mask missing critical secrets. Using `None` as a default for string fields can lead to unexpected type coercion vulnerabilities. Relying on "dev defaults" without explicit production checks is dangerous.
 **Prevention:** Implemented a Pydantic `model_validator` that enforces strict requirements in production (secrets must be set and strong), while providing explicit, safe defaults (e.g., `"insecure_dev_secret_key"`) in development mode to maintain developer experience without compromising security.
+
+## 2026-10-28 - [In-memory IP Rate Limiting Nuances]
+**Vulnerability:** FastHTML/FastAPI admin forms that handle sensitive endpoints (like login) need protection against brute force attacks. However, a naive in-memory implementation can introduce DoS vulnerabilities if dictionary sizes are unbounded or if an attacker spoofs IPs.
+**Learning:**
+1. Relying on `req.client.host` via ASGI proxy middleware is safer than manually parsing `X-Forwarded-For`.
+2. To prevent memory exhaustion, the tracking dictionary must be size-bounded.
+3. Using `dict.clear()` to enforce the size bound is dangerous because an attacker can trigger a flush intentionally and bypass limits. O(1) eviction using `del dict[next(iter(dict))]` ensures continuous protection.
+4. Using `time.time()` is vulnerable to system clock manipulation. Always use `time.monotonic()` for rate-limit timing.
+**Prevention:**
+Implemented an IP-based, thread-safe, sliding-window rate limiter utilizing `time.monotonic()`, size-bounding with O(1) safe eviction, and relying on `req.client.host` within the FastHTML `/admin/login/submit` endpoint.
