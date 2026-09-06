@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -23,6 +24,14 @@ from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
+
+
+# Rate limiting for admin login
+_login_attempts: dict[str, list[float]] = {}
+_login_lock = threading.Lock()
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_WINDOW_SECONDS = 60
+MAX_TRACKED_IPS = 1000
 
 
 def _get_csrf_token(sess) -> str:
@@ -678,11 +687,34 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        ip = req.client.host if req.client else "unknown"
+        now = time.monotonic()
+
+        with _login_lock:
+            # Clean up old attempts for this IP
+            attempts = [
+                t for t in _login_attempts.get(ip, []) if now - t < LOGIN_WINDOW_SECONDS
+            ]
+
+            if len(attempts) >= MAX_LOGIN_ATTEMPTS:
+                # Rate limit exceeded
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            attempts.append(now)
+            _login_attempts[ip] = attempts
+
+            # Bounding the dictionary size safely
+            if len(_login_attempts) > MAX_TRACKED_IPS:
+                del _login_attempts[next(iter(_login_attempts))]
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
         if user_match and pass_match:
+            with _login_lock:
+                if ip in _login_attempts:
+                    del _login_attempts[ip]
             sess["admin_user"] = username
             return RedirectResponse("/admin", status_code=303)  # noqa: F405
         return RedirectResponse("/admin/login?error=1", status_code=303)  # noqa: F405
