@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -23,6 +24,10 @@ from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
+
+# Global state for rate limiting admin logins
+_login_attempts: dict[str, list[float]] = {}
+_login_attempts_lock = threading.Lock()
 
 
 def _get_csrf_token(sess) -> str:
@@ -678,7 +683,26 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(req, username: str, password: str, sess):
+        ip = getattr(req.client, "host", "unknown") if req.client else "unknown"
+        now = time.monotonic()
+
+        with _login_attempts_lock:
+            attempts = _login_attempts.get(ip, [])
+            # Filter attempts in the last 60 seconds
+            attempts = [t for t in attempts if now - t < 60.0]
+
+            if len(attempts) >= 5:
+                _login_attempts[ip] = attempts
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            attempts.append(now)
+            _login_attempts[ip] = attempts
+
+            # Prevent memory exhaustion by evicting oldest entry if dict gets too large
+            if len(_login_attempts) > 1000:
+                del _login_attempts[next(iter(_login_attempts))]
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
