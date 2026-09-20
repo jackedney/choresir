@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -23,6 +24,9 @@ from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
+
+_login_attempts: dict[str, list[float]] = {}
+_login_lock = threading.Lock()
 
 
 def _get_csrf_token(sess) -> str:
@@ -678,7 +682,23 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, req, sess):
+        ip = req.client.host if req.client and req.client.host else "unknown"
+        now = time.monotonic()
+
+        with _login_lock:
+            attempts = _login_attempts.get(ip, [])
+            valid_attempts = [t for t in attempts if now - t < 60]
+
+            if len(valid_attempts) >= 5:
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            valid_attempts.append(now)
+            _login_attempts[ip] = valid_attempts
+
+            if len(_login_attempts) > 1000:
+                del _login_attempts[next(iter(_login_attempts))]
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
