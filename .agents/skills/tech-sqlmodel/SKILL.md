@@ -16,10 +16,12 @@ user-invocable: false
 from sqlmodel import SQLModel, Field
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
+
 class Task(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     title: str
     status: str = "pending"
+
 
 engine = create_async_engine("sqlite+aiosqlite:///choresir.db")
 session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -32,6 +34,7 @@ session_factory = async_sessionmaker(engine, expire_on_commit=False)
 ```python
 from sqlmodel import SQLModel, Field
 from typing import Optional
+
 
 class Member(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -47,18 +50,22 @@ class Member(SQLModel, table=True):
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
 async def get_task(session: AsyncSession, task_id: int) -> Task | None:
     return await session.get(Task, task_id)
+
 
 async def list_tasks(session: AsyncSession) -> list[Task]:
     result = await session.exec(select(Task))
     return result.all()
+
 
 async def create_task(session: AsyncSession, task: Task) -> Task:
     session.add(task)
     await session.commit()
     await session.refresh(task)
     return task
+
 
 async def update_task(session: AsyncSession, task: Task, **updates) -> Task:
     task.sqlmodel_update(updates)
@@ -83,6 +90,7 @@ class Task(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     assignee_id: int = Field(foreign_key="member.id")
     assignee: "Member | None" = Relationship(back_populates="tasks")
+
 
 class Member(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)

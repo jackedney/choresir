@@ -15,6 +15,7 @@ user-invocable: false
 ```python
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=30),
@@ -29,7 +30,13 @@ async def call_llm(message: str) -> str:
 ### Retry only on specific exceptions
 
 ```python
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
+
 
 @retry(
     retry=retry_if_exception_type((TimeoutError, httpx.RequestError)),
@@ -48,10 +55,10 @@ async def call_ai_agent(message: str) -> str:
 from tenacity import wait_exponential, wait_random_exponential
 
 # Pure exponential: 2s, 4s, 8s, 16s, ... capped at 60s
-wait=wait_exponential(multiplier=1, min=2, max=60)
+wait = wait_exponential(multiplier=1, min=2, max=60)
 
 # Randomized (preferred for distributed systems):
-wait=wait_random_exponential(multiplier=1, max=60)
+wait = wait_random_exponential(multiplier=1, max=60)
 ```
 
 ### Logging retries
@@ -61,6 +68,7 @@ import logging
 from tenacity import before_sleep_log, after_log
 
 logger = logging.getLogger(__name__)
+
 
 @retry(
     stop=stop_after_attempt(5),
@@ -76,6 +84,7 @@ async def call_ai_agent(message: str) -> str: ...
 
 ```python
 from tenacity import Retrying, stop_after_attempt, wait_fixed
+
 
 async def process_message(message: str) -> str:
     async for attempt in AsyncRetrying(
@@ -120,8 +129,9 @@ Apply tenacity at the narrowest scope — wrap only the external call, not the e
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30), reraise=True)
 async def _call_llm(prompt: str) -> str: ...
 
+
 async def process_message(msg: str) -> str:
     response = await _call_llm(msg)  # retry here
-    await save_result(response)       # not retried
+    await save_result(response)  # not retried
     return response
 ```

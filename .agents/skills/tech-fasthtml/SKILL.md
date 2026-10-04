@@ -17,6 +17,7 @@ from fasthtml.common import fast_app, Titled, P, A, Div, Form, Input, Button
 
 app, rt = fast_app(secret_key="change-me")  # enables signed session cookies
 
+
 @rt("/")
 def get():
     return Titled("Admin", P("Welcome to choresir admin"))
@@ -29,10 +30,12 @@ def get():
 ```python
 from fasthtml.common import fast_app, RedirectResponse, Beforeware
 
+
 def auth_before(req, sess):
     auth = req.scope["auth"] = sess.get("admin_user", None)
     if not auth:
         return RedirectResponse("/admin/login", status_code=303)
+
 
 beforeware = Beforeware(
     auth_before,
@@ -47,12 +50,17 @@ app, rt = fast_app(before=beforeware, secret_key="change-me")
 ```python
 @rt("/login")
 def get():
-    return Titled("Login", Form(
-        Input(name="username", placeholder="Username"),
-        Input(name="password", type="password", placeholder="Password"),
-        Button("Login"),
-        action="/admin/login/submit", method="POST"
-    ))
+    return Titled(
+        "Login",
+        Form(
+            Input(name="username", placeholder="Username"),
+            Input(name="password", type="password", placeholder="Password"),
+            Button("Login"),
+            action="/admin/login/submit",
+            method="POST",
+        ),
+    )
+
 
 @rt("/login/submit")
 def post(username: str, password: str, sess):
@@ -60,6 +68,7 @@ def post(username: str, password: str, sess):
         sess["admin_user"] = username
         return RedirectResponse("/admin", status_code=303)
     return RedirectResponse("/admin/login?error=1", status_code=303)
+
 
 @rt("/logout")
 def get(sess):
@@ -72,14 +81,12 @@ def get(sess):
 ```python
 from fasthtml.common import Titled, Table, Tr, Th, Td, A, Div, P
 
+
 @rt("/members")
 async def get(auth):
     members = await member_service.list_all(session)
     rows = [Tr(Td(m.name), Td(m.role), Td(m.status)) for m in members]
-    return Titled(
-        "Members",
-        Table(Tr(Th("Name"), Th("Role"), Th("Status")), *rows)
-    )
+    return Titled("Members", Table(Tr(Th("Name"), Th("Role"), Th("Status")), *rows))
 ```
 
 ### Mounting inside FastAPI
