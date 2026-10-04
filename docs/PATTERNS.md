@@ -77,12 +77,17 @@ Define protocols for key boundaries so components depend on abstractions. This m
 ```python
 from typing import Protocol
 
+
 class MessageSender(Protocol):
     async def send(self, chat_id: str, text: str) -> None: ...
 
+
 class WAHAClient:
     """Production implementation."""
-    def __init__(self, base_url: str, api_key: str, session: str, http: httpx.AsyncClient) -> None: ...
+
+    def __init__(
+        self, base_url: str, api_key: str, session: str, http: httpx.AsyncClient
+    ) -> None: ...
 
     async def send(self, chat_id: str, text: str) -> None: ...
 ```
@@ -136,10 +141,12 @@ class TaskStatus(StrEnum):
     CLAIMED = "claimed"
     VERIFIED = "verified"
 
+
 _VALID_TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
     TaskStatus.PENDING: frozenset({TaskStatus.CLAIMED}),
     TaskStatus.CLAIMED: frozenset({TaskStatus.PENDING, TaskStatus.VERIFIED}),
 }
+
 
 def transition_task(task: Task, to: TaskStatus) -> None: ...
 ```
@@ -151,10 +158,12 @@ class MemberStatus(StrEnum):
     PENDING = "pending"
     ACTIVE = "active"
 
+
 _MEMBER_TRANSITIONS: dict[MemberStatus, frozenset[MemberStatus]] = {
     MemberStatus.PENDING: frozenset({MemberStatus.ACTIVE}),
     MemberStatus.ACTIVE: frozenset(),  # terminal state
 }
+
 
 def transition_member(member: Member, to: MemberStatus) -> None: ...
 ```
@@ -174,8 +183,11 @@ class AgentDeps:
     member_service: MemberService
     sender_id: str
 
+
 @registry.register
-async def create_task(ctx: RunContext[AgentDeps], title: str, assignee_id: int) -> str: ...
+async def create_task(
+    ctx: RunContext[AgentDeps], title: str, assignee_id: int
+) -> str: ...
 ```
 
 Tools call `ctx.deps.task_service` and `ctx.deps.member_service`. This isolates tool functions from service wiring changes.
@@ -187,12 +199,16 @@ Base template loaded from disk, household context assembled from DB per request.
 ```python
 _PROMPT = (Path(__file__).parent / "prompts" / "base.txt").read_text()
 
+
 # Pattern 1: Decorator
 @agent.system_prompt
 async def _household_ctx(ctx: RunContext[AgentDeps]) -> str: ...
 
+
 # Pattern 2: Method call (equivalent)
 async def _household_ctx(ctx: RunContext[AgentDeps]) -> str: ...
+
+
 agent.system_prompt(_household_ctx)
 ```
 
@@ -245,24 +261,32 @@ A typed exception tree rooted in a single base. Each exception carries structure
 ```python
 # errors.py
 
+
 class ChoresirError(Exception):
     """Base for all domain errors."""
+
 
 class InvalidTransitionError(ChoresirError):
     def __init__(self, current: str, target: str) -> None: ...
 
+
 class NotFoundError(ChoresirError):
     def __init__(self, entity: str, identifier: str | int) -> None: ...
+
 
 class AuthorizationError(ChoresirError):
     """Member lacks permission for the operation (e.g., self-verification)."""
 
+
 class TakeoverLimitExceededError(ChoresirError):
     """Weekly takeover limit exceeded."""
+
     def __init__(self, limit: int) -> None: ...
+
 
 class RateLimitExceededError(ChoresirError):
     """Per-user or global rate limit hit."""
+
 
 class WebhookAuthError(ChoresirError):
     """Invalid webhook signature."""
@@ -285,8 +309,11 @@ Tools define a tuple of caught domain errors and return their string representat
 ```python
 _DOMAIN_ERRORS = (NotFoundError, AuthorizationError)
 
+
 @registry.register
-async def create_task(ctx: RunContext[AgentDeps], title: str, assignee_id: int) -> str: ...
+async def create_task(
+    ctx: RunContext[AgentDeps], title: str, assignee_id: int
+) -> str: ...
 ```
 
 Tools that perform takeovers also catch `TakeoverLimitExceededError`. The pattern is consistent: catch specific domain errors, return their string representation so the LLM can communicate naturally.
@@ -327,14 +354,18 @@ import pytest
 from sqlmodel import SQLModel
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
+
 @pytest.fixture
 async def engine(): ...
+
 
 @pytest.fixture
 async def session(engine): ...
 
+
 @pytest.fixture
 def fake_sender(): ...
+
 
 @pytest.fixture
 def agent_deps(session, fake_sender): ...
@@ -356,8 +387,10 @@ Hypothesis for domain invariants. Add MemberStatus to coverage:
 ```python
 from hypothesis import given, strategies as st
 
+
 @given(st.sampled_from(TaskStatus), st.sampled_from(TaskStatus))
 def test_invalid_task_transitions_raise(current, target): ...
+
 
 @given(st.sampled_from(MemberStatus), st.sampled_from(MemberStatus))
 def test_invalid_member_transitions_raise(current, target): ...
@@ -424,6 +457,7 @@ def make_task(
     **overrides,
 ) -> Task: ...
 
+
 def make_member(
     session: AsyncSession,
     id: int | None = None,
@@ -437,6 +471,7 @@ def make_member(
 
 ```python
 from httpx import ASGITransport, AsyncClient
+
 
 @pytest.fixture
 async def client(app): ...

@@ -16,10 +16,12 @@ user-invocable: false
 from pydantic_ai import Agent, RunContext
 from dataclasses import dataclass
 
+
 @dataclass
 class AgentDeps:
     session: AsyncSession
     sender: MessageSender
+
 
 agent = Agent(
     "openai/gpt-4o",  # or via LiteLLM: "litellm/openrouter/anthropic/claude-opus-4"
@@ -38,6 +40,7 @@ agent = Agent(
     deps_type=AgentDeps,
     system_prompt="You are a helpful household assistant.",  # static, version-controlled
 )
+
 
 @agent.system_prompt
 async def add_household_context(ctx: RunContext[AgentDeps]) -> str:
@@ -79,10 +82,12 @@ response_text = result.output  # str (or typed Pydantic model if output_type set
 ```python
 from pydantic import BaseModel
 
+
 class TaskSummary(BaseModel):
     task_count: int
     overdue_count: int
     top_member: str
+
 
 summary_agent = Agent(
     "openai/gpt-4o",
@@ -101,6 +106,7 @@ agent = Agent("litellm/openrouter/anthropic/claude-opus-4-5")
 
 # Or set via environment / settings
 import os
+
 os.environ["OPENROUTER_API_KEY"] = "..."
 ```
 

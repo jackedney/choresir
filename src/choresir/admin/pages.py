@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -23,6 +24,9 @@ from choresir.services.messaging import NullSender
 from choresir.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
+
+_login_attempts: dict[str, list[float]] = {}
+_login_lock = threading.Lock()
 
 
 def _get_csrf_token(sess) -> str:
@@ -665,9 +669,19 @@ def _build_auth_routes(rt, settings: Settings) -> None:
     """
 
     @rt("/login")
-    def login_get():
+    def login_get(error: str = ""):
+        error_msg = None
+        if error == "ratelimit":
+            error_msg = P(  # noqa: F405
+                "Too many login attempts. Please try again later.",
+                style="color:red;margin-bottom:1rem",
+            )
+        elif error == "1":
+            error_msg = P("Invalid credentials", style="color:red;margin-bottom:1rem")  # noqa: F405
+
         return Titled(  # noqa: F405
             "Login",
+            error_msg,
             Form(  # noqa: F405
                 Input(name="username", placeholder="Username"),  # noqa: F405
                 Input(name="password", type="password", placeholder="Password"),  # noqa: F405
@@ -678,7 +692,22 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, sess, req):
+        client_ip = req.client.host if req.client else "unknown"
+        now = time.monotonic()
+
+        with _login_lock:
+            attempts = _login_attempts.get(client_ip, [])
+            attempts = [t for t in attempts if now - t < 60]
+            if len(attempts) >= 5:
+                return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
+            attempts.append(now)
+            _login_attempts[client_ip] = attempts
+
+            if len(_login_attempts) > 1000:
+                del _login_attempts[next(iter(_login_attempts))]
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 

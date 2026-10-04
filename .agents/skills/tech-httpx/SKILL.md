@@ -85,6 +85,7 @@ resp = await client.get("/api/session/status", timeout=None)
 import pytest
 from pytest_httpx import HTTPXMock
 
+
 @pytest.mark.anyio
 async def test_send_message(httpx_mock: HTTPXMock):
     httpx_mock.add_response(url="http://waha:3000/api/sendText", status_code=200)
@@ -108,6 +109,7 @@ Inject `httpx.AsyncClient` into service constructors rather than creating it ins
 # Good — injectable
 class WAHAClient:
     def __init__(self, http: httpx.AsyncClient): ...
+
 
 # Avoid — hidden dependency
 async def send_message(chat_id: str, text: str):

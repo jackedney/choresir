@@ -16,11 +16,13 @@ user-invocable: false
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup: start workers, scheduler
     yield
     # shutdown: cleanup
+
 
 app = FastAPI(lifespan=lifespan)
 ```
@@ -34,6 +36,7 @@ from fastapi import APIRouter, Request, Header, HTTPException
 from typing import Annotated
 
 router = APIRouter()
+
 
 @router.post("/webhook")
 async def receive_webhook(
@@ -52,15 +55,17 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+
 async def get_session() -> AsyncSession:
     async with session_factory() as session:
         yield session
 
+
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
+
 @router.get("/items")
-async def list_items(session: SessionDep):
-    ...
+async def list_items(session: SessionDep): ...
 ```
 
 ### Mount a sub-application (FastHTML admin)
@@ -80,9 +85,11 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from choresir.errors import WebhookAuthError, RateLimitExceededError
 
+
 @app.exception_handler(WebhookAuthError)
 async def webhook_auth_handler(request: Request, exc: WebhookAuthError):
     return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
 
 @app.exception_handler(RateLimitExceededError)
 async def rate_limit_handler(request: Request, exc: RateLimitExceededError):
@@ -93,6 +100,7 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceededError):
 
 ```python
 import asyncio
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -117,6 +125,7 @@ Prefer `Annotated` dependencies over default parameter values:
 ```python
 # Good
 async def endpoint(session: Annotated[AsyncSession, Depends(get_session)]): ...
+
 
 # Avoid
 async def endpoint(session: AsyncSession = Depends(get_session)): ...

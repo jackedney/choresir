@@ -33,6 +33,7 @@ from fastapi import FastAPI
 
 scheduler: AsyncScheduler | None = None
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global scheduler
@@ -42,11 +43,23 @@ async def lifespan(app: FastAPI):
         await sched.start_in_background()
         yield
 
+
 async def _register_jobs(sched: AsyncScheduler) -> None:
-    await sched.add_schedule(send_daily_summary, CronTrigger(hour=20), id="daily_summary")
-    await sched.add_schedule(send_weekly_leaderboard, CronTrigger(day_of_week="sun", hour=18), id="weekly_leaderboard")
-    await sched.add_schedule(send_overdue_reminders, CronTrigger(hour="8,12,18"), id="overdue_reminders")
-    await sched.add_schedule(reset_recurring_tasks, CronTrigger(minute=0), id="recurring_reset")
+    await sched.add_schedule(
+        send_daily_summary, CronTrigger(hour=20), id="daily_summary"
+    )
+    await sched.add_schedule(
+        send_weekly_leaderboard,
+        CronTrigger(day_of_week="sun", hour=18),
+        id="weekly_leaderboard",
+    )
+    await sched.add_schedule(
+        send_overdue_reminders, CronTrigger(hour="8,12,18"), id="overdue_reminders"
+    )
+    await sched.add_schedule(
+        reset_recurring_tasks, CronTrigger(minute=0), id="recurring_reset"
+    )
+
 
 app = FastAPI(lifespan=lifespan)
 ```
@@ -112,6 +125,7 @@ async def send_overdue_reminders() -> None:
         overdue = await task_service.get_overdue(session)
         for task in overdue:
             await messaging.send(task.assignee.chat_id, f"Reminder: {task.title}")
+
 
 # Avoid putting business logic in job functions
 ```
