@@ -62,3 +62,12 @@ This journal documents security vulnerabilities discovered, lessons learned, and
 **Vulnerability:** The `Settings` class defined `secret_key` and `admin_password` as optional fields defaulting to `None`. In production, if these environment variables were missing, the application would start with `None` values, leading to predictable session tokens (`str(None)` -> `"None"`) and allowing full authentication bypass.
 **Learning:** Default values in configuration schemas can mask missing critical secrets. Using `None` as a default for string fields can lead to unexpected type coercion vulnerabilities. Relying on "dev defaults" without explicit production checks is dangerous.
 **Prevention:** Implemented a Pydantic `model_validator` that enforces strict requirements in production (secrets must be set and strong), while providing explicit, safe defaults (e.g., `"insecure_dev_secret_key"`) in development mode to maintain developer experience without compromising security.
+
+## 2026-10-26 - [Missing Rate Limiting on Admin Login (Fixed)]
+**Vulnerability:** The admin login endpoint (`/admin/login`) did not previously enforce rate limiting, enabling attackers to perform brute-force guessing against admin credentials.
+**Learning:** Asynchronous applications or thread-based ASGI handlers necessitate cautious implementation of in-memory rate limiting. Simple dictionaries are vulnerable to unbound memory growth from spoofed IPs.
+**Prevention:**
+1. Use `threading.Lock()` when modifying the limit tracking dictionary.
+2. Ensure size eviction (e.g., maximum of 1000 items) by deleting the oldest item `del dict[next(iter(dict))]`.
+3. Rely on `time.monotonic()` for precision.
+4. Extract IPs safely via ASGI standard `req.client.host` while accounting for its potential omission (`req.client is None`).
