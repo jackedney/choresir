@@ -76,14 +76,17 @@ All public functions and methods must have full type annotations. Use modern syn
 # Use X | Y instead of Optional[X] / Union[X, Y]
 def get_task(task_id: int) -> Task | None: ...
 
+
 # Use built-in generics (list, dict, tuple) not typing.List etc.
 async def list_tasks(session: AsyncSession) -> list[Task]: ...
+
 
 # Use Annotated for dependency injection metadata
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 # Dataclasses for simple deps containers
 from dataclasses import dataclass
+
 
 @dataclass
 class AgentDeps:
@@ -106,10 +109,13 @@ async def create_task(
     """Create and persist a new task, returning the saved instance."""
     ...
 
+
 # Classes: brief description of responsibility
 class TaskService:
     """Domain logic for task lifecycle: creation, completion, verification, recurrence."""
+
     ...
+
 
 # Private helpers: docstring optional if name is self-explanatory
 def _build_status_filter(status: TaskStatus) -> ColumnElement: ...

@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 engine = create_async_engine("sqlite+aiosqlite:///choresir.db")
 
+
 @event.listens_for(engine.sync_engine, "connect")
 def set_sqlite_pragma(dbapi_conn, connection_record):
     cursor = dbapi_conn.cursor()
@@ -41,6 +42,7 @@ WAL mode allows concurrent readers while a writer is active — critical for the
 # Claim a pending job atomically — avoid SELECT then UPDATE (race condition)
 from sqlalchemy import update, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
 
 async def claim_next_job(session: AsyncSession) -> MessageJob | None:
     # Use a CTE or subquery to claim atomically
