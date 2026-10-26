@@ -42,10 +42,12 @@ from choresir.models.job import MessageJob  # noqa: F401
 
 target_metadata = SQLModel.metadata
 
+
 def do_run_migrations(connection):
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
+
 
 async def run_async_migrations():
     config = context.config
@@ -58,8 +60,10 @@ async def run_async_migrations():
         await conn.run_sync(do_run_migrations)
     await connectable.dispose()
 
+
 def run_migrations_online():
     asyncio.run(run_async_migrations())
+
 
 if context.is_offline_mode():
     run_migrations_offline()
@@ -80,6 +84,7 @@ sqlalchemy.url = sqlite+aiosqlite:///choresir.db
 ```python
 from alembic import command, config as alembic_config
 from sqlalchemy.ext.asyncio import create_async_engine
+
 
 async def run_migrations(database_url: str) -> None:
     cfg = alembic_config.Config("alembic.ini")
@@ -102,8 +107,10 @@ async def run_migrations(database_url: str) -> None:
 from alembic import op
 import sqlalchemy as sa
 
+
 def upgrade():
     op.add_column("task", sa.Column("recurrence", sa.String(), nullable=True))
+
 
 def downgrade():
     op.drop_column("task", "recurrence")

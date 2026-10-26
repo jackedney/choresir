@@ -61,6 +61,7 @@ async def webhook(payload: WebhookPayload, background_tasks: BackgroundTasks):
 # Enqueue with stable job ID for deduplication
 await queue.enqueue_job("process_message", msg_id, _job_id=f"wamsg:{msg_id}")
 
+
 # Worker with built-in retry
 async def process_message(ctx, msg_id):
     ...
@@ -95,8 +96,9 @@ A bounded `asyncio.Queue` paired with one or more long-running worker coroutines
 ```python
 # Initialised at ASGI startup
 message_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
-seen_ids: set[str] = set()           # in-memory; backed by SQLite on restart
+seen_ids: set[str] = set()  # in-memory; backed by SQLite on restart
 user_limiters: dict[str, AsyncLimiter] = {}
+
 
 async def message_worker():
     while True:
@@ -112,6 +114,7 @@ async def message_worker():
                 await call_ai_with_backoff(item)
         finally:
             message_queue.task_done()
+
 
 # Webhook handler
 @app.post("/webhook")
@@ -152,10 +155,11 @@ Rather than a structured queue, tasks are spawned on demand with `asyncio.create
 ```python
 _tasks: set[asyncio.Task] = set()
 
+
 @app.post("/webhook")
 async def webhook(payload: dict):
     t = asyncio.create_task(process_message(payload))
-    _tasks.add(t)         # prevent garbage collection
+    _tasks.add(t)  # prevent garbage collection
     t.add_done_callback(_tasks.discard)
     return {"status": "ok"}
 ```
@@ -205,21 +209,25 @@ async def webhook(payload: dict, db: AsyncConnection):
     if msg_id:
         await db.execute(
             "INSERT OR IGNORE INTO message_jobs (id, user_id, payload) VALUES (?,?,?)",
-            (msg_id, extract_user_id(payload), json.dumps(payload))
+            (msg_id, extract_user_id(payload), json.dumps(payload)),
         )
         await db.commit()
     return {"status": "ok"}
 
+
 # Worker coroutine (started in ASGI lifespan)
 BACKOFF_SECS = [5, 30, 120, 600]
 MAX_ATTEMPTS = 4
+
 
 async def message_worker(db_path: str):
     user_limiters: dict[str, AsyncLimiter] = {}
     async with aiosqlite.connect(db_path) as db:
         await db.execute("PRAGMA journal_mode=WAL")
         while True:
-            row = await claim_next_job(db)   # SELECT ... FOR UPDATE equivalent via status='processing'
+            row = await claim_next_job(
+                db
+            )  # SELECT ... FOR UPDATE equivalent via status='processing'
             if row is None:
                 await asyncio.sleep(0.2)
                 continue
@@ -235,18 +243,19 @@ async def message_worker(db_path: str):
                     delay = BACKOFF_SECS[min(attempts, len(BACKOFF_SECS) - 1)]
                     await db.execute(
                         "UPDATE message_jobs SET status='pending', attempts=?, run_after=? WHERE id=?",
-                        (attempts + 1, time.time() + delay, job_id)
+                        (attempts + 1, time.time() + delay, job_id),
                     )
                 except Exception:
                     if attempts + 1 >= MAX_ATTEMPTS:
                         await db.execute(
-                            "UPDATE message_jobs SET status='failed' WHERE id=?", (job_id,)
+                            "UPDATE message_jobs SET status='failed' WHERE id=?",
+                            (job_id,),
                         )
                     else:
                         delay = BACKOFF_SECS[min(attempts, len(BACKOFF_SECS) - 1)]
                         await db.execute(
                             "UPDATE message_jobs SET status='pending', attempts=?, run_after=? WHERE id=?",
-                            (attempts + 1, time.time() + delay, job_id)
+                            (attempts + 1, time.time() + delay, job_id),
                         )
                 await db.commit()
 ```

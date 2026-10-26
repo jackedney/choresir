@@ -36,14 +36,14 @@ services:
     "session": "default",
     "payload": {
         "id": "true_120363XXXX@g.us_ABCD1234",
-        "from": "120363XXXX@g.us",          # group JID (@g.us)
-        "to": "1234567890@c.us",             # bot's own JID
-        "participant": "9876543210@c.us",    # actual sender JID
+        "from": "120363XXXX@g.us",  # group JID (@g.us)
+        "to": "1234567890@c.us",  # bot's own JID
+        "participant": "9876543210@c.us",  # actual sender JID
         "body": "Hello, can you add a task?",
         "timestamp": 1700000000,
         "fromMe": false,
-        "_data": {...}
-    }
+        "_data": {...},
+    },
 }
 
 # DM — "from" is the sender, no "participant" field
@@ -52,13 +52,13 @@ services:
     "session": "default",
     "payload": {
         "id": "true_1234567890@c.us_ABCD1234",
-        "from": "1234567890@c.us",           # sender JID (@c.us)
-        "to": "9876543210@c.us",             # bot's own JID
+        "from": "1234567890@c.us",  # sender JID (@c.us)
+        "to": "9876543210@c.us",  # bot's own JID
         "body": "Hi there!",
         "timestamp": 1700000000,
         "fromMe": false,
-        "_data": {...}
-    }
+        "_data": {...},
+    },
 }
 ```
 
@@ -68,6 +68,7 @@ services:
 import hmac
 import hashlib
 
+
 def validate_webhook(body: bytes, signature: str, secret: str) -> bool:
     expected = hmac.new(
         secret.encode(),
@@ -75,6 +76,7 @@ def validate_webhook(body: bytes, signature: str, secret: str) -> bool:
         hashlib.sha256,
     ).hexdigest()
     return hmac.compare_digest(expected, signature)
+
 
 # In FastAPI handler:
 @router.post("/webhook")
@@ -94,7 +96,7 @@ async def send_text(chat_id: str, text: str) -> None:
     await http.post(
         "/api/sendText",
         json={
-            "chatId": chat_id,   # group JID: "120363XXXX@g.us"
+            "chatId": chat_id,  # group JID: "120363XXXX@g.us"
             "text": text,
             "session": "default",
         },

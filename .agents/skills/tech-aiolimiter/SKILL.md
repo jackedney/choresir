@@ -18,6 +18,7 @@ from aiolimiter import AsyncLimiter
 # Global: max 10 requests per second
 global_limiter = AsyncLimiter(10, 1)
 
+
 async def process():
     async with global_limiter:
         await do_work()
@@ -37,6 +38,7 @@ global_limiter = AsyncLimiter(20, 60)
 # Per-user limit: 5 messages per 60 seconds per user
 _user_limiters: dict[str, AsyncLimiter] = {}
 
+
 def get_user_limiter(user_id: str) -> AsyncLimiter:
     if user_id not in _user_limiters:
         _user_limiters[user_id] = AsyncLimiter(5, 60)
@@ -48,6 +50,7 @@ def get_user_limiter(user_id: str) -> AsyncLimiter:
 ```python
 from aiolimiter import AsyncLimiter
 from choresir.errors import RateLimitExceededError
+
 
 async def process_job(job: MessageJob, user_id: str) -> None:
     # Check global limit first, then per-user
@@ -103,6 +106,7 @@ from aiolimiter import AsyncLimiter
 
 _global_limiter: AsyncLimiter | None = None
 _user_limiters: dict[str, AsyncLimiter] = {}
+
 
 def init_limiters(settings: Settings) -> None:
     global _global_limiter
