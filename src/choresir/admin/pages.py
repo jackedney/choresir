@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets as _secrets
+import threading
 import time
 from datetime import UTC, datetime
 
@@ -656,6 +657,36 @@ def _build_tasks_routes(
         return RedirectResponse("/admin/tasks", status_code=303)  # noqa: F405
 
 
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_ATTEMPTS_WINDOW = 60.0  # seconds
+MAX_TRACKED_IPS = 1000
+
+_login_attempts: dict[str, list[float]] = {}
+_login_attempts_lock = threading.Lock()
+
+
+def _check_rate_limit(ip: str) -> bool:
+    """Check if the given IP has exceeded the login rate limit."""
+    now = time.monotonic()
+    with _login_attempts_lock:
+        attempts = _login_attempts.get(ip, [])
+        # Remove attempts outside the window
+        attempts = [t for t in attempts if now - t < LOGIN_ATTEMPTS_WINDOW]
+
+        if len(attempts) >= MAX_LOGIN_ATTEMPTS:
+            _login_attempts[ip] = attempts
+            return False
+
+        attempts.append(now)
+        _login_attempts[ip] = attempts
+
+        # O(1) eviction for size bounding to protect against memory exhaustion DoS
+        if len(_login_attempts) > MAX_TRACKED_IPS:
+            del _login_attempts[next(iter(_login_attempts))]
+
+        return True
+
+
 def _build_auth_routes(rt, settings: Settings) -> None:
     """Register authentication page routes.
 
@@ -665,9 +696,22 @@ def _build_auth_routes(rt, settings: Settings) -> None:
     """
 
     @rt("/login")
-    def login_get():
+    def login_get(error: str = ""):
+        error_msg = None
+        if error == "1":
+            error_msg = P(  # noqa: F405
+                "Invalid username or password.",
+                style="color:red;margin-bottom:1rem",
+            )
+        elif error == "ratelimit":
+            error_msg = P(  # noqa: F405
+                "Too many login attempts. Please try again later.",
+                style="color:red;margin-bottom:1rem",
+            )
+
         return Titled(  # noqa: F405
             "Login",
+            error_msg,
             Form(  # noqa: F405
                 Input(name="username", placeholder="Username"),  # noqa: F405
                 Input(name="password", type="password", placeholder="Password"),  # noqa: F405
@@ -678,7 +722,15 @@ def _build_auth_routes(rt, settings: Settings) -> None:
         )
 
     @rt("/login/submit")
-    def login_post(username: str, password: str, sess):
+    def login_post(username: str, password: str, req, sess):
+        client_ip = req.client.host if req.client else "unknown"
+        if not _check_rate_limit(client_ip):
+            logger.warning(
+                "Rate limit exceeded for login attempts from IP: %s",
+                client_ip,
+            )
+            return RedirectResponse("/admin/login?error=ratelimit", status_code=303)  # noqa: F405
+
         user_match = _secrets.compare_digest(username, settings.admin_user)
         pass_match = _secrets.compare_digest(password, settings.admin_password)
 
